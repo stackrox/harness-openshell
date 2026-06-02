@@ -39,16 +39,9 @@ ServiceAccount with namespace-admin for test namespaces, mounted into sandboxes 
 
 **Priority: High — security improvement**
 
-Currently, `ocp-sandbox.sh` extracts credentials from K8s secrets via `kubectl get secret | base64 -d` onto the local machine, then injects them into the sandbox via the startup script. Credentials transit through the user's Mac in process memory and end up as plaintext files inside the sandbox (`.openshell-env`, `.claude.json`).
+Most credentials now use the provider system (GitHub, Vertex AI, Atlassian).
+Only GWS remains as a file upload via `sandbox.sh`:
 
-**Better approach:** Mount K8s secrets directly as volumes into sandbox pods, the same way `openshell-client-tls` is already mounted at `/etc/openshell-tls/client/`. Credentials go straight from etcd to the pod — never leave the cluster.
-
-**Secrets to mount:**
-- `github-token` → env var or file at `/etc/openshell-creds/github`
-- `atlassian-creds` → env vars or files at `/etc/openshell-creds/atlassian/`
-- `gws-credentials` → files at `/etc/openshell-creds/gws/`
-- `gcp-adc` → file at `/etc/openshell-creds/adc.json`
-
-**Requires:** Adding extra volume mount support to the OpenShell K8s driver (`crates/openshell-driver-kubernetes/src/driver.rs`). The implementation was designed and tested (policy ConfigMap work) but reverted. Same pattern applies — add a config field for additional secret volumes, thread through `sandbox_template_to_k8s`, mount into the pod spec.
-
-**Workaround until then:** The current kubectl-extract-and-inject approach via `ocp-sandbox.sh`.
+- **GWS** — encrypted files consumed locally by the `gws` CLI. Waiting on
+  file-based credential projection ([#1268](https://github.com/NVIDIA/OpenShell/issues/1268),
+  [#1423](https://github.com/NVIDIA/OpenShell/issues/1423)).
