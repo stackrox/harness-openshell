@@ -1,0 +1,93 @@
+# OpenShell Sandbox — in-cluster launcher
+#
+# Apply this file to launch a sandbox without any local env vars or files.
+# Credentials are read from K8s Secrets mounted into the launcher pod.
+#
+# Prerequisites:
+#   ./deploy-ocp.sh          # deploys gateway and creates RBAC
+#   ./setup-creds.sh         # stores GWS + Atlassian config in cluster
+#   ./setup-providers.sh     # registers API tokens with gateway
+#
+# Usage:
+#   kubectl apply -f sandbox.yaml    # launch sandbox
+#   kubectl delete -f sandbox.yaml   # stop sandbox
+#
+# Configuration: edit the ConfigMap below.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sandbox-agent
+  namespace: openshell
+data:
+  # Sandbox name — must be unique per running sandbox
+  SANDBOX_NAME: "agent"
+
+  # Space-separated list of registered provider names to attach.
+  # Available after running ./setup-providers.sh.
+  SANDBOX_PROVIDERS: "github vertex-local atlassian"
+
+  # Keep the sandbox alive after the initial session exits.
+  # Set to "false" to auto-delete on exit.
+  SANDBOX_KEEP: "true"
+
+  # Command to run inside the sandbox.
+  SANDBOX_COMMAND: "claude --bare"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sandbox-agent
+  namespace: openshell
+  labels:
+    app: openshell-sandbox
+spec:
+  # Do not restart — if the sandbox exits, the Job is done.
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: openshell-sandbox
+    spec:
+      serviceAccountName: openshell-launcher
+      restartPolicy: Never
+
+      containers:
+        - name: launcher
+          image: quay.io/rcochran/openshell:launcher
+          imagePullPolicy: Always
+
+          # Load all ConfigMap keys as environment variables
+          envFrom:
+            - configMapRef:
+                name: sandbox-agent
+
+          # Point to the in-cluster gateway (no mTLS needed from inside the cluster
+          # when allowUnauthenticatedUsers=true; the gateway is not internet-exposed)
+          env:
+            - name: GATEWAY_ENDPOINT
+              value: "https://openshell.openshell.svc.cluster.local:8080"
+            - name: OPENSHELL_GATEWAY_INSECURE
+              value: "true"
+
+          volumeMounts:
+            # GWS OAuth credentials (from setup-creds.sh)
+            - name: gws
+              mountPath: /secrets/gws
+              readOnly: true
+            # Atlassian URL + username (from setup-creds.sh)
+            - name: atlassian
+              mountPath: /secrets/atlassian
+              readOnly: true
+
+      volumes:
+        - name: gws
+          secret:
+            secretName: openshell-gws
+            optional: true   # sandbox launches without GWS if secret absent
+        - name: atlassian
+          secret:
+            secretName: openshell-atlassian
+            optional: true   # sandbox launches without Atlassian if secret absent
+
+      imagePullSecrets: []   # add pull secret name here if registry is private

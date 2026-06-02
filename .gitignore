@@ -10,3 +10,6 @@ quay-pull-secret.yaml
 *.log
 *.tmp
 __pycache__/
+
+# Build artifacts
+sandbox/launcher/openshell
