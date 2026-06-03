@@ -1,0 +1,30 @@
+# Atlassian provider profile.
+#
+# Only JIRA_API_TOKEN is a provider credential (proxy resolves it in
+# Basic auth headers). JIRA_URL and JIRA_USERNAME are non-secret config
+# uploaded to the sandbox by sandbox.sh.
+
+id: atlassian
+display_name: Atlassian (Jira + Confluence)
+description: Jira and Confluence via mcp-atlassian MCP server
+category: knowledge
+credentials:
+  - name: api_token
+    description: Atlassian API token
+    env_vars: [JIRA_API_TOKEN]
+    required: true
+    auth_style: basic
+discovery:
+  credentials: [api_token]
+endpoints:
+  - host: "*.atlassian.net"
+    port: 443
+  - host: "*.atl-paas.net"
+    port: 443
+  - host: "*.atlassian.com"
+    port: 443
+binaries:
+  - /sandbox/.venv/bin/python
+  - /sandbox/.venv/bin/python3
+  - /sandbox/.uv/python/**
+  - /sandbox/.venv/bin/mcp-atlassian

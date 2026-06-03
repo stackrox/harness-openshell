@@ -14,7 +14,7 @@ You are running inside an OpenShell sandbox on an OpenShift cluster. Credentials
 
 ### Google Workspace — `gws` CLI
 - Pre-authenticated for Gmail, Calendar, Drive, Docs, Sheets.
-- Path: `/sandbox/.local/bin/gws`
+- Path: `/usr/local/bin/gws`
 - Examples:
   - `gws gmail users messages list --params '{"userId": "me", "maxResults": 5}'`
   - `gws calendar events list --params '{"calendarId": "primary", "maxResults": 5}'`
@@ -26,14 +26,14 @@ You are running inside an OpenShell sandbox on an OpenShift cluster. Credentials
 - Do NOT modify the `openshell` or `agent-sandbox-system` namespaces.
 
 ### General Tools
-- `python3`, `pip`, `uv` — Python 3.13 with a virtualenv at `/sandbox/.venv`
+- `python3`, `pip`, `uv` — Python 3.14 with a virtualenv at `/sandbox/.venv`
 - `node`, `npm` — Node.js 22
 - `git`, `curl` — pre-installed
 - `cargo` — NOT available (no Rust toolchain in sandbox)
 
 ## Configuration
-- Running via **Vertex AI** (Google Cloud) unless configured otherwise.
-- Model selection: Use `--model` flag if the default model isn't available.
+- Running via **Vertex AI** through `inference.local` gateway routing.
+- Model selection is configured at the gateway level via `openshell inference set`.
 
 ## Conventions
 - Working directory: `/sandbox`

@@ -6,10 +6,10 @@ Deploy OpenShell sandboxes on OpenShift with Claude Code (Vertex AI), Atlassian 
 
 A deployment harness for running AI agent sandboxes on OpenShift using [OpenShell](https://github.com/NVIDIA/OpenShell). Each sandbox gets:
 
-- **Claude Code** via Google Vertex AI (or direct Anthropic API)
-- **Jira/Confluence** via mcp-atlassian MCP server
+- **Claude Code** via Google Vertex AI (`inference.local` routing)
+- **Jira/Confluence** via mcp-atlassian MCP server (read-only)
 - **Gmail, Calendar, Drive** via gws CLI
-- **GitHub** via gh CLI (pre-authenticated)
+- **GitHub** via gh CLI (read-only at proxy level)
 - Network policy enforcement per sandbox
 - Persistent workspace across reconnects
 
@@ -17,118 +17,88 @@ A deployment harness for running AI agent sandboxes on OpenShift using [OpenShel
 
 - OpenShift cluster with `KUBECONFIG` set
 - `kubectl`, `helm` on PATH
-- OpenShell CLI (`openshell`) installed or built from source
-- NVIDIA/OpenShell repo cloned alongside this repo (for the Helm chart)
-- `gcloud auth application-default login` completed (if using Vertex AI)
+- OpenShell CLI (`openshell`) built from source (>= 0.0.55-dev for `google-vertex-ai` provider)
+- NVIDIA/OpenShell repo cloned (for the Helm chart)
+- `gcloud auth application-default login` completed
+- Custom images pushed to `quay.io/rcochran/openshell` (sandbox + gateway)
 
 ## Quick Start
 
 ```shell
-# 1. Deploy OpenShell to the cluster (Helm chart + CRD + SCCs)
-./deploy.sh
+# 1. Build and push images (one-time, or on version bumps)
+docker build --platform linux/amd64 -t quay.io/rcochran/openshell:sandbox sandbox/
+docker push quay.io/rcochran/openshell:sandbox
 
-# 2. Start port-forward to the gateway
-kubectl port-forward svc/openshell -n openshell 18443:8080
+# 2. Deploy OpenShell to the cluster
+GATEWAY_IMAGE_REPO=quay.io/rcochran/openshell GATEWAY_IMAGE_TAG=gateway ./deploy-ocp.sh
 
-# 3. Register provider credentials (GitHub, Anthropic, GCP ADC)
+# 3. Register providers (one-time, or after teardown + redeploy)
 export GITHUB_TOKEN="ghp_..."
-# ADC secrets are auto-extracted from your local ADC file by setup-providers.sh
-./setup-providers.sh
-
-# 4. Launch an interactive Claude sandbox
-#    Atlassian creds are passed directly (not via provider)
 export JIRA_URL="https://mysite.atlassian.net"
 export JIRA_USERNAME="user@example.com"
-export JIRA_API_TOKEN="ATATT..."
-./ocp-sandbox.sh --name my-agent
+export JIRA_API_TOKEN="..."
+./setup-providers.sh
+
+# 4. Launch a sandbox
+./sandbox.sh --name my-agent
 ```
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `deploy.sh` | Deploy OpenShell (namespace, CRD, SCCs, Helm chart) |
-| `setup-providers.sh` | Register credentials with the OpenShell provider system |
-| `ocp-sandbox.sh` | Launch/rejoin Claude sandboxes with all integrations |
-| `vertex-policy.yaml` | Network policy for sandbox egress |
+| `deploy-ocp.sh` | Deploy OpenShell (namespace, CRD, SCCs, Helm, route, gateway config) |
+| `setup-providers.sh` | Register credential providers (GitHub, Vertex AI, Atlassian) |
+| `sandbox.sh` | Launch/rejoin sandboxes with Claude Code |
+| `teardown-ocp.sh` | Remove all OpenShell resources from the cluster |
+| `sandbox/Dockerfile` | Custom sandbox image (extends community base) |
+| `sandbox/policy.yaml` | Network policy (endpoints not covered by provider profiles) |
+| `sandbox/startup.sh` | Runtime env wiring + GWS file placement |
+| `sandbox/configure-mcp.py` | Generates `.claude.json` MCP server config |
+| `sandbox/profiles/atlassian.yaml` | Custom provider v2 profile for Atlassian |
+| `sandbox/CLAUDE.md` | Agent instructions baked into sandbox image |
+| `sandbox/settings.json` | Claude permissions baked into sandbox image |
 | `credentials.md` | Credential flows, mechanisms, and rotation guide |
-| `sandbox-CLAUDE.md` | Agent instructions injected into sandboxes |
-| `verify-integrations.py` | Integration test script for all tools |
-| `future-ideas.md` | Roadmap (observability, CronJobs, web UI, memory) |
+| `verify-integrations.py` | Integration test script |
+| `future-ideas.md` | Roadmap (observability, CronJobs, web UI) |
 
 ## Credentials
 
-See [credentials.md](credentials.md) for the full credential reference — how each credential is stored, transported, and consumed in sandboxes.
-
-**Quick summary:**
+See [credentials.md](credentials.md) for the full reference.
 
 | Credential | Mechanism | Setup |
 |------------|-----------|-------|
-| GitHub | Provider (Bearer auth) | `setup-providers.sh` |
-| GCP ADC | Provider (decomposed, L7 body rewrite) | `setup-providers.sh` |
-| Anthropic | Provider (Bearer auth) | `setup-providers.sh` (optional, not needed for Vertex) |
-| Atlassian | Literal env vars (Basic auth) | Set `JIRA_URL`, `JIRA_USERNAME`, `JIRA_API_TOKEN` before `ocp-sandbox.sh` |
-| Google Workspace | File upload | Pre-authenticate with `gws auth login` |
+| GitHub | Provider v2 (`github` profile, read-only) | `./setup-providers.sh` |
+| Vertex AI | Provider v2 (`google-vertex-ai`, `inference.local`) | `./setup-providers.sh` |
+| Atlassian | Provider v2 (`atlassian` profile, Basic auth resolved by proxy, read-only) | `./setup-providers.sh` |
+| Google Workspace | File upload (encrypted local files) | Pre-authenticate with `gws auth login` |
 
 ## Sandbox Usage
 
 ```shell
-# Interactive Claude session
-./ocp-sandbox.sh --name dev
-
-# Reconnect to a running sandbox
-./ocp-sandbox.sh --rejoin dev
-
-# Shell mode (type 'claude' to start)
-./ocp-sandbox.sh --name debug --shell
-
-# Delete sandbox after exit
-./ocp-sandbox.sh --name ephemeral --no-keep
+./sandbox.sh --name dev                 # interactive session
+./sandbox.sh --rejoin dev               # reconnect
+./sandbox.sh --name ephemeral --no-keep # delete after exit
+./sandbox.sh --editor vscode            # open in VS Code
 ```
-
-## Customizing Images
-
-Override image sources with environment variables:
-
-```shell
-export GATEWAY_IMAGE_REPO=quay.io/myrepo/openshell-gateway
-export GATEWAY_IMAGE_TAG=v1.0.0
-export SUPERVISOR_IMAGE_REPO=quay.io/myrepo/openshell-supervisor
-export SANDBOX_IMAGE=quay.io/myrepo/sandbox-base:latest
-export PULL_SECRET=my-registry-secret
-./deploy.sh
-```
-
-By default, upstream images from `ghcr.io/nvidia/openshell/` are used.
 
 ## Architecture
 
 ```
 Your Mac                         OpenShift Cluster
-┌──────────┐   port-forward    ┌──────────────────────────────┐
-│ openshell├───────────────────▶│ Gateway (StatefulSet)         │
-│ CLI      │   mTLS :18443     │   ├─ gRPC API                 │
-│          │                   │   ├─ SSH tunnel               │
-│          │                   │   ├─ Provider credential store │
-│          │                   │   └─ Sandbox lifecycle mgmt   │
-└──────────┘                   │                               │
-                               │ Sandbox Pods                  │
-                               │   ├─ Claude Code              │
-                               │   ├─ mcp-atlassian            │
-                               │   ├─ gws CLI                  │
-                               │   ├─ gh CLI                   │
-                               │   └─ Network proxy            │
+┌──────────┐                   ┌──────────────────────────────┐
+│ openshell│   OpenShift Route │ Gateway (StatefulSet)         │
+│ CLI      ├──────────────────▶│   ├─ gRPC API                 │
+│          │   TLS passthrough │   ├─ inference.local proxy     │
+│          │   mTLS :443       │   ├─ Provider credential store │
+└──────────┘                   │   └─ OAuth token refresh       │
                                │                               │
-                               │ Supervisor (init-container)   │
-                               │   └─ sideloaded per sandbox   │
+                               │ Sandbox Pods                  │
+                               │   ├─ Claude Code → inference  │
+                               │   │   .local → Vertex AI      │
+                               │   ├─ mcp-atlassian (read-only)│
+                               │   ├─ gws CLI                  │
+                               │   ├─ gh CLI (read-only)       │
+                               │   └─ Network proxy            │
                                └──────────────────────────────┘
 ```
-
-### Key Differences from Manual Deployment
-
-This harness relies on the official OpenShell Helm chart, which handles:
-
-- **TLS/PKI** — auto-generated via a pre-install certgen job (no manual OpenSSL)
-- **Supervisor** — sideloaded into each sandbox pod as an init-container (no DaemonSet)
-- **Credentials** — managed by the provider system with refresh support (no raw K8s secrets)
-- **Gateway config** — TOML-based ConfigMap rendered by Helm

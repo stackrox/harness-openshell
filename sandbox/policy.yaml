@@ -1,0 +1,137 @@
+version: 1
+
+# Sandbox network policy.
+#
+# Provider profiles contribute their own endpoints at runtime via
+# providers v2 composition. This file only declares endpoints that
+# no provider profile covers. Register a provider and pass
+# --provider <name> to light up its endpoints.
+#
+# Active providers:
+#   github        (builtin)          → api.github.com, github.com (read-only)
+#   vertex-local  (google-vertex-ai) → Vertex AI + Google OAuth (inference.local routing)
+#   atlassian     (custom profile)   → *.atlassian.net, *.atlassian.com (Basic auth resolved by proxy)
+#
+# Endpoints in this file (not covered by any provider profile):
+
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /proc
+    - /dev/urandom
+    - /app
+    - /etc
+    - /var/log
+  read_write:
+    - /sandbox
+    - /tmp
+    - /dev/null
+
+landlock:
+  compatibility: best_effort
+
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+
+network_policies:
+  # Claude Code telemetry (inference goes through inference.local,
+  # but telemetry/updates still hit Anthropic directly)
+  claude_telemetry:
+    name: claude-telemetry
+    endpoints:
+      - { host: "*.anthropic.com", port: 443 }
+      - { host: downloads.claude.ai, port: 443 }
+      - { host: platform.claude.com, port: 443 }
+      - { host: sentry.io, port: 443 }
+    binaries:
+      - { path: /usr/local/bin/claude }
+      - { path: /usr/bin/node }
+
+  # Git Smart HTTP transport — allows clone and fetch.
+  # Push (git-receive-pack) is blocked by default. To enable push for
+  # specific repos, use openshell policy set with explicit rules. See:
+  # https://github.com/NVIDIA/OpenShell/blob/main/docs/get-started/tutorials/github-sandbox.mdx
+  github_git:
+    name: github-git
+    endpoints:
+      - host: github.com
+        port: 443
+        protocol: rest
+        tls: terminate
+        enforcement: enforce
+        rules:
+          - allow:
+              method: GET
+              path: "/**/info/refs*"
+          - allow:
+              method: POST
+              path: "/**/git-upload-pack"
+    binaries:
+      - { path: /usr/bin/git }
+
+  # GitHub content downloads (release assets, raw content, archives)
+  github_downloads:
+    name: github-downloads
+    endpoints:
+      - { host: "*.githubusercontent.com", port: 443 }
+      - { host: codeload.github.com, port: 443 }
+    binaries:
+      - { path: /usr/bin/curl }
+      - { path: /usr/bin/gh }
+      - { path: /usr/bin/git }
+      - { path: /usr/local/bin/uv }
+
+  # GWS (no provider profile active — creds are uploaded files)
+  google_workspace:
+    name: google-workspace
+    endpoints:
+      - { host: gmail.googleapis.com, port: 443 }
+      - { host: calendar-json.googleapis.com, port: 443 }
+      - { host: www.googleapis.com, port: 443 }
+      - { host: docs.googleapis.com, port: 443 }
+      - { host: sheets.googleapis.com, port: 443 }
+      - { host: drive.googleapis.com, port: 443 }
+      - { host: oauth2.googleapis.com, port: 443 }
+      - { host: accounts.google.com, port: 443 }
+    binaries:
+      - { path: /usr/local/bin/gws }
+
+  # Python packages
+  pypi:
+    name: pypi
+    endpoints:
+      - { host: pypi.org, port: 443 }
+      - { host: files.pythonhosted.org, port: 443 }
+      - { host: downloads.python.org, port: 443 }
+    binaries:
+      - { path: /sandbox/.venv/bin/python }
+      - { path: /sandbox/.venv/bin/python3 }
+      - { path: /sandbox/.venv/bin/pip }
+      - { path: /usr/local/bin/uv }
+      - { path: "/sandbox/.uv/python/**" }
+
+  # Node packages
+  npm:
+    name: npm
+    endpoints:
+      - { host: registry.npmjs.org, port: 443 }
+    binaries:
+      - { path: /usr/bin/npm }
+      - { path: /usr/bin/node }
+
+  # VS Code remote
+  vscode:
+    name: vscode
+    endpoints:
+      - { host: update.code.visualstudio.com, port: 443 }
+      - { host: az764295.vo.msecnd.net, port: 443 }
+      - { host: vscode.download.prss.microsoft.com, port: 443 }
+      - { host: marketplace.visualstudio.com, port: 443 }
+      - { host: gallerycdn.vsassets.io, port: 443 }
+    binaries:
+      - { path: /usr/bin/curl }
+      - { path: /usr/bin/wget }
+      - { path: "/sandbox/.vscode-server/**" }

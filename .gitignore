@@ -2,9 +2,14 @@
 *-token.txt
 *.json.key
 acs-ai-sa.json
+secrets.yaml
 kubeconfig
 quay-pull-secret.yaml
 
 # Local state
 *.log
 *.tmp
+__pycache__/
+
+# Build artifacts
+sandbox/launcher/openshell
