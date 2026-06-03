@@ -30,12 +30,9 @@ data:
       - vertex-local
       - atlassian
 
-    # Plugin marketplaces to register at sandbox creation.
-    # Uses: claude plugin marketplace add <org/repo>
-    # Private repos work via the github provider (proxy resolves GITHUB_TOKEN).
-    skills:
-      - repo: https://github.com/stackrox/skills
-      # - repo: https://github.com/robbycochran/skills
+    # Skills/plugin marketplaces (future — see sandbox/launcher/SPEC.md)
+    # skills:
+    #   - repo: https://github.com/stackrox/skills
 ---
 apiVersion: batch/v1
 kind: Job

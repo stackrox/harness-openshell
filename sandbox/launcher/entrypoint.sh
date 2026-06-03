@@ -80,25 +80,6 @@ fi
 KEEP_ARGS=()
 [[ "$SANDBOX_KEEP" != "true" ]] && KEEP_ARGS=(--no-keep)
 
-# ── Create sandbox ─────────────────────────────────────────────────────
-# ── Extract skills config for the sandbox ──────────────────────────────
-# The config.yaml is mounted in the launcher pod but not in the sandbox.
-# Pass skills as a JSON env var that startup.sh reads.
-SKILLS_JSON=$(python3 -c "
-import yaml, json, sys
-with open(sys.argv[1]) as f:
-    c = yaml.safe_load(f) or {}
-skills = c.get('skills', [])
-if skills:
-    print(json.dumps(skills))
-" "$CONFIG" 2>/dev/null || echo "")
-
-if [[ -n "$SKILLS_JSON" ]]; then
-  echo "  Marketplaces: $(echo "$SKILLS_JSON" | python3 -c "import json,sys; [print(f'    {s[\"repo\"]}') for s in json.load(sys.stdin)]" 2>/dev/null)"
-else
-  echo "  Marketplaces: none configured"
-fi
-
 echo ""
 echo "=== Creating sandbox ==="
 for attempt in 1 2 3; do
@@ -107,7 +88,7 @@ for attempt in 1 2 3; do
     --no-tty \
     ${PROVIDER_FLAGS[@]+"${PROVIDER_FLAGS[@]}"} \
     ${KEEP_ARGS[@]+"${KEEP_ARGS[@]}"} \
-    -- bash -c "export SANDBOX_SKILLS_JSON=$(printf '%q' "$SKILLS_JSON"); . /sandbox/startup.sh" \
+    -- bash /sandbox/startup.sh \
     && break
   echo "Attempt $attempt failed (supervisor race), retrying in 5s..."
   "$CLI" sandbox delete "$SANDBOX_NAME" 2>/dev/null || true
