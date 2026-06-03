@@ -67,8 +67,22 @@ spec:
           env:
             - name: GATEWAY_ENDPOINT
               value: "https://openshell.openshell.svc.cluster.local:8080"
-            - name: OPENSHELL_GATEWAY_INSECURE
-              value: "true"
+            - name: HOME
+              value: "/tmp"
+            # Atlassian non-secret config — sourced from secret for convenience
+            # but these are not sensitive values
+            - name: JIRA_URL
+              valueFrom:
+                secretKeyRef:
+                  name: openshell-atlassian
+                  key: JIRA_URL
+                  optional: true
+            - name: JIRA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: openshell-atlassian
+                  key: JIRA_USERNAME
+                  optional: true
 
           volumeMounts:
             # GWS OAuth credentials (from setup-creds.sh)
@@ -78,6 +92,10 @@ spec:
             # Atlassian URL + username (from setup-creds.sh)
             - name: atlassian
               mountPath: /secrets/atlassian
+              readOnly: true
+            # mTLS client cert for gateway connection
+            - name: gateway-mtls
+              mountPath: /secrets/mtls
               readOnly: true
 
       volumes:
@@ -89,5 +107,8 @@ spec:
           secret:
             secretName: openshell-atlassian
             optional: true   # sandbox launches without Atlassian if secret absent
+        - name: gateway-mtls
+          secret:
+            secretName: openshell-client-tls
 
       imagePullSecrets: []   # add pull secret name here if registry is private

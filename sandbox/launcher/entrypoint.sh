@@ -24,7 +24,23 @@ set -euo pipefail
 GATEWAY_ENDPOINT="${GATEWAY_ENDPOINT:-https://openshell.openshell.svc.cluster.local:8080}"
 CLI="${OPENSHELL_CLI:-openshell}"
 export OPENSHELL_GATEWAY_ENDPOINT="$GATEWAY_ENDPOINT"
-export OPENSHELL_GATEWAY_INSECURE="${OPENSHELL_GATEWAY_INSECURE:-true}"
+
+# Configure mTLS from mounted secret (openshell-client-tls)
+MTLS_DIR="${MTLS_DIR:-/secrets/mtls}"
+if [[ -f "$MTLS_DIR/tls.crt" ]]; then
+  # Register the in-cluster gateway with mTLS certs
+  mkdir -p "$HOME/.config/openshell/gateways/openshell/mtls"
+  cp "$MTLS_DIR/ca.crt"  "$HOME/.config/openshell/gateways/openshell/mtls/ca.crt"  2>/dev/null || true
+  cp "$MTLS_DIR/tls.crt" "$HOME/.config/openshell/gateways/openshell/mtls/tls.crt" 2>/dev/null || true
+  cp "$MTLS_DIR/tls.key" "$HOME/.config/openshell/gateways/openshell/mtls/tls.key" 2>/dev/null || true
+  "$CLI" gateway add "$GATEWAY_ENDPOINT" --name openshell --local 2>&1 || true
+  export OPENSHELL_GATEWAY=openshell
+  echo "  Gateway registered, certs: $(ls $HOME/.config/openshell/gateways/openshell/mtls/ 2>/dev/null || echo 'MISSING')"
+else
+  # No client cert — try without mTLS (requires allowUnauthenticatedUsers=true
+  # and gateway TLS configured to not require client certs)
+  export OPENSHELL_GATEWAY_INSECURE=true
+fi
 
 SANDBOX_NAME="${SANDBOX_NAME:-agent}"
 SANDBOX_KEEP="${SANDBOX_KEEP:-true}"
@@ -49,39 +65,23 @@ for name in $SANDBOX_PROVIDERS; do
 done
 
 # ── Stage credentials from mounted secrets ─────────────────────────────
-STAGE=$(mktemp -d)
-CREDS="$STAGE/creds"
-mkdir -p "$CREDS"
-HAS_UPLOADS=false
-
 # GWS credentials (mounted from openshell-gws secret)
+# TODO: upload GWS files once the supervisor race condition is resolved.
+# For now, GWS requires the local sandbox.sh workflow.
+# Tracking: https://github.com/NVIDIA/OpenShell/issues/1268
+UPLOAD_ARGS=()
 if [[ -f /secrets/gws/credentials.json ]]; then
-  mkdir -p "$CREDS/gws-config"
-  cp /secrets/gws/credentials.json "$CREDS/gws-config/"
-  [[ -f /secrets/gws/client_secret.json ]] && cp /secrets/gws/client_secret.json "$CREDS/gws-config/"
-  echo "  GWS credentials: mounted"
-  HAS_UPLOADS=true
+  echo "  GWS credentials: mounted (upload skipped — see #1268)"
 else
   echo "  GWS: not mounted (skipping)"
 fi
 
-# Atlassian non-secret config (mounted from openshell-atlassian secret)
-if [[ -f /secrets/atlassian/JIRA_URL ]]; then
-  JIRA_URL=$(cat /secrets/atlassian/JIRA_URL)
-  JIRA_USERNAME=$(cat /secrets/atlassian/JIRA_USERNAME 2>/dev/null || echo "")
-  python3 -c "
-import json, sys
-with open(sys.argv[1], 'w') as f:
-    json.dump({'jira_url': sys.argv[2], 'jira_username': sys.argv[3]}, f)
-" "$CREDS/atlassian.json" "$JIRA_URL" "$JIRA_USERNAME"
+# Atlassian config sourced from env vars (injected via secretKeyRef in Job spec)
+if [[ -n "${JIRA_URL:-}" ]]; then
   echo "  Atlassian config: $JIRA_URL"
-  HAS_UPLOADS=true
 else
-  echo "  Atlassian: not mounted (skipping)"
+  echo "  Atlassian: JIRA_URL not set (skipping)"
 fi
-
-UPLOAD_ARGS=()
-$HAS_UPLOADS && UPLOAD_ARGS=(--upload "$CREDS:/sandbox/.harness")
 
 # ── Keep flag ──────────────────────────────────────────────────────────
 KEEP_ARGS=()
@@ -90,10 +90,23 @@ KEEP_ARGS=()
 # ── Create sandbox ─────────────────────────────────────────────────────
 echo ""
 echo "=== Creating sandbox ==="
-exec "$CLI" sandbox create \
-  --name "$SANDBOX_NAME" \
-  --tty \
-  ${PROVIDER_FLAGS[@]+"${PROVIDER_FLAGS[@]}"} \
-  ${UPLOAD_ARGS[@]+"${UPLOAD_ARGS[@]}"} \
-  ${KEEP_ARGS[@]+"${KEEP_ARGS[@]}"} \
-  -- bash -c ". /sandbox/startup.sh && exec $SANDBOX_COMMAND"
+# Create the sandbox (--keep so it stays alive after the launcher exits).
+# The sandbox runs startup.sh then drops to a shell — you connect to it
+# interactively with: openshell sandbox connect $SANDBOX_NAME
+for attempt in 1 2 3; do
+  "$CLI" sandbox create \
+    --name "$SANDBOX_NAME" \
+    --no-tty \
+    ${PROVIDER_FLAGS[@]+"${PROVIDER_FLAGS[@]}"} \
+    -- bash /sandbox/startup.sh \
+    && break
+  echo "Attempt $attempt failed (supervisor race), retrying in 5s..."
+  "$CLI" sandbox delete "$SANDBOX_NAME" 2>/dev/null || true
+  sleep 5
+  [[ $attempt -eq 3 ]] && { echo "ERROR: Failed after 3 attempts."; exit 1; }
+done
+
+echo ""
+echo "Sandbox '$SANDBOX_NAME' is ready."
+echo "Connect with: openshell sandbox connect $SANDBOX_NAME"
+echo "Or from inside the sandbox: claude --bare"

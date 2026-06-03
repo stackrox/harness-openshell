@@ -111,24 +111,35 @@ spec:
           env:
             - name: GATEWAY_ENDPOINT
               value: "https://openshell.openshell.svc.cluster.local:8080"
-            - name: OPENSHELL_GATEWAY_INSECURE
-              value: "true"
+            - name: HOME
+              value: "/tmp"
+            - name: JIRA_URL
+              valueFrom:
+                secretKeyRef:
+                  name: openshell-atlassian
+                  key: JIRA_URL
+                  optional: true
+            - name: JIRA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: openshell-atlassian
+                  key: JIRA_USERNAME
+                  optional: true
           volumeMounts:
             - name: gws
               mountPath: /secrets/gws
               readOnly: true
-            - name: atlassian
-              mountPath: /secrets/atlassian
+            - name: gateway-mtls
+              mountPath: /secrets/mtls
               readOnly: true
       volumes:
         - name: gws
           secret:
             secretName: openshell-gws
             optional: true
-        - name: atlassian
+        - name: gateway-mtls
           secret:
-            secretName: openshell-atlassian
-            optional: true
+            secretName: openshell-client-tls
 YAML
 
 echo ""

@@ -4,11 +4,11 @@
 # Skips providers that already exist. Use --force to delete and recreate
 # all providers (requires no running sandboxes — run ./delete-sandboxes.sh first).
 #
-# Run once after deploy.sh. Providers are stored in the gateway database
+# Run once after deploy-ocp.sh. Providers are stored in the gateway database
 # and survive redeployments (same PVC).
 #
 # Prerequisites:
-#   - Gateway deployed and reachable (./deploy.sh)
+#   - Gateway deployed and reachable (./deploy-ocp.sh)
 #   - GITHUB_TOKEN set in environment
 #   - gcloud auth application-default login completed
 #   - JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN set in environment

@@ -12,8 +12,8 @@
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS base
 
-# Install bash and python3
-RUN microdnf install -y bash python3 --nodocs && microdnf clean all
+# Install bash, python3, and openssh-clients (required by openshell CLI for SSH sessions)
+RUN microdnf install -y bash python3 openssh-clients --nodocs && microdnf clean all
 
 # Copy the openshell CLI binary (must be pre-built for linux/amd64)
 # Build with: cargo zigbuild --release --target x86_64-unknown-linux-gnu -p openshell-cli

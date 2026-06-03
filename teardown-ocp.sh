@@ -35,11 +35,12 @@ else
   kubectl delete ns agent-sandbox-system 2>/dev/null || true
 fi
 
-echo "=== Removing cluster role bindings ==="
-for crb in openshell-sa-anyuid openshell-sa-privileged openshell-default-privileged \
-            openshell-sandbox-privileged agent-sandbox-admin; do
-  kubectl delete clusterrolebinding "$crb" 2>/dev/null || true
+echo "=== Removing SCCs and cluster role bindings ==="
+for sa in openshell openshell-sandbox default; do
+  oc adm policy remove-scc-from-user privileged -z "$sa" -n openshell 2>/dev/null || true
 done
+oc adm policy remove-scc-from-user anyuid -z openshell -n openshell 2>/dev/null || true
+kubectl delete clusterrolebinding agent-sandbox-admin 2>/dev/null || true
 
 # Launcher RBAC lives in the namespace so it's deleted with it,
 # but remove explicitly for robustness.

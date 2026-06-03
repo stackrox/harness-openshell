@@ -27,18 +27,28 @@ config = {
 }
 
 # ── Atlassian (sooperset/mcp-atlassian) ────────────────────────────────
+# JIRA_URL and JIRA_USERNAME come from either:
+#   - An uploaded atlassian.json file (sandbox.sh / local workflow)
+#   - Environment variables injected via secretKeyRef (in-cluster launcher)
 atlassian_config = "/sandbox/.harness/creds/atlassian.json"
+jira_url = ""
+jira_username = ""
 if os.path.isfile(atlassian_config):
     try:
         with open(atlassian_config) as f:
             atlassian = json.load(f)
+        jira_url = atlassian.get("jira_url", "")
+        jira_username = atlassian.get("jira_username", "")
     except (json.JSONDecodeError, OSError) as e:
         print(f"WARNING: could not read atlassian config: {e}", flush=True)
-        atlassian = {}
-    jira_url = atlassian.get("jira_url", "") if atlassian else ""
-    jira_username = atlassian.get("jira_username", "") if atlassian else ""
-    jira_api_token = os.environ.get("JIRA_API_TOKEN", "")
+# Fall back to env vars (set by in-cluster launcher via secretKeyRef)
+if not jira_url:
+    jira_url = os.environ.get("JIRA_URL", "")
+if not jira_username:
+    jira_username = os.environ.get("JIRA_USERNAME", "")
 
+if jira_url:
+    jira_api_token = os.environ.get("JIRA_API_TOKEN", "")
     config["mcpServers"]["atlassian"] = {
         "type": "stdio",
         "command": "/sandbox/.venv/bin/mcp-atlassian",

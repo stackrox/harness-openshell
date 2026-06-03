@@ -58,23 +58,17 @@ kubectl apply -f "$OPENSHELL_REPO/deploy/kube/manifests/agent-sandbox.yaml"
 
 # ── Step 3: OpenShift SCCs ────────────────────────────────────────────
 echo "=== Step 3: Granting OpenShift SCCs ==="
-kubectl create clusterrolebinding openshell-sa-anyuid \
-  --clusterrole=system:openshift:scc:anyuid \
-  --serviceaccount=openshell:openshell 2>/dev/null || true
-kubectl create clusterrolebinding openshell-sa-privileged \
-  --clusterrole=system:openshift:scc:privileged \
-  --serviceaccount=openshell:openshell 2>/dev/null || true
-kubectl create clusterrolebinding openshell-default-privileged \
-  --clusterrole=system:openshift:scc:privileged \
-  --serviceaccount=openshell:default 2>/dev/null || true
+# Gateway and sandbox service accounts need privileged SCC.
+# openshell-sandbox is created by Helm; grant it before Helm runs so the
+# clusterrolebinding exists when the chart creates the service account.
+for sa in openshell openshell-sandbox default; do
+  oc adm policy add-scc-to-user privileged -z "$sa" -n openshell 2>/dev/null || true
+done
+oc adm policy add-scc-to-user anyuid -z openshell -n openshell 2>/dev/null || true
+# Agent-sandbox controller needs cluster-admin to manage sandbox CRDs across namespaces
 kubectl create clusterrolebinding agent-sandbox-admin \
   --clusterrole=cluster-admin \
   --serviceaccount=agent-sandbox-system:agent-sandbox-controller 2>/dev/null || true
-
-# Also grant privileged to the sandbox service account created by Helm
-kubectl create clusterrolebinding openshell-sandbox-privileged \
-  --clusterrole=system:openshift:scc:privileged \
-  --serviceaccount=openshell:openshell-sandbox 2>/dev/null || true
 
 # ── Launcher ServiceAccount + RBAC ────────────────────────────────────
 # The in-cluster sandbox launcher (sandbox.yaml Job) needs to read
@@ -135,26 +129,17 @@ fi
 ROUTE_HOST="gateway-openshell.${APPS_DOMAIN}"
 
 HELM_ARGS=(
-  --set server.sandboxImage="$SANDBOX_IMAGE"
-  --set server.sandboxImagePullPolicy=Always
-  --set server.dbUrl="sqlite:/var/openshell/openshell.db"
-  --set pkiInitJob.enabled=true
-  --set pkiInitJob.serverDnsNames[0]="$ROUTE_HOST"
-  --set service.type=ClusterIP
+  --values "$SCRIPT_DIR/values-ocp.yaml"
+  --set image.repository="$GATEWAY_IMAGE_REPO"
   --set image.tag="$GATEWAY_IMAGE_TAG"
-  --set image.pullPolicy=Always
+  --set supervisor.image.repository="$SUPERVISOR_IMAGE_REPO"
   --set supervisor.image.tag="$SUPERVISOR_IMAGE_TAG"
-  # allowUnauthenticatedUsers: the gateway is not open to the internet — it is
-  # only accessible via the OpenShift route with mTLS passthrough. The client
-  # cert (in ~/.config/openshell/gateways/ocp/mtls/) is the authentication gate.
-  # To add OIDC on top of mTLS, configure --oidc-issuer in the gateway config.
-  --set server.auth.allowUnauthenticatedUsers=true
+  --set server.sandboxImage="$SANDBOX_IMAGE"
+  --set pkiInitJob.serverDnsNames[0]="$ROUTE_HOST"
 )
 
-HELM_ARGS+=(--set image.repository="$GATEWAY_IMAGE_REPO")
-HELM_ARGS+=(--set supervisor.image.repository="$SUPERVISOR_IMAGE_REPO")
-[[ -n "${PULL_SECRET:-}" ]]          && HELM_ARGS+=(--set imagePullSecrets[0].name="$PULL_SECRET")
-[[ -n "${SANDBOX_PULL_SECRET:-}" ]]  && HELM_ARGS+=(--set server.sandboxImagePullSecrets[0].name="$SANDBOX_PULL_SECRET")
+[[ -n "${PULL_SECRET:-}" ]]         && HELM_ARGS+=(--set imagePullSecrets[0].name="$PULL_SECRET")
+[[ -n "${SANDBOX_PULL_SECRET:-}" ]] && HELM_ARGS+=(--set server.sandboxImagePullSecrets[0].name="$SANDBOX_PULL_SECRET")
 
 helm upgrade --install openshell "$OPENSHELL_REPO/deploy/helm/openshell" -n openshell \
   "${HELM_ARGS[@]}"
@@ -218,9 +203,16 @@ echo "  Gateway route: https://$ROUTE_HOST"
 echo ""
 echo "Next steps:"
 echo ""
-echo "  1. Register providers (one-time, or after teardown + redeploy):"
+echo "  1. Store credentials in cluster (one-time):"
+echo "     ./setup-creds.sh"
+echo ""
+echo "  2. Register providers with gateway (one-time):"
 echo "     ./setup-providers.sh"
 echo ""
-echo "  2. Launch a sandbox:"
-echo "     ./sandbox.sh --name my-agent"
+echo "  3. Verify everything is ready:"
+echo "     ./sandbox-check.sh"
+echo ""
+echo "  4. Launch a sandbox:"
+echo "     kubectl apply -f sandbox.yaml"
+echo "     # or: ./sandbox.sh --name my-agent"
 echo ""

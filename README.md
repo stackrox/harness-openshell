@@ -30,7 +30,7 @@ docker build --platform linux/amd64 -t quay.io/rcochran/openshell:sandbox sandbo
 docker push quay.io/rcochran/openshell:sandbox
 
 # 2. Deploy OpenShell to the cluster
-GATEWAY_IMAGE_REPO=quay.io/rcochran/openshell GATEWAY_IMAGE_TAG=gateway ./deploy.sh
+GATEWAY_IMAGE_REPO=quay.io/rcochran/openshell GATEWAY_IMAGE_TAG=gateway ./deploy-ocp.sh
 
 # 3. Register providers (one-time, or after teardown + redeploy)
 export GITHUB_TOKEN="ghp_..."
@@ -47,10 +47,10 @@ export JIRA_API_TOKEN="..."
 
 | File | Purpose |
 |------|---------|
-| `deploy.sh` | Deploy OpenShell (namespace, CRD, SCCs, Helm, route, gateway config) |
+| `deploy-ocp.sh` | Deploy OpenShell (namespace, CRD, SCCs, Helm, route, gateway config) |
 | `setup-providers.sh` | Register credential providers (GitHub, Vertex AI, Atlassian) |
 | `sandbox.sh` | Launch/rejoin sandboxes with Claude Code |
-| `teardown.sh` | Remove all OpenShell resources from the cluster |
+| `teardown-ocp.sh` | Remove all OpenShell resources from the cluster |
 | `sandbox/Dockerfile` | Custom sandbox image (extends community base) |
 | `sandbox/policy.yaml` | Network policy (endpoints not covered by provider profiles) |
 | `sandbox/startup.sh` | Runtime env wiring + GWS file placement |
