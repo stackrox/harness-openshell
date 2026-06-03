@@ -22,35 +22,54 @@ A deployment harness for running AI agent sandboxes on OpenShift using [OpenShel
 - `gcloud auth application-default login` completed
 - Custom images pushed to `quay.io/rcochran/openshell` (sandbox + gateway)
 
-## Quick Start
+## Quick Start (Local — Podman/Docker)
 
 ```shell
-# 1. Build and push images (one-time, or on version bumps)
-docker build --platform linux/amd64 -t quay.io/rcochran/openshell:sandbox sandbox/
-docker push quay.io/rcochran/openshell:sandbox
+# 1. Install OpenShell (auto-starts the gateway)
+curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
 
-# 2. Deploy OpenShell to the cluster
-GATEWAY_IMAGE_REPO=quay.io/rcochran/openshell GATEWAY_IMAGE_TAG=gateway ./deploy-ocp.sh
+# 2. Verify gateway is running
+./deploy-local.sh
 
-# 3. Register providers (one-time, or after teardown + redeploy)
+# 3. Register providers (one-time per gateway)
 export GITHUB_TOKEN="ghp_..."
-export JIRA_URL="https://mysite.atlassian.net"
-export JIRA_USERNAME="user@example.com"
 export JIRA_API_TOKEN="..."
 ./setup-providers.sh
 
 # 4. Launch a sandbox
-./sandbox.sh --name my-agent
+export JIRA_URL="https://mysite.atlassian.net"
+export JIRA_USERNAME="user@example.com"
+./sandbox-local.sh
+```
+
+## Quick Start (OpenShift)
+
+```shell
+# 1. Build and push images (one-time, or on version bumps)
+make push-sandbox push-launcher push-gateway push-supervisor
+
+# 2. Deploy to the cluster
+./deploy-ocp.sh
+
+# 3. Store credentials in cluster + register providers
+./setup-creds.sh
+./setup-providers.sh
+
+# 4. Launch a sandbox
+kubectl apply -f sandbox.yaml
+# or: ./sandbox.sh
 ```
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `deploy-ocp.sh` | Deploy OpenShell (namespace, CRD, SCCs, Helm, route, gateway config) |
-| `setup-providers.sh` | Register credential providers (GitHub, Vertex AI, Atlassian) |
-| `sandbox.sh` | Launch/rejoin sandboxes with Claude Code |
-| `teardown-ocp.sh` | Remove all OpenShell resources from the cluster |
+| `deploy-local.sh` | Verify local gateway is running (Podman/Docker) |
+| `deploy-ocp.sh` | Deploy OpenShell to OpenShift (Helm, SCCs, route) |
+| `setup-providers.sh` | Register credential providers — works on any gateway |
+| `sandbox-local.sh` | Launch sandbox on local gateway (direct CLI) |
+| `sandbox.sh` | Launch sandbox on OpenShift (kubectl apply) |
+| `teardown-ocp.sh` | Remove all OpenShift resources |
 | `sandbox/Dockerfile` | Custom sandbox image (extends community base) |
 | `sandbox/policy.yaml` | Network policy (endpoints not covered by provider profiles) |
 | `sandbox/startup.sh` | Runtime env wiring + GWS file placement |

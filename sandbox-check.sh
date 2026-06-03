@@ -50,12 +50,20 @@ if command -v "$CLI" &>/dev/null; then
   done
 fi
 
-# ── K8s Secrets ────────────────────────────────────────────────────────
-echo ""
-echo "=== K8s Secrets (namespace: $NAMESPACE) ==="
-if ! command -v kubectl &>/dev/null; then
-  skip "kubectl not found — skipping secret checks"
-else
+# ── K8s / OCP (only if cluster is available) ──────────────────────────
+K8S_AVAILABLE=false
+if command -v kubectl &>/dev/null && kubectl get ns "$NAMESPACE" &>/dev/null 2>&1; then
+  K8S_AVAILABLE=true
+fi
+
+if $K8S_AVAILABLE; then
+  echo ""
+  echo "=== K8s Cluster ==="
+  pods=$(kubectl get pods -n "$NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  ok "Namespace '$NAMESPACE' ($pods pods)"
+
+  echo ""
+  echo "=== K8s Secrets ==="
   for secret in openshell-gws openshell-atlassian; do
     if kubectl get secret "$secret" -n "$NAMESPACE" &>/dev/null 2>&1; then
       keys=$(kubectl get secret "$secret" -n "$NAMESPACE" \
@@ -66,44 +74,24 @@ else
       skip "$secret: not found (run ./setup-creds.sh to create)"
     fi
   done
-fi
 
-# ── Launcher RBAC ──────────────────────────────────────────────────────
-echo ""
-echo "=== Launcher RBAC ==="
-if command -v kubectl &>/dev/null; then
+  echo ""
+  echo "=== Launcher RBAC ==="
   if kubectl get serviceaccount openshell-launcher -n "$NAMESPACE" &>/dev/null 2>&1; then
     ok "ServiceAccount openshell-launcher: present"
   else
     fail "ServiceAccount openshell-launcher: missing — run ./deploy-ocp.sh"
   fi
-  if kubectl get role openshell-launcher -n "$NAMESPACE" &>/dev/null 2>&1; then
-    ok "Role openshell-launcher: present"
+else
+  echo ""
+  echo "=== Platform ==="
+  ok "Local mode (no K8s cluster detected)"
+  if command -v podman &>/dev/null; then
+    ok "Podman: $(podman --version 2>/dev/null | head -1)"
+  elif command -v docker &>/dev/null; then
+    ok "Docker: $(docker --version 2>/dev/null | head -1)"
   else
-    fail "Role openshell-launcher: missing — run ./deploy-ocp.sh"
-  fi
-fi
-
-# ── Images ─────────────────────────────────────────────────────────────
-echo ""
-echo "=== Images ==="
-for img in "quay.io/rcochran/openshell:sandbox" "quay.io/rcochran/openshell:launcher"; do
-  if docker manifest inspect "$img" &>/dev/null 2>&1; then
-    ok "$img"
-  else
-    skip "$img: not checked (docker not available or image not yet pushed)"
-  fi
-done
-
-# ── K8s Cluster ────────────────────────────────────────────────────────
-echo ""
-echo "=== Cluster ==="
-if command -v kubectl &>/dev/null; then
-  if kubectl get ns "$NAMESPACE" &>/dev/null 2>&1; then
-    pods=$(kubectl get pods -n "$NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
-    ok "Namespace '$NAMESPACE' exists ($pods pods)"
-  else
-    fail "Namespace '$NAMESPACE' not found — run ./deploy-ocp.sh"
+    fail "No container runtime (need podman or docker)"
   fi
 fi
 
