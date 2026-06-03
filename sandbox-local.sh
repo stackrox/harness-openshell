@@ -19,6 +19,14 @@ set -euo pipefail
 CLI="${OPENSHELL_CLI:-openshell}"
 command -v "$CLI" &>/dev/null || { echo "ERROR: openshell CLI not found."; exit 1; }
 
+# Validate we're targeting a local gateway, not the OCP one
+GW="${OPENSHELL_GATEWAY:-}"
+if [[ "$GW" == "ocp" ]]; then
+  echo "ERROR: OPENSHELL_GATEWAY=ocp — this script is for local gateways."
+  echo "  Use ./sandbox.sh for OpenShift, or: export OPENSHELL_GATEWAY=<local-gateway>"
+  exit 1
+fi
+
 # ── Parse args ─────────────────────────────────────────────────────────
 EXTRA=()
 while [[ $# -gt 0 ]]; do

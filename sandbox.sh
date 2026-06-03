@@ -17,6 +17,13 @@ set -euo pipefail
 export OPENSHELL_GATEWAY="${GATEWAY_NAME:-ocp}"
 NAMESPACE="${OPENSHELL_NAMESPACE:-openshell}"
 
+# Validate we're targeting the OCP gateway
+if [[ "$OPENSHELL_GATEWAY" != "ocp" ]]; then
+  echo "ERROR: OPENSHELL_GATEWAY=$OPENSHELL_GATEWAY — this script is for OpenShift."
+  echo "  Use ./sandbox-local.sh for local gateways, or: export GATEWAY_NAME=ocp"
+  exit 1
+fi
+
 CLI="${OPENSHELL_CLI:-openshell}"
 command -v "$CLI" &>/dev/null || { echo "ERROR: openshell CLI not found."; exit 1; }
 command -v kubectl &>/dev/null || { echo "ERROR: kubectl is required."; exit 1; }
