@@ -13,8 +13,15 @@ PLATFORM      := linux/amd64
 SANDBOX_IMAGE  := $(REGISTRY):sandbox
 LAUNCHER_IMAGE := $(REGISTRY):launcher
 
-.PHONY: sandbox push-sandbox cli-launcher launcher push-launcher \
+.PHONY: cli sandbox push-sandbox cli-launcher launcher push-launcher \
         test test-podman test-ocp clean help
+
+## ── CLI ──────────────────────────────────────────────────────────────
+
+## Build the harness CLI binary
+cli:
+	CGO_ENABLED=0 go build -o harness .
+	@echo "Built: ./harness"
 
 ## ── Images ────────────────────────────────────────────────────────────
 
@@ -56,10 +63,10 @@ test-ocp: sandbox push-launcher
 
 ## ── Convenience targets ───────────────────────────────────────────────
 
-## Clean staged binaries
+## Clean built binaries
 clean:
-	rm -f sandbox/launcher/openshell sandbox/launcher/launcher
-	@echo "Cleaned staged binaries"
+	rm -f harness sandbox/launcher/openshell sandbox/launcher/launcher
+	@echo "Cleaned binaries"
 
 ## Show available targets
 help:
