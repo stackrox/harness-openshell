@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 # Deploy OpenShell to an OpenShift cluster using the official Helm chart.
 #
+# Uses the OCI Helm chart from ghcr.io — no local OpenShell repo clone needed.
+#
 # Usage:
 #   ./deploy-ocp.sh                           # full deploy
 #   ./deploy-ocp.sh --kubeconfig ./kubeconfig  # explicit kubeconfig
 #
 # Environment variables (all optional, sensible defaults provided):
-#   OPENSHELL_REPO          — path to NVIDIA/OpenShell checkout (default: ../OpenShell)
-#   GATEWAY_IMAGE_REPO      — gateway image repo   (default: quay.io/rcochran/openshell)
-#   GATEWAY_IMAGE_TAG       — gateway image tag     (default: gateway)
-#   SUPERVISOR_IMAGE_REPO   — supervisor image repo (default: quay.io/rcochran/openshell)
-#   SANDBOX_IMAGE           — sandbox image          (default: quay.io/rcochran/openshell:sandbox)
-#   PULL_SECRET             — imagePullSecrets name  (default: none)
+#   OPENSHELL_CHART_VERSION — Helm chart version (default: from openshell.toml or 0.0.55)
+#   SANDBOX_IMAGE           — sandbox image (default: quay.io/rcochran/openshell:sandbox)
+#   PULL_SECRET             — imagePullSecrets name (default: none)
 #   SANDBOX_PULL_SECRET     — sandbox imagePullSecrets name (default: none)
 
 set -euo pipefail
@@ -30,15 +29,20 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-OPENSHELL_REPO="${OPENSHELL_REPO:-$(cd "$SCRIPT_DIR/../../nvidia/OpenShell" 2>/dev/null && pwd || echo "$SCRIPT_DIR/../OpenShell")}"
-if [[ ! -d "$OPENSHELL_REPO/deploy/helm/openshell" ]]; then
-  echo "ERROR: OpenShell repo not found at $OPENSHELL_REPO"
-  echo "Set OPENSHELL_REPO or clone NVIDIA/OpenShell alongside this repo"
-  exit 1
+# Read chart version from openshell.toml or env
+CHART_VERSION="${OPENSHELL_CHART_VERSION:-}"
+if [[ -z "$CHART_VERSION" && -f "$SCRIPT_DIR/openshell.toml" ]]; then
+  CHART_VERSION=$(python3 -c "
+import tomllib
+with open('$SCRIPT_DIR/openshell.toml', 'rb') as f:
+    print(tomllib.load(f).get('upstream', {}).get('chart-version', ''))
+" 2>/dev/null || true)
 fi
+CHART_VERSION="${CHART_VERSION:-0.0.55}"
+CHART="oci://ghcr.io/nvidia/openshell/helm-chart"
 
-echo "Using OpenShell repo: $OPENSHELL_REPO"
-echo "Using KUBECONFIG: ${KUBECONFIG:-default}"
+echo "OpenShell chart: $CHART_VERSION"
+echo "KUBECONFIG: ${KUBECONFIG:-default}"
 echo ""
 
 # ── Step 1: Namespace ──────────────────────────────────────────────────
@@ -51,7 +55,7 @@ kubectl label ns openshell \
 
 # ── Step 2: Sandbox CRD + controller ──────────────────────────────────
 echo "=== Step 2: Installing Sandbox CRD ==="
-kubectl apply -f "$OPENSHELL_REPO/deploy/kube/manifests/agent-sandbox.yaml"
+kubectl apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/manifest.yaml
 
 # ── Step 3: OpenShift SCCs ────────────────────────────────────────────
 echo "=== Step 3: Granting OpenShift SCCs ==="
@@ -99,13 +103,6 @@ RBAC
 # ── Step 4: Helm install gateway ──────────────────────────────────────
 echo "=== Step 4: Deploying gateway via Helm ==="
 
-GATEWAY_IMAGE_REPO="${GATEWAY_IMAGE_REPO:-quay.io/rcochran/openshell}"
-GATEWAY_IMAGE_TAG="${GATEWAY_IMAGE_TAG:-gateway}"
-SUPERVISOR_IMAGE_REPO="${SUPERVISOR_IMAGE_REPO:-quay.io/rcochran/openshell}"
-SUPERVISOR_IMAGE_TAG="${SUPERVISOR_IMAGE_TAG:-supervisor}"
-echo "  Gateway image:    $GATEWAY_IMAGE_REPO:$GATEWAY_IMAGE_TAG"
-echo "  Supervisor image: $SUPERVISOR_IMAGE_REPO:$SUPERVISOR_IMAGE_TAG"
-
 SANDBOX_IMAGE="${SANDBOX_IMAGE:-quay.io/rcochran/openshell:sandbox}"
 
 APPS_DOMAIN=$(kubectl get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}' 2>/dev/null)
@@ -117,10 +114,6 @@ ROUTE_HOST="gateway-openshell.${APPS_DOMAIN}"
 
 HELM_ARGS=(
   --values "$SCRIPT_DIR/values-ocp.yaml"
-  --set image.repository="$GATEWAY_IMAGE_REPO"
-  --set image.tag="$GATEWAY_IMAGE_TAG"
-  --set supervisor.image.repository="$SUPERVISOR_IMAGE_REPO"
-  --set supervisor.image.tag="$SUPERVISOR_IMAGE_TAG"
   --set server.sandboxImage="$SANDBOX_IMAGE"
   --set pkiInitJob.serverDnsNames[0]="$ROUTE_HOST"
 )
@@ -128,7 +121,7 @@ HELM_ARGS=(
 [[ -n "${PULL_SECRET:-}" ]]         && HELM_ARGS+=(--set imagePullSecrets[0].name="$PULL_SECRET")
 [[ -n "${SANDBOX_PULL_SECRET:-}" ]] && HELM_ARGS+=(--set server.sandboxImagePullSecrets[0].name="$SANDBOX_PULL_SECRET")
 
-helm upgrade --install openshell "$OPENSHELL_REPO/deploy/helm/openshell" -n openshell \
+helm upgrade --install openshell "$CHART" --version "$CHART_VERSION" -n openshell \
   "${HELM_ARGS[@]}"
 
 echo "=== Waiting for gateway ==="
@@ -162,12 +155,10 @@ GATEWAY_URL="https://${ROUTE_HOST}:443"
 CLI="${OPENSHELL_CLI:-openshell}"
 
 if command -v "$CLI" &>/dev/null; then
-  # Remove any old registration for this endpoint
   for gw in $("$CLI" gateway list 2>/dev/null | grep "$ROUTE_HOST" | awk '{gsub(/^\*/, ""); print $1}'); do
     "$CLI" gateway remove "$gw" 2>/dev/null || true
   done
 
-  # Register gateway (generates placeholder certs), then overwrite with real ones
   "$CLI" gateway add "$GATEWAY_URL" --name "$GATEWAY_NAME" --local 2>/dev/null || true
 
   MTLS_DIR="$HOME/.config/openshell/gateways/$GATEWAY_NAME/mtls"

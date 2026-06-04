@@ -17,3 +17,6 @@ providers-custom = ["gws"]
 
 [inference]
 model = "claude-sonnet-4-6"
+
+[upstream]
+chart-version = "0.0.55"
