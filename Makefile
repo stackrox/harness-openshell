@@ -19,7 +19,7 @@ SUPERVISOR_IMAGE := $(REGISTRY):supervisor
 
 .PHONY: all images push sandbox launcher gateway supervisor \
         cli cli-gateway cli-supervisor cli-launcher \
-        clean help
+        test test-podman test-ocp clean help
 
 all: images push
 
@@ -123,6 +123,20 @@ $(OPENSHELL_REPO)/target/x86_64-unknown-linux-musl/release/openshell-sandbox:
 	  --target x86_64-unknown-linux-musl \
 	  -p openshell-sandbox
 	@echo "Cross-compiled: openshell-sandbox (linux/amd64 musl)"
+
+## ── Test targets ─────────────────────────────────────────────────────
+
+## Build + push sandbox and launcher, then run full tests on both platforms
+test: sandbox push-launcher
+	./test-flow.sh all --full
+
+## Build + push sandbox and launcher, then run full podman test
+test-podman: sandbox push-launcher
+	./test-flow.sh podman --full
+
+## Build + push sandbox and launcher, then run full OCP test
+test-ocp: sandbox push-launcher
+	./test-flow.sh ocp --full
 
 ## ── Convenience targets ───────────────────────────────────────────────
 
