@@ -14,30 +14,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
+source "$SCRIPT_DIR/lib/agent.sh"
 require_cli
 require_kubectl
 
 NAMESPACE="${OPENSHELL_NAMESPACE:-openshell}"
 AGENT_NAME="${1:-default}"
 AGENT_FILE="$SCRIPT_DIR/agents/${AGENT_NAME}.toml"
-[[ -f "$AGENT_FILE" ]] || { echo "ERROR: $AGENT_FILE not found."; exit 1; }
-
-# Parse agent config
-eval "$(python3 -c "
-import tomllib, sys, shlex
-with open(sys.argv[1], 'rb') as f:
-    c = tomllib.load(f)
-print(f'SANDBOX_NAME={shlex.quote(c.get(\"name\", \"agent\"))}')
-print(f'SANDBOX_IMAGE={shlex.quote(c.get(\"image\", \"\"))}')
-print(f'SANDBOX_COMMAND={shlex.quote(c.get(\"command\", \"claude --bare\"))}')
-print(f'SANDBOX_KEEP={shlex.quote(str(c.get(\"keep\", True)).lower())}')
-providers = c.get('providers', [])
-print(f'SANDBOX_PROVIDERS={shlex.quote(\" \".join(providers))}')
-# env section as export statements
-env = c.get('env', {})
-lines = [f'export {k}={v}' for k, v in env.items()]
-print(f'SANDBOX_ENV={shlex.quote(chr(10).join(lines) + chr(10))}')
-" "$AGENT_FILE")"
+parse_agent "$AGENT_FILE"
 
 echo "=== Agent: $AGENT_NAME ==="
 echo "  Name:      $SANDBOX_NAME"

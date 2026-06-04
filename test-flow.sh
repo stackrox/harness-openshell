@@ -11,6 +11,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/agent.sh"
 CLI="${OPENSHELL_CLI:-openshell}"
 
 TARGET="${1:-}"
@@ -75,7 +76,7 @@ sandbox_verify() {
   local name="$1"
   # Check sandbox is ready
   local phase
-  phase=$("$CLI" sandbox list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk -v n="$name" '$1==n {print $NF}')
+  phase=$("$CLI" sandbox list 2>/dev/null | strip_ansi | awk -v n="$name" '$1==n {print $NF}')
   if [[ "$phase" != "Ready" ]]; then
     printf "  ✗ %-35s\n" "sandbox ready"
     ((FAIL++))
@@ -151,7 +152,7 @@ test_ocp() {
 
     # Wait for ready
     for i in $(seq 1 30); do
-      local phase=$("$CLI" sandbox list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk -v n="$sandbox_name" '$1==n {print $NF}')
+      local phase=$("$CLI" sandbox list 2>/dev/null | strip_ansi | awk -v n="$sandbox_name" '$1==n {print $NF}')
       [[ "$phase" == "Ready" ]] && break
       sleep 2
     done
