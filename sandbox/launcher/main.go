@@ -242,13 +242,6 @@ func main() {
 	}
 	configPath := "/etc/openshell/sandbox/config.toml"
 
-	// Scratch images have no filesystem — ensure HOME exists.
-	home := os.Getenv("HOME")
-	if home == "" {
-		home = "/tmp"
-	}
-	os.MkdirAll(home, 0o755)
-
 	if err := configureGateway(endpoint, "/secrets/mtls", cli); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: gateway config: %v\n", err)
 		os.Exit(1)
@@ -270,7 +263,7 @@ func main() {
 
 	providers := checkProviders(cfg.Providers, cli)
 
-	harnessDir := filepath.Join(home, "openshell")
+	harnessDir := "/tmp/openshell"
 	if err := stageFiles(cfg, "/secrets/gws", harnessDir); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: staging files: %v\n", err)
 		os.Exit(1)
