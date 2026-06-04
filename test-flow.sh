@@ -122,63 +122,10 @@ test_podman() {
   check_providers
 
   if $FULL; then
-    # Parse agent config for image
-    local sandbox_image
-    sandbox_image=$(python3 -c "
-import tomllib
-with open('$SCRIPT_DIR/agents/default.toml', 'rb') as f:
-    print(tomllib.load(f).get('image', ''))
-")
-
-    local from_flags=()
-    [[ -n "$sandbox_image" ]] && from_flags=(--from "$sandbox_image")
-
-    # Stage sandbox.env + GWS creds
-    local harness_dir="/tmp/test-harness/openshell"
-    rm -rf "$harness_dir" && mkdir -p "$harness_dir"
-    python3 -c "
-import tomllib
-with open('$SCRIPT_DIR/agents/default.toml', 'rb') as f:
-    env = tomllib.load(f).get('env', {})
-for k, v in env.items():
-    print(f'export {k}={v}')
-" > "$harness_dir/sandbox.env"
-    if command -v gws &>/dev/null && gws auth status &>/dev/null 2>&1; then
-      gws auth export --unmasked > "$harness_dir/credentials.json" 2>/dev/null
-      cp ~/.config/gws/client_secret.json "$harness_dir/client_secret.json" 2>/dev/null || true
-    fi
-
-    # Create sandbox (non-interactive, retry on supervisor race)
     local sandbox_name="test-agent"
-    local created=false
-    local create_start=$(date +%s)
-    for attempt in 1 2 3 4 5; do
-      if "$CLI" sandbox create \
-        --name "$sandbox_name" \
-        --no-tty \
-        ${from_flags[@]+"${from_flags[@]}"} \
-        ${PROVIDER_FLAGS[@]+"${PROVIDER_FLAGS[@]}"} \
-        --upload "$harness_dir:/sandbox/.config" --no-git-ignore \
-        -- bash /sandbox/startup.sh \
-        &>/dev/null; then
-        created=true
-        break
-      fi
-      "$CLI" sandbox delete "$sandbox_name" &>/dev/null || true
-      sleep 10
-    done
-
-    if $created; then
-      local create_elapsed=$(( $(date +%s) - create_start ))
-      printf "  ✓ %-35s (%ds, %d attempts)\n" "sandbox create" "$create_elapsed" "$attempt"
-      ((PASS++))
-      sandbox_verify "$sandbox_name"
-    else
-      printf "  ✗ %-35s\n" "sandbox create (failed after 5 attempts)"
-      ((FAIL++))
-    fi
+    step_output "sandbox create" "$SCRIPT_DIR/sandbox-podman.sh" --name "$sandbox_name" --no-tty
+    sandbox_verify "$sandbox_name"
     step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
-    rm -rf "$harness_dir"
   fi
 
   step "teardown (clean)" "$SCRIPT_DIR/teardown.sh" --sandboxes --providers
