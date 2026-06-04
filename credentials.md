@@ -9,7 +9,7 @@ How credentials flow from your machine into sandboxes.
 | GitHub token | `github` (built-in) | Bearer auth, proxy-resolved | `setup-providers.sh` |
 | Vertex AI | `google-vertex-ai` (built-in) | `inference.local` gateway routing, OAuth refresh | `setup-providers.sh` |
 | Atlassian API token | `atlassian` (custom profile) | Basic auth, proxy decodes base64 + resolves | `setup-providers.sh` |
-| Atlassian URL/username | — | Uploaded as `atlassian.json` (not secrets) | `sandbox-podman.sh` / `sandbox.yaml` |
+| Atlassian URL/username | — | Uploaded as `atlassian.json` (not secrets) | `sandbox-podman.sh` / `sandbox-ocp.sh` |
 | GWS OAuth | — | Decrypted export uploaded as files | `sandbox-podman.sh` / `setup-creds.sh` |
 
 ## How it works

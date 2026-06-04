@@ -5,7 +5,7 @@
 #
 # Copy this file and customize per deployment:
 #   cp openshell.toml my-team.toml
-#   ./sandbox-check.sh --config my-team.toml
+#   ./openshell-harness-preflight.sh
 
 # Which providers to register and attach to sandboxes.
 # Must match names defined in providers.toml.

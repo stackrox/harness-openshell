@@ -16,7 +16,7 @@ require_cli() {
 }
 
 # Guard: exit if kubectl is not on PATH.
-# Used by: sandbox-ocp.sh, deploy-ocp.sh, setup-creds.sh, teardown-ocp.sh
+# Used by: sandbox-ocp.sh, deploy-ocp.sh, setup-creds.sh, teardown.sh
 require_kubectl() {
   command -v kubectl &>/dev/null || { echo "ERROR: kubectl is required."; exit 1; }
 }

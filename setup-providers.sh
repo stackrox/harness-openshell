@@ -2,7 +2,7 @@
 # Register credential providers with the OpenShell gateway.
 #
 # Skips providers that already exist. Use --force to delete and recreate
-# all providers (requires no running sandboxes — run ./delete-sandboxes.sh first).
+# all providers (requires no running sandboxes — run openshell sandbox list | awk 'NR>1{print $1}' | xargs -I{} openshell sandbox delete {} first).
 #
 # Run once after deploy-ocp.sh. Providers are stored in the gateway database
 # and survive redeployments (same PVC).
@@ -39,7 +39,7 @@ provider_exists() { "$CLI" provider get "$1" &>/dev/null; }
 if $FORCE; then
   sandboxes=$("$CLI" sandbox list 2>/dev/null | awk 'NR>1 {print $1}')
   if [[ -n "$sandboxes" ]]; then
-    echo "ERROR: Cannot --force with running sandboxes. Run ./delete-sandboxes.sh first."
+    echo "ERROR: Cannot --force with running sandboxes. Run openshell sandbox list | awk 'NR>1{print $1}' | xargs -I{} openshell sandbox delete {} first."
     exit 1
   fi
   for name in github vertex-local atlassian; do

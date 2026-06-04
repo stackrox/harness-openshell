@@ -5,11 +5,11 @@
 > and its PyYAML dependency.
 
 In-cluster binary that creates OpenShell sandboxes from a YAML config.
-Runs as a Kubernetes Job — `kubectl apply -f sandbox.yaml` triggers it.
+Runs as a Kubernetes Job — `./sandbox-ocp.sh` generates and applies it.
 
 ## What it does
 
-1. Read `config.yaml` from a mounted ConfigMap
+1. Read `config.toml` from a mounted ConfigMap
 2. Register the in-cluster gateway using mounted mTLS certs
 3. Verify providers exist, skip any that aren't registered
 4. Call `openshell sandbox create` with providers and skills config

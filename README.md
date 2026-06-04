@@ -56,7 +56,6 @@ make push-sandbox push-launcher push-gateway push-supervisor
 ./setup-providers.sh
 
 # 4. Launch a sandbox
-kubectl apply -f sandbox.yaml
 # or: ./sandbox-ocp.sh
 ```
 
@@ -69,7 +68,6 @@ kubectl apply -f sandbox.yaml
 | `setup-providers.sh` | Register credential providers — works on any gateway |
 | `sandbox-podman.sh` | Launch sandbox on local gateway (direct CLI) |
 | `sandbox-ocp.sh` | Launch sandbox on OpenShift (kubectl apply) |
-| `teardown-ocp.sh` | Remove all OpenShift resources |
 | `sandbox/Dockerfile` | Custom sandbox image (extends community base) |
 | `sandbox/policy.yaml` | Network policy (endpoints not covered by provider profiles) |
 | `sandbox/startup.sh` | Runtime env, GWS, MCP config |
@@ -98,7 +96,6 @@ See [credentials.md](credentials.md) for the full reference.
 ./sandbox-podman.sh --name dev               # named sandbox
 
 # OpenShift
-./sandbox-ocp.sh                            # apply sandbox.yaml + show logs
 ./sandbox-ocp.sh my-config.yaml             # use a custom config
 
 # Either platform
