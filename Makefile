@@ -30,13 +30,13 @@ images: sandbox launcher gateway supervisor
 push: push-sandbox push-launcher push-gateway push-supervisor
 
 ## Sandbox image (Claude Code + mcp-atlassian + gws)
-sandbox: sandbox/Dockerfile sandbox/startup.sh sandbox/configure-mcp.py \
+sandbox: sandbox/Dockerfile sandbox/startup.sh \
          sandbox/policy.yaml sandbox/CLAUDE.md sandbox/settings.json
-	docker build --platform $(PLATFORM) -t $(SANDBOX_IMAGE) sandbox/
-	@echo "Built: $(SANDBOX_IMAGE)"
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(SANDBOX_IMAGE) sandbox/ --push
+	@echo "Built and pushed: $(SANDBOX_IMAGE) (multi-arch)"
 
 push-sandbox: sandbox
-	docker push $(SANDBOX_IMAGE)
+	@echo "Already pushed by buildx"
 
 ## Launcher image (openshell CLI — requires cli-launcher first)
 launcher: sandbox/launcher/Dockerfile sandbox/launcher/entrypoint.sh \

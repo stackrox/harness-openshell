@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "atlassian": {
+      "type": "stdio",
+      "command": "/sandbox/.venv/bin/mcp-atlassian",
+      "args": [],
+      "env": {
+        "READ_ONLY_MODE": "true"
+      }
+    }
+  }
+}

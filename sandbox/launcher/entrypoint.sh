@@ -7,45 +7,69 @@
 #
 # Config mounted at: /etc/openshell/sandbox/config.yaml
 # Secrets mounted at: /secrets/gws/, /secrets/mtls/
-set -euo pipefail
+set -uo pipefail
 
 GATEWAY_ENDPOINT="${GATEWAY_ENDPOINT:-https://openshell.openshell.svc.cluster.local:8080}"
 CLI="${OPENSHELL_CLI:-openshell}"
-CONFIG="/etc/openshell/sandbox/config.yaml"
+CONFIG="/etc/openshell/sandbox/config.toml"
 
-# ── Parse config.yaml ─────────────────────────────────────────────────
+# ── Configure gateway connection ──────────────────────────────────────
+MTLS_DIR="/secrets/mtls"
+if [[ -f "$MTLS_DIR/tls.crt" ]]; then
+  # Register as http:// (skips cert generation), then fix endpoint + add real certs
+  HTTP_ENDPOINT="${GATEWAY_ENDPOINT/https:/http:}"
+  "$CLI" gateway add "$HTTP_ENDPOINT" --name openshell 2>/dev/null || true
+
+  # Patch to https and set auth_mode to mtls
+  GW_DIR="$HOME/.config/openshell/gateways/openshell"
+  mkdir -p "$GW_DIR/mtls"
+  python3 -c "
+import json
+with open('$GW_DIR/metadata.json') as f: d = json.load(f)
+d['gateway_endpoint'] = '$GATEWAY_ENDPOINT'
+d['auth_mode'] = 'mtls'
+with open('$GW_DIR/metadata.json', 'w') as f: json.dump(d, f)
+"
+  cp "$MTLS_DIR/ca.crt"  "$GW_DIR/mtls/ca.crt"
+  cp "$MTLS_DIR/tls.crt" "$GW_DIR/mtls/tls.crt"
+  cp "$MTLS_DIR/tls.key" "$GW_DIR/mtls/tls.key"
+  echo "  ✓ mTLS gateway configured"
+else
+  echo "  No mTLS certs, using insecure mode"
+  export OPENSHELL_GATEWAY_ENDPOINT="$GATEWAY_ENDPOINT"
+  export OPENSHELL_GATEWAY_INSECURE=true
+fi
+
+# ── Parse config.toml ─────────────────────────────────────────────────
 if [[ ! -f "$CONFIG" ]]; then
   echo "ERROR: Config not found at $CONFIG"
   exit 1
 fi
 
 eval "$(python3 -c "
-import yaml, sys, shlex
-with open(sys.argv[1]) as f:
-    c = yaml.safe_load(f)
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+import sys, shlex
+with open(sys.argv[1], 'rb') as f:
+    c = tomllib.load(f)
 print(f'SANDBOX_NAME={shlex.quote(c.get(\"name\", \"agent\"))}')
+print(f'SANDBOX_IMAGE={shlex.quote(c.get(\"image\", \"\"))}')
 print(f'SANDBOX_COMMAND={shlex.quote(c.get(\"command\", \"claude --bare\"))}')
 print(f'SANDBOX_KEEP={shlex.quote(str(c.get(\"keep\", True)).lower())}')
 providers = c.get('providers', [])
 print(f'SANDBOX_PROVIDERS={shlex.quote(\" \".join(providers))}')
 " "$CONFIG")"
 
-# ── Configure mTLS from mounted secret ────────────────────────────────
-MTLS_DIR="${MTLS_DIR:-/secrets/mtls}"
-if [[ -f "$MTLS_DIR/tls.crt" ]]; then
-  mkdir -p "$HOME/.config/openshell/gateways/openshell/mtls"
-  cp "$MTLS_DIR/ca.crt"  "$HOME/.config/openshell/gateways/openshell/mtls/ca.crt"  2>/dev/null || true
-  cp "$MTLS_DIR/tls.crt" "$HOME/.config/openshell/gateways/openshell/mtls/tls.crt" 2>/dev/null || true
-  cp "$MTLS_DIR/tls.key" "$HOME/.config/openshell/gateways/openshell/mtls/tls.key" 2>/dev/null || true
-  "$CLI" gateway add "$GATEWAY_ENDPOINT" --name openshell --local 2>&1 || true
-  export OPENSHELL_GATEWAY=openshell
-else
-  export OPENSHELL_GATEWAY_ENDPOINT="$GATEWAY_ENDPOINT"
-  export OPENSHELL_GATEWAY_INSECURE=true
+FROM_FLAGS=()
+if [[ -n "$SANDBOX_IMAGE" ]]; then
+  FROM_FLAGS=(--from "$SANDBOX_IMAGE")
 fi
 
 echo "=== Sandbox Launcher ==="
 echo "  Name:      $SANDBOX_NAME"
+echo "  Image:     $SANDBOX_IMAGE"
 echo "  Providers: $SANDBOX_PROVIDERS"
 echo "  Command:   $SANDBOX_COMMAND"
 echo "  Gateway:   $GATEWAY_ENDPOINT"
@@ -62,18 +86,22 @@ for name in $SANDBOX_PROVIDERS; do
   fi
 done
 
-# ── GWS credentials ───────────────────────────────────────────────────
-if [[ -f /secrets/gws/credentials.json ]]; then
-  echo "  GWS: mounted"
-else
-  echo "  GWS: not mounted (skipping)"
+# ── Stage files for upload to /sandbox/.config/openshell/ ─────────────
+HARNESS_DIR="/tmp/openshell"
+mkdir -p "$HARNESS_DIR"
+
+# Sandbox env vars (from agent config via ConfigMap)
+if [[ -f /etc/openshell/env/sandbox.env ]]; then
+  cp /etc/openshell/env/sandbox.env "$HARNESS_DIR/sandbox.env"
+  echo "  Env: $(wc -l < "$HARNESS_DIR/sandbox.env") vars"
 fi
 
-# ── Atlassian config ──────────────────────────────────────────────────
-if [[ -n "${JIRA_URL:-}" ]]; then
-  echo "  Atlassian: $JIRA_URL"
+# GWS credentials
+if [[ -f /secrets/gws/credentials.json ]]; then
+  cp /secrets/gws/* "$HARNESS_DIR/"
+  echo "  GWS: staged"
 else
-  echo "  Atlassian: not configured (skipping)"
+  echo "  GWS: not mounted (skipping)"
 fi
 
 # ── Keep flag ──────────────────────────────────────────────────────────
@@ -82,19 +110,27 @@ KEEP_ARGS=()
 
 echo ""
 echo "=== Creating sandbox ==="
-for attempt in 1 2 3; do
+for attempt in 1 2 3 4 5; do
   "$CLI" sandbox create \
     --name "$SANDBOX_NAME" \
     --no-tty \
+    ${FROM_FLAGS[@]+"${FROM_FLAGS[@]}"} \
     ${PROVIDER_FLAGS[@]+"${PROVIDER_FLAGS[@]}"} \
     ${KEEP_ARGS[@]+"${KEEP_ARGS[@]}"} \
-    -- bash /sandbox/startup.sh \
+    -- true \
     && break
-  echo "Attempt $attempt failed (supervisor race), retrying in 5s..."
+  echo "  Attempt $attempt failed (supervisor race), retrying in 10s..."
   "$CLI" sandbox delete "$SANDBOX_NAME" 2>/dev/null || true
-  sleep 5
-  [[ $attempt -eq 3 ]] && { echo "ERROR: Failed after 3 attempts."; exit 1; }
+  sleep 10
+  [[ $attempt -eq 5 ]] && { echo "ERROR: Failed after 5 attempts."; exit 1; }
 done
+
+# Upload all staged files in one shot
+echo "  Uploading to /sandbox/.config/openshell/..."
+"$CLI" sandbox upload "$SANDBOX_NAME" "$HARNESS_DIR" /sandbox/.config --no-git-ignore
+
+echo "  Running startup..."
+"$CLI" sandbox exec --name "$SANDBOX_NAME" -- bash /sandbox/startup.sh
 
 echo ""
 echo "Sandbox '$SANDBOX_NAME' is ready."

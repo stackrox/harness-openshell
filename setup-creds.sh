@@ -5,23 +5,16 @@
 # mounted into sandbox launcher pods — they never transit the kubectl client
 # when launching sandboxes.
 #
-# Manages:
-#   openshell-gws       — decrypted GWS OAuth credentials (gws CLI)
-#   openshell-atlassian — Atlassian site URL and username (non-secrets)
-#
-# JIRA_API_TOKEN, GITHUB_TOKEN, and GCP ADC secrets are managed separately
-# by the OpenShell provider system (setup-providers.sh) and are NOT stored
-# in K8s secrets.
-#
-# Prerequisites:
-#   - Namespace 'openshell' exists (./deploy-ocp.sh)
-#   - gws auth login completed (for GWS)
-#   - JIRA_URL, JIRA_USERNAME set in environment (for Atlassian)
+# For local mode, this script is NOT needed — sandbox-podman.sh handles
+# credential staging at launch time.
 #
 # Usage:
 #   ./setup-creds.sh           # create missing secrets
 #   ./setup-creds.sh --force   # delete and recreate all secrets
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
 NAMESPACE="${OPENSHELL_NAMESPACE:-openshell}"
 FORCE=false
@@ -52,27 +45,14 @@ fi
 if secret_exists openshell-gws; then
   echo "  openshell-gws: exists (use --force to recreate)"
 else
-  command -v gws &>/dev/null || { echo "  gws CLI not found — skipping GWS"; }
-  if command -v gws &>/dev/null; then
-    if ! gws auth status &>/dev/null; then
-      echo "  GWS not authenticated — run 'gws auth login' then re-run this script"
-    else
-      TMPDIR=$(mktemp -d)
-      trap 'rm -rf "$TMPDIR"' EXIT
-      gws auth export --unmasked > "$TMPDIR/credentials.json" 2>/dev/null || {
-        echo "  ERROR: gws export failed"; exit 1
-      }
-      GWS_DIR="${GWS_CONFIG_DIR:-$HOME/.config/gws}"
-      CLIENT_SECRET_ARG=""
-      if [[ -f "$GWS_DIR/client_secret.json" ]]; then
-        cp "$GWS_DIR/client_secret.json" "$TMPDIR/"
-        CLIENT_SECRET_ARG="--from-file=client_secret.json=$TMPDIR/client_secret.json"
-      fi
-      kubectl create secret generic openshell-gws -n "$NAMESPACE" \
-        --from-file=credentials.json="$TMPDIR/credentials.json" \
-        ${CLIENT_SECRET_ARG:+"$CLIENT_SECRET_ARG"}
-      echo "  openshell-gws: created"
-    fi
+  TMPDIR=$(mktemp -d)
+  trap 'rm -rf "$TMPDIR"' EXIT
+  if export_gws_creds "$TMPDIR"; then
+    ARGS=(--from-file=credentials.json="$TMPDIR/gws-config/credentials.json")
+    [[ -f "$TMPDIR/gws-config/client_secret.json" ]] && \
+      ARGS+=(--from-file=client_secret.json="$TMPDIR/gws-config/client_secret.json")
+    kubectl create secret generic openshell-gws -n "$NAMESPACE" "${ARGS[@]}"
+    echo "  openshell-gws: created"
   fi
 fi
 
@@ -92,15 +72,8 @@ elif [[ -n "${JIRA_URL:-}" ]]; then
     --from-literal=JIRA_USERNAME="${JIRA_USERNAME:-}"
   echo "  openshell-atlassian: created ($JIRA_URL)"
 else
-  echo "  openshell-atlassian: skipped (JIRA_URL not set)"
+  echo "  Atlassian: JIRA_URL not set (skipping)"
 fi
 
 echo ""
-echo "=== Secrets in $NAMESPACE ==="
-kubectl get secrets -n "$NAMESPACE" \
-  --field-selector type=Opaque \
-  -o custom-columns="NAME:.metadata.name,KEYS:.data" 2>/dev/null | \
-  grep -E "openshell-gws|openshell-atlassian|NAME" || echo "  (none created yet)"
-
-echo ""
-echo "Done. Run ./sandbox-check.sh to verify all prerequisites."
+echo "Done. Run ./openshell-harness-preflight.sh to verify all prerequisites."

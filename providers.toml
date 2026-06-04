@@ -1,0 +1,46 @@
+# Provider definitions for the OpenShell harness.
+# See PROVIDERS-SPEC.md for format documentation.
+
+[[providers]]
+name = "github"
+type = "openshell"
+description = "GitHub API and git operations (read-only)"
+required = true
+inputs = [
+  { key = "GITHUB_TOKEN", kind = "env", secret = true },
+]
+
+[[providers]]
+name = "vertex-local"
+type = "openshell"
+method = "from-gcloud-adc"
+description = "Google Vertex AI inference via gateway-managed OAuth"
+required = true
+inputs = [
+  { key = "ANTHROPIC_VERTEX_PROJECT_ID", kind = "env" },
+  { key = "CLOUD_ML_REGION", kind = "env" },
+  { key = "~/.config/gcloud/application_default_credentials.json", kind = "file", secret = true },
+  { key = "gcloud auth application-default print-access-token", kind = "check" },
+]
+
+[[providers]]
+name = "atlassian"
+type = "openshell"
+description = "Jira and Confluence (read-only, Basic auth resolved by proxy)"
+inputs = [
+  { key = "JIRA_API_TOKEN", kind = "env", secret = true },
+  { key = "JIRA_URL", kind = "env" },
+  { key = "JIRA_USERNAME", kind = "env" },
+  { key = "curl -sf ${JIRA_URL}/rest/api/2/serverInfo -o /dev/null", kind = "check" },
+  { key = "curl -sf -u ${JIRA_USERNAME}:${JIRA_API_TOKEN} ${JIRA_URL}/rest/api/2/myself -o /dev/null", kind = "check" },
+]
+
+[[providers]]
+name = "gws"
+type = "custom"
+description = "Google Workspace (Gmail, Calendar, Drive)"
+upstream = "https://github.com/NVIDIA/OpenShell/issues/1268"
+inputs = [
+  { key = "~/.config/gws/client_secret.json", kind = "file", secret = true },
+  { key = "gws auth status", kind = "check" },
+]

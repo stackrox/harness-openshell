@@ -84,6 +84,9 @@ spec:
             - name: gateway-mtls
               mountPath: /secrets/mtls
               readOnly: true
+            - name: sandbox-env
+              mountPath: /etc/openshell/env
+              readOnly: true
 
       volumes:
         - name: config
@@ -96,3 +99,7 @@ spec:
         - name: gateway-mtls
           secret:
             secretName: openshell-client-tls
+        - name: sandbox-env
+          configMap:
+            name: sandbox-env
+            optional: true

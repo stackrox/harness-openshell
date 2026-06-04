@@ -1,0 +1,21 @@
+# Default agent configuration.
+#
+# Usage:
+#   ./sandbox-ocp.sh              # uses agents/default.toml
+#   ./sandbox-ocp.sh research     # uses agents/research.toml
+
+name = "agent"
+image = "quay.io/rcochran/openshell:sandbox"
+command = "claude --bare"
+keep = true
+
+providers = ["github", "vertex-local", "atlassian"]
+
+[env]
+ANTHROPIC_BASE_URL = "https://inference.local"
+ANTHROPIC_API_KEY = "sk-ant-openshell-proxy-managed"
+CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS = "1"
+GOOGLE_WORKSPACE_CLI_CONFIG_DIR = "/sandbox/.config/openshell"
+GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE = "/sandbox/.config/openshell/credentials.json"
+JIRA_URL = "https://redhat.atlassian.net"
+JIRA_USERNAME = "rcochran@redhat.com"

@@ -53,7 +53,8 @@ RUN pip install --no-cache-dir mcp-atlassian==0.21.1
 
 # Google Workspace CLI (Gmail, Calendar, Drive, Docs, Sheets)
 # https://github.com/googleworkspace/cli
-RUN curl -fsSL https://github.com/googleworkspace/cli/releases/download/v0.22.5/google-workspace-cli-x86_64-unknown-linux-gnu.tar.gz \
+RUN ARCH=$(uname -m | sed 's/arm64/aarch64/') && \
+    curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v0.22.5/google-workspace-cli-${ARCH}-unknown-linux-gnu.tar.gz" \
     | tar xz -C /usr/local/bin
 
 # Sandbox policy (network egress rules — provider profiles contribute
@@ -63,17 +64,16 @@ COPY policy.yaml /etc/openshell/policy.yaml
 # Agent instructions + Claude config
 COPY CLAUDE.md /sandbox/CLAUDE.md
 COPY settings.json /sandbox/.claude/settings.json
+COPY mcp.json /sandbox/.mcp.json
 
-# Runtime scripts
+# Runtime script
 COPY startup.sh /sandbox/startup.sh
-COPY configure-mcp.py /sandbox/configure-mcp.py
 
-# GWS config directory (populated at runtime via --upload)
-# Upstream: https://github.com/NVIDIA/OpenShell/issues/1268
-RUN mkdir -p /tmp/gws-config && chown sandbox:sandbox /tmp/gws-config
+# Harness config directory (populated at runtime via upload)
+RUN mkdir -p /sandbox/.config/openshell && chown sandbox:sandbox /sandbox/.config/openshell
 
-RUN chmod +x /sandbox/startup.sh /sandbox/configure-mcp.py && \
-    chown -R sandbox:sandbox /sandbox/.claude /sandbox/CLAUDE.md /sandbox/startup.sh /sandbox/configure-mcp.py
+RUN chmod +x /sandbox/startup.sh && \
+    chown -R sandbox:sandbox /sandbox/.claude /sandbox/.mcp.json /sandbox/.config /sandbox/CLAUDE.md /sandbox/startup.sh
 
 USER sandbox
 

@@ -1,6 +1,10 @@
 # Sandbox Launcher
 
-In-cluster Go binary that creates OpenShell sandboxes from a YAML config.
+> **Status:** Currently implemented as bash + Python. This spec describes
+> the target Go rewrite — a single static binary replacing the entrypoint.sh
+> and its PyYAML dependency.
+
+In-cluster binary that creates OpenShell sandboxes from a YAML config.
 Runs as a Kubernetes Job — `kubectl apply -f sandbox.yaml` triggers it.
 
 ## What it does

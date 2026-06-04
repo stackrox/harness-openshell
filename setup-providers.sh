@@ -8,10 +8,14 @@
 # and survive redeployments (same PVC).
 #
 # Prerequisites:
-#   - Gateway deployed and reachable (./deploy-ocp.sh)
-#   - GITHUB_TOKEN set in environment
+#   - Gateway deployed and reachable
+#   - GITHUB_TOKEN in environment
 #   - gcloud auth application-default login completed
-#   - JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN set in environment
+#   - JIRA_API_TOKEN in environment (for Atlassian)
+#
+# Optional env vars:
+#   ANTHROPIC_VERTEX_PROJECT_ID  — GCP project (falls back to ADC quota_project_id)
+#   CLOUD_ML_REGION              — Vertex AI region (default: us-east5)
 #
 # Usage:
 #   ./setup-providers.sh           # create missing providers
@@ -19,8 +23,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GATEWAY_NAME="${GATEWAY_NAME:-ocp}"
-export OPENSHELL_GATEWAY="$GATEWAY_NAME"
 
 CLI="${OPENSHELL_CLI:-openshell}"
 command -v "$CLI" &>/dev/null || { echo "ERROR: openshell CLI not found."; exit 1; }
@@ -29,8 +31,6 @@ command -v jq &>/dev/null || { echo "ERROR: jq is required for ADC parsing."; ex
 FORCE=false
 [[ "${1:-}" == "--force" ]] && FORCE=true
 
-VERTEX_PROJECT="${VERTEX_PROJECT:-}"
-VERTEX_REGION="${VERTEX_REGION:-us-east5}"
 MODEL="${OPENSHELL_MODEL:-claude-sonnet-4-6}"
 
 provider_exists() { "$CLI" provider get "$1" &>/dev/null; }
@@ -82,32 +82,34 @@ else
 fi
 
 # ── Vertex AI ──────────────────────────────────────────────────────────
+# Project and region: ANTHROPIC_VERTEX_PROJECT_ID / CLOUD_ML_REGION first,
+# then fall back to ADC file's quota_project_id.
 ADC="${GOOGLE_APPLICATION_CREDENTIALS:-$HOME/.config/gcloud/application_default_credentials.json}"
-if [[ -f "$ADC" ]]; then
-  [[ -z "$VERTEX_PROJECT" ]] && VERTEX_PROJECT=$(jq -r '.quota_project_id // empty' "$ADC")
-  if [[ -n "$VERTEX_PROJECT" ]]; then
-    if ! provider_exists vertex-local; then
-      "$CLI" provider create --name vertex-local --type google-vertex-ai \
-        --from-gcloud-adc \
-        --config "VERTEX_AI_PROJECT_ID=${VERTEX_PROJECT}" \
-        --config "VERTEX_AI_REGION=${VERTEX_REGION}"
-      echo "  vertex-local — registered (project: $VERTEX_PROJECT)"
-    else
-      echo "  vertex-local — exists (use --force to recreate)"
-    fi
-    # Always ensure inference route is set to the configured model
-    "$CLI" inference set --provider vertex-local --model "$MODEL" --no-verify
-    echo "  inference — model: $MODEL"
+PROJECT="${ANTHROPIC_VERTEX_PROJECT_ID:-}"
+REGION="${CLOUD_ML_REGION:-global}"
+[[ -z "$PROJECT" && -f "$ADC" ]] && PROJECT=$(jq -r '.quota_project_id // empty' "$ADC")
+
+if [[ -f "$ADC" && -n "$PROJECT" ]]; then
+  if ! provider_exists vertex-local; then
+    "$CLI" provider create --name vertex-local --type google-vertex-ai \
+      --from-gcloud-adc \
+      --config "VERTEX_AI_PROJECT_ID=${PROJECT}" \
+      --config "VERTEX_AI_REGION=${REGION}"
+    echo "  vertex-local — registered (project: $PROJECT, region: $REGION)"
   else
-    echo "  vertex-local — skipped (VERTEX_PROJECT not set and not in ADC)"
+    echo "  vertex-local — exists (use --force to recreate)"
   fi
-else
+  "$CLI" inference set --provider vertex-local --model "$MODEL" --no-verify
+  echo "  inference — model: $MODEL"
+elif [[ ! -f "$ADC" ]]; then
   echo "  vertex-local — skipped (no ADC file at $ADC)"
+else
+  echo "  vertex-local — skipped (no project ID — set ANTHROPIC_VERTEX_PROJECT_ID or run gcloud auth application-default login)"
 fi
 
 # ── Atlassian ──────────────────────────────────────────────────────────
 # Only JIRA_API_TOKEN is a provider credential (proxy-resolved in Basic auth).
-# JIRA_URL and JIRA_USERNAME are non-secret config uploaded by sandbox.sh.
+# JIRA_URL and JIRA_USERNAME are non-secret config uploaded by sandbox-ocp.sh.
 if [[ -n "${JIRA_API_TOKEN:-}" ]]; then
   if ! provider_exists atlassian; then
     "$CLI" provider create --name atlassian --type atlassian \
@@ -129,4 +131,4 @@ echo "=== Inference ==="
 "$CLI" inference get
 
 echo ""
-echo "Done. Launch a sandbox with: ./sandbox.sh --name my-agent"
+echo "Done. Launch a sandbox with: ./sandbox-ocp.sh --name my-agent"

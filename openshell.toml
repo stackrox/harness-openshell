@@ -1,0 +1,19 @@
+# Deployment configuration — what's enabled for this environment.
+#
+# providers.toml defines the full catalog of available providers and
+# their requirements. This file selects which ones to use.
+#
+# Copy this file and customize per deployment:
+#   cp openshell.toml my-team.toml
+#   ./sandbox-check.sh --config my-team.toml
+
+# Which providers to register and attach to sandboxes.
+# Must match names defined in providers.toml.
+providers = ["github", "vertex-local", "atlassian"]
+
+# Custom providers to enable (from [providers-custom] in providers.toml).
+# These will eventually become regular [providers] when OpenShell adds native support.
+providers-custom = ["gws"]
+
+[inference]
+model = "claude-sonnet-4-6"

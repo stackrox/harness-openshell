@@ -13,14 +13,13 @@
 #   SANDBOX_IMAGE           — sandbox image          (default: quay.io/rcochran/openshell:sandbox)
 #   PULL_SECRET             — imagePullSecrets name  (default: none)
 #   SANDBOX_PULL_SECRET     — sandbox imagePullSecrets name (default: none)
-#   GATEWAY_NAME            — CLI gateway name       (default: ocp)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ── Dependency checks ──────────────────────────────────────────────────
-for cmd in kubectl helm base64; do
+for cmd in kubectl helm; do
   command -v "$cmd" &>/dev/null || { echo "ERROR: $cmd is required but not found."; exit 1; }
 done
 
@@ -37,8 +36,6 @@ if [[ ! -d "$OPENSHELL_REPO/deploy/helm/openshell" ]]; then
   echo "Set OPENSHELL_REPO or clone NVIDIA/OpenShell alongside this repo"
   exit 1
 fi
-
-GATEWAY_NAME="${GATEWAY_NAME:-ocp}"
 
 echo "Using OpenShell repo: $OPENSHELL_REPO"
 echo "Using KUBECONFIG: ${KUBECONFIG:-default}"
@@ -58,21 +55,15 @@ kubectl apply -f "$OPENSHELL_REPO/deploy/kube/manifests/agent-sandbox.yaml"
 
 # ── Step 3: OpenShift SCCs ────────────────────────────────────────────
 echo "=== Step 3: Granting OpenShift SCCs ==="
-# Gateway and sandbox service accounts need privileged SCC.
-# openshell-sandbox is created by Helm; grant it before Helm runs so the
-# clusterrolebinding exists when the chart creates the service account.
 for sa in openshell openshell-sandbox default; do
   oc adm policy add-scc-to-user privileged -z "$sa" -n openshell 2>/dev/null || true
 done
 oc adm policy add-scc-to-user anyuid -z openshell -n openshell 2>/dev/null || true
-# Agent-sandbox controller needs cluster-admin to manage sandbox CRDs across namespaces
 kubectl create clusterrolebinding agent-sandbox-admin \
   --clusterrole=cluster-admin \
   --serviceaccount=agent-sandbox-system:agent-sandbox-controller 2>/dev/null || true
 
 # ── Launcher ServiceAccount + RBAC ────────────────────────────────────
-# The in-cluster sandbox launcher (sandbox.yaml Job) needs to read
-# ConfigMaps and Secrets in the openshell namespace.
 kubectl apply -n openshell -f - <<'RBAC'
 apiVersion: v1
 kind: ServiceAccount
@@ -108,22 +99,18 @@ RBAC
 # ── Step 4: Helm install gateway ──────────────────────────────────────
 echo "=== Step 4: Deploying gateway via Helm ==="
 
-# Custom gateway and supervisor builds (required for google-vertex-ai
-# provider and model discovery fix).
 GATEWAY_IMAGE_REPO="${GATEWAY_IMAGE_REPO:-quay.io/rcochran/openshell}"
 GATEWAY_IMAGE_TAG="${GATEWAY_IMAGE_TAG:-gateway}"
 SUPERVISOR_IMAGE_REPO="${SUPERVISOR_IMAGE_REPO:-quay.io/rcochran/openshell}"
 SUPERVISOR_IMAGE_TAG="${SUPERVISOR_IMAGE_TAG:-supervisor}"
-echo "  Gateway image tag:    $GATEWAY_IMAGE_TAG"
-echo "  Supervisor image tag: $SUPERVISOR_IMAGE_TAG"
+echo "  Gateway image:    $GATEWAY_IMAGE_REPO:$GATEWAY_IMAGE_TAG"
+echo "  Supervisor image: $SUPERVISOR_IMAGE_REPO:$SUPERVISOR_IMAGE_TAG"
 
 SANDBOX_IMAGE="${SANDBOX_IMAGE:-quay.io/rcochran/openshell:sandbox}"
 
-# Compute the route hostname for the server cert SAN
 APPS_DOMAIN=$(kubectl get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}' 2>/dev/null)
 if [[ -z "$APPS_DOMAIN" ]]; then
   echo "ERROR: Could not determine OpenShift apps domain."
-  echo "This script requires an OpenShift cluster with an ingress controller."
   exit 1
 fi
 ROUTE_HOST="gateway-openshell.${APPS_DOMAIN}"
@@ -144,17 +131,10 @@ HELM_ARGS=(
 helm upgrade --install openshell "$OPENSHELL_REPO/deploy/helm/openshell" -n openshell \
   "${HELM_ARGS[@]}"
 
-echo "=== Waiting for PKI init job ==="
-kubectl wait job -n openshell -l app.kubernetes.io/component=certgen \
-  --for=condition=complete --timeout=120s 2>/dev/null || true
-
 echo "=== Waiting for gateway ==="
 kubectl rollout status statefulset/openshell -n openshell --timeout=300s
 
 # ── Step 5: OpenShift Route (TLS passthrough) ─────────────────────────
-# mTLS is preserved end-to-end: the route forwards encrypted traffic
-# without terminating TLS, so the gateway validates the client cert.
-# The server cert includes the route hostname as a SAN (set in Step 4).
 echo "=== Step 5: Creating OpenShift route ==="
 if ! kubectl get route gateway -n openshell &>/dev/null; then
   cat <<'ROUTE' | kubectl apply -f -
@@ -175,44 +155,43 @@ ROUTE
 fi
 echo "  Route: $ROUTE_HOST"
 
-# ── Step 6: Configure local CLI gateway ───────────────────────────────
-echo "=== Step 6: Configuring local CLI gateway ==="
-GW_DIR="$HOME/.config/openshell/gateways/$GATEWAY_NAME"
-MTLS_DIR="$GW_DIR/mtls"
-mkdir -p "$MTLS_DIR"
-
-kubectl get secret openshell-client-tls -n openshell \
-  -o jsonpath='{.data.ca\.crt}' | base64 -d > "$MTLS_DIR/ca.crt"
-kubectl get secret openshell-client-tls -n openshell \
-  -o jsonpath='{.data.tls\.crt}' | base64 -d > "$MTLS_DIR/tls.crt"
-kubectl get secret openshell-client-tls -n openshell \
-  -o jsonpath='{.data.tls\.key}' | base64 -d > "$MTLS_DIR/tls.key"
-
+# ── Step 6: Configure CLI gateway ─────────────────────────────────────
+echo "=== Step 6: Configuring CLI gateway ==="
+GATEWAY_NAME="${GATEWAY_NAME:-openshell-remote-ocp}"
+GATEWAY_URL="https://${ROUTE_HOST}:443"
 CLI="${OPENSHELL_CLI:-openshell}"
+
 if command -v "$CLI" &>/dev/null; then
-  "$CLI" gateway remove "$GATEWAY_NAME" 2>/dev/null || true
-  "$CLI" gateway add "https://${ROUTE_HOST}:443" --name "$GATEWAY_NAME" --local
+  # Remove any old registration for this endpoint
+  for gw in $("$CLI" gateway list 2>/dev/null | grep "$ROUTE_HOST" | awk '{gsub(/^\*/, ""); print $1}'); do
+    "$CLI" gateway remove "$gw" 2>/dev/null || true
+  done
+
+  # Register gateway (generates placeholder certs), then overwrite with real ones
+  "$CLI" gateway add "$GATEWAY_URL" --name "$GATEWAY_NAME" --local 2>/dev/null || true
+
+  MTLS_DIR="$HOME/.config/openshell/gateways/$GATEWAY_NAME/mtls"
+  kubectl get secret openshell-client-tls -n openshell \
+    -o jsonpath='{.data.ca\.crt}' | base64 -d > "$MTLS_DIR/ca.crt"
+  kubectl get secret openshell-client-tls -n openshell \
+    -o jsonpath='{.data.tls\.crt}' | base64 -d > "$MTLS_DIR/tls.crt"
+  kubectl get secret openshell-client-tls -n openshell \
+    -o jsonpath='{.data.tls\.key}' | base64 -d > "$MTLS_DIR/tls.key"
+
+  "$CLI" gateway select "$GATEWAY_NAME" 2>/dev/null || true
+  echo "  ✓ $GATEWAY_NAME registered (certs from cluster)"
+
+  echo -n "  Waiting for gateway..."
+  for i in $(seq 1 30); do
+    if "$CLI" inference get &>/dev/null; then
+      echo " ✓ reachable"
+      break
+    fi
+    sleep 2
+    echo -n "."
+    [[ $i -eq 30 ]] && echo " ✗ timed out (try: openshell inference get)"
+  done
 fi
 
 echo ""
-echo "════════════════════════════════════════════════════"
-echo "  OpenShell deployed successfully!"
-echo "════════════════════════════════════════════════════"
-echo ""
-echo "  Gateway route: https://$ROUTE_HOST"
-echo ""
-echo "Next steps:"
-echo ""
-echo "  1. Store credentials in cluster (one-time):"
-echo "     ./setup-creds.sh"
-echo ""
-echo "  2. Register providers with gateway (one-time):"
-echo "     ./setup-providers.sh"
-echo ""
-echo "  3. Verify everything is ready:"
-echo "     ./sandbox-check.sh"
-echo ""
-echo "  4. Launch a sandbox:"
-echo "     kubectl apply -f sandbox.yaml"
-echo "     # or: ./sandbox.sh --name my-agent"
-echo ""
+echo "Done. Next: ./setup-creds.sh && ./setup-providers.sh && ./sandbox-ocp.sh"

@@ -14,7 +14,7 @@ FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS base
 
 # Install bash, python3, and openssh-clients (required by openshell CLI for SSH sessions)
 RUN microdnf install -y bash python3 python3-pip openssh-clients --nodocs && \
-    pip3 install --no-cache-dir pyyaml && \
+    pip3 install --no-cache-dir tomli && \
     microdnf clean all
 
 # Copy the openshell CLI binary (must be pre-built for linux/amd64)

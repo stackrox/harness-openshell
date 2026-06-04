@@ -29,7 +29,7 @@ A deployment harness for running AI agent sandboxes on OpenShift using [OpenShel
 curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
 
 # 2. Verify gateway is running
-./deploy-local.sh
+./deploy-podman.sh
 
 # 3. Register providers (one-time per gateway)
 export GITHUB_TOKEN="ghp_..."
@@ -39,7 +39,7 @@ export JIRA_API_TOKEN="..."
 # 4. Launch a sandbox
 export JIRA_URL="https://mysite.atlassian.net"
 export JIRA_USERNAME="user@example.com"
-./sandbox-local.sh
+./sandbox-podman.sh
 ```
 
 ## Quick Start (OpenShift)
@@ -57,29 +57,27 @@ make push-sandbox push-launcher push-gateway push-supervisor
 
 # 4. Launch a sandbox
 kubectl apply -f sandbox.yaml
-# or: ./sandbox.sh
+# or: ./sandbox-ocp.sh
 ```
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `deploy-local.sh` | Verify local gateway is running (Podman/Docker) |
+| `deploy-podman.sh` | Verify local gateway is running (Podman/Docker) |
 | `deploy-ocp.sh` | Deploy OpenShell to OpenShift (Helm, SCCs, route) |
 | `setup-providers.sh` | Register credential providers — works on any gateway |
-| `sandbox-local.sh` | Launch sandbox on local gateway (direct CLI) |
-| `sandbox.sh` | Launch sandbox on OpenShift (kubectl apply) |
+| `sandbox-podman.sh` | Launch sandbox on local gateway (direct CLI) |
+| `sandbox-ocp.sh` | Launch sandbox on OpenShift (kubectl apply) |
 | `teardown-ocp.sh` | Remove all OpenShift resources |
 | `sandbox/Dockerfile` | Custom sandbox image (extends community base) |
 | `sandbox/policy.yaml` | Network policy (endpoints not covered by provider profiles) |
-| `sandbox/startup.sh` | Runtime env wiring + GWS file placement |
-| `sandbox/configure-mcp.py` | Generates `.claude.json` MCP server config |
+| `sandbox/startup.sh` | Runtime env, GWS, MCP config |
 | `sandbox/profiles/atlassian.yaml` | Custom provider v2 profile for Atlassian |
 | `sandbox/CLAUDE.md` | Agent instructions baked into sandbox image |
 | `sandbox/settings.json` | Claude permissions baked into sandbox image |
 | `credentials.md` | Credential flows, mechanisms, and rotation guide |
-| `verify-integrations.py` | Integration test script |
-| `future-ideas.md` | Roadmap (observability, CronJobs, web UI) |
+| `AGENTS.md` | Project principles and workaround tracking |
 
 ## Credentials
 
@@ -95,10 +93,18 @@ See [credentials.md](credentials.md) for the full reference.
 ## Sandbox Usage
 
 ```shell
-./sandbox.sh --name dev                 # interactive session
-./sandbox.sh --rejoin dev               # reconnect
-./sandbox.sh --name ephemeral --no-keep # delete after exit
-./sandbox.sh --editor vscode            # open in VS Code
+# Local
+./sandbox-podman.sh                          # launch
+./sandbox-podman.sh --name dev               # named sandbox
+
+# OpenShift
+./sandbox-ocp.sh                            # apply sandbox.yaml + show logs
+./sandbox-ocp.sh my-config.yaml             # use a custom config
+
+# Either platform
+openshell sandbox connect <name>            # reconnect to running sandbox
+openshell sandbox list                      # list sandboxes
+openshell sandbox delete <name>             # delete a sandbox
 ```
 
 ## Architecture
