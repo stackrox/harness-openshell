@@ -23,6 +23,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+HARNESS_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 CLI="${OPENSHELL_CLI:-openshell}"
 command -v "$CLI" &>/dev/null || { echo "ERROR: openshell CLI not found."; exit 1; }
@@ -54,7 +55,7 @@ echo "=== Enabling providers v2 ==="
 echo ""
 echo "=== Importing custom profiles ==="
 if $FORCE; then
-  for f in "$SCRIPT_DIR"/sandbox/profiles/*.yaml; do
+  for f in "$HARNESS_DIR"/sandbox/profiles/*.yaml; do
     [[ -f "$f" ]] || continue
     id=$(grep '^id:' "$f" | awk '{print $2}')
     "$CLI" provider profile delete "$id" 2>/dev/null || true

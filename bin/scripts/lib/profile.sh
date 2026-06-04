@@ -2,7 +2,7 @@
 # Agent config parsing helpers.
 #
 # Source from any script:
-#   source "$(dirname "$0")/lib/agent.sh"
+#   source "$(dirname "$0")/lib/profile.sh"
 #
 # Usage:
 #   parse_agent agents/default.toml
