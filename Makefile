@@ -40,15 +40,15 @@ push-launcher: launcher
 
 ## Build + push sandbox and launcher, then run full tests on both platforms
 test: sandbox push-launcher
-	./test-flow.sh all --full
+	./test/test-flow.sh all --full
 
 ## Build + push sandbox and launcher, then run full podman test
 test-podman: sandbox push-launcher
-	./test-flow.sh podman --full
+	./test/test-flow.sh podman --full
 
 ## Build + push sandbox and launcher, then run full OCP test
 test-ocp: sandbox push-launcher
-	./test-flow.sh ocp --full
+	./test/test-flow.sh ocp --full
 
 ## ── Convenience targets ───────────────────────────────────────────────
 

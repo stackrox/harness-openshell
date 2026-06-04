@@ -10,8 +10,8 @@
 #   ./test-flow.sh all --full      # full for both
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/lib/agent.sh"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$SCRIPT_DIR/bin/scripts/lib/profile.sh"
 CLI="${OPENSHELL_CLI:-openshell}"
 
 TARGET="${1:-}"
@@ -116,20 +116,20 @@ test_podman() {
   $FULL && mode="full"
   echo "=== test-flow: podman ($mode) ==="
 
-  step "teardown" "$SCRIPT_DIR/teardown.sh" --sandboxes --providers
-  step "deploy" "$SCRIPT_DIR/deploy-podman.sh"
-  step "setup providers" "$SCRIPT_DIR/setup-providers.sh"
+  step "teardown" "$SCRIPT_DIR/bin/scripts/teardown.sh" --sandboxes --providers
+  step "deploy" "$SCRIPT_DIR/bin/scripts/deploy.sh" --local
+  step "setup providers" "$SCRIPT_DIR/bin/scripts/providers.sh"
   step "gateway reachable" "$CLI" inference get
   check_providers
 
   if $FULL; then
     local sandbox_name="test-agent"
-    step_output "sandbox create" "$SCRIPT_DIR/sandbox-podman.sh" --name "$sandbox_name" --no-tty
+    step_output "sandbox create" "$SCRIPT_DIR/bin/scripts/new.sh" --local --name "$sandbox_name" --no-tty
     sandbox_verify "$sandbox_name"
     step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
   fi
 
-  step "teardown (clean)" "$SCRIPT_DIR/teardown.sh" --sandboxes --providers
+  step "teardown (clean)" "$SCRIPT_DIR/bin/scripts/teardown.sh" --sandboxes --providers
 }
 
 # ── OCP flow ─────────────────────────────────────────────────────────
@@ -139,15 +139,15 @@ test_ocp() {
   $FULL && mode="full"
   echo "=== test-flow: ocp ($mode) ==="
 
-  step "teardown" "$SCRIPT_DIR/teardown.sh"
-  step "deploy" "$SCRIPT_DIR/deploy-ocp.sh"
-  step "setup creds" "$SCRIPT_DIR/setup-creds.sh"
-  step "setup providers" "$SCRIPT_DIR/setup-providers.sh"
+  step "teardown" "$SCRIPT_DIR/bin/scripts/teardown.sh"
+  step "deploy" "$SCRIPT_DIR/bin/scripts/deploy.sh" --remote
+  step "setup creds" "$SCRIPT_DIR/bin/scripts/creds.sh"
+  step "setup providers" "$SCRIPT_DIR/bin/scripts/providers.sh"
   step "gateway reachable" "$CLI" inference get
   check_providers
 
   if $FULL; then
-    step_output "sandbox create" "$SCRIPT_DIR/sandbox-ocp.sh"
+    step_output "sandbox create" "$SCRIPT_DIR/bin/scripts/new.sh" --remote
     local sandbox_name="agent"
 
     # Wait for ready
@@ -160,7 +160,7 @@ test_ocp() {
     step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
   fi
 
-  step "teardown (clean)" "$SCRIPT_DIR/teardown.sh"
+  step "teardown (clean)" "$SCRIPT_DIR/bin/scripts/teardown.sh"
 }
 
 # ── Main ─────────────────────────────────────────────────────────────

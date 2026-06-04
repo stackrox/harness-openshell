@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# OpenShell Harness CLI
+#
+# Usage:
+#   harness new [--local|--remote] [--profile NAME] [SANDBOX_NAME]
+#   harness connect [SANDBOX_NAME]
+#   harness deploy [--local|--remote]
+#   harness teardown [--sandboxes] [--providers] [--k8s]
+#   harness preflight
+#   harness providers
+#   harness test [podman|ocp|all] [--full]
+set -euo pipefail
+
+HARNESS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$HARNESS_DIR/bin/scripts"
+
+case "${1:-}" in
+  new)       shift; exec "$SCRIPT_DIR/new.sh" "$@" ;;
+  connect)   shift; exec "$SCRIPT_DIR/connect.sh" "$@" ;;
+  deploy)    shift; exec "$SCRIPT_DIR/deploy.sh" "$@" ;;
+  teardown)  shift; exec "$SCRIPT_DIR/teardown.sh" "$@" ;;
+  preflight) shift; exec "$SCRIPT_DIR/preflight.sh" "$@" ;;
+  providers) shift; exec "$SCRIPT_DIR/providers.sh" "$@" ;;
+  test)      shift; exec "$HARNESS_DIR/test/test-flow.sh" "$@" ;;
+  *)
+    echo "OpenShell Harness"
+    echo ""
+    echo "Usage: harness <command>"
+    echo ""
+    echo "Commands:"
+    echo "  new [--local|--remote] [--profile NAME] [SANDBOX_NAME]"
+    echo "      Create a new sandbox. Deploys gateway and providers if needed."
+    echo ""
+    echo "  connect [SANDBOX_NAME]"
+    echo "      Reconnect to a running sandbox."
+    echo ""
+    echo "  deploy [--local|--remote]"
+    echo "      Deploy or verify the gateway."
+    echo ""
+    echo "  teardown [--sandboxes] [--providers] [--k8s]"
+    echo "      Tear down sandboxes, providers, or k8s resources."
+    echo ""
+    echo "  preflight"
+    echo "      Check environment prerequisites."
+    echo ""
+    echo "  providers"
+    echo "      Register providers with the gateway."
+    echo ""
+    echo "  test [podman|ocp|all] [--full]"
+    echo "      End-to-end validation."
+    ;;
+esac

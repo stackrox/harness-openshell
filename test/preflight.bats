@@ -5,7 +5,7 @@
 # and uses temp TOML files to test every configuration path.
 
 REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
-PROVIDERS_PY="$REPO_ROOT/lib/providers.py"
+PROVIDERS_PY="$REPO_ROOT/bin/scripts/lib/providers.py"
 
 setup() {
   TEST_TMPDIR="$(mktemp -d)"
@@ -55,7 +55,7 @@ run_preflight() {
   # so we patch it with a wrapper
   python3 -c "
 import sys, os
-sys.path.insert(0, '$REPO_ROOT/lib')
+sys.path.insert(0, '$REPO_ROOT/bin/scripts/lib')
 os.chdir('$TEST_TMPDIR')
 
 from pathlib import Path

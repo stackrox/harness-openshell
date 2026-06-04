@@ -17,7 +17,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent.parent.parent
 PROVIDERS_TOML = ROOT / "providers.toml"
 CONFIG_TOML = ROOT / "openshell.toml"
 CLI = os.environ.get("OPENSHELL_CLI", "openshell")
