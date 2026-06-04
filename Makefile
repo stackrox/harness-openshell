@@ -14,7 +14,8 @@ SANDBOX_IMAGE  := $(REGISTRY):sandbox
 LAUNCHER_IMAGE := $(REGISTRY):launcher
 
 .PHONY: cli sandbox push-sandbox cli-launcher launcher push-launcher \
-        test test-podman test-ocp clean help
+        test-unit test test-podman test-ocp \
+        test-go-podman test-go-ocp test-all clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
@@ -49,17 +50,36 @@ push-launcher: launcher
 
 ## ── Test targets ─────────────────────────────────────────────────────
 
-## Build + push sandbox and launcher, then run full tests on both platforms
+## Unit tests only (no live gateway, fast)
+test-unit:
+	CGO_ENABLED=0 go test ./...
+	cd sandbox/launcher && go test ./...
+	bats test/preflight.bats
+
+## Bash + both platforms (full lifecycle, rebuilds images)
 test: sandbox push-launcher
 	./test/test-flow.sh all --full
 
-## Build + push sandbox and launcher, then run full podman test
+## Bash + podman (full lifecycle)
 test-podman: sandbox push-launcher
 	./test/test-flow.sh podman --full
 
-## Build + push sandbox and launcher, then run full OCP test
+## Bash + OCP (full lifecycle)
 test-ocp: sandbox push-launcher
 	./test/test-flow.sh ocp --full
+
+## Go + podman (full lifecycle, rebuilds CLI + images)
+test-go-podman: cli sandbox push-launcher
+	./test/test-flow.sh podman --full --go
+
+## Go + OCP (full lifecycle)
+test-go-ocp: cli sandbox push-launcher
+	./test/test-flow.sh ocp --full --go
+
+## All 4 combinations: {bash,go} x {podman,ocp}
+test-all: cli sandbox push-launcher
+	./test/test-flow.sh all --full
+	./test/test-flow.sh all --full --go
 
 ## ── Convenience targets ───────────────────────────────────────────────
 

@@ -34,7 +34,18 @@ func NewNewCmd(harnessDir, cli string) *cobra.Command {
 			}
 
 			gw := gateway.NewCLI(cli)
-			return newLocal(harnessDir, gw, local, profileName, sandboxName, noTTY)
+			return newLocal(newLocalOpts{
+				harnessDir:  harnessDir,
+				gw:          gw,
+				ensureLocal: local,
+				profileName: profileName,
+				sandboxName: sandboxName,
+				noTTY:       noTTY,
+				runScript: func(name string, args ...string) error {
+					return runner.RunScript(harnessDir, name, args...)
+				},
+				retrySleep: 5 * time.Second,
+			})
 		},
 	}
 
@@ -45,6 +56,17 @@ func NewNewCmd(harnessDir, cli string) *cobra.Command {
 	cmd.Flags().BoolVar(&noTTY, "no-tty", false, "Non-interactive mode (for testing)")
 
 	return cmd
+}
+
+type newLocalOpts struct {
+	harnessDir  string
+	gw          gateway.Gateway
+	ensureLocal bool
+	profileName string
+	sandboxName string
+	noTTY       bool
+	runScript   func(name string, args ...string) error
+	retrySleep  time.Duration
 }
 
 func newRemote(harnessDir, profileName, sandboxName string, noTTY bool) error {
@@ -58,11 +80,13 @@ func newRemote(harnessDir, profileName, sandboxName string, noTTY bool) error {
 	return runner.RunScript(harnessDir, "new.sh", args...)
 }
 
-func newLocal(harnessDir string, gw gateway.Gateway, ensureLocal bool, profileName, sandboxName string, noTTY bool) error {
+func newLocal(opts newLocalOpts) error {
+	gw := opts.gw
+
 	// 1. Ensure gateway
-	if ensureLocal {
+	if opts.ensureLocal {
 		fmt.Println("=== Ensuring local gateway ===")
-		if err := runner.RunScript(harnessDir, "deploy.sh", "--local"); err != nil {
+		if err := opts.runScript("deploy.sh", "--local"); err != nil {
 			return fmt.Errorf("deploy failed: %w", err)
 		}
 	} else {
@@ -75,23 +99,23 @@ func newLocal(harnessDir string, gw gateway.Gateway, ensureLocal bool, profileNa
 	providers, _ := gw.ProviderList()
 	if len(providers) == 0 {
 		fmt.Println("\n=== Registering providers ===")
-		if err := runner.RunScript(harnessDir, "providers.sh"); err != nil {
+		if err := opts.runScript("providers.sh"); err != nil {
 			return fmt.Errorf("provider registration failed: %w", err)
 		}
 	}
 
 	// 3. Parse profile
-	cfg, err := profile.Parse(harnessDir, profileName)
+	cfg, err := profile.Parse(opts.harnessDir, opts.profileName)
 	if err != nil {
 		return err
 	}
-	if sandboxName != "" {
-		cfg.Name = sandboxName
+	if opts.sandboxName != "" {
+		cfg.Name = opts.sandboxName
 	}
 
 	fmt.Println()
 	fmt.Println("=== Sandbox ===")
-	fmt.Printf("  Profile: %s\n", profileName)
+	fmt.Printf("  Profile: %s\n", opts.profileName)
 	fmt.Printf("  Image:   %s\n", cfg.Image)
 
 	// 4. Validate providers against profile
@@ -118,7 +142,7 @@ func newLocal(harnessDir string, gw gateway.Gateway, ensureLocal bool, profileNa
 
 	// 6. Build command
 	var sandboxCmd []string
-	if noTTY {
+	if opts.noTTY {
 		sandboxCmd = []string{"bash", "/sandbox/startup.sh"}
 	} else {
 		sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". /sandbox/startup.sh && exec %s", cfg.Command)}
@@ -132,7 +156,7 @@ func newLocal(harnessDir string, gw gateway.Gateway, ensureLocal bool, profileNa
 			Name:      cfg.Name,
 			Image:     cfg.Image,
 			Providers: registered,
-			TTY:       !noTTY,
+			TTY:       !opts.noTTY,
 			Keep:      cfg.KeepSandbox(),
 			UploadSrc: harnessUploadDir,
 			UploadDst: "/sandbox/.config",
@@ -148,7 +172,7 @@ func newLocal(harnessDir string, gw gateway.Gateway, ensureLocal bool, profileNa
 		if attempt == 5 {
 			return fmt.Errorf("failed after 5 attempts")
 		}
-		time.Sleep(5 * time.Second)
+		time.Sleep(opts.retrySleep)
 	}
 	return nil
 }
