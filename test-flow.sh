@@ -134,7 +134,7 @@ with open('$SCRIPT_DIR/agents/default.toml', 'rb') as f:
     [[ -n "$sandbox_image" ]] && from_flags=(--from "$sandbox_image")
 
     # Stage sandbox.env + GWS creds
-    local harness_dir="/tmp/openshell-test"
+    local harness_dir="/tmp/test-harness/openshell"
     rm -rf "$harness_dir" && mkdir -p "$harness_dir"
     python3 -c "
 import tomllib
@@ -148,32 +148,35 @@ for k, v in env.items():
       cp ~/.config/gws/client_secret.json "$harness_dir/client_secret.json" 2>/dev/null || true
     fi
 
-    # Create sandbox (non-interactive)
+    # Create sandbox (non-interactive, retry on supervisor race)
     local sandbox_name="test-agent"
-    echo -n "  ... creating sandbox"
+    local created=false
+    local create_start=$(date +%s)
     for attempt in 1 2 3 4 5; do
-      "$CLI" sandbox create \
+      if "$CLI" sandbox create \
         --name "$sandbox_name" \
         --no-tty \
         ${from_flags[@]+"${from_flags[@]}"} \
         ${PROVIDER_FLAGS[@]+"${PROVIDER_FLAGS[@]}"} \
         --upload "$harness_dir:/sandbox/.config" --no-git-ignore \
         -- bash /sandbox/startup.sh \
-        &>/dev/null && break
-      echo -n " (retry $attempt)"
+        &>/dev/null; then
+        created=true
+        break
+      fi
       "$CLI" sandbox delete "$sandbox_name" &>/dev/null || true
       sleep 10
     done
 
-    # Wait for ready
-    for i in $(seq 1 30); do
-      local phase=$("$CLI" sandbox list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk -v n="$sandbox_name" '$1==n {print $NF}')
-      [[ "$phase" == "Ready" ]] && break
-      sleep 2
-    done
-    echo ""
-
-    sandbox_verify "$sandbox_name"
+    if $created; then
+      local create_elapsed=$(( $(date +%s) - create_start ))
+      printf "  ✓ %-35s (%ds, %d attempts)\n" "sandbox create" "$create_elapsed" "$attempt"
+      ((PASS++))
+      sandbox_verify "$sandbox_name"
+    else
+      printf "  ✗ %-35s\n" "sandbox create (failed after 5 attempts)"
+      ((FAIL++))
+    fi
     step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
     rm -rf "$harness_dir"
   fi
