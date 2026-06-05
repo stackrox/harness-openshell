@@ -2,46 +2,22 @@
 
 ## Migration Status
 
-| Command | Go Status | Bash stays? | Notes |
-|---------|-----------|-------------|-------|
-| `new --local` | Native | Reference only | Profile parsing, provider validation, sandbox create with retry |
-| `new --remote` | Bash wrapper | Yes | K8s Job YAML generation, kubectl apply |
-| `connect` | Native | Reference only | exec into `openshell sandbox connect` |
-| `deploy --local` | Native | Reference only | Podman check, gateway find/select/verify |
-| `deploy --remote` | Bash wrapper | Yes | Helm install, route, mTLS, RBAC, SCCs |
-| `teardown --sandboxes` | Native | Reference only | SandboxList + SandboxDelete via Gateway |
-| `teardown --providers` | Native | Reference only | ProviderList + ProviderDelete + InferenceRemove |
-| `teardown --k8s` | Bash wrapper | Yes | Helm uninstall, CRDs, SCCs, secrets, namespace |
-| `preflight` | Native | Reference only | All 29 bats tests pass against Go |
-| `providers` | Native | Reference only | Eliminates jq dependency |
-| `test` | Bash wrapper | Yes | test-flow.sh orchestration |
-| **Launcher** | Native | Reference only | In-cluster Go binary, UBI9 + openssh |
+| Command | Go Status | Notes |
+|---------|-----------|-------|
+| `new --local` | Native | Profile parsing, provider validation, sandbox create with retry |
+| `new --remote` | Native | K8s Job YAML via internal/k8s, prerequisite chain (deploy+providers+creds) |
+| `connect` | Native | exec into `openshell sandbox connect` |
+| `deploy --local` | Native | Podman check, gateway find/select/verify |
+| `deploy --remote` | Native | Helm install, Route, mTLS, RBAC, SCCs via internal/k8s |
+| `teardown --sandboxes` | Native | SandboxList + SandboxDelete via Gateway |
+| `teardown --providers` | Native | ProviderList + ProviderDelete + InferenceRemove |
+| `teardown --k8s` | Native | Helm uninstall, CRDs, SCCs, secrets, namespace via internal/k8s |
+| `preflight` | Native | All 29 bats tests pass against Go |
+| `providers` | Native | Eliminates jq dependency |
+| `test` | Bash | test-flow.sh orchestration (intentionally stays bash) |
+| **Launcher** | Native | In-cluster Go binary, UBI9 + openssh |
 
-**Score: 8/12 paths native Go.** Remaining 4 are kubectl/helm-heavy operations.
-
-## Remaining Bash Wrappers
-
-### `new --remote` — Medium lift
-- Generates K8s Job YAML inline (ConfigMap, volumes, env vars)
-- Applies via `kubectl apply`, watches Job, tails logs
-- Could use Go `text/template` for YAML + `k8s.io/client-go` or `os/exec kubectl`
-- Prerequisite: decide whether to depend on client-go or keep shelling out to kubectl
-
-### `deploy --remote` — Largest lift
-- ~160 lines: namespace, CRDs, SCCs (oc adm), Helm install, route, mTLS cert copy
-- Uses: kubectl, helm, oc (OpenShift-specific)
-- Consider: keep as bash or accept client-go + helm SDK dependency
-- Low priority — rarely changes, works reliably
-
-### `teardown --k8s` — Medium lift
-- Helm uninstall, delete CRDs/SCCs/secrets/namespace, gateway config cleanup
-- Mirror of deploy --remote in reverse
-- Port together with deploy --remote or not at all
-
-### `test` — Low priority
-- test-flow.sh is a bash test harness, not a harness subcommand
-- Porting to Go would mean rewriting the test framework
-- No value — bash is the right tool for test orchestration
+**Score: 11/12 paths native Go.** Only `test` stays bash (test orchestration, not a user command).
 
 ## Architecture Improvements
 
@@ -63,6 +39,45 @@
 - Has its own `parseConfig` duplicating `internal/profile/`
 - Can't share code (different execution context, separate binary)
 - Consider: extract shared types to a third module, or accept duplication
+
+## Profile Schema — Cross-Project Alignment
+
+Analysis of field naming and structure against OpenShell provider profiles (#896)
+and Kaiden projects (#1272). See `profile.md` for full comparison.
+
+### Current schema (Config struct)
+
+```
+name, image, command, keep, providers, [env]
+```
+
+### Changes
+
+- [ ] Add `description` field — one line of human-readable context per profile.
+      Makes multi-profile use cases (`harness new --profile research`) self-documenting.
+      Both OpenShell and Kaiden include this.
+
+- [ ] Split `[env]` by purpose — the current `[env]` map mixes inference config
+      (`ANTHROPIC_*`), agent config (`CLAUDE_CODE_*`), provider metadata
+      (`JIRA_URL`, `JIRA_USERNAME`), and custom provider workaround paths
+      (`GOOGLE_WORKSPACE_*`). At minimum, add grouping comments in `default.toml`.
+      Longer term, consider a `[provider-config]` section for non-secret provider
+      metadata that belongs with the provider, not the sandbox. The `ANTHROPIC_*`
+      vars should eventually drop entirely when OpenShell inference automation ships.
+
+### No changes needed
+
+- **`name`** — correct term, maps to `openshell sandbox create --name`
+- **`image`** — harness-openshell differentiator (Kaiden is folder-first, we're image-first)
+- **`command`** — maps to `openshell sandbox create --command`
+- **`providers`** — correct term, matches OpenShell's provider naming throughout
+- **`keep`** — unique to harness-openshell lifecycle, neither upstream has it, that's fine
+- **TOML format** — trivially convertible to YAML (OpenShell) or JSON (Kaiden), no reason to change
+
+### Future fields (not now)
+
+- `repo` — git URL to clone into the sandbox at start (Kaiden supports this via `folder`)
+- `secrets` — non-provider secrets to inject, cleaner than stuffing credentials into `[env]`
 
 ## Low-Priority Cleanup (from audit)
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/robbycochran/harness-openshell/internal/gateway"
+	"github.com/robbycochran/harness-openshell/internal/k8s"
 	"github.com/robbycochran/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
 )
@@ -46,7 +47,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool) error 
 			gw.ProviderDelete(name)
 		}
 		deleteCustomProfiles(harnessDir, gw)
-		fmt.Println("Deleted existing providers.")
+		status.Info("Deleted existing providers")
 	}
 
 	// Enable providers v2
@@ -59,7 +60,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool) error 
 	status.Section("Importing custom profiles")
 	profilesDir := filepath.Join(harnessDir, "sandbox", "profiles")
 	if err := gw.ProviderProfileImport(profilesDir); err != nil {
-		fmt.Println("  (already imported)")
+		status.Info("already imported")
 	}
 
 	// Register providers
@@ -73,12 +74,12 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool) error 
 			}); err != nil {
 				return fmt.Errorf("creating github provider: %w", err)
 			}
-			fmt.Println("  github — registered")
+			status.OK("github: registered")
 		} else {
-			fmt.Println("  github — exists (use --force to recreate)")
+			status.Info("github: exists (use --force to recreate)")
 		}
 	} else {
-		fmt.Println("  github — skipped (GITHUB_TOKEN not set)")
+		status.Info("github: skipped (GITHUB_TOKEN not set)")
 	}
 
 	// Vertex AI
@@ -97,7 +98,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool) error 
 		project = readADCProject(adcPath)
 	}
 
-	if fileExists(adcPath) && project != "" {
+	if k8s.FileExists(adcPath) && project != "" {
 		if gw.ProviderGet("vertex-local") != nil {
 			if err := gw.ProviderCreate("vertex-local", "google-vertex-ai", gateway.ProviderCreateOpts{
 				FromADC: true,
@@ -108,18 +109,18 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool) error 
 			}); err != nil {
 				return fmt.Errorf("creating vertex-local provider: %w", err)
 			}
-			fmt.Printf("  vertex-local — registered (project: %s, region: %s)\n", project, region)
+			status.OKf("vertex-local: registered (project: %s, region: %s)", project, region)
 		} else {
-			fmt.Println("  vertex-local — exists (use --force to recreate)")
+			status.Info("vertex-local: exists (use --force to recreate)")
 		}
 		if err := gw.InferenceSet("vertex-local", model); err != nil {
 			return fmt.Errorf("setting inference: %w", err)
 		}
-		fmt.Printf("  inference — model: %s\n", model)
-	} else if !fileExists(adcPath) {
-		fmt.Printf("  vertex-local — skipped (no ADC file at %s)\n", adcPath)
+		status.OKf("inference: model %s", model)
+	} else if !k8s.FileExists(adcPath) {
+		status.Infof("vertex-local: skipped (no ADC file at %s)", adcPath)
 	} else {
-		fmt.Println("  vertex-local — skipped (no project ID — set ANTHROPIC_VERTEX_PROJECT_ID or run gcloud auth application-default login)")
+		status.Info("vertex-local: skipped (no project ID — set ANTHROPIC_VERTEX_PROJECT_ID)")
 	}
 
 	// Atlassian
@@ -130,12 +131,12 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool) error 
 			}); err != nil {
 				return fmt.Errorf("creating atlassian provider: %w", err)
 			}
-			fmt.Println("  atlassian — registered")
+			status.OK("atlassian: registered")
 		} else {
-			fmt.Println("  atlassian — exists (use --force to recreate)")
+			status.Info("atlassian: exists (use --force to recreate)")
 		}
 	} else {
-		fmt.Println("  atlassian — skipped (JIRA_API_TOKEN not set)")
+		status.Info("atlassian: skipped (JIRA_API_TOKEN not set)")
 	}
 
 	// Show results
@@ -152,7 +153,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool) error 
 	}
 
 	fmt.Println()
-	fmt.Println("Done. Launch a sandbox with: harness new --local")
+	status.Done("Done. Launch a sandbox with: harness new --local")
 	return nil
 }
 
@@ -203,7 +204,3 @@ func readADCProject(path string) string {
 	return adc.QuotaProjectID
 }
 
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}

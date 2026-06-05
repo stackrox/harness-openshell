@@ -6,45 +6,19 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/robbycochran/harness-openshell/internal/gateway"
 )
 
-// mockGateway implements gateway.Gateway for testing provider validation.
-type mockGateway struct {
+// mockProviderChecker implements profile.ProviderChecker for testing.
+type mockProviderChecker struct {
 	providers map[string]bool
 }
 
-func (m *mockGateway) ProviderGet(name string) error {
+func (m *mockProviderChecker) ProviderGet(name string) error {
 	if m.providers[name] {
 		return nil
 	}
 	return fmt.Errorf("not found")
 }
-
-func (m *mockGateway) CLIVersion() string                                            { return "" }
-func (m *mockGateway) CLIPath() string                                               { return "" }
-func (m *mockGateway) InferenceGet() error                                           { return nil }
-func (m *mockGateway) InferenceModel() string                                        { return "" }
-func (m *mockGateway) InferenceSet(string, string) error                             { return nil }
-func (m *mockGateway) InferenceRemove() error                                        { return nil }
-func (m *mockGateway) ActiveGateway() string                                         { return "" }
-func (m *mockGateway) ProviderCreate(string, string, gateway.ProviderCreateOpts) error { return nil }
-func (m *mockGateway) ProviderDelete(string) error                                   { return nil }
-func (m *mockGateway) ProviderProfileImport(string) error                            { return nil }
-func (m *mockGateway) ProviderProfileDelete(string) error                            { return nil }
-func (m *mockGateway) ProviderList() ([]string, error)                               { return nil, nil }
-func (m *mockGateway) SettingsSet(string, string) error                              { return nil }
-func (m *mockGateway) SandboxList() ([]string, error)                                { return nil, nil }
-func (m *mockGateway) SandboxCreate(gateway.SandboxCreateOpts) error                 { return nil }
-func (m *mockGateway) SandboxDelete(string) error                                    { return nil }
-func (m *mockGateway) SandboxConnect(string) error                                   { return nil }
-func (m *mockGateway) SandboxUpload(string, string, string) error                    { return nil }
-func (m *mockGateway) SandboxExec(string, ...string) error                           { return nil }
-func (m *mockGateway) GatewayAdd(string, string, bool) error                         { return nil }
-func (m *mockGateway) GatewayRemove(string) error                                    { return nil }
-func (m *mockGateway) GatewayList() ([]gateway.GatewayInfo, error)                   { return nil, nil }
-func (m *mockGateway) GatewaySelect(string) error                                    { return nil }
 
 func TestParseFile_Full(t *testing.T) {
 	dir := t.TempDir()
@@ -177,7 +151,7 @@ func TestStageHarnessDir(t *testing.T) {
 }
 
 func TestValidateProviders_AllRegistered(t *testing.T) {
-	gw := &mockGateway{providers: map[string]bool{"github": true, "vertex-local": true}}
+	gw := &mockProviderChecker{providers: map[string]bool{"github": true, "vertex-local": true}}
 	reg, missing := ValidateProviders([]string{"github", "vertex-local"}, gw)
 	if len(reg) != 2 {
 		t.Errorf("registered = %v, want 2", reg)
@@ -188,7 +162,7 @@ func TestValidateProviders_AllRegistered(t *testing.T) {
 }
 
 func TestValidateProviders_SomeMissing(t *testing.T) {
-	gw := &mockGateway{providers: map[string]bool{"github": true}}
+	gw := &mockProviderChecker{providers: map[string]bool{"github": true}}
 	reg, missing := ValidateProviders([]string{"github", "vertex-local", "atlassian"}, gw)
 	if len(reg) != 1 || reg[0] != "github" {
 		t.Errorf("registered = %v", reg)
@@ -199,7 +173,7 @@ func TestValidateProviders_SomeMissing(t *testing.T) {
 }
 
 func TestValidateProviders_NoneRegistered(t *testing.T) {
-	gw := &mockGateway{providers: map[string]bool{}}
+	gw := &mockProviderChecker{providers: map[string]bool{}}
 	reg, missing := ValidateProviders([]string{"github", "vertex-local"}, gw)
 	if len(reg) != 0 {
 		t.Errorf("registered = %v, want empty", reg)

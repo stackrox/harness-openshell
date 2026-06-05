@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/robbycochran/harness-openshell/internal/k8s"
+	"github.com/robbycochran/harness-openshell/internal/status"
 )
 
 func ensureCreds(namespace string, force bool) error {
@@ -19,35 +20,33 @@ func ensureCreds(namespace string, force bool) error {
 		return fmt.Errorf("namespace '%s' not found — run: harness deploy --remote", namespace)
 	}
 
-	fmt.Println("=== Setting up cluster credentials ===")
-	fmt.Printf("  Namespace: %s\n", namespace)
-	fmt.Println()
+	status.Section("Setting up cluster credentials")
+	status.Detailf("Namespace: %s", namespace)
 
 	// GWS credentials
-	fmt.Println("=== GWS ===")
+	status.Section("GWS")
 	if force && kc.SecretExists(ctx, "openshell-gws") {
 		kc.RunKubectl(ctx, "delete", "secret", "openshell-gws")
-		fmt.Println("  Deleted existing secret.")
+		status.Info("Deleted existing secret")
 	}
 
 	if kc.SecretExists(ctx, "openshell-gws") {
-		fmt.Println("  openshell-gws: exists (use --force to recreate)")
+		status.Info("openshell-gws: exists (use --force to recreate)")
 	} else {
 		if err := createGWSSecret(ctx, kc); err != nil {
-			fmt.Printf("  GWS: %v\n", err)
+			status.Failf("GWS: %v", err)
 		}
 	}
 
 	// Atlassian credentials
-	fmt.Println()
-	fmt.Println("=== Atlassian ===")
+	status.Section("Atlassian")
 	if force && kc.SecretExists(ctx, "openshell-atlassian") {
 		kc.RunKubectl(ctx, "delete", "secret", "openshell-atlassian")
-		fmt.Println("  Deleted existing secret.")
+		status.Info("Deleted existing secret")
 	}
 
 	if kc.SecretExists(ctx, "openshell-atlassian") {
-		fmt.Println("  openshell-atlassian: exists (use --force to recreate)")
+		status.Info("openshell-atlassian: exists (use --force to recreate)")
 	} else if jiraURL := os.Getenv("JIRA_URL"); jiraURL != "" {
 		jiraUser := os.Getenv("JIRA_USERNAME")
 		_, err := kc.RunKubectl(ctx, "create", "secret", "generic", "openshell-atlassian",
@@ -56,9 +55,9 @@ func ensureCreds(namespace string, force bool) error {
 		if err != nil {
 			return fmt.Errorf("creating atlassian secret: %w", err)
 		}
-		fmt.Printf("  openshell-atlassian: created (%s)\n", jiraURL)
+		status.OKf("openshell-atlassian: created (%s)", jiraURL)
 	} else {
-		fmt.Println("  Atlassian: JIRA_URL not set (skipping)")
+		status.Info("Atlassian: JIRA_URL not set (skipping)")
 	}
 
 	return nil
@@ -67,7 +66,7 @@ func ensureCreds(namespace string, force bool) error {
 func createGWSSecret(ctx context.Context, kc *k8s.Client) error {
 	gwsPath, err := exec.LookPath("gws")
 	if err != nil {
-		fmt.Println("  GWS: not installed (skipping)")
+		status.Info("GWS: not installed (skipping)")
 		return nil
 	}
 
@@ -75,7 +74,7 @@ func createGWSSecret(ctx context.Context, kc *k8s.Client) error {
 	check.Stdout = io.Discard
 	check.Stderr = io.Discard
 	if check.Run() != nil {
-		fmt.Println("  GWS: not authenticated (run 'gws auth login')")
+		status.Info("GWS: not authenticated (run 'gws auth login')")
 		return nil
 	}
 
@@ -88,7 +87,7 @@ func createGWSSecret(ctx context.Context, kc *k8s.Client) error {
 	credFile := filepath.Join(tmpDir, "credentials.json")
 	out, err := exec.Command(gwsPath, "auth", "export", "--unmasked").Output()
 	if err != nil {
-		fmt.Println("  GWS: export failed (skipping)")
+		status.Info("GWS: export failed (skipping)")
 		return nil
 	}
 	if err := os.WriteFile(credFile, out, 0o600); err != nil {
@@ -111,6 +110,6 @@ func createGWSSecret(ctx context.Context, kc *k8s.Client) error {
 	if _, err := kc.RunKubectl(ctx, args...); err != nil {
 		return fmt.Errorf("creating gws secret: %w", err)
 	}
-	fmt.Println("  openshell-gws: created")
+	status.OK("openshell-gws: created")
 	return nil
 }

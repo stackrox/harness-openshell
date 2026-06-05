@@ -9,8 +9,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/robbycochran/harness-openshell/internal/gateway"
 )
+
+// ProviderChecker checks if a provider is registered. Accepts gateway.ProviderManager
+// or any type with a ProviderGet method — decouples profile from the full Gateway interface.
+type ProviderChecker interface {
+	ProviderGet(name string) error
+}
 
 type Config struct {
 	Name      string            `toml:"name"`
@@ -46,7 +51,7 @@ func (c *Config) BuildSandboxEnv() string {
 
 // ValidateProviders checks which profile providers are registered on the
 // gateway. Returns the list of registered providers and a list of missing ones.
-func ValidateProviders(providers []string, gw gateway.Gateway) (registered, missing []string) {
+func ValidateProviders(providers []string, gw ProviderChecker) (registered, missing []string) {
 	for _, name := range providers {
 		if gw.ProviderGet(name) == nil {
 			registered = append(registered, name)

@@ -48,10 +48,7 @@ func NewDeployCmd(harnessDir, cli string) *cobra.Command {
 
 func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) error {
 	ctx := context.Background()
-	namespace := os.Getenv("OPENSHELL_NAMESPACE")
-	if namespace == "" {
-		namespace = "openshell"
-	}
+	namespace := k8s.DefaultNamespace()
 
 	chartVersion := os.Getenv("OPENSHELL_CHART_VERSION")
 	if chartVersion == "" {
@@ -75,7 +72,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) erro
 	kcNoNS := k8s.New(kubeconfig, "")
 
 	// Step 1: Namespace (idempotent — ignore AlreadyExists)
-	fmt.Println("=== Step 1: Creating namespace ===")
+	status.Step(1, "Creating namespace")
 	kcNoNS.RunKubectl(ctx, "create", "ns", namespace)
 	if _, err := kcNoNS.RunKubectl(ctx, "label", "ns", namespace,
 		"pod-security.kubernetes.io/enforce=privileged",
@@ -85,14 +82,14 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) erro
 	}
 
 	// Step 2: Sandbox CRD
-	fmt.Println("=== Step 2: Installing Sandbox CRD ===")
+	status.Step(2, "Installing Sandbox CRD")
 	if err := kcNoNS.RunKubectlPassthrough(ctx, "apply", "-f",
 		"https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/manifest.yaml"); err != nil {
 		return fmt.Errorf("installing sandbox CRD: %w", err)
 	}
 
 	// Step 3: OpenShift SCCs (best-effort — oc may not exist on non-OpenShift)
-	fmt.Println("=== Step 3: Granting OpenShift SCCs ===")
+	status.Step(3, "Granting OpenShift SCCs")
 	for _, sa := range []string{"openshell", "openshell-sandbox", "default"} {
 		kc.RunOC(ctx, "adm", "policy", "add-scc-to-user", "privileged", "-z", sa, "-n", namespace)
 	}
@@ -138,7 +135,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) erro
 	}
 
 	// Step 4: Helm install
-	fmt.Println("=== Step 4: Deploying gateway via Helm ===")
+	status.Step(4, "Deploying gateway via Helm")
 	sandboxImage := os.Getenv("SANDBOX_IMAGE")
 	if sandboxImage == "" {
 		sandboxImage = "quay.io/rcochran/openshell:sandbox"
@@ -168,13 +165,13 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) erro
 	}
 
 	// Wait for gateway
-	fmt.Println("=== Waiting for gateway ===")
+	status.Section("Waiting for gateway")
 	if err := kc.RunKubectlPassthrough(ctx, "rollout", "status", "statefulset/openshell", "--timeout=300s"); err != nil {
 		return fmt.Errorf("gateway rollout failed: %w", err)
 	}
 
 	// Step 5: Route
-	fmt.Println("=== Step 5: Creating OpenShift route ===")
+	status.Step(5, "Creating OpenShift route")
 	if err := kc.RunKubectlQuiet(ctx, "get", "route", "gateway"); err != nil {
 		kc.ApplyYAML(ctx, map[string]any{
 			"apiVersion": "route.openshift.io/v1",
@@ -190,7 +187,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) erro
 	fmt.Printf("  Route: %s\n", routeHost)
 
 	// Step 6: CLI gateway config
-	fmt.Println("=== Step 6: Configuring CLI gateway ===")
+	status.Step(6, "Configuring CLI gateway")
 	gatewayName := os.Getenv("GATEWAY_NAME")
 	if gatewayName == "" {
 		gatewayName = "openshell-remote-ocp"
@@ -229,18 +226,18 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) erro
 	fmt.Print("  Waiting for gateway...")
 	for i := range 30 {
 		if gw.InferenceGet() == nil {
-			fmt.Println(" ✓ reachable")
+			status.OK("reachable")
 			break
 		}
 		time.Sleep(2 * time.Second)
 		fmt.Print(".")
 		if i == 29 {
-			fmt.Println(" ✗ timed out (try: openshell inference get)")
+			status.Fail("timed out (try: openshell inference get)")
 		}
 	}
 
 	fmt.Println()
-	fmt.Println("Done.")
+	status.Done("Done.")
 	return nil
 }
 
@@ -298,6 +295,6 @@ func deployLocal(gw gateway.Gateway) error {
 	}
 
 	fmt.Println()
-	fmt.Println("Done.")
+	status.Done("Done.")
 	return nil
 }

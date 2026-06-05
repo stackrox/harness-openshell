@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
+	"time"
 
 	"github.com/robbycochran/harness-openshell/internal/gateway"
 	"github.com/robbycochran/harness-openshell/internal/k8s"
@@ -51,7 +51,7 @@ func NewTeardownCmd(harnessDir, cli string) *cobra.Command {
 				teardownK8s(gw)
 			}
 
-			fmt.Println("Done.")
+			status.Done("Done.")
 			return nil
 		},
 	}
@@ -81,7 +81,7 @@ func teardownSandboxes(gw gateway.Gateway, activeGW string) {
 		status.Info("None running")
 	} else {
 		for _, name := range names {
-			fmt.Printf("  Deleting %s\n", name)
+			status.Infof("Deleting %s", name)
 			if err := gw.SandboxDelete(name); err != nil {
 				status.Failf("failed to delete %s: %v", name, err)
 			}
@@ -103,7 +103,12 @@ func teardownProviders(gw gateway.Gateway, activeGW string) error {
 		return fmt.Errorf("could not check for running sandboxes: %w", err)
 	}
 	if len(remaining) > 0 {
-		return fmt.Errorf("cannot delete providers with running sandboxes — run: harness teardown --sandboxes")
+		// Sandbox may be mid-deletion — wait briefly and retry
+		time.Sleep(2 * time.Second)
+		remaining, _ = gw.SandboxList()
+		if len(remaining) > 0 {
+			return fmt.Errorf("cannot delete providers with running sandboxes — run: harness teardown --sandboxes")
+		}
 	}
 
 	names, err := gw.ProviderList()
@@ -114,7 +119,7 @@ func teardownProviders(gw gateway.Gateway, activeGW string) error {
 		status.Info("None registered")
 	} else {
 		for _, name := range names {
-			fmt.Printf("  Deleting %s\n", name)
+			status.Infof("Deleting %s", name)
 			if err := gw.ProviderDelete(name); err != nil {
 				status.Failf("failed to delete %s: %v", name, err)
 			}
@@ -133,22 +138,19 @@ func teardownProviders(gw gateway.Gateway, activeGW string) error {
 
 func teardownK8s(gw gateway.Gateway) {
 	ctx := context.Background()
-	namespace := os.Getenv("OPENSHELL_NAMESPACE")
-	if namespace == "" {
-		namespace = "openshell"
-	}
+	namespace := k8s.DefaultNamespace()
 
 	kc := k8s.New("", namespace)
 	kcNoNS := k8s.New("", "")
 
 	if !kcNoNS.NamespaceExists(ctx, namespace) {
-		fmt.Println("=== K8s ===")
+		status.Section("K8s")
 		status.Info("No openshell namespace found, skipping")
 		return
 	}
 
 	// Helm release
-	fmt.Println("=== Helm release ===")
+	status.Section("Helm release")
 	if _, err := kc.RunHelm(ctx, "uninstall", "openshell"); err == nil {
 		status.Info("Uninstalled")
 	} else {
@@ -157,7 +159,7 @@ func teardownK8s(gw gateway.Gateway) {
 
 	// Sandbox CRD namespace
 	fmt.Println()
-	fmt.Println("=== Sandbox CRD ===")
+	status.Section("Sandbox CRD")
 	if _, err := kcNoNS.RunKubectl(ctx, "delete", "ns", "agent-sandbox-system"); err == nil {
 		status.Info("Deleted agent-sandbox-system")
 	} else {
@@ -166,7 +168,7 @@ func teardownK8s(gw gateway.Gateway) {
 
 	// OpenShift SCCs
 	fmt.Println()
-	fmt.Println("=== OpenShift SCCs ===")
+	status.Section("OpenShift SCCs")
 	for _, sa := range []string{"openshell", "openshell-sandbox", "default"} {
 		kc.RunOC(ctx, "adm", "policy", "remove-scc-from-user", "privileged", "-z", sa, "-n", namespace)
 	}
@@ -176,32 +178,32 @@ func teardownK8s(gw gateway.Gateway) {
 
 	// Secrets
 	fmt.Println()
-	fmt.Println("=== K8s secrets ===")
+	status.Section("K8s secrets")
 	for _, secret := range []string{"openshell-gws", "openshell-atlassian"} {
 		if _, err := kc.RunKubectl(ctx, "delete", "secret", secret); err == nil {
-			fmt.Printf("  Deleted %s\n", secret)
+			status.OKf("Deleted %s", secret)
 		} else {
-			fmt.Printf("  %s: not found\n", secret)
+			status.Infof("%s: not found", secret)
 		}
 	}
 
 	// Namespace
 	fmt.Println()
-	fmt.Println("=== Namespace ===")
+	status.Section("Namespace")
 	if _, err := kcNoNS.RunKubectl(ctx, "delete", "ns", namespace); err == nil {
-		fmt.Printf("  Deleted %s\n", namespace)
+		status.OKf("Deleted %s", namespace)
 	} else {
-		fmt.Printf("  %s: not found\n", namespace)
+		status.Infof("%s: not found", namespace)
 	}
 
 	// Gateway config cleanup
 	fmt.Println()
-	fmt.Println("=== Gateway config ===")
+	status.Section("Gateway config")
 	gateways, _ := gw.GatewayList()
 	for _, g := range gateways {
 		if !strings.Contains(g.Endpoint, "127.0.0.1") {
 			if err := gw.GatewayRemove(g.Name); err == nil {
-				fmt.Printf("  Removed gateway '%s'\n", g.Name)
+				status.OKf("Removed gateway '%s'", g.Name)
 			}
 		}
 	}
