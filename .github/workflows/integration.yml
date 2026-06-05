@@ -1,0 +1,35 @@
+name: Integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  podman:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build harness CLI
+        run: make cli
+
+      - name: Install openshell
+        run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
+
+      - name: Wait for gateway
+        run: |
+          for i in $(seq 1 30); do
+            openshell inference get &>/dev/null && break
+            sleep 1
+          done
+          openshell gateway list
+
+      - name: Run integration tests
+        run: ./test/test-flow.sh podman --full --no-providers --profile=ci

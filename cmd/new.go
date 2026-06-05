@@ -332,10 +332,18 @@ func newLocal(opts newLocalOpts) error {
 
 	// 6. Build command
 	var sandboxCmd []string
-	if opts.noTTY {
-		sandboxCmd = []string{"bash", "/sandbox/startup.sh"}
+	if cfg.Startup != "" {
+		if opts.noTTY {
+			sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". %s", cfg.Startup)}
+		} else {
+			sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". %s && exec %s", cfg.Startup, cfg.Command)}
+		}
 	} else {
-		sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". /sandbox/startup.sh && exec %s", cfg.Command)}
+		if opts.noTTY {
+			sandboxCmd = []string{"true"}
+		} else {
+			sandboxCmd = []string{"bash", "-c", fmt.Sprintf("exec %s", cfg.Command)}
+		}
 	}
 
 	// 7. Create sandbox with retry
