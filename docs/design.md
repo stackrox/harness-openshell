@@ -287,6 +287,24 @@ point proto types ARE the request payloads and the migration pays for itself.
 TOML into proto-generated structs internally with a ~50-line mapping layer.
 Users keep writing TOML. No textproto, no format change.
 
+## Container runtime
+
+The harness doesn't specify or manage the container runtime (podman vs
+docker). The openshell gateway auto-detects the driver at startup
+(Kubernetes → Podman → Docker). The driver can be overridden via:
+
+```
+OPENSHELL_DRIVERS=podman openshell-gateway
+OPENSHELL_DRIVERS=docker openshell-gateway
+```
+
+Or in a gateway config file (`--config` / `OPENSHELL_GATEWAY_CONFIG`).
+
+The harness refers to "local" (vs "remote/OCP") rather than "podman"
+since the runtime is an openshell concern, not a harness concern.
+`harness status` should report the detected driver when displaying
+gateway info (query from `openshell status`).
+
 ## Open questions
 
 - Should `harness init` (from release-plan.md) be a separate command or

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# End-to-end validation for podman and OCP flows.
+# End-to-end validation for local and OCP flows.
 #
 # Usage:
-#   ./test-flow.sh podman                # quick: deploy + providers + teardown
-#   ./test-flow.sh podman --full         # full: + sandbox + verify integrations
+#   ./test-flow.sh local                 # quick: deploy + providers + teardown
+#   ./test-flow.sh local --full          # full: + sandbox + verify integrations
+#   ./test-flow.sh local --full --no-providers --profile=ci   # CI mode (no creds)
 #   ./test-flow.sh ocp [--full]                  # OCP variants
 #   ./test-flow.sh ocp --full --reuse-gateway   # skip deploy/teardown-k8s (~50s vs ~130s)
 #   ./test-flow.sh all [--full]                  # both platforms
@@ -166,13 +167,13 @@ test_errors() {
   echo ""
 }
 
-# ── Podman flow ──────────────────────────────────────────────────────
+# ── Local flow ───────────────────────────────────────────────────────
 
-test_podman() {
+test_local() {
   local mode="quick"
   $FULL && mode="full"
   $NO_PROVIDERS && mode="$mode, no-providers"
-  echo "=== test-flow: podman ($mode) ==="
+  echo "=== test-flow: local ($mode) ==="
 
   step "teardown" "$HARNESS" teardown --sandboxes --providers
   step "deploy" "$HARNESS" deploy --local
@@ -258,9 +259,9 @@ test_ocp() {
 test_errors
 
 case "$TARGET" in
-  podman) test_podman ;;
+  local|podman) test_local ;;
   ocp)    test_ocp ;;
-  all)    test_podman; echo ""; test_ocp ;;
+  all)    test_local; echo ""; test_ocp ;;
   *)
     echo "Unknown target: $TARGET"
     echo "Usage: $0 <podman|ocp|all> [--full]"
