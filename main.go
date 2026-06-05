@@ -51,9 +51,15 @@ func detectHarnessDir() string {
 	if d := os.Getenv("HARNESS_DIR"); d != "" {
 		return d
 	}
-	ex, err := os.Executable()
-	if err == nil {
-		dir := filepath.Dir(ex)
+	var roots []string
+	if ex, err := os.Executable(); err == nil {
+		roots = append(roots, filepath.Dir(ex))
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		roots = append(roots, cwd)
+	}
+	for _, root := range roots {
+		dir := root
 		for range 5 {
 			if _, err := os.Stat(filepath.Join(dir, "profiles", "default.toml")); err == nil {
 				return dir
@@ -61,16 +67,7 @@ func detectHarnessDir() string {
 			dir = filepath.Dir(dir)
 		}
 	}
-	cwd, err := os.Getwd()
-	if err == nil {
-		dir := cwd
-		for range 5 {
-			if _, err := os.Stat(filepath.Join(dir, "profiles", "default.toml")); err == nil {
-				return dir
-			}
-			dir = filepath.Dir(dir)
-		}
-	}
-	fmt.Fprintf(os.Stderr, "WARNING: could not detect harness directory (set HARNESS_DIR)\n")
-	return "."
+	fmt.Fprintf(os.Stderr, "ERROR: could not detect harness directory — set HARNESS_DIR or run from the project root\n")
+	os.Exit(1)
+	return ""
 }

@@ -14,7 +14,7 @@ SANDBOX_IMAGE  := $(REGISTRY):sandbox
 LAUNCHER_IMAGE := $(REGISTRY):launcher
 
 .PHONY: cli sandbox push-sandbox cli-launcher launcher push-launcher \
-        test-unit test test-podman test-ocp test-all validate clean help
+        vet lint test-unit test test-podman test-ocp test-all validate clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
@@ -46,6 +46,22 @@ launcher: cli-launcher sandbox/launcher/Dockerfile sandbox/launcher/openshell
 
 push-launcher: launcher
 	docker push $(LAUNCHER_IMAGE)
+
+## ── Lint targets ─────────────────────────────────────────────────────
+
+## Run go vet
+vet:
+	go vet ./...
+	cd sandbox/launcher && go vet ./...
+
+## Run golangci-lint (install: https://golangci-lint.run/usage/install/)
+lint:
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run ./...; \
+	else \
+		echo "golangci-lint not installed, running go vet instead"; \
+		$(MAKE) vet; \
+	fi
 
 ## ── Test targets ─────────────────────────────────────────────────────
 
