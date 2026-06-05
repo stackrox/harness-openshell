@@ -28,6 +28,8 @@ As OpenShell matures, the harness should shrink. Every workaround tracks the ups
 
 5. **Thin wrapper, not a platform.** Orchestration and validation on top of OpenShell. No reimplementation of sandbox runtime, network policy, or credential injection.
 
+6. **Image-first, no host mounts.** Sandboxes boot from container images with tools baked in. Files are uploaded, not bind-mounted. This is deliberate — host-mounted workflows break parity between local and remote targets, bypass credential isolation, and create implicit dependencies on the host filesystem. If it doesn't work on OpenShift, it shouldn't work locally either. The sandbox interacts with the outside world through providers — git commits, PR reviews, Jira comments, email — not by writing files that get pulled back to the host.
+
 ## Three Domains
 
 | Domain | Question | Config | Commands |
@@ -41,10 +43,12 @@ Each domain has its own config, its own code boundary, and its own concerns. A s
 ## Quick Start
 
 ```bash
+# Authenticate with Google Cloud (Vertex AI inference)
+gcloud auth application-default login
+
 # Set credentials
 export GITHUB_TOKEN="ghp_..."
 export JIRA_API_TOKEN="..."
-export ANTHROPIC_VERTEX_PROJECT_ID="my-project"
 
 # Local (Podman gateway)
 harness new --local
