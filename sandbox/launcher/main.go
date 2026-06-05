@@ -44,13 +44,21 @@ func parseConfig(path string) (*Config, error) {
 }
 
 func configureGateway(endpoint, mtlsDir, cli string) error {
-	certFile := filepath.Join(mtlsDir, "tls.crt")
-	if _, err := os.Stat(certFile); err != nil {
-		fmt.Println("  No mTLS certs, using insecure mode")
+	requiredCerts := []string{"ca.crt", "tls.crt", "tls.key"}
+	var missing []string
+	for _, name := range requiredCerts {
+		if _, err := os.Stat(filepath.Join(mtlsDir, name)); err != nil {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		fmt.Fprintf(os.Stderr, "WARNING: mTLS certs missing from %s: %v\n", mtlsDir, missing)
+		fmt.Fprintf(os.Stderr, "WARNING: falling back to INSECURE mode — gateway connection is NOT encrypted\n")
 		os.Setenv("OPENSHELL_GATEWAY_ENDPOINT", endpoint)
 		os.Setenv("OPENSHELL_GATEWAY_INSECURE", "true")
 		return nil
 	}
+	fmt.Println("  ✓ mTLS certs found — using encrypted connection")
 
 	httpEndpoint := strings.Replace(endpoint, "https:", "http:", 1)
 
