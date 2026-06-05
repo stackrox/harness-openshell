@@ -21,6 +21,14 @@
 
 ## Architecture Improvements
 
+### Image registry as gateway config vs env override
+- gateway.toml `[images]` section sets sandbox/launcher image refs
+- `SANDBOX_IMAGE`/`LAUNCHER_IMAGE` env vars override config (for dev/CI)
+- Two sources of truth: gateway.toml hardcodes a registry, env vars override it
+- Consider: gateway.toml uses a `registry` field and images are relative to it,
+  or gateway.toml supports variable expansion (`${REGISTRY}:sandbox`)
+- Not urgent — env override approach works as a bridge
+
 ### Direct gRPC (future)
 - OpenShell gateway exposes 54 gRPC RPCs (proto files in NVIDIA/OpenShell repo)
 - Generate Go stubs from proto files → `gateway.GRPC` implementation

@@ -104,10 +104,14 @@ validate: cli sandbox push-launcher
 	./test/test-flow.sh ocp --full
 
 ## Dev validation: unit tests + bats + build images + full integration matrix.
-## Runs: local quick, local full, local CI (no providers), OCP quick, OCP full.
+## Builds sandbox + launcher images to REGISTRY, then runs every flow.
 ## Requires: openshell gateway running locally, OCP cluster via KUBECONFIG.
 ## Override registry: make validate-dev REGISTRY=quay.io/youruser/harness-openshell
 validate-dev: cli sandbox push-launcher
+	@echo "=== Images ==="
+	@echo "  SANDBOX_IMAGE:  $(SANDBOX_IMAGE)"
+	@echo "  LAUNCHER_IMAGE: $(LAUNCHER_IMAGE)"
+	@echo ""
 	@echo "=== Unit tests ==="
 	CGO_ENABLED=0 go test ./...
 	cd sandbox/launcher && go test ./...
@@ -116,10 +120,10 @@ validate-dev: cli sandbox push-launcher
 	bats test/preflight.bats
 	@echo ""
 	@echo "=== Integration: local (quick) ==="
-	./test/test-flow.sh local
+	SANDBOX_IMAGE=$(SANDBOX_IMAGE) ./test/test-flow.sh local
 	@echo ""
 	@echo "=== Integration: local (full) ==="
-	./test/test-flow.sh local --full
+	SANDBOX_IMAGE=$(SANDBOX_IMAGE) ./test/test-flow.sh local --full
 	@echo ""
 	@echo "=== Integration: local CI profile (no providers) ==="
 	./test/test-flow.sh local --full --no-providers --profile=ci
