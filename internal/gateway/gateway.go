@@ -1,62 +1,61 @@
 package gateway
 
-// Gateway abstracts all OpenShell gateway operations. The CLI implementation
-// shells out to the openshell binary; a future gRPC implementation will call
-// the gateway API directly.
-type Gateway interface {
-	// CLIVersion returns the openshell CLI version string, or empty if not found.
-	CLIVersion() string
+// Focused sub-interfaces aligned with OpenShell proto service domains.
+// Each consumer imports only the interface it needs, simplifying mocks.
 
-	// CLIPath returns the path to the openshell CLI binary, or empty if not found.
-	CLIPath() string
-
-	// InferenceGet checks if the gateway is active and reachable.
-	InferenceGet() error
-
-	// InferenceModel returns the configured inference model name, or empty.
-	InferenceModel() string
-
-	// ActiveGateway returns the name of the currently selected gateway, or empty.
-	ActiveGateway() string
-
-	// ProviderGet checks if a provider is registered. Returns nil if it exists.
+// ProviderManager handles provider CRUD and profile operations.
+type ProviderManager interface {
 	ProviderGet(name string) error
-
-	// ProviderList returns the names of all registered providers.
-	ProviderList() ([]string, error)
-
-	// Provider lifecycle
 	ProviderCreate(name, providerType string, opts ProviderCreateOpts) error
 	ProviderDelete(name string) error
+	ProviderList() ([]string, error)
 	ProviderProfileImport(dir string) error
 	ProviderProfileDelete(id string) error
+}
 
-	// Inference config
-	InferenceSet(provider, model string) error
-	InferenceRemove() error
-
-	// Settings
-	SettingsSet(key, value string) error
-
-	// Sandbox lifecycle
+// SandboxManager handles sandbox lifecycle operations.
+type SandboxManager interface {
 	SandboxList() ([]string, error)
 	SandboxCreate(opts SandboxCreateOpts) error
 	SandboxDelete(name string) error
 	SandboxConnect(name string) error
 	SandboxUpload(name, localDir, remotePath string) error
 	SandboxExec(name string, command ...string) error
+}
 
-	// Gateway management
+// InferenceConfig handles inference routing configuration.
+type InferenceConfig interface {
+	InferenceGet() error
+	InferenceModel() string
+	InferenceSet(provider, model string) error
+	InferenceRemove() error
+}
+
+// GatewayAdmin handles gateway management, CLI detection, and settings.
+type GatewayAdmin interface {
+	CLIVersion() string
+	CLIPath() string
+	ActiveGateway() string
 	GatewayAdd(endpoint, name string, local bool) error
 	GatewayRemove(name string) error
 	GatewayList() ([]GatewayInfo, error)
 	GatewaySelect(name string) error
+	SettingsSet(key, value string) error
+}
+
+// Gateway composes all sub-interfaces. Use this when a function needs
+// multiple domains. Prefer the narrower interfaces when possible.
+type Gateway interface {
+	ProviderManager
+	SandboxManager
+	InferenceConfig
+	GatewayAdmin
 }
 
 type ProviderCreateOpts struct {
-	Credentials []string // "KEY=VALUE" pairs
-	Configs     []string // "KEY=VALUE" pairs
-	FromADC     bool     // --from-gcloud-adc
+	Credentials []string
+	Configs     []string
+	FromADC     bool
 }
 
 type GatewayInfo struct {

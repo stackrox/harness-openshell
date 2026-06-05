@@ -197,3 +197,11 @@ func containsFlag(args []string, flags ...string) bool {
 func decodeBase64(s string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(s)
 }
+
+func DefaultNamespace() string {
+	if ns := os.Getenv("OPENSHELL_NAMESPACE"); ns != "" {
+		return ns
+	}
+	return "openshell"
+}
+

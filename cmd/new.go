@@ -77,14 +77,11 @@ type newLocalOpts struct {
 
 func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName string) error {
 	ctx := context.Background()
-	namespace := os.Getenv("OPENSHELL_NAMESPACE")
-	if namespace == "" {
-		namespace = "openshell"
-	}
+	namespace := k8s.DefaultNamespace()
 
 	// 1. Ensure gateway
 	if err := gw.InferenceGet(); err != nil {
-		fmt.Println("=== Deploying gateway ===")
+		status.Section("Deploying gateway")
 		if err := deployRemote(harnessDir, gw, ""); err != nil {
 			return fmt.Errorf("deploy failed: %w", err)
 		}
@@ -93,7 +90,7 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 	// 2. Ensure providers
 	providers, _ := gw.ProviderList()
 	if len(providers) == 0 {
-		fmt.Println("\n=== Registering providers ===")
+		status.Section("Registering providers")
 		if err := registerProviders(harnessDir, gw, false); err != nil {
 			return fmt.Errorf("provider registration failed: %w", err)
 		}
@@ -193,7 +190,7 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 
 	// 5. Wait for launcher pod
 	fmt.Println()
-	fmt.Println("Waiting for launcher...")
+	status.Info("Waiting for launcher...")
 	kc.RunKubectl(ctx, "wait", "--for=condition=ready", "pod",
 		"-l", "job-name="+jobName, "--timeout=120s")
 
@@ -223,7 +220,7 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 
 	fmt.Println()
 	if jobStatus == "Complete" || jobStatus == "SuccessCriteriaMet" {
-		fmt.Printf("Sandbox ready. Connect with: harness connect %s\n", cfg.Name)
+		status.OKf("Sandbox ready. Connect with: harness connect %s", cfg.Name)
 		return nil
 	}
 	if jobStatus == "" {
@@ -250,7 +247,7 @@ func newLocal(opts newLocalOpts) error {
 	// 2. Ensure providers
 	providers, _ := gw.ProviderList()
 	if len(providers) == 0 {
-		fmt.Println("\n=== Registering providers ===")
+		status.Section("Registering providers")
 		if err := opts.runScript("providers.sh"); err != nil {
 			return fmt.Errorf("provider registration failed: %w", err)
 		}
@@ -281,7 +278,7 @@ func newLocal(opts newLocalOpts) error {
 	}
 	if len(missing) > 0 && len(registered) == 0 {
 		fmt.Println()
-		fmt.Println("WARNING: no providers available. Run: harness providers")
+		status.Warn("no providers available — run: harness providers")
 	}
 
 	// 5. Stage files
