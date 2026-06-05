@@ -58,8 +58,9 @@ func (m *MockRunner) RunKubectlPassthrough(_ context.Context, args ...string) er
 	return err
 }
 
-func (m *MockRunner) RunHelm(_ context.Context, args ...string) (string, error) {
-	return m.respond(m.record(append([]string{"helm"}, args...)...))
+func (m *MockRunner) RunHelm(_ context.Context, args ...string) error {
+	_, err := m.respond(m.record(append([]string{"helm"}, args...)...))
+	return err
 }
 
 func (m *MockRunner) RunOC(_ context.Context, args ...string) error {

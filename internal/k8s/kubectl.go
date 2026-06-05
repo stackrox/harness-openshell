@@ -32,7 +32,7 @@ type Runner interface {
 	RunKubectlOpts(ctx context.Context, opts KubectlOpts) (string, error)
 	RunKubectlQuiet(ctx context.Context, args ...string) error
 	RunKubectlPassthrough(ctx context.Context, args ...string) error
-	RunHelm(ctx context.Context, args ...string) (string, error)
+	RunHelm(ctx context.Context, args ...string) error
 	RunOC(ctx context.Context, args ...string) error
 	ApplyYAML(ctx context.Context, resources ...map[string]any) error
 	SecretExists(ctx context.Context, name string) bool
@@ -131,7 +131,7 @@ func (c *Client) RunKubectlPassthrough(ctx context.Context, args ...string) erro
 	return cmd.Run()
 }
 
-func (c *Client) RunHelm(ctx context.Context, args ...string) (string, error) {
+func (c *Client) RunHelm(ctx context.Context, args ...string) error {
 	if c.namespace != "" && !containsFlag(args, "-n", "--namespace") {
 		args = append(args, "-n", c.namespace)
 	}
@@ -143,7 +143,7 @@ func (c *Client) RunHelm(ctx context.Context, args ...string) (string, error) {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return "", cmd.Run()
+	return cmd.Run()
 }
 
 func (c *Client) RunOC(ctx context.Context, args ...string) error {

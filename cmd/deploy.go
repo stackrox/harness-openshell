@@ -133,7 +133,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kc, clusterRunner k8s.R
 	if sps := os.Getenv("SANDBOX_PULL_SECRET"); sps != "" {
 		helmArgs = append(helmArgs, "--set", "server.sandboxImagePullSecrets[0].name="+sps)
 	}
-	if _, err := kc.RunHelm(ctx, helmArgs...); err != nil {
+	if err := kc.RunHelm(ctx, helmArgs...); err != nil {
 		return fmt.Errorf("helm install failed: %w", err)
 	}
 

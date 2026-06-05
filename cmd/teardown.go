@@ -147,7 +147,7 @@ func teardownK8s(gw gateway.Gateway, kc, clusterRunner k8s.Runner) {
 
 	// Helm release
 	status.Section("Helm release")
-	if _, err := kc.RunHelm(ctx, "uninstall", "openshell"); err == nil {
+	if err := kc.RunHelm(ctx, "uninstall", "openshell"); err == nil {
 		status.Info("Uninstalled")
 	} else {
 		status.Info("Not installed")
