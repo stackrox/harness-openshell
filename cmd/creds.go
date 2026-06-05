@@ -12,9 +12,8 @@ import (
 	"github.com/robbycochran/harness-openshell/internal/status"
 )
 
-func ensureCreds(namespace string, force bool) error {
+func ensureCreds(kc k8s.Runner, namespace string, force bool) error {
 	ctx := context.Background()
-	kc := k8s.New("", namespace)
 
 	if !kc.NamespaceExists(ctx, namespace) {
 		return fmt.Errorf("namespace '%s' not found — run: harness deploy --remote", namespace)
@@ -63,7 +62,7 @@ func ensureCreds(namespace string, force bool) error {
 	return nil
 }
 
-func createGWSSecret(ctx context.Context, kc *k8s.Client) error {
+func createGWSSecret(ctx context.Context, kc k8s.Runner) error {
 	gwsPath, err := exec.LookPath("gws")
 	if err != nil {
 		status.Info("GWS: not installed (skipping)")

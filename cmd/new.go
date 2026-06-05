@@ -78,11 +78,13 @@ type newLocalOpts struct {
 func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName string) error {
 	ctx := context.Background()
 	namespace := k8s.DefaultNamespace()
+	kc := k8s.New("", namespace)
+	clusterRunner := k8s.New("", "")
 
 	// 1. Ensure gateway
 	if err := gw.InferenceGet(); err != nil {
 		status.Section("Deploying gateway")
-		if err := deployRemote(harnessDir, gw, ""); err != nil {
+		if err := deployRemote(harnessDir, gw, kc, clusterRunner); err != nil {
 			return fmt.Errorf("deploy failed: %w", err)
 		}
 	}
@@ -97,7 +99,7 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 	}
 
 	// 3. Ensure credentials
-	if err := ensureCreds(namespace, false); err != nil {
+	if err := ensureCreds(kc, namespace, false); err != nil {
 		return fmt.Errorf("credentials setup failed: %w", err)
 	}
 
@@ -110,7 +112,6 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 		cfg.Name = sandboxName
 	}
 
-	kc := k8s.New("", namespace)
 	profilePath := filepath.Join(harnessDir, "profiles", profileName+".toml")
 
 	// 1. ConfigMap from profile

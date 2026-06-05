@@ -25,6 +25,21 @@ var transientErrors = []string{
 	"i/o timeout",
 }
 
+// Runner abstracts kubectl/helm/oc operations for testing.
+type Runner interface {
+	RunKubectl(ctx context.Context, args ...string) (string, error)
+	RunKubectlOpts(ctx context.Context, opts KubectlOpts) (string, error)
+	RunKubectlQuiet(ctx context.Context, args ...string) error
+	RunKubectlPassthrough(ctx context.Context, args ...string) error
+	RunHelm(ctx context.Context, args ...string) (string, error)
+	RunOC(ctx context.Context, args ...string) error
+	ApplyYAML(ctx context.Context, resources ...map[string]any) error
+	SecretExists(ctx context.Context, name string) bool
+	GetSecretField(ctx context.Context, secretName, field string) ([]byte, error)
+	GetJSONPath(ctx context.Context, resource, jsonpath string) (string, error)
+	NamespaceExists(ctx context.Context, ns string) bool
+}
+
 type Client struct {
 	kubeconfig string
 	namespace  string
