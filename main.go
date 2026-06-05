@@ -27,7 +27,7 @@ func main() {
 		cmd.NewConnectCmd(cli),
 		cmd.NewDeployCmd(harnessDir),
 		cmd.NewTeardownCmd(harnessDir),
-		cmd.NewPreflightCmd(harnessDir),
+		cmd.NewPreflightCmd(harnessDir, cli),
 		cmd.NewProvidersCmd(harnessDir),
 		cmd.NewTestCmd(harnessDir),
 	)

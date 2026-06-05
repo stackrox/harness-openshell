@@ -8,6 +8,7 @@ import (
 	"github.com/robbycochran/harness-openshell/internal/gateway"
 	"github.com/robbycochran/harness-openshell/internal/profile"
 	"github.com/robbycochran/harness-openshell/internal/runner"
+	"github.com/robbycochran/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
 )
 
@@ -119,14 +120,13 @@ func newLocal(opts newLocalOpts) error {
 	fmt.Printf("  Image:   %s\n", cfg.Image)
 
 	// 4. Validate providers against profile
-	fmt.Println()
-	fmt.Println("=== Providers ===")
+	status.Section("Providers")
 	registered, missing := profile.ValidateProviders(cfg.Providers, gw)
 	for _, name := range registered {
-		fmt.Printf("  ✓ %s: attached\n", name)
+		status.OKf("%s: attached", name)
 	}
 	for _, name := range missing {
-		fmt.Printf("  ✗ %s: not registered (skipping)\n", name)
+		status.Failf("%s: not registered (skipping)", name)
 	}
 	if len(missing) > 0 && len(registered) == 0 {
 		fmt.Println()

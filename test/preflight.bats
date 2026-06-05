@@ -51,9 +51,24 @@ STUB
 }
 
 run_preflight() {
-  # Override the TOML paths via env — providers.py reads ROOT-relative,
-  # so we patch it with a wrapper
-  python3 -c "
+  if [[ "${USE_GO:-}" == "true" ]]; then
+    # Run via the Go harness binary
+    local harness="$REPO_ROOT/harness"
+    local cmd="${1:-check}"
+    shift 2>/dev/null || true
+    case "$cmd" in
+      check)
+        PROVIDERS_TOML="$PROVIDERS_TOML" CONFIG_TOML="$CONFIG_TOML" \
+          "$harness" preflight "$@"
+        ;;
+      available|names)
+        PROVIDERS_TOML="$PROVIDERS_TOML" CONFIG_TOML="$CONFIG_TOML" \
+          "$harness" preflight "$cmd"
+        ;;
+    esac
+  else
+    # Run via Python (original)
+    python3 -c "
 import sys, os
 sys.path.insert(0, '$REPO_ROOT/bin/scripts/lib')
 os.chdir('$TEST_TMPDIR')
@@ -73,6 +88,7 @@ elif cmd == 'available':
 elif cmd == 'names':
     providers.cmd_names()
 " "$@"
+  fi
 }
 
 # ── ENV input tests ──────────────────────────────────────────────────

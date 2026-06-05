@@ -22,7 +22,11 @@ func (m *mockGateway) ProviderGet(name string) error {
 	return fmt.Errorf("not found")
 }
 
+func (m *mockGateway) CLIVersion() string                               { return "" }
+func (m *mockGateway) CLIPath() string                                  { return "" }
 func (m *mockGateway) InferenceGet() error                              { return nil }
+func (m *mockGateway) InferenceModel() string                           { return "" }
+func (m *mockGateway) ActiveGateway() string                            { return "" }
 func (m *mockGateway) ProviderList() ([]string, error)                  { return nil, nil }
 func (m *mockGateway) SandboxCreate(gateway.SandboxCreateOpts) error    { return nil }
 func (m *mockGateway) SandboxDelete(string) error                       { return nil }

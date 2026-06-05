@@ -4,8 +4,20 @@ package gateway
 // shells out to the openshell binary; a future gRPC implementation will call
 // the gateway API directly.
 type Gateway interface {
+	// CLIVersion returns the openshell CLI version string, or empty if not found.
+	CLIVersion() string
+
+	// CLIPath returns the path to the openshell CLI binary, or empty if not found.
+	CLIPath() string
+
 	// InferenceGet checks if the gateway is active and reachable.
 	InferenceGet() error
+
+	// InferenceModel returns the configured inference model name, or empty.
+	InferenceModel() string
+
+	// ActiveGateway returns the name of the currently selected gateway, or empty.
+	ActiveGateway() string
 
 	// ProviderGet checks if a provider is registered. Returns nil if it exists.
 	ProviderGet(name string) error

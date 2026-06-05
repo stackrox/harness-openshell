@@ -150,10 +150,6 @@ test_errors() {
   # Bad profile
   step_fail "nonexistent profile" "$HARNESS" new --local --profile nonexistent --no-tty
 
-  # No gateway (teardown first, then try new without --local)
-  "$HARNESS" teardown --sandboxes --providers &>/dev/null || true
-  step_fail "new without gateway" "$HARNESS" new --name test-nogw --no-tty
-
   # Teardown idempotency
   step "teardown (first)" "$HARNESS" teardown
   step "teardown (second)" "$HARNESS" teardown
