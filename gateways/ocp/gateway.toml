@@ -1,0 +1,21 @@
+# OpenShift gateway — deploys openshell to an OCP cluster.
+#
+# Prerequisites:
+#   - oc login to the target cluster
+#   - KUBECONFIG set or default context pointing to OCP
+#
+# Addons applied:
+#   - addons/rbac.yaml    — launcher ServiceAccount + Role
+#   - addons/route.yaml   — OpenShift Route for external access
+#   - SCC grants for openshell service accounts (via oc CLI)
+
+[gateway]
+type = "remote"
+platform = "ocp"
+service = "route"
+
+[helm]
+values = "values.yaml"
+
+[addons]
+manifests = ["addons/rbac.yaml", "addons/route.yaml"]

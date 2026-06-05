@@ -1,0 +1,11 @@
+# kind gateway Helm values.
+#
+# Chart defaults are vanilla-k8s-friendly — this file only overrides
+# what's needed for kind specifically.
+
+service:
+  type: NodePort
+
+server:
+  auth:
+    allowUnauthenticatedUsers: true

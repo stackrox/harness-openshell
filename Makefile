@@ -14,7 +14,7 @@ SANDBOX_IMAGE  := $(REGISTRY):sandbox
 LAUNCHER_IMAGE := $(REGISTRY):launcher
 
 .PHONY: cli sandbox push-sandbox cli-launcher launcher push-launcher \
-        vet lint test-unit test test-podman test-ocp test-all validate clean help
+        vet lint test-unit test test-local test-ocp test-all validate clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
@@ -75,9 +75,9 @@ test-unit:
 test: cli sandbox push-launcher
 	./test/test-flow.sh all --full
 
-## Podman only (full lifecycle)
-test-podman: cli sandbox push-launcher
-	./test/test-flow.sh podman --full
+## Local gateway (full lifecycle)
+test-local: cli
+	./test/test-flow.sh local --full
 
 ## OCP only (full lifecycle)
 test-ocp: cli sandbox push-launcher
@@ -87,7 +87,7 @@ test-ocp: cli sandbox push-launcher
 test-all: cli sandbox push-launcher
 	./test/test-flow.sh all --full
 
-## Full validation: unit tests + bats + integration (podman + OCP)
+## Full validation: unit tests + bats + integration (local + OCP)
 ## Run this before every commit.
 validate: cli sandbox push-launcher
 	@echo "=== Unit tests ==="
@@ -97,8 +97,8 @@ validate: cli sandbox push-launcher
 	@echo "=== Bats ==="
 	bats test/preflight.bats
 	@echo ""
-	@echo "=== Integration: podman ==="
-	./test/test-flow.sh podman --full
+	@echo "=== Integration: local ==="
+	./test/test-flow.sh local --full
 	@echo ""
 	@echo "=== Integration: OCP ==="
 	./test/test-flow.sh ocp --full

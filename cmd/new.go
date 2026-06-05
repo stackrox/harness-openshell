@@ -174,7 +174,7 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 					"restartPolicy":      "Never",
 					"containers": []map[string]any{{
 						"name":            "launcher",
-						"image":           "ghcr.io/robbycochran/harness-openshell:launcher",
+						"image":           envOr("LAUNCHER_IMAGE", "ghcr.io/robbycochran/harness-openshell:launcher"),
 						"imagePullPolicy": "Always",
 						"env": []map[string]any{
 							{"name": "GATEWAY_ENDPOINT", "value": "https://openshell.openshell.svc.cluster.local:8080"},
@@ -332,10 +332,18 @@ func newLocal(opts newLocalOpts) error {
 
 	// 6. Build command
 	var sandboxCmd []string
-	if opts.noTTY {
-		sandboxCmd = []string{"bash", "/sandbox/startup.sh"}
+	if cfg.Startup != "" {
+		if opts.noTTY {
+			sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". %s", cfg.Startup)}
+		} else {
+			sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". %s && exec %s", cfg.Startup, cfg.Command)}
+		}
 	} else {
-		sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". /sandbox/startup.sh && exec %s", cfg.Command)}
+		if opts.noTTY {
+			sandboxCmd = []string{"true"}
+		} else {
+			sandboxCmd = []string{"bash", "-c", fmt.Sprintf("exec %s", cfg.Command)}
+		}
 	}
 
 	// 7. Create sandbox with retry

@@ -21,6 +21,7 @@ type Config struct {
 	Name      string            `toml:"name"`
 	From      string            `toml:"from"`
 	Command   string            `toml:"command"`
+	Startup   string            `toml:"startup"`
 	Keep      *bool             `toml:"keep"`
 	Providers []string          `toml:"providers"`
 	Env       map[string]string `toml:"env"`

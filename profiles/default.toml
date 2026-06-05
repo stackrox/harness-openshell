@@ -7,6 +7,7 @@
 name = "agent"
 from = "ghcr.io/robbycochran/harness-openshell:sandbox"
 command = "claude --bare"
+startup = "/sandbox/startup.sh"
 keep = true
 
 providers = ["github", "vertex-local", "atlassian"]

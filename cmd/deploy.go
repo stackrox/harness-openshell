@@ -107,8 +107,8 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kc, clusterRunner k8s.R
 		"--clusterrole=cluster-admin",
 		"--serviceaccount=agent-sandbox-system:agent-sandbox-controller")
 
-	// RBAC for launcher (from deploy/rbac.yaml)
-	if err := kc.RunKubectlPassthrough(ctx, "apply", "-f", filepath.Join(harnessDir, "deploy", "rbac.yaml")); err != nil {
+	// RBAC for launcher
+	if err := kc.RunKubectlPassthrough(ctx, "apply", "-f", filepath.Join(harnessDir, "gateways", "ocp", "addons", "rbac.yaml")); err != nil {
 		return fmt.Errorf("applying launcher RBAC: %w", err)
 	}
 
@@ -125,7 +125,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kc, clusterRunner k8s.R
 	helmArgs := []string{
 		"upgrade", "--install", "openshell", chartOCI,
 		"--version", chartVersion,
-		"--values", filepath.Join(harnessDir, "values-ocp.yaml"),
+		"--values", filepath.Join(harnessDir, "gateways", "ocp", "helm", "values.yaml"),
 		"--set", "server.sandboxImage=" + sandboxImage,
 		"--set", "pkiInitJob.serverDnsNames[0]=" + routeHost,
 	}
@@ -145,10 +145,10 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kc, clusterRunner k8s.R
 		return fmt.Errorf("gateway rollout failed: %w", err)
 	}
 
-	// Step 5: Route (from deploy/route.yaml)
+	// Step 5: Route
 	status.Step(5, "Creating OpenShift route")
 	if err := kc.RunKubectlQuiet(ctx, "get", "route", "gateway"); err != nil {
-		kc.RunKubectlPassthrough(ctx, "apply", "-f", filepath.Join(harnessDir, "deploy", "route.yaml"))
+		kc.RunKubectlPassthrough(ctx, "apply", "-f", filepath.Join(harnessDir, "gateways", "ocp", "addons", "route.yaml"))
 	}
 	fmt.Printf("  Route: %s\n", routeHost)
 

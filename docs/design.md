@@ -287,6 +287,193 @@ point proto types ARE the request payloads and the migration pays for itself.
 TOML into proto-generated structs internally with a ~50-line mapping layer.
 Users keep writing TOML. No textproto, no format change.
 
+## Gateway configs
+
+Gateway configs describe how to deploy and connect to a gateway. Each
+config is a directory under `gateways/` with a consistent structure:
+
+```
+gateways/
+  local/
+    gateway.toml              # type = "local", no deploy needed
+  kind/
+    gateway.toml              # type = "remote", platform = "k8s", NodePort
+    helm/values.yaml          # Helm overrides for kind
+  ocp/
+    gateway.toml              # type = "remote", platform = "ocp", Route
+    helm/values.yaml          # Helm overrides for OpenShift
+    addons/
+      rbac.yaml               # launcher ServiceAccount + Role
+      route.yaml              # OpenShift Route for external access
+```
+
+### `gateway.toml` schema
+
+```toml
+[gateway]
+type = "remote"               # "local" or "remote"
+platform = "ocp"              # "ocp", "k8s", or empty (auto-detect)
+service = "route"             # "route", "nodeport", "loadbalancer"
+
+[helm]
+values = "values.yaml"        # relative to helm/ subdir
+
+[addons]
+manifests = [                 # applied after Helm install
+  "addons/rbac.yaml",
+  "addons/route.yaml",
+]
+```
+
+### Deploy behavior by config
+
+`harness deploy [GATEWAY_NAME]` reads the gateway config and acts on it:
+
+| Field | Effect |
+|-------|--------|
+| `type = "local"` | Verify local gateway is running, skip Helm |
+| `platform = "ocp"` | Run SCC grants via `oc`, query appsDomain |
+| `platform = "k8s"` | Skip SCCs, use standard k8s networking |
+| `service = "route"` | Create OpenShift Route, derive endpoint from appsDomain |
+| `service = "nodeport"` | Extract NodePort, configure endpoint as `host:port` |
+| `service = "loadbalancer"` | Wait for external IP, configure endpoint |
+| `helm.values` | Pass `--values` to Helm install |
+| `addons.manifests` | `kubectl apply -f` each manifest after Helm |
+
+### Sandbox profiles vs gateway configs
+
+Two orthogonal axes — *what* to run vs *where* to run it:
+
+```
+gateway config (where)      ×      sandbox profile (what)
+──────────────────────             ──────────────────────
+local                               default (full tooling)
+kind                                ci (minimal, no providers)
+ocp                                 research (different model)
+k8s-gke                             ...
+```
+
+Any sandbox profile works on any gateway. The harness resolves the
+active gateway and creates the sandbox through it.
+
+### Custom gateways
+
+To add a new gateway target: copy an existing directory, edit
+`gateway.toml`, add Helm values and addon manifests as needed.
+No code changes required.
+
+## Container runtime
+
+The harness doesn't specify or manage the container runtime (podman vs
+docker). The openshell gateway auto-detects the driver at startup
+(Kubernetes → Podman → Docker). The driver can be overridden via:
+
+```
+OPENSHELL_DRIVERS=podman openshell-gateway
+OPENSHELL_DRIVERS=docker openshell-gateway
+```
+
+Or in a gateway config file (`--config` / `OPENSHELL_GATEWAY_CONFIG`).
+
+The harness refers to "local" (vs "remote/OCP") rather than "podman"
+since the runtime is an openshell concern, not a harness concern.
+
+The driver is not exposed via the gRPC API (by design — clients are
+abstracted from the compute layer). However, the gateway logs the
+driver at startup:
+
+```
+INFO openshell_server: Using compute driver driver=podman
+INFO openshell_driver_podman::driver: Connected to Podman cgroup_version=v2 ...
+```
+
+Log location (macOS/Homebrew):
+`/opt/homebrew/var/log/openshell/openshell-gateway.out.log`
+
+`harness status` can grep the gateway log for "Using compute driver"
+to report the active driver. This is best-effort — if the log is
+unavailable, status just omits the driver line.
+
+## OCP vs vanilla Kubernetes
+
+The upstream openshell Helm chart is vanilla-k8s-first. OpenShift is the
+variant that requires extra steps. The harness handles both via gateway
+configs.
+
+### What OCP needs beyond vanilla k8s
+
+| Step | OCP | Vanilla k8s | Why |
+|------|-----|-------------|-----|
+| **SCCs** | Grant `privileged` SCC to openshell SAs via `oc adm policy` | Not needed — no SCC concept | OCP blocks pods from running as certain UIDs by default |
+| **Helm values** | Null out `runAsUser` and `runAsNonRoot` (SCC assigns UID) | Chart defaults work (`runAsUser: 1000`) | OCP SCC admission rejects the chart's hardcoded security context |
+| **Networking** | OpenShift Route (TLS passthrough) | Ingress, LoadBalancer, or NodePort | Route is OCP-only; vanilla k8s uses standard networking |
+| **Apps domain** | Query `ingresses.config.openshift.io/cluster` for wildcard domain | User-provided or derived from service | OCP-only API |
+| **PKI init job** | Works if privileged SCC is granted | Works by default | OCP's SCC would block it without the grant |
+
+### What's the same on both
+
+- Namespace creation with Pod Security Standards labels
+- Sandbox CRD installation (kubernetes-sigs/agent-sandbox)
+- Helm chart install (same chart, different values)
+- RBAC for launcher (standard k8s ServiceAccount + Role)
+- mTLS certificate generation and extraction
+- Launcher Job spec
+- Provider registration and sandbox creation
+
+## Security: TLS and authentication
+
+### Three network paths
+
+```
+laptop ──[mTLS over Route/Ingress]──▶ gateway (in cluster)
+launcher Job ──[mTLS over cluster DNS]──▶ gateway (in cluster)
+gateway ──[container runtime]──▶ sandbox pod
+```
+
+All external traffic is mTLS-encrypted. The launcher Job mounts the
+`openshell-client-tls` Secret for in-cluster mTLS to the gateway.
+
+### Auth roadmap
+
+| Stage | Auth mechanism | Use case |
+|-------|---------------|----------|
+| **Now** | mTLS certificates extracted from cluster | Single user, CI |
+| **Next** | oauth-proxy sidecar + OpenShift OAuth | Team — OCP users log in with cluster creds |
+| **Future** | OIDC (Keycloak, Dex, external IdP) | Multi-cluster, external users |
+
+### Current approach: mTLS-as-auth
+
+The Helm chart's PKI init job generates server and client certificates.
+The harness extracts the client cert from `openshell-client-tls` Secret
+and configures the CLI with it. mTLS serves as both transport encryption
+and user authentication.
+
+This is secure (encrypted + authenticated) but single-user — whoever has
+the client cert has full access.
+
+### Next: oauth-proxy sidecar on OCP
+
+OpenShift has a built-in OAuth server. The cluster already has it running
+(`openshift-authentication` namespace). Any user who can `oc login` can
+authenticate.
+
+The approach:
+1. Deploy an oauth-proxy sidecar alongside the gateway (addon manifest)
+2. Route points at the proxy port, proxy forwards to gateway
+3. Gateway runs with `allowUnauthenticatedUsers: true` (trusts the proxy)
+4. CLI registers with bare `https://` (browser-based login flow)
+5. No external IdP needed — uses the cluster's own user directory
+
+This requires no internal approval for new services — oauth-proxy is a
+standard OCP pattern and the OAuth server is already running.
+
+### Future: OIDC
+
+For production multi-cluster deployments, configure the gateway with
+`--oidc-issuer` pointing at Keycloak, Dex, Okta, or any OIDC provider.
+The CLI uses `--oidc-issuer` and `--oidc-client-id` on `gateway add`
+and does a browser-based OIDC login flow.
+
 ## Open questions
 
 - Should `harness init` (from release-plan.md) be a separate command or

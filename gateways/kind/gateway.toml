@@ -1,0 +1,16 @@
+# kind gateway — deploys openshell to a local kind cluster.
+#
+# Prerequisites:
+#   - kind installed
+#   - Cluster created: kind create cluster --name openshell
+#
+# Uses NodePort for access (no Ingress controller needed).
+# No user authentication — suitable for CI and local dev only.
+
+[gateway]
+type = "remote"
+platform = "k8s"
+service = "nodeport"
+
+[helm]
+# Chart defaults work for vanilla k8s — no values override needed.

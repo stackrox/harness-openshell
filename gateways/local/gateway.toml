@@ -1,0 +1,10 @@
+# Local gateway — runs on your machine via podman or docker.
+#
+# The openshell gateway must be installed and running:
+#   macOS:  brew install openshell && brew services start openshell
+#   Linux:  curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
+#
+# The harness verifies the gateway is reachable but does not manage its lifecycle.
+
+[gateway]
+type = "local"

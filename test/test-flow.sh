@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# End-to-end validation for podman and OCP flows.
+# End-to-end validation for local and OCP flows.
 #
 # Usage:
-#   ./test-flow.sh podman                # quick: deploy + providers + teardown
-#   ./test-flow.sh podman --full         # full: + sandbox + verify integrations
+#   ./test-flow.sh local                 # quick: deploy + providers + teardown
+#   ./test-flow.sh local --full          # full: + sandbox + verify integrations
+#   ./test-flow.sh local --full --no-providers --profile=ci   # CI mode (no creds)
 #   ./test-flow.sh ocp [--full]                  # OCP variants
 #   ./test-flow.sh ocp --full --reuse-gateway   # skip deploy/teardown-k8s (~50s vs ~130s)
 #   ./test-flow.sh all [--full]                  # both platforms
@@ -23,11 +24,15 @@ fi
 TARGET=""
 FULL=false
 REUSE_GATEWAY=false
+NO_PROVIDERS=false
+PROFILE="default"
 
 for arg in "$@"; do
   case "$arg" in
     --full)           FULL=true ;;
     --reuse-gateway)  REUSE_GATEWAY=true ;;
+    --no-providers)   NO_PROVIDERS=true ;;
+    --profile=*)      PROFILE="${arg#--profile=}" ;;
     -*)               ;;
     *)                [[ -z "$TARGET" ]] && TARGET="$arg" ;;
   esac
@@ -117,6 +122,14 @@ sandbox_verify() {
   printf "  ✓ %-35s\n" "sandbox ready"
   ((PASS++))
 
+  # Basic exec works
+  step "sandbox: exec" "$CLI" sandbox exec --name "$name" -- echo "hello"
+
+  if $NO_PROVIDERS; then
+    return
+  fi
+
+  # Provider-dependent checks (require credentials + inference)
   step "sandbox: env vars" "$CLI" sandbox exec --name "$name" -- bash -c 'test -n "$ANTHROPIC_BASE_URL"'
   step "sandbox: gws creds" "$CLI" sandbox exec --name "$name" -- test -f /sandbox/.config/openshell/credentials.json
   step "sandbox: mcp config" "$CLI" sandbox exec --name "$name" -- test -f /sandbox/.mcp.json
@@ -154,31 +167,39 @@ test_errors() {
   echo ""
 }
 
-# ── Podman flow ──────────────────────────────────────────────────────
+# ── Local flow ───────────────────────────────────────────────────────
 
-test_podman() {
+test_local() {
   local mode="quick"
   $FULL && mode="full"
-  echo "=== test-flow: podman ($mode) ==="
+  $NO_PROVIDERS && mode="$mode, no-providers"
+  echo "=== test-flow: local ($mode) ==="
 
   step "teardown" "$HARNESS" teardown --sandboxes --providers
   step "deploy" "$HARNESS" deploy --local
-  step "setup providers" "$HARNESS" providers
-  step "gateway reachable" "$CLI" inference get
-  check_providers
+
+  if ! $NO_PROVIDERS; then
+    step "setup providers" "$HARNESS" providers
+    step "gateway reachable" "$CLI" inference get
+    check_providers
+  else
+    step "gateway reachable" "$HARNESS" deploy --local
+  fi
 
   if $FULL; then
     local sandbox_name="test-agent"
-    step_output "sandbox create" "$HARNESS" new --local --name "$sandbox_name" --no-tty
+    step_output "sandbox create" "$HARNESS" new --local --name "$sandbox_name" --profile "$PROFILE" --no-tty
     sandbox_verify "$sandbox_name"
     step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
-    # Missing providers scenario
-    echo ""
-    echo "=== test: missing providers ==="
-    step "teardown providers" "$HARNESS" teardown --providers
-    step_output "new with no providers" "$HARNESS" new --local --name test-noprov --no-tty
-    step "cleanup" "$HARNESS" teardown --sandboxes
+    if ! $NO_PROVIDERS; then
+      # Missing providers scenario
+      echo ""
+      echo "=== test: missing providers ==="
+      step "teardown providers" "$HARNESS" teardown --providers
+      step_output "new with no providers" "$HARNESS" new --local --name test-noprov --no-tty
+      step "cleanup" "$HARNESS" teardown --sandboxes
+    fi
   fi
 
   step "teardown (clean)" "$HARNESS" teardown --sandboxes --providers
@@ -238,9 +259,9 @@ test_ocp() {
 test_errors
 
 case "$TARGET" in
-  podman) test_podman ;;
+  local|podman) test_local ;;
   ocp)    test_ocp ;;
-  all)    test_podman; echo ""; test_ocp ;;
+  all)    test_local; echo ""; test_ocp ;;
   *)
     echo "Unknown target: $TARGET"
     echo "Usage: $0 <podman|ocp|all> [--full]"
