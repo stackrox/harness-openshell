@@ -302,8 +302,22 @@ Or in a gateway config file (`--config` / `OPENSHELL_GATEWAY_CONFIG`).
 
 The harness refers to "local" (vs "remote/OCP") rather than "podman"
 since the runtime is an openshell concern, not a harness concern.
-`harness status` should report the detected driver when displaying
-gateway info (query from `openshell status`).
+
+The driver is not exposed via the gRPC API (by design — clients are
+abstracted from the compute layer). However, the gateway logs the
+driver at startup:
+
+```
+INFO openshell_server: Using compute driver driver=podman
+INFO openshell_driver_podman::driver: Connected to Podman cgroup_version=v2 ...
+```
+
+Log location (macOS/Homebrew):
+`/opt/homebrew/var/log/openshell/openshell-gateway.out.log`
+
+`harness status` can grep the gateway log for "Using compute driver"
+to report the active driver. This is best-effort — if the log is
+unavailable, status just omits the driver line.
 
 ## Open questions
 
