@@ -22,6 +22,7 @@ func TestDeployRemote_Success(t *testing.T) {
 	dir := setupDeployHarnessDir(t)
 	t.Setenv("OPENSHELL_CHART_VERSION", "0.0.55")
 	t.Setenv("OPENSHELL_NAMESPACE", "openshell")
+	t.Setenv("HOME", t.TempDir())
 
 	nsRunner := k8s.NewMockRunner()
 	clusterRunner := k8s.NewMockRunner()

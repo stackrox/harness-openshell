@@ -176,6 +176,9 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kc, clusterRunner k8s.R
 		return fmt.Errorf("determining home directory: %w", err)
 	}
 	mtlsDir := filepath.Join(home, ".config", "openshell", "gateways", gatewayName, "mtls")
+	if err := os.MkdirAll(mtlsDir, 0o700); err != nil {
+		return fmt.Errorf("creating mtls directory: %w", err)
+	}
 	for _, field := range []string{"ca.crt", "tls.crt", "tls.key"} {
 		data, err := kc.GetSecretField(ctx, "openshell-client-tls", field)
 		if err != nil {
