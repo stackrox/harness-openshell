@@ -31,10 +31,7 @@ func NewProvidersCmd(harnessDir, cli string) *cobra.Command {
 }
 
 func registerProviders(harnessDir string, gw gateway.Gateway, force bool) error {
-	model := os.Getenv("OPENSHELL_MODEL")
-	if model == "" {
-		model = "claude-sonnet-4-6"
-	}
+	model := envOr("OPENSHELL_MODEL", "claude-sonnet-4-6")
 
 	// Force mode: require no running sandboxes
 	if force {
@@ -88,10 +85,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool) error 
 		adcPath = filepath.Join(home, ".config", "gcloud", "application_default_credentials.json")
 	}
 	project := os.Getenv("ANTHROPIC_VERTEX_PROJECT_ID")
-	region := os.Getenv("CLOUD_ML_REGION")
-	if region == "" {
-		region = "global"
-	}
+	region := envOr("CLOUD_ML_REGION", "global")
 
 	if project == "" {
 		project = readADCProject(adcPath)
@@ -187,6 +181,13 @@ func extractYAMLID(path string) string {
 		}
 	}
 	return ""
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 func fileExists(path string) bool {

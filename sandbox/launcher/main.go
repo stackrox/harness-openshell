@@ -59,12 +59,14 @@ func configureGateway(endpoint, mtlsDir, cli string) error {
 	cmd := exec.Command(cli, "gateway", "add", httpEndpoint, "--name", "openshell")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("gateway add: %w", err)
+	}
 
 	home := os.Getenv("HOME")
 	gwDir := filepath.Join(home, ".config", "openshell", "gateways", "openshell")
 	mtlsDest := filepath.Join(gwDir, "mtls")
-	if err := os.MkdirAll(mtlsDest, 0o755); err != nil {
+	if err := os.MkdirAll(mtlsDest, 0o700); err != nil {
 		return fmt.Errorf("creating mtls dir: %w", err)
 	}
 
@@ -73,7 +75,9 @@ func configureGateway(endpoint, mtlsDir, cli string) error {
 	metaPath := filepath.Join(gwDir, "metadata.json")
 	var meta map[string]any
 	if data, err := os.ReadFile(metaPath); err == nil {
-		json.Unmarshal(data, &meta)
+		if err := json.Unmarshal(data, &meta); err != nil {
+			return fmt.Errorf("parsing metadata.json: %w", err)
+		}
 	}
 	if meta == nil {
 		meta = make(map[string]any)
@@ -217,13 +221,15 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
+	if _, err = io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 func fileExists(path string) bool {

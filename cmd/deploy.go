@@ -109,10 +109,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kc, clusterRunner k8s.R
 
 	// Step 4: Helm install
 	status.Step(4, "Deploying gateway via Helm")
-	sandboxImage := os.Getenv("SANDBOX_IMAGE")
-	if sandboxImage == "" {
-		sandboxImage = "quay.io/rcochran/openshell:sandbox"
-	}
+	sandboxImage := envOr("SANDBOX_IMAGE", "quay.io/rcochran/openshell:sandbox")
 
 	appsDomain, err := clusterRunner.GetJSONPath(ctx, "ingresses.config.openshift.io/cluster", "{.spec.domain}")
 	if err != nil || appsDomain == "" {
@@ -152,10 +149,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kc, clusterRunner k8s.R
 
 	// Step 6: CLI gateway config
 	status.Step(6, "Configuring CLI gateway")
-	gatewayName := os.Getenv("GATEWAY_NAME")
-	if gatewayName == "" {
-		gatewayName = "openshell-remote-ocp"
-	}
+	gatewayName := envOr("GATEWAY_NAME", "openshell-remote-ocp")
 	gatewayURL := fmt.Sprintf("https://%s:443", routeHost)
 
 	// Remove existing gateways for this host
