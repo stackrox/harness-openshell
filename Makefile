@@ -15,7 +15,7 @@ LAUNCHER_IMAGE := $(REGISTRY):launcher
 
 .PHONY: cli sandbox push-sandbox cli-launcher launcher push-launcher \
         test-unit test test-podman test-ocp \
-        test-go-podman test-go-ocp test-all clean help
+        test-go-podman test-go-ocp test-all validate clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
@@ -80,6 +80,31 @@ test-go-ocp: cli sandbox push-launcher
 test-all: cli sandbox push-launcher
 	./test/test-flow.sh all --full
 	./test/test-flow.sh all --full --go
+
+## Full validation: unit tests + bats (both paths) + integration (all 4 combos)
+## Run this before every commit.
+validate: cli sandbox push-launcher
+	@echo "=== Unit tests ==="
+	CGO_ENABLED=0 go test ./...
+	cd sandbox/launcher && go test ./...
+	@echo ""
+	@echo "=== Bats (Python) ==="
+	bats test/preflight.bats
+	@echo ""
+	@echo "=== Bats (Go) ==="
+	USE_GO=true bats test/preflight.bats
+	@echo ""
+	@echo "=== Integration: bash + podman ==="
+	./test/test-flow.sh podman --full
+	@echo ""
+	@echo "=== Integration: Go + podman ==="
+	./test/test-flow.sh podman --full --go
+	@echo ""
+	@echo "=== Integration: bash + OCP ==="
+	./test/test-flow.sh ocp --full
+	@echo ""
+	@echo "=== Integration: Go + OCP ==="
+	./test/test-flow.sh ocp --full --go
 
 ## ── Convenience targets ───────────────────────────────────────────────
 
