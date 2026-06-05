@@ -123,10 +123,12 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 	if err != nil {
 		return fmt.Errorf("creating config configmap: %w", err)
 	}
-	kc.RunKubectlOpts(ctx, k8s.KubectlOpts{
+	if _, err := kc.RunKubectlOpts(ctx, k8s.KubectlOpts{
 		Args:  []string{"apply", "-f", "-"},
 		Stdin: strings.NewReader(out),
-	})
+	}); err != nil {
+		return fmt.Errorf("applying config configmap: %w", err)
+	}
 
 	// 2. ConfigMap from env (conditional)
 	envContent := cfg.BuildSandboxEnv()
@@ -135,14 +137,16 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 			"--from-literal=sandbox.env="+envContent,
 			"--dry-run=client", "-o", "yaml")
 		if err == nil {
-			kc.RunKubectlOpts(ctx, k8s.KubectlOpts{
+			if _, err := kc.RunKubectlOpts(ctx, k8s.KubectlOpts{
 				Args:  []string{"apply", "-f", "-"},
 				Stdin: strings.NewReader(out),
-			})
+			}); err != nil {
+				return fmt.Errorf("applying env configmap: %w", err)
+			}
 		}
 	}
 
-	// 3. Clean up old job
+	// 3. Clean up old job (best-effort — may not exist)
 	jobName := "sandbox-" + cfg.Name
 	kc.RunKubectl(ctx, "delete", "job", jobName, "--force", "--grace-period=0")
 	kc.RunKubectl(ctx, "delete", "pod", "-l", "job-name="+jobName, "--force", "--grace-period=0")
@@ -200,9 +204,11 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 	logCmd.Stderr = os.Stderr
 	logCmd.Start()
 
-	// 7. Poll job status
-	for {
-		jobStatus, _ := kc.RunKubectl(ctx, "get", "job", jobName,
+	// 7. Poll job status (10 min timeout)
+	var jobStatus string
+	deadline := time.Now().Add(10 * time.Minute)
+	for time.Now().Before(deadline) {
+		jobStatus, _ = kc.RunKubectl(ctx, "get", "job", jobName,
 			"-o", "jsonpath={.status.conditions[0].type}")
 		if jobStatus == "Complete" || jobStatus == "Failed" || jobStatus == "SuccessCriteriaMet" {
 			break
@@ -216,14 +222,14 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 	}
 
 	fmt.Println()
-	jobStatus, _ := kc.RunKubectl(ctx, "get", "job", jobName,
-		"-o", "jsonpath={.status.conditions[0].type}")
 	if jobStatus == "Complete" || jobStatus == "SuccessCriteriaMet" {
 		fmt.Printf("Sandbox ready. Connect with: harness connect %s\n", cfg.Name)
-	} else {
-		fmt.Println("Launcher failed.")
+		return nil
 	}
-	return nil
+	if jobStatus == "" {
+		return fmt.Errorf("launcher job timed out — check: kubectl logs -n %s -l job-name=%s", namespace, jobName)
+	}
+	return fmt.Errorf("launcher job failed (status: %s) — check: kubectl logs -n %s -l job-name=%s", jobStatus, namespace, jobName)
 }
 
 func newLocal(opts newLocalOpts) error {
@@ -280,7 +286,9 @@ func newLocal(opts newLocalOpts) error {
 
 	// 5. Stage files
 	harnessUploadDir := "/tmp/openshell"
-	os.RemoveAll(harnessUploadDir)
+	if err := os.RemoveAll(harnessUploadDir); err != nil {
+		return fmt.Errorf("cleaning staging dir: %w", err)
+	}
 	if err := profile.StageHarnessDir(cfg, harnessUploadDir); err != nil {
 		return fmt.Errorf("staging files: %w", err)
 	}
@@ -311,11 +319,11 @@ func newLocal(opts newLocalOpts) error {
 			return nil
 		}
 
-		fmt.Printf("  Attempt %d failed (supervisor race), retrying in 5s...\n", attempt)
-		gw.SandboxDelete(cfg.Name)
+		fmt.Printf("  Attempt %d failed: %v, retrying in 5s...\n", attempt, err)
+		gw.SandboxDelete(cfg.Name) // best-effort cleanup
 
 		if attempt == 5 {
-			return fmt.Errorf("failed after 5 attempts")
+			return fmt.Errorf("sandbox create failed after 5 attempts: %w", err)
 		}
 		time.Sleep(opts.retrySleep)
 	}
