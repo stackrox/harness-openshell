@@ -163,7 +163,7 @@ JIRA_USERNAME = "user@example.com"
    - `--upload /tmp/openshell:/sandbox/.config` — files land at `/sandbox/.config/openshell/`
    - `-- bash -c '. /sandbox/startup.sh && exec <command>'` (tty mode)
    - `-- bash /sandbox/startup.sh` (no-tty mode)
-4. On failure (supervisor race), delete sandbox and retry (up to 5 times, 5s between)
+4. On failure (supervisor race), delete sandbox and retry (up to 5 times, 5s between for local, 10s for OCP launcher)
 
 ### Startup (inside sandbox)
 
@@ -213,7 +213,7 @@ The image is multi-arch (`linux/amd64` + `linux/arm64`), built with `docker buil
 
 | Policy | Hosts | Binaries |
 |--------|-------|----------|
-| `claude_telemetry` | `*.anthropic.com`, `downloads.claude.ai` | claude, node |
+| `claude_telemetry` | `*.anthropic.com`, `downloads.claude.ai`, `platform.claude.com`, `sentry.io` | claude, node |
 | `github_git` | `github.com` (GET info/refs, POST git-upload-pack only) | git |
 | `github_downloads` | `*.githubusercontent.com`, `codeload.github.com` | curl, gh, git, uv |
 | `google_workspace` | `*.googleapis.com`, `oauth2.googleapis.com` | gws |
@@ -279,9 +279,20 @@ The launcher connects to the gateway at `https://openshell.openshell.svc.cluster
 
 ### Integration Tests (`test/test-flow.sh`)
 
-End-to-end validation requiring a live gateway. Supports `--go` flag to test the Go binary instead of bash scripts:
+End-to-end validation requiring a live gateway:
 - Quick mode: deploy → providers → gateway check → teardown
 - Full mode: + sandbox create → verify env/GWS/MCP/Claude → delete → teardown
 - Error scenarios: bad profile, teardown idempotency, missing providers
 - Targets: `podman`, `ocp`, `all`
-- Test matrix: `{bash, go}` × `{podman, ocp}` via `make validate`
+
+Flags:
+- `--go` — run the Go binary instead of bash scripts
+- `--full` — include sandbox lifecycle tests
+- `--reuse-gateway` — skip helm deploy/teardown-k8s, reuse existing gateway (49s vs 137s for OCP)
+
+### Test Matrix (`make validate`)
+
+Full validation across all paths. Run before every commit:
+1. Go unit tests (harness + launcher)
+2. Bats preflight (Python + Go paths)
+3. Integration: `{bash, go}` × `{podman, ocp}`
