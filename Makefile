@@ -7,7 +7,7 @@
 ##   make test-podman    # build + test podman only
 ##   make test-ocp       # build + test OCP only
 
-REGISTRY      ?= quay.io/rcochran/openshell
+REGISTRY      ?= ghcr.io/robbycochran/harness-openshell
 PLATFORM      := linux/amd64
 
 SANDBOX_IMAGE  := $(REGISTRY):sandbox

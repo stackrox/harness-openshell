@@ -114,7 +114,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kc, clusterRunner k8s.R
 
 	// Step 4: Helm install
 	status.Step(4, "Deploying gateway via Helm")
-	sandboxImage := envOr("SANDBOX_IMAGE", "quay.io/rcochran/openshell:sandbox")
+	sandboxImage := envOr("SANDBOX_IMAGE", "ghcr.io/robbycochran/harness-openshell:sandbox")
 
 	appsDomain, err := clusterRunner.GetJSONPath(ctx, "ingresses.config.openshift.io/cluster", "{.spec.domain}")
 	if err != nil || appsDomain == "" {

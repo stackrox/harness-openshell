@@ -136,7 +136,7 @@ echo "$@" > `+argsFile+`
 	gw := New(bin)
 	gw.SandboxCreate(SandboxCreateOpts{
 		Name:      "my-agent",
-		Image:     "quay.io/test:latest",
+		From:      "quay.io/test:latest",
 		Providers: []string{"github", "vertex-local"},
 		TTY:       true,
 		Keep:      false,

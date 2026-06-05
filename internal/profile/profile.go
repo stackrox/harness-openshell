@@ -19,7 +19,7 @@ type ProviderChecker interface {
 
 type Config struct {
 	Name      string            `toml:"name"`
-	Image     string            `toml:"image"`
+	From      string            `toml:"from"`
 	Command   string            `toml:"command"`
 	Keep      *bool             `toml:"keep"`
 	Providers []string          `toml:"providers"`

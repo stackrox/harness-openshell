@@ -186,8 +186,8 @@ func (c *CLI) SandboxCreate(opts SandboxCreateOpts) error {
 	} else {
 		args = append(args, "--no-tty")
 	}
-	if opts.Image != "" {
-		args = append(args, "--from", opts.Image)
+	if opts.From != "" {
+		args = append(args, "--from", opts.From)
 	}
 	for _, p := range opts.Providers {
 		args = append(args, "--provider", p)

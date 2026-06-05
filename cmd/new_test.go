@@ -159,8 +159,8 @@ func TestNewLocal_SandboxCreateOpts(t *testing.T) {
 	if opts.Name != "custom-name" {
 		t.Errorf("Name = %q, want custom-name", opts.Name)
 	}
-	if opts.Image != "quay.io/test:latest" {
-		t.Errorf("Image = %q", opts.Image)
+	if opts.From != "quay.io/test:latest" {
+		t.Errorf("From = %q", opts.From)
 	}
 	if opts.TTY {
 		t.Error("TTY = true, want false (noTTY)")

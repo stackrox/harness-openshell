@@ -11,7 +11,7 @@ func TestParseConfig_Full(t *testing.T) {
 	path := filepath.Join(dir, "config.toml")
 	os.WriteFile(path, []byte(`
 name = "research"
-image = "quay.io/test/sandbox:latest"
+from = "quay.io/test/sandbox:latest"
 command = "claude --bare --model opus"
 keep = false
 providers = ["github", "vertex-local"]
@@ -28,8 +28,8 @@ JIRA_URL = "https://example.atlassian.net"
 	if cfg.Name != "research" {
 		t.Errorf("Name = %q, want %q", cfg.Name, "research")
 	}
-	if cfg.Image != "quay.io/test/sandbox:latest" {
-		t.Errorf("Image = %q, want %q", cfg.Image, "quay.io/test/sandbox:latest")
+	if cfg.From != "quay.io/test/sandbox:latest" {
+		t.Errorf("From = %q, want %q", cfg.From, "quay.io/test/sandbox:latest")
 	}
 	if cfg.Command != "claude --bare --model opus" {
 		t.Errorf("Command = %q, want %q", cfg.Command, "claude --bare --model opus")
@@ -55,7 +55,7 @@ func TestParseConfig_Defaults(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
 	os.WriteFile(path, []byte(`
-image = "quay.io/test/sandbox:latest"
+from = "quay.io/test/sandbox:latest"
 `), 0o644)
 
 	cfg, err := parseConfig(path)
