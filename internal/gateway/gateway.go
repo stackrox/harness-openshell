@@ -25,23 +25,41 @@ type Gateway interface {
 	// ProviderList returns the names of all registered providers.
 	ProviderList() ([]string, error)
 
-	// SandboxCreate creates a new sandbox. Stdin/stdout/stderr are connected
-	// for TTY mode.
+	// Provider lifecycle
+	ProviderCreate(name, providerType string, opts ProviderCreateOpts) error
+	ProviderDelete(name string) error
+	ProviderProfileImport(dir string) error
+
+	// Inference config
+	InferenceSet(provider, model string) error
+	InferenceRemove() error
+
+	// Settings
+	SettingsSet(key, value string) error
+
+	// Sandbox lifecycle
+	SandboxList() ([]string, error)
 	SandboxCreate(opts SandboxCreateOpts) error
-
-	// SandboxDelete deletes a sandbox by name. Ignores "not found" errors.
 	SandboxDelete(name string) error
-
-	// SandboxConnect opens an interactive session to a running sandbox.
-	// In CLI mode this replaces the process (exec syscall). In gRPC mode
-	// this would use bidirectional streaming.
 	SandboxConnect(name string) error
-
-	// SandboxUpload copies local files into a running sandbox.
 	SandboxUpload(name, localDir, remotePath string) error
-
-	// SandboxExec runs a command inside a sandbox and waits for it to finish.
 	SandboxExec(name string, command ...string) error
+
+	// Gateway management
+	GatewayList() ([]GatewayInfo, error)
+	GatewaySelect(name string) error
+}
+
+type ProviderCreateOpts struct {
+	Credentials []string // "KEY=VALUE" pairs
+	Configs     []string // "KEY=VALUE" pairs
+	FromADC     bool     // --from-gcloud-adc
+}
+
+type GatewayInfo struct {
+	Name     string
+	Endpoint string
+	Active   bool
 }
 
 type SandboxCreateOpts struct {
@@ -50,7 +68,7 @@ type SandboxCreateOpts struct {
 	Providers []string
 	TTY       bool
 	Keep      bool
-	UploadSrc string // local path (empty = no upload)
-	UploadDst string // remote path
+	UploadSrc string
+	UploadDst string
 	Command   []string
 }

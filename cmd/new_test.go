@@ -41,13 +41,22 @@ func (m *mockGW) SandboxDelete(name string) error {
 	m.deletedNames = append(m.deletedNames, name)
 	return nil
 }
-func (m *mockGW) CLIVersion() string                               { return "openshell v0.0.55" }
-func (m *mockGW) CLIPath() string                                  { return "/usr/bin/openshell" }
-func (m *mockGW) InferenceModel() string                           { return "" }
-func (m *mockGW) ActiveGateway() string                            { return "" }
-func (m *mockGW) SandboxConnect(string) error                      { return nil }
-func (m *mockGW) SandboxUpload(string, string, string) error       { return nil }
-func (m *mockGW) SandboxExec(string, ...string) error              { return nil }
+func (m *mockGW) CLIVersion() string                                            { return "openshell v0.0.55" }
+func (m *mockGW) CLIPath() string                                               { return "/usr/bin/openshell" }
+func (m *mockGW) InferenceModel() string                                        { return "" }
+func (m *mockGW) InferenceSet(string, string) error                             { return nil }
+func (m *mockGW) InferenceRemove() error                                        { return nil }
+func (m *mockGW) ActiveGateway() string                                         { return "" }
+func (m *mockGW) ProviderCreate(string, string, gateway.ProviderCreateOpts) error { return nil }
+func (m *mockGW) ProviderDelete(string) error                                   { return nil }
+func (m *mockGW) ProviderProfileImport(string) error                            { return nil }
+func (m *mockGW) SettingsSet(string, string) error                              { return nil }
+func (m *mockGW) SandboxList() ([]string, error)                                { return nil, nil }
+func (m *mockGW) SandboxConnect(string) error                                   { return nil }
+func (m *mockGW) SandboxUpload(string, string, string) error                    { return nil }
+func (m *mockGW) SandboxExec(string, ...string) error                           { return nil }
+func (m *mockGW) GatewayList() ([]gateway.GatewayInfo, error)                   { return nil, nil }
+func (m *mockGW) GatewaySelect(string) error                                    { return nil }
 
 func setupTestProfile(t *testing.T) string {
 	t.Helper()

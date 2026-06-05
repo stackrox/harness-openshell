@@ -22,17 +22,26 @@ func (m *mockGateway) ProviderGet(name string) error {
 	return fmt.Errorf("not found")
 }
 
-func (m *mockGateway) CLIVersion() string                               { return "" }
-func (m *mockGateway) CLIPath() string                                  { return "" }
-func (m *mockGateway) InferenceGet() error                              { return nil }
-func (m *mockGateway) InferenceModel() string                           { return "" }
-func (m *mockGateway) ActiveGateway() string                            { return "" }
-func (m *mockGateway) ProviderList() ([]string, error)                  { return nil, nil }
-func (m *mockGateway) SandboxCreate(gateway.SandboxCreateOpts) error    { return nil }
-func (m *mockGateway) SandboxDelete(string) error                       { return nil }
-func (m *mockGateway) SandboxConnect(string) error                      { return nil }
-func (m *mockGateway) SandboxUpload(string, string, string) error       { return nil }
-func (m *mockGateway) SandboxExec(string, ...string) error              { return nil }
+func (m *mockGateway) CLIVersion() string                                            { return "" }
+func (m *mockGateway) CLIPath() string                                               { return "" }
+func (m *mockGateway) InferenceGet() error                                           { return nil }
+func (m *mockGateway) InferenceModel() string                                        { return "" }
+func (m *mockGateway) InferenceSet(string, string) error                             { return nil }
+func (m *mockGateway) InferenceRemove() error                                        { return nil }
+func (m *mockGateway) ActiveGateway() string                                         { return "" }
+func (m *mockGateway) ProviderCreate(string, string, gateway.ProviderCreateOpts) error { return nil }
+func (m *mockGateway) ProviderDelete(string) error                                   { return nil }
+func (m *mockGateway) ProviderProfileImport(string) error                            { return nil }
+func (m *mockGateway) ProviderList() ([]string, error)                               { return nil, nil }
+func (m *mockGateway) SettingsSet(string, string) error                              { return nil }
+func (m *mockGateway) SandboxList() ([]string, error)                                { return nil, nil }
+func (m *mockGateway) SandboxCreate(gateway.SandboxCreateOpts) error                 { return nil }
+func (m *mockGateway) SandboxDelete(string) error                                    { return nil }
+func (m *mockGateway) SandboxConnect(string) error                                   { return nil }
+func (m *mockGateway) SandboxUpload(string, string, string) error                    { return nil }
+func (m *mockGateway) SandboxExec(string, ...string) error                           { return nil }
+func (m *mockGateway) GatewayList() ([]gateway.GatewayInfo, error)                   { return nil, nil }
+func (m *mockGateway) GatewaySelect(string) error                                    { return nil }
 
 func TestParseFile_Full(t *testing.T) {
 	dir := t.TempDir()

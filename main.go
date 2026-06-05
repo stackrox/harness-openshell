@@ -25,10 +25,10 @@ func main() {
 	root.AddCommand(
 		cmd.NewNewCmd(harnessDir, cli),
 		cmd.NewConnectCmd(cli),
-		cmd.NewDeployCmd(harnessDir),
-		cmd.NewTeardownCmd(harnessDir),
+		cmd.NewDeployCmd(harnessDir, cli),
+		cmd.NewTeardownCmd(harnessDir, cli),
 		cmd.NewPreflightCmd(harnessDir, cli),
-		cmd.NewProvidersCmd(harnessDir),
+		cmd.NewProvidersCmd(harnessDir, cli),
 		cmd.NewTestCmd(harnessDir),
 	)
 

@@ -75,6 +75,28 @@ func (c *CLI) ProviderGet(name string) error {
 	return c.silent("provider", "get", name)
 }
 
+func (c *CLI) ProviderCreate(name, providerType string, opts ProviderCreateOpts) error {
+	args := []string{"provider", "create", "--name", name, "--type", providerType}
+	if opts.FromADC {
+		args = append(args, "--from-gcloud-adc")
+	}
+	for _, cred := range opts.Credentials {
+		args = append(args, "--credential", cred)
+	}
+	for _, cfg := range opts.Configs {
+		args = append(args, "--config", cfg)
+	}
+	return c.passthrough(args...)
+}
+
+func (c *CLI) ProviderDelete(name string) error {
+	return c.silent("provider", "delete", name)
+}
+
+func (c *CLI) ProviderProfileImport(dir string) error {
+	return c.silent("provider", "profile", "import", "--from", dir)
+}
+
 func (c *CLI) ProviderList() ([]string, error) {
 	out, err := c.output("provider", "list")
 	if err != nil {
@@ -91,6 +113,73 @@ func (c *CLI) ProviderList() ([]string, error) {
 		}
 	}
 	return names, nil
+}
+
+func (c *CLI) InferenceRemove() error {
+	return c.silent("inference", "remove")
+}
+
+func (c *CLI) InferenceSet(provider, model string) error {
+	return c.passthrough("inference", "set", "--provider", provider, "--model", model, "--no-verify")
+}
+
+func (c *CLI) SettingsSet(key, value string) error {
+	return c.passthrough("settings", "set", "--global", "--key", key, "--value", value, "--yes")
+}
+
+func (c *CLI) SandboxList() ([]string, error) {
+	out, err := c.output("sandbox", "list")
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for i, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if i == 0 || strings.TrimSpace(line) == "" {
+			continue
+		}
+		cleaned := ansiRE.ReplaceAllString(line, "")
+		fields := strings.Fields(cleaned)
+		if len(fields) > 0 {
+			names = append(names, fields[0])
+		}
+	}
+	return names, nil
+}
+
+func (c *CLI) GatewayList() ([]GatewayInfo, error) {
+	out, err := c.output("gateway", "list")
+	if err != nil {
+		return nil, err
+	}
+	var gateways []GatewayInfo
+	for i, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if i == 0 || strings.TrimSpace(line) == "" {
+			continue
+		}
+		cleaned := ansiRE.ReplaceAllString(line, "")
+		active := strings.HasPrefix(cleaned, "*")
+		fields := strings.Fields(cleaned)
+		if len(fields) >= 2 {
+			name := fields[0]
+			if name == "*" && len(fields) >= 3 {
+				name = fields[1]
+			}
+			endpoint := fields[1]
+			if active && len(fields) >= 3 {
+				endpoint = fields[2]
+			}
+			gateways = append(gateways, GatewayInfo{
+				Name:     name,
+				Endpoint: endpoint,
+				Active:   active,
+			})
+		}
+	}
+	return gateways, nil
+}
+
+func (c *CLI) GatewaySelect(name string) error {
+	return c.silent("gateway", "select", name)
 }
 
 func (c *CLI) SandboxCreate(opts SandboxCreateOpts) error {
