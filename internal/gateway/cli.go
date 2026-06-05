@@ -4,9 +4,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"syscall"
 )
+
+var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 // CLI implements Gateway by shelling out to the openshell binary.
 type CLI struct {
@@ -17,8 +20,55 @@ func NewCLI(bin string) *CLI {
 	return &CLI{bin: bin}
 }
 
+func (c *CLI) CLIVersion() string {
+	out, err := c.output("--version")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func (c *CLI) CLIPath() string {
+	path, err := exec.LookPath(c.bin)
+	if err != nil {
+		return ""
+	}
+	return path
+}
+
 func (c *CLI) InferenceGet() error {
 	return c.silent("inference", "get")
+}
+
+func (c *CLI) InferenceModel() string {
+	out, err := c.output("inference", "get")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		cleaned := ansiRE.ReplaceAllString(line, "")
+		if strings.Contains(cleaned, "Model:") {
+			return strings.TrimSpace(strings.SplitN(cleaned, "Model:", 2)[1])
+		}
+	}
+	return ""
+}
+
+func (c *CLI) ActiveGateway() string {
+	out, err := c.output("gateway", "list")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		cleaned := ansiRE.ReplaceAllString(line, "")
+		if strings.HasPrefix(cleaned, "*") {
+			fields := strings.Fields(cleaned)
+			if len(fields) > 1 {
+				return fields[1]
+			}
+		}
+	}
+	return ""
 }
 
 func (c *CLI) ProviderGet(name string) error {

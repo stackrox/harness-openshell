@@ -2,17 +2,13 @@ package preflight
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/robbycochran/harness-openshell/internal/gateway"
 )
-
-var stripANSI = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func RunCheck(harnessDir string, gw gateway.Gateway, strict bool) error {
 	providersPath := os.Getenv("PROVIDERS_TOML")
@@ -35,31 +31,28 @@ func RunCheck(harnessDir string, gw gateway.Gateway, strict bool) error {
 	providers := EnabledProviders(allProviders, config)
 
 	hasFailures := false
-	cli := os.Getenv("OPENSHELL_CLI")
-	if cli == "" {
-		cli = "openshell"
-	}
 
 	// CLI detection
 	fmt.Println("=== OpenShell CLI ===")
-	cliPath, cliErr := exec.LookPath(cli)
-	if cliErr != nil {
+	cliPath := gw.CLIPath()
+	cliFound := cliPath != ""
+	if !cliFound {
 		fmt.Println("  ✗ not found on PATH")
 		hasFailures = true
 	} else {
-		ver := cliVersion(cli)
+		ver := gw.CLIVersion()
 		if ver != "" {
 			fmt.Printf("  ✓ %s\n", ver)
 		} else {
-			fmt.Printf("  ✓ %s\n", cli)
+			fmt.Println("  ✓ openshell")
 		}
 		fmt.Printf("    %s\n", cliPath)
 	}
 
 	// Detect active gateway
 	activeGW := ""
-	if cliErr == nil {
-		activeGW = detectActiveGateway(cli)
+	if cliFound {
+		activeGW = gw.ActiveGateway()
 	}
 	isK8s := strings.Contains(activeGW, "-remote-")
 
@@ -77,10 +70,10 @@ func RunCheck(harnessDir string, gw gateway.Gateway, strict bool) error {
 			if ctx != "" {
 				fmt.Printf("  ✓ Cluster: %s\n", ctx)
 
-				if cliErr == nil {
+				if cliFound {
 					if gw.InferenceGet() == nil {
 						gwOK = true
-						model := inferenceModel(cli)
+						model := gw.InferenceModel()
 						if model != "" {
 							fmt.Printf("  ✓ Gateway reachable (model: %s)\n", model)
 						} else {
@@ -98,10 +91,10 @@ func RunCheck(harnessDir string, gw gateway.Gateway, strict bool) error {
 	} else {
 		fmt.Println()
 		fmt.Println("=== Podman gateway ===")
-		if cliErr == nil {
+		if cliFound {
 			if gw.InferenceGet() == nil {
 				gwOK = true
-				model := inferenceModel(cli)
+				model := gw.InferenceModel()
 				if model != "" {
 					fmt.Printf("  ✓ Reachable (model: %s)\n", model)
 				} else {
@@ -125,7 +118,7 @@ func RunCheck(harnessDir string, gw gateway.Gateway, strict bool) error {
 	}
 
 	// Registered providers
-	if cliErr == nil && gwOK {
+	if cliFound && gwOK {
 		fmt.Println()
 		gwLabel := "podman"
 		if isK8s {
@@ -240,54 +233,9 @@ func RunNames(harnessDir string) error {
 	return nil
 }
 
-func cliVersion(cli string) string {
-	cmd := exec.Command(cli, "--version")
-	cmd.Stderr = io.Discard
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
-func detectActiveGateway(cli string) string {
-	cmd := exec.Command(cli, "gateway", "list")
-	cmd.Stderr = io.Discard
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		cleaned := stripANSI.ReplaceAllString(line, "")
-		if strings.HasPrefix(cleaned, "*") {
-			fields := strings.Fields(cleaned)
-			if len(fields) > 1 {
-				return fields[1]
-			}
-		}
-	}
-	return ""
-}
-
-func inferenceModel(cli string) string {
-	cmd := exec.Command(cli, "inference", "get")
-	cmd.Stderr = io.Discard
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		cleaned := stripANSI.ReplaceAllString(line, "")
-		if strings.Contains(cleaned, "Model:") {
-			return strings.TrimSpace(strings.SplitN(cleaned, "Model:", 2)[1])
-		}
-	}
-	return ""
-}
-
 func runOutput(name string, args ...string) string {
 	cmd := exec.Command(name, args...)
-	cmd.Stderr = io.Discard
+	cmd.Stderr = nil
 	out, err := cmd.Output()
 	if err != nil {
 		return ""

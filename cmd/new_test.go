@@ -41,6 +41,10 @@ func (m *mockGW) SandboxDelete(name string) error {
 	m.deletedNames = append(m.deletedNames, name)
 	return nil
 }
+func (m *mockGW) CLIVersion() string                               { return "openshell v0.0.55" }
+func (m *mockGW) CLIPath() string                                  { return "/usr/bin/openshell" }
+func (m *mockGW) InferenceModel() string                           { return "" }
+func (m *mockGW) ActiveGateway() string                            { return "" }
 func (m *mockGW) SandboxConnect(string) error                      { return nil }
 func (m *mockGW) SandboxUpload(string, string, string) error       { return nil }
 func (m *mockGW) SandboxExec(string, ...string) error              { return nil }
