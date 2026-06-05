@@ -91,7 +91,9 @@ func createGWSSecret(ctx context.Context, kc *k8s.Client) error {
 		fmt.Println("  GWS: export failed (skipping)")
 		return nil
 	}
-	os.WriteFile(credFile, out, 0o600)
+	if err := os.WriteFile(credFile, out, 0o600); err != nil {
+		return fmt.Errorf("writing gws credentials: %w", err)
+	}
 
 	args := []string{"create", "secret", "generic", "openshell-gws",
 		"--from-file=credentials.json=" + credFile}

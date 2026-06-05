@@ -106,7 +106,9 @@ func stageGWSCreds(harnessDir string) error {
 	}
 	clientSecret := filepath.Join(gwsConfigDir, "client_secret.json")
 	if data, err := os.ReadFile(clientSecret); err == nil {
-		os.WriteFile(filepath.Join(harnessDir, "client_secret.json"), data, 0o600)
+		if err := os.WriteFile(filepath.Join(harnessDir, "client_secret.json"), data, 0o600); err != nil {
+			return fmt.Errorf("writing client_secret.json: %w", err)
+		}
 	}
 
 	fmt.Println("  GWS: exported")
