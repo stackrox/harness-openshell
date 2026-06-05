@@ -82,6 +82,28 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 		namespace = "openshell"
 	}
 
+	// 1. Ensure gateway
+	if err := gw.InferenceGet(); err != nil {
+		fmt.Println("=== Deploying gateway ===")
+		if err := deployRemote(harnessDir, gw, ""); err != nil {
+			return fmt.Errorf("deploy failed: %w", err)
+		}
+	}
+
+	// 2. Ensure providers
+	providers, _ := gw.ProviderList()
+	if len(providers) == 0 {
+		fmt.Println("\n=== Registering providers ===")
+		if err := registerProviders(harnessDir, gw, false); err != nil {
+			return fmt.Errorf("provider registration failed: %w", err)
+		}
+	}
+
+	// 3. Ensure credentials
+	if err := ensureCreds(namespace, false); err != nil {
+		return fmt.Errorf("credentials setup failed: %w", err)
+	}
+
 	// Parse profile
 	cfg, err := profile.Parse(harnessDir, profileName)
 	if err != nil {
