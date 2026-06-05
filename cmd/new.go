@@ -111,6 +111,19 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 		cfg.Name = sandboxName
 	}
 
+	// Remote can't build from a local Dockerfile — override with registry image
+	if cfg.From != "" {
+		fromPath := cfg.From
+		if !filepath.IsAbs(fromPath) {
+			fromPath = filepath.Join(harnessDir, fromPath)
+		}
+		if info, err := os.Stat(fromPath); err == nil && info.IsDir() {
+			sandboxImage := envOr("SANDBOX_IMAGE", "ghcr.io/robbycochran/harness-openshell:sandbox")
+			status.Infof("Remote: using image %s (profile 'from' is a local path)", sandboxImage)
+			cfg.From = sandboxImage
+		}
+	}
+
 	profilePath := filepath.Join(harnessDir, "profiles", profileName+".toml")
 
 	// 1. ConfigMap from profile
@@ -262,10 +275,18 @@ func newLocal(opts newLocalOpts) error {
 		cfg.Name = opts.sandboxName
 	}
 
+	// Resolve Dockerfile path relative to harnessDir
+	if cfg.From != "" && !filepath.IsAbs(cfg.From) {
+		candidate := filepath.Join(opts.harnessDir, cfg.From)
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			cfg.From = candidate
+		}
+	}
+
 	fmt.Println()
 	fmt.Println("=== Sandbox ===")
 	fmt.Printf("  Profile: %s\n", opts.profileName)
-	fmt.Printf("  Image:   %s\n", cfg.Image)
+	fmt.Printf("  From:    %s\n", cfg.From)
 
 	// 4. Validate providers against profile
 	status.Section("Providers")
@@ -323,7 +344,7 @@ func newLocal(opts newLocalOpts) error {
 	for attempt := 1; attempt <= 5; attempt++ {
 		err := gw.SandboxCreate(gateway.SandboxCreateOpts{
 			Name:      cfg.Name,
-			Image:     cfg.Image,
+			From:      cfg.From,
 			Providers: registered,
 			TTY:       !opts.noTTY,
 			Keep:      cfg.KeepSandbox(),

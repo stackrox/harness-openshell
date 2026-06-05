@@ -47,7 +47,7 @@ type GatewayInfo struct {
 
 type SandboxCreateOpts struct {
 	Name      string
-	Image     string
+	From      string
 	Providers []string
 	TTY       bool
 	Keep      bool

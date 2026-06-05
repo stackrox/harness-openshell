@@ -25,7 +25,7 @@ func TestParseFile_Full(t *testing.T) {
 	path := filepath.Join(dir, "config.toml")
 	os.WriteFile(path, []byte(`
 name = "research"
-image = "quay.io/test/sandbox:latest"
+from = "quay.io/test/sandbox:latest"
 command = "claude --bare --model opus"
 keep = false
 providers = ["github", "vertex-local"]
@@ -42,8 +42,8 @@ JIRA_URL = "https://example.atlassian.net"
 	if cfg.Name != "research" {
 		t.Errorf("Name = %q, want %q", cfg.Name, "research")
 	}
-	if cfg.Image != "quay.io/test/sandbox:latest" {
-		t.Errorf("Image = %q", cfg.Image)
+	if cfg.From != "quay.io/test/sandbox:latest" {
+		t.Errorf("From = %q", cfg.From)
 	}
 	if cfg.Command != "claude --bare --model opus" {
 		t.Errorf("Command = %q", cfg.Command)

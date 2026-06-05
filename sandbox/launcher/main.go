@@ -15,7 +15,7 @@ import (
 
 type Config struct {
 	Name      string            `toml:"name"`
-	Image     string            `toml:"image"`
+	From      string            `toml:"from"`
 	Command   string            `toml:"command"`
 	Keep      *bool             `toml:"keep"`
 	Providers []string          `toml:"providers"`
@@ -160,8 +160,8 @@ func createSandbox(cfg *Config, providers []string, cli string) error {
 	fmt.Println("\n=== Creating sandbox ===")
 	for attempt := 1; attempt <= 5; attempt++ {
 		args := []string{"sandbox", "create", "--name", cfg.Name, "--no-tty"}
-		if cfg.Image != "" {
-			args = append(args, "--from", cfg.Image)
+		if cfg.From != "" {
+			args = append(args, "--from", cfg.From)
 		}
 		for _, p := range providers {
 			args = append(args, "--provider", p)
@@ -261,7 +261,7 @@ func main() {
 
 	fmt.Println("=== Sandbox Launcher ===")
 	fmt.Printf("  Name:      %s\n", cfg.Name)
-	fmt.Printf("  Image:     %s\n", cfg.Image)
+	fmt.Printf("  From:      %s\n", cfg.From)
 	fmt.Printf("  Providers: %s\n", strings.Join(cfg.Providers, " "))
 	fmt.Printf("  Command:   %s\n", cfg.Command)
 	fmt.Printf("  Gateway:   %s\n", endpoint)

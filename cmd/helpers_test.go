@@ -73,7 +73,7 @@ func setupTestProfile(t *testing.T) string {
 	os.MkdirAll(filepath.Join(dir, "profiles"), 0o755)
 	os.WriteFile(filepath.Join(dir, "profiles", "default.toml"), []byte(`
 name = "test-agent"
-image = "quay.io/test:latest"
+from = "quay.io/test:latest"
 command = "claude --bare"
 providers = ["github", "vertex-local", "atlassian"]
 
