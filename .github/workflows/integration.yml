@@ -33,3 +33,17 @@ jobs:
 
       - name: Run integration tests
         run: ./test/test-flow.sh local --full --no-providers --profile=ci
+
+      - name: Export gateway logs
+        if: always()
+        run: |
+          mkdir -p /tmp/gateway-logs
+          journalctl --user -u openshell-gateway --no-pager > /tmp/gateway-logs/gateway.log 2>/dev/null || true
+          openshell status > /tmp/gateway-logs/status.txt 2>&1 || true
+          openshell gateway list > /tmp/gateway-logs/gateways.txt 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gateway-logs-local
+          path: /tmp/gateway-logs/

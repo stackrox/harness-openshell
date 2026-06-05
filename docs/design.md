@@ -287,6 +287,81 @@ point proto types ARE the request payloads and the migration pays for itself.
 TOML into proto-generated structs internally with a ~50-line mapping layer.
 Users keep writing TOML. No textproto, no format change.
 
+## Gateway configs
+
+Gateway configs describe how to deploy and connect to a gateway. Each
+config is a directory under `gateways/` with a consistent structure:
+
+```
+gateways/
+  local/
+    gateway.toml              # type = "local", no deploy needed
+  kind/
+    gateway.toml              # type = "remote", platform = "k8s", NodePort
+    helm/values.yaml          # Helm overrides for kind
+  ocp/
+    gateway.toml              # type = "remote", platform = "ocp", Route
+    helm/values.yaml          # Helm overrides for OpenShift
+    addons/
+      rbac.yaml               # launcher ServiceAccount + Role
+      route.yaml              # OpenShift Route for external access
+```
+
+### `gateway.toml` schema
+
+```toml
+[gateway]
+type = "remote"               # "local" or "remote"
+platform = "ocp"              # "ocp", "k8s", or empty (auto-detect)
+service = "route"             # "route", "nodeport", "loadbalancer"
+
+[helm]
+values = "values.yaml"        # relative to helm/ subdir
+
+[addons]
+manifests = [                 # applied after Helm install
+  "addons/rbac.yaml",
+  "addons/route.yaml",
+]
+```
+
+### Deploy behavior by config
+
+`harness deploy [GATEWAY_NAME]` reads the gateway config and acts on it:
+
+| Field | Effect |
+|-------|--------|
+| `type = "local"` | Verify local gateway is running, skip Helm |
+| `platform = "ocp"` | Run SCC grants via `oc`, query appsDomain |
+| `platform = "k8s"` | Skip SCCs, use standard k8s networking |
+| `service = "route"` | Create OpenShift Route, derive endpoint from appsDomain |
+| `service = "nodeport"` | Extract NodePort, configure endpoint as `host:port` |
+| `service = "loadbalancer"` | Wait for external IP, configure endpoint |
+| `helm.values` | Pass `--values` to Helm install |
+| `addons.manifests` | `kubectl apply -f` each manifest after Helm |
+
+### Sandbox profiles vs gateway configs
+
+Two orthogonal axes — *what* to run vs *where* to run it:
+
+```
+gateway config (where)      ×      sandbox profile (what)
+──────────────────────             ──────────────────────
+local                               default (full tooling)
+kind                                ci (minimal, no providers)
+ocp                                 research (different model)
+k8s-gke                             ...
+```
+
+Any sandbox profile works on any gateway. The harness resolves the
+active gateway and creates the sandbox through it.
+
+### Custom gateways
+
+To add a new gateway target: copy an existing directory, edit
+`gateway.toml`, add Helm values and addon manifests as needed.
+No code changes required.
+
 ## Container runtime
 
 The harness doesn't specify or manage the container runtime (podman vs
