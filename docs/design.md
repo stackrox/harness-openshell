@@ -394,6 +394,86 @@ Log location (macOS/Homebrew):
 to report the active driver. This is best-effort — if the log is
 unavailable, status just omits the driver line.
 
+## OCP vs vanilla Kubernetes
+
+The upstream openshell Helm chart is vanilla-k8s-first. OpenShift is the
+variant that requires extra steps. The harness handles both via gateway
+configs.
+
+### What OCP needs beyond vanilla k8s
+
+| Step | OCP | Vanilla k8s | Why |
+|------|-----|-------------|-----|
+| **SCCs** | Grant `privileged` SCC to openshell SAs via `oc adm policy` | Not needed — no SCC concept | OCP blocks pods from running as certain UIDs by default |
+| **Helm values** | Null out `runAsUser` and `runAsNonRoot` (SCC assigns UID) | Chart defaults work (`runAsUser: 1000`) | OCP SCC admission rejects the chart's hardcoded security context |
+| **Networking** | OpenShift Route (TLS passthrough) | Ingress, LoadBalancer, or NodePort | Route is OCP-only; vanilla k8s uses standard networking |
+| **Apps domain** | Query `ingresses.config.openshift.io/cluster` for wildcard domain | User-provided or derived from service | OCP-only API |
+| **PKI init job** | Works if privileged SCC is granted | Works by default | OCP's SCC would block it without the grant |
+
+### What's the same on both
+
+- Namespace creation with Pod Security Standards labels
+- Sandbox CRD installation (kubernetes-sigs/agent-sandbox)
+- Helm chart install (same chart, different values)
+- RBAC for launcher (standard k8s ServiceAccount + Role)
+- mTLS certificate generation and extraction
+- Launcher Job spec
+- Provider registration and sandbox creation
+
+## Security: TLS and authentication
+
+### Three network paths
+
+```
+laptop ──[mTLS over Route/Ingress]──▶ gateway (in cluster)
+launcher Job ──[mTLS over cluster DNS]──▶ gateway (in cluster)
+gateway ──[container runtime]──▶ sandbox pod
+```
+
+All external traffic is mTLS-encrypted. The launcher Job mounts the
+`openshell-client-tls` Secret for in-cluster mTLS to the gateway.
+
+### Auth roadmap
+
+| Stage | Auth mechanism | Use case |
+|-------|---------------|----------|
+| **Now** | mTLS certificates extracted from cluster | Single user, CI |
+| **Next** | oauth-proxy sidecar + OpenShift OAuth | Team — OCP users log in with cluster creds |
+| **Future** | OIDC (Keycloak, Dex, external IdP) | Multi-cluster, external users |
+
+### Current approach: mTLS-as-auth
+
+The Helm chart's PKI init job generates server and client certificates.
+The harness extracts the client cert from `openshell-client-tls` Secret
+and configures the CLI with it. mTLS serves as both transport encryption
+and user authentication.
+
+This is secure (encrypted + authenticated) but single-user — whoever has
+the client cert has full access.
+
+### Next: oauth-proxy sidecar on OCP
+
+OpenShift has a built-in OAuth server. The cluster already has it running
+(`openshift-authentication` namespace). Any user who can `oc login` can
+authenticate.
+
+The approach:
+1. Deploy an oauth-proxy sidecar alongside the gateway (addon manifest)
+2. Route points at the proxy port, proxy forwards to gateway
+3. Gateway runs with `allowUnauthenticatedUsers: true` (trusts the proxy)
+4. CLI registers with bare `https://` (browser-based login flow)
+5. No external IdP needed — uses the cluster's own user directory
+
+This requires no internal approval for new services — oauth-proxy is a
+standard OCP pattern and the OAuth server is already running.
+
+### Future: OIDC
+
+For production multi-cluster deployments, configure the gateway with
+`--oidc-issuer` pointing at Keycloak, Dex, Okta, or any OIDC provider.
+The CLI uses `--oidc-issuer` and `--oidc-client-id` on `gateway add`
+and does a browser-based OIDC login flow.
+
 ## Open questions
 
 - Should `harness init` (from release-plan.md) be a separate command or
