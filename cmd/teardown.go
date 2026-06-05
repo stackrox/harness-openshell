@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/robbycochran/harness-openshell/internal/gateway"
-	"github.com/robbycochran/harness-openshell/internal/runner"
+	"github.com/robbycochran/harness-openshell/internal/k8s"
 	"github.com/robbycochran/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
 )
@@ -13,18 +16,17 @@ func NewTeardownCmd(harnessDir, cli string) *cobra.Command {
 	var (
 		sandboxes bool
 		providers bool
-		k8s       bool
+		k8sFlag   bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "teardown [--sandboxes] [--providers] [--k8s]",
 		Short: "Tear down sandboxes, providers, or k8s resources",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Default: all flags true
-			if !sandboxes && !providers && !k8s {
+			if !sandboxes && !providers && !k8sFlag {
 				sandboxes = true
 				providers = true
-				k8s = true
+				k8sFlag = true
 			}
 
 			gw := gateway.NewCLI(cli)
@@ -45,8 +47,8 @@ func NewTeardownCmd(harnessDir, cli string) *cobra.Command {
 					return err
 				}
 			}
-			if k8s {
-				return teardownK8s(harnessDir)
+			if k8sFlag {
+				teardownK8s(gw)
 			}
 
 			fmt.Println("Done.")
@@ -56,7 +58,7 @@ func NewTeardownCmd(harnessDir, cli string) *cobra.Command {
 
 	cmd.Flags().BoolVar(&sandboxes, "sandboxes", false, "Delete all sandboxes")
 	cmd.Flags().BoolVar(&providers, "providers", false, "Delete all providers")
-	cmd.Flags().BoolVar(&k8s, "k8s", false, "Delete k8s resources")
+	cmd.Flags().BoolVar(&k8sFlag, "k8s", false, "Delete k8s resources")
 
 	return cmd
 }
@@ -129,6 +131,87 @@ func teardownProviders(gw gateway.Gateway, activeGW string) error {
 	return nil
 }
 
-func teardownK8s(harnessDir string) error {
-	return runner.RunScript(harnessDir, "teardown.sh", "--k8s")
+func teardownK8s(gw gateway.Gateway) {
+	ctx := context.Background()
+	namespace := os.Getenv("OPENSHELL_NAMESPACE")
+	if namespace == "" {
+		namespace = "openshell"
+	}
+
+	kc := k8s.New("", namespace)
+	kcNoNS := k8s.New("", "")
+
+	if !kcNoNS.NamespaceExists(ctx, namespace) {
+		fmt.Println("=== K8s ===")
+		status.Info("No openshell namespace found, skipping")
+		return
+	}
+
+	// Helm release
+	fmt.Println("=== Helm release ===")
+	if _, err := kc.RunHelm(ctx, "uninstall", "openshell"); err == nil {
+		status.Info("Uninstalled")
+	} else {
+		status.Info("Not installed")
+	}
+
+	// Sandbox CRD namespace
+	fmt.Println()
+	fmt.Println("=== Sandbox CRD ===")
+	if _, err := kcNoNS.RunKubectl(ctx, "delete", "ns", "agent-sandbox-system"); err == nil {
+		status.Info("Deleted agent-sandbox-system")
+	} else {
+		status.Info("Not found")
+	}
+
+	// OpenShift SCCs
+	fmt.Println()
+	fmt.Println("=== OpenShift SCCs ===")
+	for _, sa := range []string{"openshell", "openshell-sandbox", "default"} {
+		kc.RunOC(ctx, "adm", "policy", "remove-scc-from-user", "privileged", "-z", sa, "-n", namespace)
+	}
+	kc.RunOC(ctx, "adm", "policy", "remove-scc-from-user", "anyuid", "-z", "openshell", "-n", namespace)
+	kcNoNS.RunKubectl(ctx, "delete", "clusterrolebinding", "agent-sandbox-admin")
+	status.Info("Cleared")
+
+	// Secrets
+	fmt.Println()
+	fmt.Println("=== K8s secrets ===")
+	for _, secret := range []string{"openshell-gws", "openshell-atlassian"} {
+		if _, err := kc.RunKubectl(ctx, "delete", "secret", secret); err == nil {
+			fmt.Printf("  Deleted %s\n", secret)
+		} else {
+			fmt.Printf("  %s: not found\n", secret)
+		}
+	}
+
+	// Namespace
+	fmt.Println()
+	fmt.Println("=== Namespace ===")
+	if _, err := kcNoNS.RunKubectl(ctx, "delete", "ns", namespace); err == nil {
+		fmt.Printf("  Deleted %s\n", namespace)
+	} else {
+		fmt.Printf("  %s: not found\n", namespace)
+	}
+
+	// Gateway config cleanup
+	fmt.Println()
+	fmt.Println("=== Gateway config ===")
+	gateways, _ := gw.GatewayList()
+	for _, g := range gateways {
+		if !strings.Contains(g.Endpoint, "127.0.0.1") {
+			if err := gw.GatewayRemove(g.Name); err == nil {
+				fmt.Printf("  Removed gateway '%s'\n", g.Name)
+			}
+		}
+	}
+	// Select local gateway if available
+	for _, g := range gateways {
+		if strings.Contains(g.Endpoint, "127.0.0.1") {
+			gw.GatewaySelect(g.Name)
+			break
+		}
+	}
+
+	fmt.Println()
 }

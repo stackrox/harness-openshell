@@ -33,8 +33,14 @@ type ProvidersFile struct {
 }
 
 type ConfigFile struct {
-	Providers       []string `toml:"providers"`
-	ProvidersCustom []string `toml:"providers-custom"`
+	Providers       []string       `toml:"providers"`
+	ProvidersCustom []string       `toml:"providers-custom"`
+	Upstream        UpstreamConfig `toml:"upstream"`
+	ChartVersion    string         `toml:"-"`
+}
+
+type UpstreamConfig struct {
+	ChartVersion string `toml:"chart-version"`
 }
 
 func LoadProviders(path string) ([]Provider, error) {
@@ -53,6 +59,7 @@ func LoadConfig(path string) (*ConfigFile, error) {
 	if _, err := toml.DecodeFile(path, &cf); err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
+	cf.ChartVersion = cf.Upstream.ChartVersion
 	return &cf, nil
 }
 

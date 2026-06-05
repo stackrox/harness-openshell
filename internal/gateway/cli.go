@@ -183,6 +183,18 @@ func (c *CLI) GatewayList() ([]GatewayInfo, error) {
 	return gateways, nil
 }
 
+func (c *CLI) GatewayAdd(endpoint, name string, local bool) error {
+	args := []string{"gateway", "add", endpoint, "--name", name}
+	if local {
+		args = append(args, "--local")
+	}
+	return c.silent(args...)
+}
+
+func (c *CLI) GatewayRemove(name string) error {
+	return c.silent("gateway", "remove", name)
+}
+
 func (c *CLI) GatewaySelect(name string) error {
 	return c.silent("gateway", "select", name)
 }

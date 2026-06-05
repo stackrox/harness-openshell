@@ -47,6 +47,8 @@ type Gateway interface {
 	SandboxExec(name string, command ...string) error
 
 	// Gateway management
+	GatewayAdd(endpoint, name string, local bool) error
+	GatewayRemove(name string) error
 	GatewayList() ([]GatewayInfo, error)
 	GatewaySelect(name string) error
 }

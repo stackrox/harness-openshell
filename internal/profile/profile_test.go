@@ -41,6 +41,8 @@ func (m *mockGateway) SandboxDelete(string) error                               
 func (m *mockGateway) SandboxConnect(string) error                                   { return nil }
 func (m *mockGateway) SandboxUpload(string, string, string) error                    { return nil }
 func (m *mockGateway) SandboxExec(string, ...string) error                           { return nil }
+func (m *mockGateway) GatewayAdd(string, string, bool) error                         { return nil }
+func (m *mockGateway) GatewayRemove(string) error                                    { return nil }
 func (m *mockGateway) GatewayList() ([]gateway.GatewayInfo, error)                   { return nil, nil }
 func (m *mockGateway) GatewaySelect(string) error                                    { return nil }
 

@@ -56,6 +56,8 @@ func (m *mockGW) SandboxList() ([]string, error)                                
 func (m *mockGW) SandboxConnect(string) error                                   { return nil }
 func (m *mockGW) SandboxUpload(string, string, string) error                    { return nil }
 func (m *mockGW) SandboxExec(string, ...string) error                           { return nil }
+func (m *mockGW) GatewayAdd(string, string, bool) error                         { return nil }
+func (m *mockGW) GatewayRemove(string) error                                    { return nil }
 func (m *mockGW) GatewayList() ([]gateway.GatewayInfo, error)                   { return nil, nil }
 func (m *mockGW) GatewaySelect(string) error                                    { return nil }
 
