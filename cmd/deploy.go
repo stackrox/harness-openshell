@@ -29,7 +29,9 @@ func NewDeployCmd(harnessDir, cli string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if remote {
 				gw := gateway.NewCLI(cli)
-				return deployRemote(harnessDir, gw, kubeconfig)
+				kc := k8s.New(kubeconfig, k8s.DefaultNamespace())
+				clusterRunner := k8s.New(kubeconfig, "")
+				return deployRemote(harnessDir, gw, kc, clusterRunner)
 			}
 			if local {
 				gw := gateway.NewCLI(cli)
@@ -46,7 +48,7 @@ func NewDeployCmd(harnessDir, cli string) *cobra.Command {
 	return cmd
 }
 
-func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) error {
+func deployRemote(harnessDir string, gw gateway.Gateway, kc, clusterRunner k8s.Runner) error {
 	ctx := context.Background()
 	namespace := k8s.DefaultNamespace()
 
@@ -63,18 +65,15 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) erro
 	chartOCI := "oci://ghcr.io/nvidia/openshell/helm-chart"
 
 	fmt.Printf("OpenShell chart: %s\n", chartVersion)
-	if kubeconfig != "" {
-		fmt.Printf("KUBECONFIG: %s\n", kubeconfig)
+	if kbcfg := os.Getenv("KUBECONFIG"); kbcfg != "" {
+		fmt.Printf("KUBECONFIG: %s\n", kbcfg)
 	}
 	fmt.Println()
 
-	kc := k8s.New(kubeconfig, namespace)
-	kcNoNS := k8s.New(kubeconfig, "")
-
 	// Step 1: Namespace (idempotent — ignore AlreadyExists)
 	status.Step(1, "Creating namespace")
-	kcNoNS.RunKubectl(ctx, "create", "ns", namespace)
-	if _, err := kcNoNS.RunKubectl(ctx, "label", "ns", namespace,
+	clusterRunner.RunKubectl(ctx, "create", "ns", namespace)
+	if _, err := clusterRunner.RunKubectl(ctx, "label", "ns", namespace,
 		"pod-security.kubernetes.io/enforce=privileged",
 		"pod-security.kubernetes.io/warn=privileged",
 		"--overwrite"); err != nil {
@@ -83,7 +82,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) erro
 
 	// Step 2: Sandbox CRD
 	status.Step(2, "Installing Sandbox CRD")
-	if err := kcNoNS.RunKubectlPassthrough(ctx, "apply", "-f",
+	if err := clusterRunner.RunKubectlPassthrough(ctx, "apply", "-f",
 		"https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/manifest.yaml"); err != nil {
 		return fmt.Errorf("installing sandbox CRD: %w", err)
 	}
@@ -94,7 +93,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) erro
 		kc.RunOC(ctx, "adm", "policy", "add-scc-to-user", "privileged", "-z", sa, "-n", namespace)
 	}
 	kc.RunOC(ctx, "adm", "policy", "add-scc-to-user", "anyuid", "-z", "openshell", "-n", namespace)
-	kcNoNS.RunKubectl(ctx, "create", "clusterrolebinding", "agent-sandbox-admin",
+	clusterRunner.RunKubectl(ctx, "create", "clusterrolebinding", "agent-sandbox-admin",
 		"--clusterrole=cluster-admin",
 		"--serviceaccount=agent-sandbox-system:agent-sandbox-controller")
 
@@ -141,7 +140,7 @@ func deployRemote(harnessDir string, gw gateway.Gateway, kubeconfig string) erro
 		sandboxImage = "quay.io/rcochran/openshell:sandbox"
 	}
 
-	appsDomain, err := kcNoNS.GetJSONPath(ctx, "ingresses.config.openshift.io/cluster", "{.spec.domain}")
+	appsDomain, err := clusterRunner.GetJSONPath(ctx, "ingresses.config.openshift.io/cluster", "{.spec.domain}")
 	if err != nil || appsDomain == "" {
 		return fmt.Errorf("could not determine OpenShift apps domain — is this an OpenShift cluster? (kubectl get ingresses.config.openshift.io cluster)")
 	}

@@ -48,7 +48,8 @@ func NewTeardownCmd(harnessDir, cli string) *cobra.Command {
 				}
 			}
 			if k8sFlag {
-				teardownK8s(gw)
+				ns := k8s.DefaultNamespace()
+				teardownK8s(gw, k8s.New("", ns), k8s.New("", ""))
 			}
 
 			status.Done("Done.")
@@ -136,14 +137,11 @@ func teardownProviders(gw gateway.Gateway, activeGW string) error {
 	return nil
 }
 
-func teardownK8s(gw gateway.Gateway) {
+func teardownK8s(gw gateway.Gateway, kc, clusterRunner k8s.Runner) {
 	ctx := context.Background()
 	namespace := k8s.DefaultNamespace()
 
-	kc := k8s.New("", namespace)
-	kcNoNS := k8s.New("", "")
-
-	if !kcNoNS.NamespaceExists(ctx, namespace) {
+	if !clusterRunner.NamespaceExists(ctx, namespace) {
 		status.Section("K8s")
 		status.Info("No openshell namespace found, skipping")
 		return
@@ -160,7 +158,7 @@ func teardownK8s(gw gateway.Gateway) {
 	// Sandbox CRD namespace
 	fmt.Println()
 	status.Section("Sandbox CRD")
-	if _, err := kcNoNS.RunKubectl(ctx, "delete", "ns", "agent-sandbox-system"); err == nil {
+	if _, err := clusterRunner.RunKubectl(ctx, "delete", "ns", "agent-sandbox-system"); err == nil {
 		status.Info("Deleted agent-sandbox-system")
 	} else {
 		status.Info("Not found")
@@ -173,7 +171,7 @@ func teardownK8s(gw gateway.Gateway) {
 		kc.RunOC(ctx, "adm", "policy", "remove-scc-from-user", "privileged", "-z", sa, "-n", namespace)
 	}
 	kc.RunOC(ctx, "adm", "policy", "remove-scc-from-user", "anyuid", "-z", "openshell", "-n", namespace)
-	kcNoNS.RunKubectl(ctx, "delete", "clusterrolebinding", "agent-sandbox-admin")
+	clusterRunner.RunKubectl(ctx, "delete", "clusterrolebinding", "agent-sandbox-admin")
 	status.Info("Cleared")
 
 	// Secrets
@@ -190,7 +188,7 @@ func teardownK8s(gw gateway.Gateway) {
 	// Namespace
 	fmt.Println()
 	status.Section("Namespace")
-	if _, err := kcNoNS.RunKubectl(ctx, "delete", "ns", namespace); err == nil {
+	if _, err := clusterRunner.RunKubectl(ctx, "delete", "ns", namespace); err == nil {
 		status.OKf("Deleted %s", namespace)
 	} else {
 		status.Infof("%s: not found", namespace)

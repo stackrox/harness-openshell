@@ -11,14 +11,16 @@ import (
 )
 
 type mockGW struct {
-	inferenceErr  error
-	providers     map[string]bool
-	providerList  []string
-	providerErr   error
-	createErr     error
-	createCalls   int
-	createOpts    []gateway.SandboxCreateOpts
-	deletedNames  []string
+	inferenceErr      error
+	providers         map[string]bool
+	providerList      []string
+	providerErr       error
+	createErr         error
+	createCalls       int
+	createOpts        []gateway.SandboxCreateOpts
+	deletedNames      []string
+	gatewayListResult []gateway.GatewayInfo
+	onGatewayRemove   func(string)
 }
 
 func (m *mockGW) InferenceGet() error { return m.inferenceErr }
@@ -56,10 +58,17 @@ func (m *mockGW) SandboxList() ([]string, error)                                
 func (m *mockGW) SandboxConnect(string) error                                   { return nil }
 func (m *mockGW) SandboxUpload(string, string, string) error                    { return nil }
 func (m *mockGW) SandboxExec(string, ...string) error                           { return nil }
-func (m *mockGW) GatewayAdd(string, string, bool) error                         { return nil }
-func (m *mockGW) GatewayRemove(string) error                                    { return nil }
-func (m *mockGW) GatewayList() ([]gateway.GatewayInfo, error)                   { return nil, nil }
-func (m *mockGW) GatewaySelect(string) error                                    { return nil }
+func (m *mockGW) GatewayAdd(string, string, bool) error { return nil }
+func (m *mockGW) GatewayRemove(name string) error {
+	if m.onGatewayRemove != nil {
+		m.onGatewayRemove(name)
+	}
+	return nil
+}
+func (m *mockGW) GatewayList() ([]gateway.GatewayInfo, error) {
+	return m.gatewayListResult, nil
+}
+func (m *mockGW) GatewaySelect(string) error { return nil }
 
 func setupTestProfile(t *testing.T) string {
 	t.Helper()
