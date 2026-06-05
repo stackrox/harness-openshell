@@ -101,3 +101,4 @@ name, image, command, keep, providers, [env]
 - [ ] Integration test for `providers --force` (currently no test exercises force mode)
 - [ ] Go + OCP integration (`test-flow.sh ocp --full --go`) — not yet validated
 - [ ] Preflight Go unit tests (internal/preflight/ has no _test.go)
+- [ ] Kind gateway integration — `gateways/kind/gateway.toml` exists with full config (direct mode, nodeport) but is not exercised by test-flow.sh or CI. Add `test-flow.sh kind` and a GHA workflow with `kind create cluster`.
