@@ -204,6 +204,10 @@ test_ocp() {
   echo "=== test-flow: ocp ($mode) [$IMPL] ==="
 
   if $REUSE_GATEWAY; then
+    # Ensure OCP gateway is selected (error scenarios may have switched to local)
+    OCP_GW=$("$CLI" gateway list 2>/dev/null | strip_ansi | awk '/-remote-/ {gsub(/^\*/, ""); print $1; exit}')
+    [[ -n "$OCP_GW" ]] && "$CLI" gateway select "$OCP_GW" 2>/dev/null || true
+
     step "teardown sandboxes+providers" "$HARNESS" teardown --sandboxes --providers
     # Deploy only if gateway is not reachable
     if ! "$CLI" inference get &>/dev/null; then
