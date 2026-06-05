@@ -276,7 +276,7 @@ Each step is independently committable and testable.
 
 ## Proto migration (deferred)
 
-The proto migration plan (proto_migration.md) is architecturally sound but
+The proto migration plan (proto-migration.md) is architecturally sound but
 premature. The tool has ~5 profiles and ~4 providers. Schema drift is real
 but manageable at this scale.
 
@@ -289,7 +289,7 @@ Users keep writing TOML. No textproto, no format change.
 
 ## Open questions
 
-- Should `harness init` (from release_plan.md) be a separate command or
+- Should `harness init` (from release-plan.md) be a separate command or
   part of the first `harness deploy` run?
 - Should provider-specific env vars (JIRA_URL, JIRA_USERNAME) flow from
   `providers.toml` values or from a separate provider config mechanism?
