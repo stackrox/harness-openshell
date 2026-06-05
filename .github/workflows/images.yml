@@ -3,16 +3,8 @@ name: Images
 on:
   push:
     branches: [main]
-    paths:
-      - 'sandbox/**'
-      - 'profiles/**'
-      - 'providers.toml'
     tags: ["v*"]
   pull_request:
-    paths:
-      - 'sandbox/**'
-      - 'profiles/**'
-      - 'providers.toml'
 
 permissions:
   contents: read
