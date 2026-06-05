@@ -5,7 +5,7 @@
 #   harness create --profile research  # uses profiles/research.toml
 
 name = "agent"
-from = "quay.io/rcochran/openshell:sandbox"
+from = "ghcr.io/robbycochran/harness-openshell:sandbox"
 command = "claude --bare"
 keep = true
 
