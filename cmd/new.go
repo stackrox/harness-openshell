@@ -174,7 +174,7 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 					"restartPolicy":      "Never",
 					"containers": []map[string]any{{
 						"name":            "launcher",
-						"image":           "ghcr.io/robbycochran/harness-openshell:launcher",
+						"image":           envOr("LAUNCHER_IMAGE", "ghcr.io/robbycochran/harness-openshell:launcher"),
 						"imagePullPolicy": "Always",
 						"env": []map[string]any{
 							{"name": "GATEWAY_ENDPOINT", "value": "https://openshell.openshell.svc.cluster.local:8080"},
