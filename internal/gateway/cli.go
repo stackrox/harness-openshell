@@ -115,6 +115,10 @@ func (c *CLI) ProviderList() ([]string, error) {
 	return names, nil
 }
 
+func (c *CLI) InferenceRemove() error {
+	return c.silent("inference", "remove")
+}
+
 func (c *CLI) InferenceSet(provider, model string) error {
 	return c.passthrough("inference", "set", "--provider", provider, "--model", model, "--no-verify")
 }

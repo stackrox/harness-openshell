@@ -32,6 +32,7 @@ type Gateway interface {
 
 	// Inference config
 	InferenceSet(provider, model string) error
+	InferenceRemove() error
 
 	// Settings
 	SettingsSet(key, value string) error

@@ -27,6 +27,7 @@ func (m *mockGateway) CLIPath() string                                          
 func (m *mockGateway) InferenceGet() error                                           { return nil }
 func (m *mockGateway) InferenceModel() string                                        { return "" }
 func (m *mockGateway) InferenceSet(string, string) error                             { return nil }
+func (m *mockGateway) InferenceRemove() error                                        { return nil }
 func (m *mockGateway) ActiveGateway() string                                         { return "" }
 func (m *mockGateway) ProviderCreate(string, string, gateway.ProviderCreateOpts) error { return nil }
 func (m *mockGateway) ProviderDelete(string) error                                   { return nil }

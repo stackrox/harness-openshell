@@ -45,6 +45,7 @@ func (m *mockGW) CLIVersion() string                                            
 func (m *mockGW) CLIPath() string                                               { return "/usr/bin/openshell" }
 func (m *mockGW) InferenceModel() string                                        { return "" }
 func (m *mockGW) InferenceSet(string, string) error                             { return nil }
+func (m *mockGW) InferenceRemove() error                                        { return nil }
 func (m *mockGW) ActiveGateway() string                                         { return "" }
 func (m *mockGW) ProviderCreate(string, string, gateway.ProviderCreateOpts) error { return nil }
 func (m *mockGW) ProviderDelete(string) error                                   { return nil }
