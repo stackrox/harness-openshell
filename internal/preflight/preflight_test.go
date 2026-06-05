@@ -90,8 +90,8 @@ chart-version = "0.0.55"
 	if len(cfg.ProvidersCustom) != 1 || cfg.ProvidersCustom[0] != "gws" {
 		t.Errorf("providers-custom = %v", cfg.ProvidersCustom)
 	}
-	if cfg.ChartVersion != "0.0.55" {
-		t.Errorf("ChartVersion = %q", cfg.ChartVersion)
+	if cfg.Upstream.ChartVersion != "0.0.55" {
+		t.Errorf("Upstream.ChartVersion = %q", cfg.Upstream.ChartVersion)
 	}
 }
 

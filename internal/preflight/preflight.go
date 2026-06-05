@@ -39,7 +39,6 @@ type ConfigFile struct {
 	Providers       []string       `toml:"providers"`
 	ProvidersCustom []string       `toml:"providers-custom"`
 	Upstream        UpstreamConfig `toml:"upstream"`
-	ChartVersion    string         `toml:"-"`
 }
 
 type UpstreamConfig struct {
@@ -62,7 +61,6 @@ func LoadConfig(path string) (*ConfigFile, error) {
 	if _, err := toml.DecodeFile(path, &cf); err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
-	cf.ChartVersion = cf.Upstream.ChartVersion
 	return &cf, nil
 }
 
@@ -101,25 +99,23 @@ func CheckInput(inp Input) (bool, string) {
 
 	case "file":
 		path := expandPath(inp.Key)
-		if _, err := os.Stat(path); err == nil {
-			meta := FileMetadata(path)
-			if meta != nil && inp.Secret {
-				safe := pickKeys(meta, "project", "type")
-				masked := pickKeysExcept(meta, "project", "type")
-				parts := formatMeta(safe)
-				parts = append(parts, formatMeta(masked)...)
-				if len(parts) > 0 {
-					return true, fmt.Sprintf("✓ local file: %s (%s)", inp.Key, strings.Join(parts, ", "))
-				}
-			} else if meta != nil {
-				parts := formatMeta(meta)
-				if len(parts) > 0 {
-					return true, fmt.Sprintf("✓ local file: %s (%s)", inp.Key, strings.Join(parts, ", "))
-				}
-			}
+		if _, err := os.Stat(path); err != nil {
+			return false, fmt.Sprintf("✗ local file: %s not found", inp.Key)
+		}
+		meta := FileMetadata(path)
+		if meta == nil {
 			return true, fmt.Sprintf("✓ local file: %s", inp.Key)
 		}
-		return false, fmt.Sprintf("✗ local file: %s not found", inp.Key)
+		var parts []string
+		for k, v := range meta {
+			if v != "" {
+				parts = append(parts, fmt.Sprintf("%s=%s", k, v))
+			}
+		}
+		if len(parts) > 0 {
+			return true, fmt.Sprintf("✓ local file: %s (%s)", inp.Key, strings.Join(parts, ", "))
+		}
+		return true, fmt.Sprintf("✓ local file: %s", inp.Key)
 
 	case "check":
 		expanded := os.ExpandEnv(inp.Key)
@@ -193,40 +189,6 @@ func runQuiet(command string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return exec.CommandContext(ctx, "bash", "-c", command).Run() == nil
-}
-
-func pickKeys(m map[string]string, keys ...string) map[string]string {
-	result := make(map[string]string)
-	for _, k := range keys {
-		if v, ok := m[k]; ok && v != "" {
-			result[k] = v
-		}
-	}
-	return result
-}
-
-func pickKeysExcept(m map[string]string, except ...string) map[string]string {
-	skip := make(map[string]bool)
-	for _, k := range except {
-		skip[k] = true
-	}
-	result := make(map[string]string)
-	for k, v := range m {
-		if !skip[k] && v != "" {
-			result[k] = v
-		}
-	}
-	return result
-}
-
-func formatMeta(m map[string]string) []string {
-	var parts []string
-	for k, v := range m {
-		if v != "" {
-			parts = append(parts, fmt.Sprintf("%s=%s", k, v))
-		}
-	}
-	return parts
 }
 
 func loadEnabledProviders(harnessDir string) ([]Provider, error) {

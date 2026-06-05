@@ -165,7 +165,7 @@ func teardownK8s(gw gateway.Gateway, kc, clusterRunner k8s.Runner) {
 	// OpenShift SCCs
 	fmt.Println()
 	status.Section("OpenShift SCCs")
-	for _, sa := range []string{"openshell", "openshell-sandbox", "default"} {
+	for _, sa := range sccPrivilegedSAs {
 		kc.RunOC(ctx, "adm", "policy", "remove-scc-from-user", "privileged", "-z", sa, "-n", namespace)
 	}
 	kc.RunOC(ctx, "adm", "policy", "remove-scc-from-user", "anyuid", "-z", "openshell", "-n", namespace)
@@ -175,7 +175,7 @@ func teardownK8s(gw gateway.Gateway, kc, clusterRunner k8s.Runner) {
 	// Secrets
 	fmt.Println()
 	status.Section("K8s secrets")
-	for _, secret := range []string{"openshell-gws", "openshell-atlassian"} {
+	for _, secret := range secretNames {
 		if _, err := kc.RunKubectl(ctx, "delete", "secret", secret); err == nil {
 			status.OKf("Deleted %s", secret)
 		} else {

@@ -101,8 +101,9 @@ exit 1
 }
 
 func TestSandboxCreate_ArgsMinimal(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
 	bin := writeStub(t, `#!/bin/bash
-echo "$@" > /tmp/test-create-args
+echo "$@" > `+argsFile+`
 `)
 	gw := New(bin)
 	gw.SandboxCreate(SandboxCreateOpts{
@@ -110,7 +111,7 @@ echo "$@" > /tmp/test-create-args
 		TTY:  false,
 		Keep: true,
 	})
-	data, _ := os.ReadFile("/tmp/test-create-args")
+	data, _ := os.ReadFile(argsFile)
 	args := strings.TrimSpace(string(data))
 	if !strings.Contains(args, "--name test") {
 		t.Errorf("missing --name: %s", args)
@@ -124,7 +125,6 @@ echo "$@" > /tmp/test-create-args
 	if strings.Contains(args, "--from") {
 		t.Errorf("should not have --from: %s", args)
 	}
-	os.Remove("/tmp/test-create-args")
 }
 
 func TestSandboxCreate_ArgsFull(t *testing.T) {

@@ -144,8 +144,8 @@ func newRemote(harnessDir string, gw gateway.Gateway, profileName, sandboxName s
 
 	// 3. Clean up old job (best-effort — may not exist)
 	jobName := "sandbox-" + cfg.Name
-	kc.RunKubectl(ctx, "delete", "job", jobName, "--force", "--grace-period=0")
-	kc.RunKubectl(ctx, "delete", "pod", "-l", "job-name="+jobName, "--force", "--grace-period=0")
+	kc.RunKubectl(ctx, "delete", "job", jobName, "--grace-period=30")
+	kc.RunKubectl(ctx, "delete", "pod", "-l", "job-name="+jobName, "--grace-period=30")
 
 	// 4. Apply launcher Job
 	job := map[string]any{

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -168,16 +167,13 @@ func deleteCustomProfiles(harnessDir string, gw gateway.Gateway) {
 }
 
 func extractYAMLID(path string) string {
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "id:") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "id:"))
+	for _, line := range strings.Split(string(data), "\n") {
+		if id, ok := strings.CutPrefix(line, "id:"); ok {
+			return strings.TrimSpace(id)
 		}
 	}
 	return ""
