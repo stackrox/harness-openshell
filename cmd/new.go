@@ -204,10 +204,7 @@ func newRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatew
 						"name":            "launcher",
 						"image":           launcherImage,
 						"imagePullPolicy": "Always",
-						"env": []map[string]any{
-							{"name": "GATEWAY_ENDPOINT", "value": launcherEndpoint},
-							{"name": "HOME", "value": "/tmp"},
-						},
+						"env": launcherEnv(launcherEndpoint, cfg.From),
 						"volumeMounts": []map[string]any{
 							{"name": "config", "mountPath": "/etc/openshell/sandbox", "readOnly": true},
 							{"name": "gws", "mountPath": "/secrets/gws", "readOnly": true},
@@ -401,4 +398,15 @@ func newLocal(opts newLocalOpts) error {
 		time.Sleep(opts.retrySleep)
 	}
 	return nil // unreachable but required by compiler
+}
+
+func launcherEnv(gatewayEndpoint, sandboxImage string) []map[string]any {
+	env := []map[string]any{
+		{"name": "GATEWAY_ENDPOINT", "value": gatewayEndpoint},
+		{"name": "HOME", "value": "/tmp"},
+	}
+	if sandboxImage != "" {
+		env = append(env, map[string]any{"name": "SANDBOX_IMAGE", "value": sandboxImage})
+	}
+	return env
 }
