@@ -2,6 +2,43 @@
 
 An orchestration layer for [OpenShell](https://github.com/NVIDIA/OpenShell) that automates gateway deployment, provider registration, credential validation, and sandbox creation. One command gets you from zero to a running AI agent sandbox on local Podman or remote OpenShift.
 
+## What is OpenShell?
+
+[OpenShell](https://github.com/NVIDIA/OpenShell) is NVIDIA's open-source runtime for autonomous AI agents. It runs each agent in an isolated container governed by declarative YAML policies, with a gateway control plane that manages sandbox lifecycle, credential injection, and network enforcement across compute drivers (Podman, Docker, Kubernetes).
+
+The core idea is **deny by default**. Every sandbox starts with no outbound network access, no filesystem access beyond its working directory, and no credentials. You explicitly grant what the agent needs -- which hosts it can reach, which HTTP methods and URL paths are allowed, which binaries can make those requests, and which credentials are injected -- and everything else is blocked at the proxy layer before it ever leaves the sandbox.
+
+### Why deny by default matters for AI agents
+
+Traditional application sandboxing focuses on untrusted code. AI agent sandboxing has a different threat model: the agent has legitimate access to powerful tools (GitHub API, Jira, cloud infrastructure) but its judgment about when and how to use them is uncertain. An agent might decide to push code, delete a branch, or post a comment in ways you didn't intend.
+
+Deny-by-default addresses this by making every capability an explicit grant:
+
+- **Network policies operate at Layer 7**, not just IP/port. You can allow `GET` requests to `api.github.com` while blocking `POST`, `PUT`, and `DELETE` -- the agent can read repositories but cannot push code, create issues, or modify settings. Git clone works; git push is denied at the proxy before it reaches GitHub.
+
+- **Policies are scoped to binaries.** A GitHub PAT bound to the `git` binary cannot be exfiltrated by `curl` to an arbitrary endpoint. Credentials are tied to `(credential, endpoint, binary)` triples.
+
+- **Credentials never touch the sandbox filesystem.** The gateway injects credentials via proxy-side resolution. The sandbox sees placeholder tokens; real secrets are substituted at the network boundary. If the agent reads its own environment, it finds a proxy-managed placeholder, not your PAT.
+
+- **Network policies are hot-reloadable.** When you need to grant push access to a specific repository, you update the policy YAML and apply it to a running sandbox -- no restart, no rebuild. The policy engine confirms the new revision before returning.
+
+- **Deny rules are immutable.** Provider profiles can declare deny rules that users cannot override. Even if you grant broad GitHub API access, `deleteRepository`, `deleteRef`, and `updateBranchProtectionRule` mutations stay blocked.
+
+This means you can hand an AI agent your real credentials -- your GitHub PAT, your Jira API token, your GCP service account -- and enforce at the infrastructure layer exactly what it can do with them. The agent operates within a capability boundary you define, not one you hope the model respects.
+
+### Policy layers
+
+OpenShell enforces four layers of defense in depth:
+
+| Layer | What it controls | Mutability |
+|-------|-----------------|------------|
+| **Filesystem** | Read/write access to paths (`/sandbox` writable, `/usr` read-only, everything else denied) | Locked at creation |
+| **Network** | Per-host, per-path, per-method, per-binary egress rules | Hot-reloadable |
+| **Process** | User/group identity, privilege escalation, syscall filtering (Landlock) | Locked at creation |
+| **Inference** | Model API routing through `inference.local` (strips caller creds, injects backend creds) | Hot-reloadable |
+
+Policies compose at runtime: base sandbox policy + auto-generated provider policies + user-authored policy. Deny always wins over allow.
+
 ## Relationship to OpenShell
 
 The harness wraps `openshell` -- it does not replace it. Every operation delegates to the OpenShell CLI via `exec.Command`. Users can drop to raw `openshell` commands at any time.
@@ -156,7 +193,7 @@ Local (Podman)                    Remote (OpenShift)
 
 The harness talks to the gateway via the `openshell` CLI (exec). The Gateway interface abstracts the transport to support a future gRPC path.
 
-Each sandbox gets credential isolation (proxy-resolved placeholders, the sandbox never sees real tokens), per-binary network policy enforcement, and a reproducible toolchain pinned in the container image.
+Each sandbox gets credential isolation (proxy-resolved placeholders, the sandbox never sees real tokens), deny-by-default network policy enforcement at L7, and a reproducible toolchain pinned in the container image.
 
 ### Launcher (in-cluster sandbox creation)
 
