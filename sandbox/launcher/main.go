@@ -267,6 +267,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if envImage := os.Getenv("SANDBOX_IMAGE"); envImage != "" {
+		cfg.From = envImage
+	}
+
 	fmt.Println("=== Sandbox Launcher ===")
 	fmt.Printf("  Name:      %s\n", cfg.Name)
 	fmt.Printf("  From:      %s\n", cfg.From)
