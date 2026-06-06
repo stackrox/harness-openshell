@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/robbycochran/harness-openshell/internal/gateway"
+	"github.com/robbycochran/harness-openshell/internal/preflight"
 )
 
 func TestUpLocal_NoGateway(t *testing.T) {
@@ -137,69 +140,52 @@ func TestUpLocal_SandboxCreateRetry(t *testing.T) {
 	}
 }
 
-func TestCreate_NoGateway(t *testing.T) {
-	dir := setupTestProfile(t)
-	gw := &mockGW{inferenceErr: fmt.Errorf("connection refused")}
+func TestActiveGatewayInfo_NoGateway(t *testing.T) {
+	gw := &mockGW{}
 
-	err := upLocal(upLocalOpts{
-		harnessDir:  dir,
-		gw:          gw,
-		ensureLocal: false,
-		profileName: "default",
-		noTTY:       true,
-	})
+	_, err := activeGatewayInfo(gw)
 	if err == nil {
-		t.Fatal("expected error when gateway is not running")
+		t.Fatal("expected error when no gateway is active")
 	}
 	if !strings.Contains(err.Error(), "no active gateway") {
 		t.Errorf("error = %q, want 'no active gateway'", err)
 	}
 }
 
-func TestCreate_WithGateway(t *testing.T) {
-	dir := setupTestProfile(t)
+func TestActiveGatewayInfo_LocalGateway(t *testing.T) {
 	gw := &mockGW{
-		providerList: []string{"github"},
-		providers:    map[string]bool{"github": true},
+		gatewayListResult: []gateway.GatewayInfo{
+			{Name: "local", Endpoint: "127.0.0.1:17670", Active: true},
+		},
 	}
 
-	err := upLocal(upLocalOpts{
-		harnessDir:  dir,
-		gw:          gw,
-		ensureLocal: false,
-		profileName: "default",
-		sandboxName: "create-test",
-		noTTY:       true,
-	})
+	info, err := activeGatewayInfo(gw)
 	if err != nil {
-		t.Fatalf("create: %v", err)
+		t.Fatalf("activeGatewayInfo: %v", err)
 	}
-	if gw.createCalls != 1 {
-		t.Fatalf("createCalls = %d, want 1", gw.createCalls)
+	if info.Name != "local" {
+		t.Errorf("Name = %q, want local", info.Name)
 	}
-	opts := gw.createOpts[0]
-	if opts.Name != "create-test" {
-		t.Errorf("Name = %q, want create-test", opts.Name)
+	if !strings.Contains(info.Endpoint, "127.0.0.1") {
+		t.Errorf("Endpoint = %q, want 127.0.0.1", info.Endpoint)
 	}
 }
 
-func TestCreate_SkipsProviderRegistration(t *testing.T) {
-	dir := setupTestProfile(t)
-	os.MkdirAll(filepath.Join(dir, "sandbox", "profiles"), 0o755)
-	gw := &mockGW{
-		providerList: nil,
-		providers:    map[string]bool{},
+func TestProfileHasCustomProviders(t *testing.T) {
+	allProviders := []preflight.Provider{
+		{Name: "github", Type: "openshell"},
+		{Name: "vertex-local", Type: "openshell"},
+		{Name: "gws", Type: "custom"},
 	}
 
-	err := upLocal(upLocalOpts{
-		harnessDir:  dir,
-		gw:          gw,
-		ensureLocal: false,
-		profileName: "default",
-		noTTY:       true,
-	})
-	if err != nil {
-		t.Fatalf("create: %v", err)
+	if profileHasCustomProviders([]string{"github"}, allProviders) {
+		t.Error("github is openshell, not custom")
+	}
+	if !profileHasCustomProviders([]string{"github", "gws"}, allProviders) {
+		t.Error("gws is custom, should return true")
+	}
+	if profileHasCustomProviders([]string{}, allProviders) {
+		t.Error("empty profile should not have custom providers")
 	}
 }
 

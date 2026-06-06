@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/robbycochran/harness-openshell/internal/gateway"
@@ -30,17 +31,17 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 
 			gw := gateway.New(cli)
 
-			// 1. Validate gateway is deployed and reachable
-			if err := gw.InferenceGet(); err != nil {
-				return fmt.Errorf("no active gateway — deploy one first: harness deploy")
+			// 1. Check which gateway is active and whether it's local or remote.
+			activeGW, err := activeGatewayInfo(gw)
+			if err != nil {
+				return err
 			}
+			isLocal := strings.Contains(activeGW.Endpoint, "127.0.0.1")
 
-			// 2. Determine mode from gateway config
-			//    Try all known gateway dirs; fall back to "direct" if no config found.
-			gwCfg := loadFirstGatewayConfig(harnessDir)
-			useLauncher := gwCfg != nil && gwCfg.UsesLauncher()
+			status.Section("Gateway")
+			status.OKf("%s (%s)", activeGW.Name, activeGW.Endpoint)
 
-			// 3. Parse and validate the profile
+			// 2. Parse the profile
 			cfg, err := profile.Parse(harnessDir, profileName)
 			if err != nil {
 				return err
@@ -53,7 +54,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 			fmt.Printf("  Name: %s\n", cfg.Name)
 			fmt.Printf("  From: %s\n", cfg.From)
 
-			// 4. Validate providers are registered
+			// 3. Validate providers are registered
 			status.Section("Providers")
 			registered, missing := profile.ValidateProviders(cfg.Providers, gw)
 			for _, name := range registered {
@@ -66,7 +67,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				return fmt.Errorf("no providers available — run: harness providers")
 			}
 
-			// 5. Run preflight checks for profile providers
+			// 4. Run preflight checks for profile providers
 			status.Section("Preflight")
 			providersPath := filepath.Join(harnessDir, "providers.toml")
 			allProviders, err := preflight.LoadProviders(providersPath)
@@ -96,12 +97,24 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				}
 			}
 
+			// 5. Determine whether the launcher is needed.
+			//    The launcher bridges cluster-side secrets (mTLS, GWS creds)
+			//    into the sandbox. It's only needed when:
+			//      - the gateway is remote (not local), AND
+			//      - the profile references custom providers (type="custom" in providers.toml)
+			needsLauncher := false
+			if !isLocal {
+				needsLauncher = profileHasCustomProviders(cfg.Providers, allProviders)
+			}
+
 			// 6. Deploy the sandbox
 			status.Section("Creating sandbox")
-			if useLauncher {
+			if needsLauncher {
+				status.Info("Custom providers detected — using in-cluster launcher")
+				gwCfg := loadGatewayConfigForActive(harnessDir, activeGW)
 				return createViaLauncher(harnessDir, gwCfg, gw, profileName, cfg)
 			}
-			return createDirect(harnessDir, gw, gwCfg, profileName, cfg, registered)
+			return createDirect(harnessDir, gw, profileName, cfg, registered)
 		},
 	}
 
@@ -111,9 +124,49 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 	return cmd
 }
 
-// loadFirstGatewayConfig tries to load a gateway config from known gateway dirs.
-// Returns nil if no valid config is found (backward compat — assumes direct mode).
-func loadFirstGatewayConfig(harnessDir string) *gateway.GatewayConfig {
+// activeGatewayInfo returns the currently selected gateway.
+func activeGatewayInfo(gw gateway.Gateway) (*gateway.GatewayInfo, error) {
+	gateways, err := gw.GatewayList()
+	if err != nil {
+		return nil, fmt.Errorf("could not list gateways: %w — deploy one first: harness deploy", err)
+	}
+	for _, g := range gateways {
+		if g.Active {
+			return &g, nil
+		}
+	}
+	return nil, fmt.Errorf("no active gateway — deploy one first: harness deploy")
+}
+
+// profileHasCustomProviders checks whether any of the profile's requested
+// providers are type="custom" in providers.toml. Custom providers require
+// the in-cluster launcher to bridge secrets the workstation doesn't have.
+func profileHasCustomProviders(profileProviders []string, allProviders []preflight.Provider) bool {
+	custom := make(map[string]bool)
+	for _, p := range allProviders {
+		if p.Type == "custom" {
+			custom[p.Name] = true
+		}
+	}
+	for _, name := range profileProviders {
+		if custom[name] {
+			return true
+		}
+	}
+	return false
+}
+
+// loadGatewayConfigForActive tries to find the gateway.toml that matches the
+// active gateway. Falls back to scanning all gateway dirs if no name match.
+func loadGatewayConfigForActive(harnessDir string, active *gateway.GatewayInfo) *gateway.GatewayConfig {
+	// Try exact name match first (e.g., active gateway named "ocp" → gateways/ocp/)
+	if active != nil && active.Name != "" {
+		dir := filepath.Join(harnessDir, "gateways", active.Name)
+		if cfg, err := gateway.LoadConfig(dir); err == nil {
+			return cfg
+		}
+	}
+	// Fall back to scanning all gateway dirs for a remote config
 	gwDir := filepath.Join(harnessDir, "gateways")
 	entries, err := os.ReadDir(gwDir)
 	if err != nil {
@@ -124,31 +177,25 @@ func loadFirstGatewayConfig(harnessDir string) *gateway.GatewayConfig {
 			continue
 		}
 		cfg, err := gateway.LoadConfig(filepath.Join(gwDir, e.Name()))
-		if err == nil {
+		if err == nil && !cfg.IsLocal() {
 			return cfg
 		}
 	}
 	return nil
 }
 
-// createViaLauncher deploys a sandbox using the launcher Job path (remote/OCP).
-// Reuses the same logic as newRemote but does not deploy the gateway or providers.
+// createViaLauncher deploys a sandbox using the in-cluster launcher Job.
+// The launcher mounts cluster secrets (mTLS certs, custom provider credentials)
+// and creates the sandbox from inside the cluster.
 func createViaLauncher(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gateway, profileName string, cfg *profile.Config) error {
-	// newRemote handles the launcher Job creation, log tailing, and status polling.
-	// We call it directly — it will skip gateway/provider deployment because the
-	// gateway is already reachable (checked above).
-	err := upRemote(harnessDir, gwCfg, gw, profileName, cfg.Name)
-	if err != nil {
-		return err
+	if gwCfg == nil {
+		return fmt.Errorf("no gateway config found for remote gateway — expected gateways/<name>/gateway.toml")
 	}
-	// newRemote already prints the success message
-	return nil
+	return upRemote(harnessDir, gwCfg, gw, profileName, cfg.Name)
 }
 
-// createDirect deploys a sandbox via the local openshell CLI (direct mode).
-// Same as newLocal but always non-interactive.
-func createDirect(harnessDir string, gw gateway.Gateway, gwCfg *gateway.GatewayConfig, profileName string, cfg *profile.Config, registered []string) error {
-	// Resolve Dockerfile path relative to harnessDir
+// createDirect deploys a sandbox via the openshell CLI (no launcher needed).
+func createDirect(harnessDir string, gw gateway.Gateway, profileName string, cfg *profile.Config, registered []string) error {
 	if cfg.From != "" && !filepath.IsAbs(cfg.From) {
 		candidate := filepath.Join(harnessDir, cfg.From)
 		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
@@ -156,7 +203,6 @@ func createDirect(harnessDir string, gw gateway.Gateway, gwCfg *gateway.GatewayC
 		}
 	}
 
-	// Inject non-secret provider env vars into sandbox env
 	providersPath := filepath.Join(harnessDir, "providers.toml")
 	if allProviders, err := preflight.LoadProviders(providersPath); err == nil {
 		providerEnv := preflight.ProviderEnvVars(allProviders, cfg.Providers)
@@ -170,7 +216,6 @@ func createDirect(harnessDir string, gw gateway.Gateway, gwCfg *gateway.GatewayC
 		}
 	}
 
-	// Stage files
 	tmpParent, err := os.MkdirTemp("", "harness-")
 	if err != nil {
 		return fmt.Errorf("creating staging dir: %w", err)
@@ -181,7 +226,6 @@ func createDirect(harnessDir string, gw gateway.Gateway, gwCfg *gateway.GatewayC
 		return fmt.Errorf("staging files: %w", err)
 	}
 
-	// Build command — always non-interactive (no TTY)
 	var sandboxCmd []string
 	if cfg.Startup != "" {
 		sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". %s", cfg.Startup)}
@@ -189,7 +233,6 @@ func createDirect(harnessDir string, gw gateway.Gateway, gwCfg *gateway.GatewayC
 		sandboxCmd = []string{"true"}
 	}
 
-	// Create sandbox with retry
 	for attempt := 1; attempt <= 5; attempt++ {
 		err := gw.SandboxCreate(gateway.SandboxCreateOpts{
 			Name:      cfg.Name,
@@ -208,14 +251,14 @@ func createDirect(harnessDir string, gw gateway.Gateway, gwCfg *gateway.GatewayC
 		}
 
 		fmt.Printf("  Attempt %d failed: %v, retrying in 5s...\n", attempt, err)
-		gw.SandboxDelete(cfg.Name) // best-effort cleanup
+		gw.SandboxDelete(cfg.Name)
 
 		if attempt == 5 {
 			return fmt.Errorf("sandbox create failed after 5 attempts: %w", err)
 		}
 		time.Sleep(5 * time.Second)
 	}
-	return nil // unreachable
+	return nil
 }
 
 func providerInList(name string, providers []string) bool {
