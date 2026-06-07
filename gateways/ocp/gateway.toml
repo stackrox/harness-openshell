@@ -17,8 +17,7 @@ name = "openshell-remote-ocp"
 mode = "launcher"
 
 [providers]
-enabled = ["github", "vertex-local", "atlassian"]
-custom = ["gws"]
+enabled = ["github", "vertex-local", "atlassian", "gws"]
 
 [chart]
 oci = "oci://ghcr.io/nvidia/openshell/helm-chart"
@@ -40,7 +39,7 @@ scc-privileged = ["openshell", "openshell-sandbox"]
 scc-anyuid = ["openshell"]
 
 [secrets]
-names = ["openshell-gws", "openshell-atlassian"]
+names = ["openshell-atlassian"]
 mtls = "openshell-client-tls"
 
 [launcher]

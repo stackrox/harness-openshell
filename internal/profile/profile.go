@@ -2,9 +2,7 @@ package profile
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -84,7 +82,7 @@ func ValidateProviders(providers []string, gw ProviderChecker) (registered, miss
 	return
 }
 
-// StageHarnessDir writes sandbox.env and copies GWS credentials to harnessDir.
+// StageHarnessDir writes sandbox.env to harnessDir.
 func StageHarnessDir(cfg *Config, harnessDir string) error {
 	if err := os.MkdirAll(harnessDir, 0o755); err != nil {
 		return err
@@ -99,45 +97,5 @@ func StageHarnessDir(cfg *Config, harnessDir string) error {
 		fmt.Printf("  Env: %d vars staged\n", lines)
 	}
 
-	if err := stageGWSCreds(harnessDir); err != nil {
-		fmt.Printf("  GWS: %v\n", err)
-	}
-	return nil
-}
-
-func stageGWSCreds(harnessDir string) error {
-	gwsPath, err := exec.LookPath("gws")
-	if err != nil {
-		return fmt.Errorf("not installed (skipping)")
-	}
-
-	check := exec.Command(gwsPath, "auth", "status")
-	check.Stdout = io.Discard
-	check.Stderr = io.Discard
-	if check.Run() != nil {
-		return fmt.Errorf("not authenticated (skipping)")
-	}
-
-	out, err := exec.Command(gwsPath, "auth", "export", "--unmasked").Output()
-	if err != nil {
-		return fmt.Errorf("export failed (skipping)")
-	}
-	if err := os.WriteFile(filepath.Join(harnessDir, "credentials.json"), out, 0o600); err != nil {
-		return err
-	}
-
-	gwsConfigDir := os.Getenv("GWS_CONFIG_DIR")
-	if gwsConfigDir == "" {
-		home, _ := os.UserHomeDir()
-		gwsConfigDir = filepath.Join(home, ".config", "gws")
-	}
-	clientSecret := filepath.Join(gwsConfigDir, "client_secret.json")
-	if data, err := os.ReadFile(clientSecret); err == nil {
-		if err := os.WriteFile(filepath.Join(harnessDir, "client_secret.json"), data, 0o600); err != nil {
-			return fmt.Errorf("writing client_secret.json: %w", err)
-		}
-	}
-
-	fmt.Println("  GWS: exported")
 	return nil
 }

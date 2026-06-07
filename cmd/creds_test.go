@@ -38,9 +38,9 @@ func TestEnsureCreds_ForceDeletesExisting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensureCreds: %v", err)
 	}
-	// Should attempt to delete both secrets
-	if nsRunner.CallCount("delete secret") != 2 {
-		t.Errorf("expected 2 secret deletes, got %d: %v",
+	// Should attempt to delete atlassian secret
+	if nsRunner.CallCount("delete secret") != 1 {
+		t.Errorf("expected 1 secret delete, got %d: %v",
 			nsRunner.CallCount("delete secret"), nsRunner.Calls)
 	}
 }

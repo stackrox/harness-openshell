@@ -210,14 +210,12 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 						"env": launcherEnv(launcherEndpoint, cfg.From),
 						"volumeMounts": []map[string]any{
 							{"name": "config", "mountPath": "/etc/openshell/sandbox", "readOnly": true},
-							{"name": "gws", "mountPath": "/secrets/gws", "readOnly": true},
 							{"name": "gateway-mtls", "mountPath": "/secrets/mtls", "readOnly": true},
 							{"name": "sandbox-env", "mountPath": "/etc/openshell/env", "readOnly": true},
 						},
 					}},
 					"volumes": []map[string]any{
 						{"name": "config", "configMap": map[string]any{"name": "sandbox-" + cfg.Name}},
-						{"name": "gws", "secret": map[string]any{"secretName": "openshell-gws", "optional": true}},
 						{"name": "gateway-mtls", "secret": map[string]any{"secretName": mtlsSecret}},
 						{"name": "sandbox-env", "configMap": map[string]any{"name": "sandbox-" + cfg.Name + "-env", "optional": true}},
 					},

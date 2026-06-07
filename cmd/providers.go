@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -60,7 +61,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, gwCfg 
 		if len(sandboxes) > 0 {
 			return fmt.Errorf("cannot --force with running sandboxes — delete them first")
 		}
-		for _, name := range []string{"github", "vertex-local", "atlassian"} {
+		for _, name := range []string{"github", "vertex-local", "atlassian", "gws"} {
 			if providerEnabled(name) {
 				gw.ProviderDelete(name)
 			}
@@ -92,6 +93,9 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, gwCfg 
 		return err
 	}
 	if err := registerAtlassian(gw, providerEnabled); err != nil {
+		return err
+	}
+	if err := registerGWS(gw, providerEnabled); err != nil {
 		return err
 	}
 
@@ -205,6 +209,72 @@ func registerAtlassian(gw gateway.Gateway, enabled func(string) bool) error {
 		return fmt.Errorf("creating atlassian provider: %w", err)
 	}
 	status.OK("atlassian: registered")
+	return nil
+}
+
+func registerGWS(gw gateway.Gateway, enabled func(string) bool) error {
+	if !enabled("gws") {
+		status.Info("gws: disabled by gateway config")
+		return nil
+	}
+	if gw.ProviderGet("gws") == nil {
+		status.Info("gws: exists (use --force to recreate)")
+		return nil
+	}
+
+	gwsPath, _ := exec.LookPath("gws")
+	if gwsPath == "" {
+		status.Info("gws: not installed (skipping)")
+		return nil
+	}
+
+	out, err := exec.Command(gwsPath, "auth", "export", "--unmasked").Output()
+	if err != nil {
+		status.Info("gws: not authenticated (run 'gws auth login')")
+		return nil
+	}
+
+	var creds struct {
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.Unmarshal(out, &creds); err != nil {
+		return fmt.Errorf("parsing gws credentials: %w", err)
+	}
+	if creds.ClientID == "" || creds.ClientSecret == "" || creds.RefreshToken == "" {
+		status.Info("gws: incomplete credentials (skipping)")
+		return nil
+	}
+
+	// Create provider with a placeholder — the gateway will refresh it immediately.
+	if err := gw.ProviderCreate("gws", "google-workspace", gateway.ProviderCreateOpts{
+		Credentials: []string{"GOOGLE_WORKSPACE_CLI_TOKEN=pending"},
+	}); err != nil {
+		return fmt.Errorf("creating gws provider: %w", err)
+	}
+
+	// Configure gateway-managed OAuth refresh. The gateway stores client_secret
+	// and refresh_token as secret material — they are never injected into sandboxes.
+	if err := gw.ProviderRefreshConfigure("gws", gateway.ProviderRefreshOpts{
+		CredentialKey: "GOOGLE_WORKSPACE_CLI_TOKEN",
+		Strategy:      "oauth2-refresh-token",
+		Material: []string{
+			"client_id=" + creds.ClientID,
+			"client_secret=" + creds.ClientSecret,
+			"refresh_token=" + creds.RefreshToken,
+		},
+		SecretMaterialKeys: []string{"client_secret", "refresh_token"},
+	}); err != nil {
+		return fmt.Errorf("configuring gws refresh: %w", err)
+	}
+
+	// Force an immediate refresh so the token is valid before the first sandbox.
+	if err := gw.ProviderRefreshRotate("gws", "GOOGLE_WORKSPACE_CLI_TOKEN"); err != nil {
+		status.Infof("gws: refresh rotate failed (token will refresh automatically): %v", err)
+	}
+
+	status.OK("gws: registered (gateway-managed token refresh)")
 	return nil
 }
 

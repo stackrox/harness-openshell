@@ -1,0 +1,99 @@
+# Google Workspace provider profile.
+#
+# Credentials (client_id, client_secret, refresh_token) are stored in the
+# gateway and injected into the sandbox as proxy-resolved placeholders.
+# The oauth2.googleapis.com endpoint has request_body_credential_rewrite
+# enabled, so when gws CLI sends a token refresh POST, the proxy resolves
+# the placeholders in the form-urlencoded body before forwarding to Google.
+# The sandbox never sees the real credentials.
+#
+# Registration:
+#   openshell provider create --name gws --type google-workspace \
+#       --credential client_id=... \
+#       --credential client_secret=... \
+#       --credential refresh_token=...
+
+id: google-workspace
+display_name: Google Workspace
+description: Gmail, Calendar, Drive, Tasks via gws CLI
+category: knowledge
+credentials:
+  - name: GOOGLE_WORKSPACE_CLI_TOKEN
+    description: Google OAuth2 access token — gateway-refreshed, never exposed to sandbox
+    env_vars: [GOOGLE_WORKSPACE_CLI_TOKEN]
+    required: true
+    auth_style: bearer
+    header_name: authorization
+    refresh:
+      strategy: oauth2_refresh_token
+      token_url: https://oauth2.googleapis.com/token
+      scopes:
+        - https://www.googleapis.com/auth/gmail.readonly
+        - https://www.googleapis.com/auth/calendar.readonly
+        - https://www.googleapis.com/auth/drive.readonly
+        - https://www.googleapis.com/auth/tasks
+      refresh_before_seconds: 300
+      max_lifetime_seconds: 3600
+      material:
+        - name: client_id
+          description: Google OAuth2 client ID
+          required: true
+          secret: false
+        - name: client_secret
+          description: Google OAuth2 client secret
+          required: true
+          secret: true
+        - name: refresh_token
+          description: Google OAuth2 refresh token
+          required: true
+          secret: true
+discovery:
+  credentials:
+    - GOOGLE_WORKSPACE_CLI_TOKEN
+endpoints:
+  - host: gmail.googleapis.com
+    port: 443
+    protocol: rest
+    access: read-only
+    enforcement: enforce
+  - host: calendar-json.googleapis.com
+    port: 443
+    protocol: rest
+    access: read-only
+    enforcement: enforce
+  - host: drive.googleapis.com
+    port: 443
+    protocol: rest
+    access: read-only
+    enforcement: enforce
+  - host: docs.googleapis.com
+    port: 443
+    protocol: rest
+    access: read-only
+    enforcement: enforce
+  - host: sheets.googleapis.com
+    port: 443
+    protocol: rest
+    access: read-only
+    enforcement: enforce
+  - host: tasks.googleapis.com
+    port: 443
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+  - host: oauth2.googleapis.com
+    port: 443
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    request_body_credential_rewrite: true
+  - host: www.googleapis.com
+    port: 443
+    protocol: rest
+    access: read-only
+    enforcement: enforce
+binaries:
+  - /usr/local/bin/gws
+  - /sandbox/.local/bin/gws
+  - /usr/bin/curl
+  - /usr/local/bin/curl

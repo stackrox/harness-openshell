@@ -149,7 +149,7 @@ func teardownK8s(gw gateway.Gateway, gwCfg *gateway.GatewayConfig, kc, clusterRu
 	// Resolve SCC SAs and secret names from config, or use defaults
 	sccSAs := []string{"openshell", "openshell-sandbox", "default"}
 	sccAnyuid := []string{"openshell"}
-	secrets := []string{"openshell-gws", "openshell-atlassian"}
+	secrets := []string{"openshell-atlassian"}
 	if gwCfg != nil {
 		if len(gwCfg.OCP.SCCPrivileged) > 0 {
 			sccSAs = gwCfg.OCP.SCCPrivileged

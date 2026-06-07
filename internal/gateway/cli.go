@@ -99,6 +99,24 @@ func (c *CLI) ProviderProfileImport(dir string) error {
 	return c.silent("provider", "profile", "import", "--from", dir)
 }
 
+func (c *CLI) ProviderRefreshConfigure(name string, opts ProviderRefreshOpts) error {
+	args := []string{"provider", "refresh", "configure", name,
+		"--credential-key", opts.CredentialKey,
+		"--strategy", opts.Strategy,
+	}
+	for _, m := range opts.Material {
+		args = append(args, "--material", m)
+	}
+	for _, k := range opts.SecretMaterialKeys {
+		args = append(args, "--secret-material-key", k)
+	}
+	return c.passthrough(args...)
+}
+
+func (c *CLI) ProviderRefreshRotate(name, credentialKey string) error {
+	return c.silent("provider", "refresh", "rotate", name, "--credential-key", credentialKey)
+}
+
 func (c *CLI) ProviderProfileDelete(id string) error {
 	return c.silent("provider", "profile", "delete", id)
 }

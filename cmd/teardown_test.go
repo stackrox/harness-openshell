@@ -47,8 +47,8 @@ func TestTeardownK8s_FullCleanup(t *testing.T) {
 	}
 
 	// Should delete secrets
-	if kc.CallCount("delete secret") != 2 {
-		t.Errorf("expected 2 secret deletes, got %d: %v", kc.CallCount("delete secret"), kc.Calls)
+	if kc.CallCount("delete secret") != 1 {
+		t.Errorf("expected 1 secret delete, got %d: %v", kc.CallCount("delete secret"), kc.Calls)
 	}
 
 	// Should delete openshell namespace

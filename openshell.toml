@@ -8,12 +8,12 @@
 #   ./openshell-harness-preflight.sh
 
 # Which providers to register and attach to sandboxes.
-# Must match names defined in providers.toml.
-providers = ["github", "vertex-local", "atlassian"]
+# Must match names defined in providers.toml or imported provider profiles.
+providers = ["github", "vertex-local", "atlassian", "gws"]
 
-# Custom providers to enable (from [providers-custom] in providers.toml).
-# These will eventually become regular [providers] when OpenShell adds native support.
-providers-custom = ["gws"]
+# Fallback: move gws back to providers-custom to use legacy file staging.
+# providers = ["github", "vertex-local", "atlassian"]
+# providers-custom = ["gws"]
 
 [inference]
 model = "claude-sonnet-4-6"

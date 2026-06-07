@@ -96,11 +96,9 @@ func TestParseConfig_Invalid(t *testing.T) {
 
 func TestStageFiles_EnvFromFile(t *testing.T) {
 	dir := t.TempDir()
-	gwsDir := filepath.Join(dir, "gws")
 	harnessDir := filepath.Join(dir, "harness")
 	envDir := filepath.Join(dir, "env")
 
-	os.MkdirAll(gwsDir, 0o755)
 	os.MkdirAll(envDir, 0o755)
 
 	envContent := "export FOO=bar\nexport BAZ=qux\n"
@@ -111,8 +109,7 @@ func TestStageFiles_EnvFromFile(t *testing.T) {
 	stageFilesFrom = envFile
 	defer func() { stageFilesFrom = origStageFiles }()
 
-	cfg := &Config{Env: map[string]string{"FOO": "bar", "BAZ": "qux"}}
-	if err := stageFiles(cfg, gwsDir, harnessDir); err != nil {
+	if err := stageFiles(harnessDir); err != nil {
 		t.Fatalf("stageFiles: %v", err)
 	}
 
@@ -125,57 +122,19 @@ func TestStageFiles_EnvFromFile(t *testing.T) {
 	}
 }
 
-func TestStageFiles_GWSCreds(t *testing.T) {
+func TestStageFiles_NoEnv(t *testing.T) {
 	dir := t.TempDir()
-	gwsDir := filepath.Join(dir, "gws")
 	harnessDir := filepath.Join(dir, "harness")
-
-	os.MkdirAll(gwsDir, 0o755)
-	os.WriteFile(filepath.Join(gwsDir, "credentials.json"), []byte(`{"token":"abc"}`), 0o644)
-	os.WriteFile(filepath.Join(gwsDir, "client_secret.json"), []byte(`{"secret":"xyz"}`), 0o644)
 
 	origStageFiles := stageFilesFrom
 	stageFilesFrom = "/nonexistent/sandbox.env"
 	defer func() { stageFilesFrom = origStageFiles }()
 
-	cfg := &Config{}
-	if err := stageFiles(cfg, gwsDir, harnessDir); err != nil {
+	if err := stageFiles(harnessDir); err != nil {
 		t.Fatalf("stageFiles: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(harnessDir, "credentials.json"))
-	if err != nil {
-		t.Fatalf("reading credentials.json: %v", err)
-	}
-	if string(data) != `{"token":"abc"}` {
-		t.Errorf("credentials.json = %q", string(data))
-	}
-
-	data, err = os.ReadFile(filepath.Join(harnessDir, "client_secret.json"))
-	if err != nil {
-		t.Fatalf("reading client_secret.json: %v", err)
-	}
-	if string(data) != `{"secret":"xyz"}` {
-		t.Errorf("client_secret.json = %q", string(data))
-	}
-}
-
-func TestStageFiles_NoGWS(t *testing.T) {
-	dir := t.TempDir()
-	gwsDir := filepath.Join(dir, "gws")
-	harnessDir := filepath.Join(dir, "harness")
-	os.MkdirAll(gwsDir, 0o755)
-
-	origStageFiles := stageFilesFrom
-	stageFilesFrom = "/nonexistent/sandbox.env"
-	defer func() { stageFilesFrom = origStageFiles }()
-
-	cfg := &Config{}
-	if err := stageFiles(cfg, gwsDir, harnessDir); err != nil {
-		t.Fatalf("stageFiles: %v", err)
-	}
-
-	if _, err := os.Stat(filepath.Join(harnessDir, "credentials.json")); err == nil {
-		t.Error("credentials.json should not exist when GWS not mounted")
+	if _, err := os.Stat(filepath.Join(harnessDir, "sandbox.env")); err == nil {
+		t.Error("sandbox.env should not exist when env file not present")
 	}
 }

@@ -129,7 +129,7 @@ func checkProviders(providers []string, cli string) []string {
 
 var stageFilesFrom = "/etc/openshell/env/sandbox.env"
 
-func stageFiles(cfg *Config, gwsDir, harnessDir string) error {
+func stageFiles(harnessDir string) error {
 	if err := os.MkdirAll(harnessDir, 0o755); err != nil {
 		return err
 	}
@@ -143,24 +143,6 @@ func stageFiles(cfg *Config, gwsDir, harnessDir string) error {
 		fmt.Printf("  Env: %d vars\n", lines)
 	}
 
-	if fileExists(filepath.Join(gwsDir, "credentials.json")) {
-		entries, err := os.ReadDir(gwsDir)
-		if err != nil {
-			return fmt.Errorf("reading gws dir: %w", err)
-		}
-		for _, e := range entries {
-			if !e.IsDir() && !strings.HasPrefix(e.Name(), "..") {
-				src := filepath.Join(gwsDir, e.Name())
-				dst := filepath.Join(harnessDir, e.Name())
-				if err := copyFile(src, dst); err != nil {
-					return fmt.Errorf("copying %s: %w", e.Name(), err)
-				}
-			}
-		}
-		fmt.Println("  GWS: staged")
-	} else {
-		fmt.Println("  GWS: not mounted (skipping)")
-	}
 	return nil
 }
 
@@ -282,7 +264,7 @@ func main() {
 	providers := checkProviders(cfg.Providers, cli)
 
 	harnessDir := "/tmp/openshell"
-	if err := stageFiles(cfg, "/secrets/gws", harnessDir); err != nil {
+	if err := stageFiles(harnessDir); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: staging files: %v\n", err)
 		os.Exit(1)
 	}
