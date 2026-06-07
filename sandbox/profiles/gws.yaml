@@ -27,11 +27,6 @@ credentials:
     refresh:
       strategy: oauth2_refresh_token
       token_url: https://oauth2.googleapis.com/token
-      scopes:
-        - https://www.googleapis.com/auth/gmail.readonly
-        - https://www.googleapis.com/auth/calendar.readonly
-        - https://www.googleapis.com/auth/drive.readonly
-        - https://www.googleapis.com/auth/tasks
       refresh_before_seconds: 300
       max_lifetime_seconds: 3600
       material:

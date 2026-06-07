@@ -256,6 +256,8 @@ func registerGWS(gw gateway.Gateway, enabled func(string) bool) error {
 
 	// Configure gateway-managed OAuth refresh. The gateway stores client_secret
 	// and refresh_token as secret material — they are never injected into sandboxes.
+	// Scopes are passed as material so Google mints a narrowed access token —
+	// only these scopes are accessible even though the refresh_token has more.
 	if err := gw.ProviderRefreshConfigure("gws", gateway.ProviderRefreshOpts{
 		CredentialKey: "GOOGLE_WORKSPACE_CLI_TOKEN",
 		Strategy:      "oauth2-refresh-token",
@@ -263,6 +265,10 @@ func registerGWS(gw gateway.Gateway, enabled func(string) bool) error {
 			"client_id=" + creds.ClientID,
 			"client_secret=" + creds.ClientSecret,
 			"refresh_token=" + creds.RefreshToken,
+			"scopes=https://www.googleapis.com/auth/gmail.readonly" +
+				" https://www.googleapis.com/auth/calendar.readonly" +
+				" https://www.googleapis.com/auth/drive.readonly" +
+				" https://www.googleapis.com/auth/tasks",
 		},
 		SecretMaterialKeys: []string{"client_secret", "refresh_token"},
 	}); err != nil {
