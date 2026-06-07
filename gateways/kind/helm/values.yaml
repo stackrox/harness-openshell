@@ -1,11 +1,20 @@
 # kind gateway Helm values.
 #
-# Chart defaults are vanilla-k8s-friendly — this file only overrides
-# what's needed for kind specifically.
+# NodePort service, plaintext HTTP (no TLS) for local dev.
+# The openshell CLI registers the gateway via http:// which skips mTLS and
+# browser auth entirely. The PKI init job still runs to create the JWT
+# signing key secret the gateway requires.
 
 service:
   type: NodePort
 
 server:
+  disableTls: true
   auth:
     allowUnauthenticatedUsers: true
+
+# PKI init job creates the JWT signing key (openshell-jwt-keys secret).
+# Even with TLS disabled, the gateway needs the JWT signing key to
+# issue sandbox tokens.
+pkiInitJob:
+  enabled: true

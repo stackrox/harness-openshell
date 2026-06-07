@@ -39,6 +39,8 @@ type Runner interface {
 	GetSecretField(ctx context.Context, secretName, field string) ([]byte, error)
 	GetJSONPath(ctx context.Context, resource, jsonpath string) (string, error)
 	NamespaceExists(ctx context.Context, ns string) bool
+	GetServiceNodePort(ctx context.Context, svcName string, containerPort int) (int, error)
+	GetNodeInternalIP(ctx context.Context) (string, error)
 }
 
 type Client struct {
@@ -193,6 +195,38 @@ func (c *Client) GetJSONPath(ctx context.Context, resource, jsonpath string) (st
 
 func (c *Client) NamespaceExists(ctx context.Context, ns string) bool {
 	return c.RunKubectlQuiet(ctx, "get", "ns", ns) == nil
+}
+
+func (c *Client) GetServiceNodePort(ctx context.Context, svcName string, containerPort int) (int, error) {
+	jsonpath := fmt.Sprintf(
+		`{.spec.ports[?(@.port==%d)].nodePort}`, containerPort)
+	out, err := c.RunKubectl(ctx, "get", "svc", svcName, "-o", "jsonpath="+jsonpath)
+	if err != nil {
+		return 0, fmt.Errorf("getting NodePort for %s:%d: %w", svcName, containerPort, err)
+	}
+	out = strings.TrimSpace(out)
+	if out == "" {
+		return 0, fmt.Errorf("no NodePort found for %s port %d", svcName, containerPort)
+	}
+	var port int
+	if _, err := fmt.Sscanf(out, "%d", &port); err != nil {
+		return 0, fmt.Errorf("parsing NodePort %q: %w", out, err)
+	}
+	return port, nil
+}
+
+func (c *Client) GetNodeInternalIP(ctx context.Context) (string, error) {
+	// Use cluster-runner (no namespace) so skip namespace injection
+	out, err := c.RunKubectl(ctx, "get", "nodes",
+		"-o", `jsonpath={.items[0].status.addresses[?(@.type=="InternalIP")].address}`)
+	if err != nil {
+		return "", fmt.Errorf("getting node IP: %w", err)
+	}
+	ip := strings.TrimSpace(out)
+	if ip == "" {
+		return "", fmt.Errorf("no InternalIP found on any node")
+	}
+	return ip, nil
 }
 
 func isTransient(output string) bool {

@@ -181,10 +181,13 @@ func (c *CLI) GatewayList() ([]GatewayInfo, error) {
 	return gateways, nil
 }
 
-func (c *CLI) GatewayAdd(endpoint, name string, local bool) error {
+func (c *CLI) GatewayAdd(endpoint, name string, local, insecure bool) error {
 	args := []string{"gateway", "add", endpoint, "--name", name}
 	if local {
 		args = append(args, "--local")
+	}
+	if insecure {
+		args = append(args, "--insecure")
 	}
 	return c.silent(args...)
 }

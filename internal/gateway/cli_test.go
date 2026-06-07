@@ -366,7 +366,7 @@ func TestGatewayAdd_Args(t *testing.T) {
 printf '%s\n' "$*" > `+argsFile+`
 `)
 	gw := New(bin)
-	gw.GatewayAdd("https://gw.example.com:443", "my-ocp", true)
+	gw.GatewayAdd("https://gw.example.com:443", "my-ocp", true, false)
 	data, _ := os.ReadFile(argsFile)
 	args := strings.TrimSpace(string(data))
 	for _, want := range []string{

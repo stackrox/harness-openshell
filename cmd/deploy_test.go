@@ -141,6 +141,7 @@ func TestDeployFromConfig_K8s_NoSCCs(t *testing.T) {
 	gwDir := setupK8sGatewayConfig(t, dir)
 	t.Setenv("OPENSHELL_CHART_VERSION", "0.0.55")
 	t.Setenv("OPENSHELL_NAMESPACE", "openshell")
+	t.Setenv("HOME", t.TempDir())
 
 	gwCfg, err := gateway.LoadConfig(gwDir)
 	if err != nil {
@@ -152,15 +153,20 @@ func TestDeployFromConfig_K8s_NoSCCs(t *testing.T) {
 
 	gw := &mockGW{}
 
-	// NodePort endpoint resolution not implemented — expect that specific error
+	// NodePort deploy should succeed — mock returns default node IP + port
 	err = deployFromConfig(dir, gwCfg, gw, nsRunner, clusterRunner)
-	if err == nil {
-		t.Fatal("expected error for unimplemented nodeport")
+	if err != nil {
+		t.Fatalf("deployFromConfig: %v", err)
 	}
 
 	// Verify NO OC/SCC calls were made (k8s, not OCP)
 	if nsRunner.HasCall("oc adm") {
 		t.Errorf("should not run oc commands on k8s platform, calls: %v", nsRunner.Calls)
+	}
+
+	// Verify NO mTLS cert extraction (direct mode, no launcher)
+	if nsRunner.HasCall("get-secret-field") {
+		t.Errorf("should not extract mTLS certs for direct-mode k8s, calls: %v", nsRunner.Calls)
 	}
 }
 

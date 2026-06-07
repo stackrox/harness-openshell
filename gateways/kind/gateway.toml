@@ -1,11 +1,13 @@
 # kind gateway — deploys openshell to a local kind cluster.
 #
 # Prerequisites:
-#   - kind installed
-#   - Cluster created: kind create cluster --name openshell
+#   - kind installed and cluster running:
+#       kind create cluster --name openshell
+#   - kubectl context set to the kind cluster
 #
-# Uses NodePort for access (no Ingress controller needed).
-# Direct mode: no launcher Job, official providers only.
+# Uses NodePort + node InternalIP for access (no Ingress controller needed).
+# Direct mode: no launcher Job, providers registered from workstation.
+# No mTLS: the gateway runs HTTP for local dev simplicity.
 
 [gateway]
 type = "remote"
@@ -15,7 +17,7 @@ name = "openshell-kind"
 mode = "direct"
 
 [providers]
-enabled = ["github", "vertex-local"]
+enabled = ["github", "vertex-local", "atlassian", "gws"]
 
 [chart]
 oci = "oci://ghcr.io/nvidia/openshell/helm-chart"
@@ -23,3 +25,5 @@ version = "0.0.55"
 [chart.crd]
 url = "https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/manifest.yaml"
 
+[helm]
+values = "values.yaml"

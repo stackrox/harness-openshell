@@ -28,7 +28,7 @@ type Gateway interface {
 	CLIVersion() string
 	CLIPath() string
 	ActiveGateway() string
-	GatewayAdd(endpoint, name string, local bool) error
+	GatewayAdd(endpoint, name string, local, insecure bool) error
 	GatewayRemove(name string) error
 	GatewayList() ([]GatewayInfo, error)
 	GatewaySelect(name string) error

@@ -101,6 +101,32 @@ func (m *MockRunner) NamespaceExists(_ context.Context, ns string) bool {
 	return err == nil
 }
 
+func (m *MockRunner) GetServiceNodePort(_ context.Context, svcName string, containerPort int) (int, error) {
+	call := m.record(fmt.Sprintf("get-nodeport %s %d", svcName, containerPort))
+	resp, err := m.respond(call)
+	if err != nil {
+		return 0, err
+	}
+	if resp == "" {
+		return 30080, nil // default test NodePort
+	}
+	var port int
+	fmt.Sscanf(resp, "%d", &port)
+	return port, nil
+}
+
+func (m *MockRunner) GetNodeInternalIP(_ context.Context) (string, error) {
+	call := m.record("get-node-ip")
+	resp, err := m.respond(call)
+	if err != nil {
+		return "", err
+	}
+	if resp == "" {
+		return "172.18.0.2", nil // default test node IP
+	}
+	return resp, nil
+}
+
 // HasCall checks if any recorded call starts with the given prefix.
 func (m *MockRunner) HasCall(prefix string) bool {
 	for _, c := range m.Calls {

@@ -18,8 +18,8 @@ DEV_SANDBOX_IMAGE  := $(DEV_REGISTRY):$(DEV_TAG)-sandbox
 DEV_LAUNCHER_IMAGE := $(DEV_REGISTRY):$(DEV_TAG)-launcher
 
 .PHONY: cli sandbox push-sandbox cli-launcher launcher push-launcher \
-        vet lint test-unit test test-local test-ocp test-all validate \
-        dev-sandbox dev-launcher validate-dev clean help
+        vet lint test-unit test test-local test-kind test-ocp test-all validate \
+        validate-local validate-kind dev-sandbox dev-launcher validate-dev clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
@@ -84,11 +84,15 @@ test: cli sandbox push-launcher
 test-local: cli
 	./test/test-flow.sh local --full
 
+## kind cluster (full lifecycle — requires: kind create cluster --name openshell)
+test-kind: cli
+	./test/test-flow.sh kind --full
+
 ## OCP only (full lifecycle)
 test-ocp: cli sandbox push-launcher
 	./test/test-flow.sh ocp --full
 
-## All combinations: podman + ocp
+## All combinations: local + kind + ocp
 test-all: cli sandbox push-launcher
 	./test/test-flow.sh all --full
 
@@ -146,6 +150,29 @@ validate-dev: cli dev-sandbox dev-launcher
 	@echo ""
 	@echo "=== Integration: OCP (full) ==="
 	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) LAUNCHER_IMAGE=$(DEV_LAUNCHER_IMAGE) ./test/test-flow.sh ocp --full
+
+## Local validate: unit tests + bats + full local integration with GWS lifecycle test.
+## Requires: openshell gateway running locally (brew services start openshell).
+validate-local: cli
+	@echo "=== Unit tests ==="
+	CGO_ENABLED=0 go test ./...
+	cd sandbox/launcher && go test ./...
+	@echo ""
+	@echo "=== Bats ==="
+	bats test/preflight.bats
+	@echo ""
+	@echo "=== Integration: local (full, with GWS) ==="
+	./test/test-flow.sh local --full
+
+## kind validate: unit tests + full kind integration with GWS lifecycle test.
+## Requires: kind create cluster --name openshell
+validate-kind: cli
+	@echo "=== Unit tests ==="
+	CGO_ENABLED=0 go test ./...
+	cd sandbox/launcher && go test ./...
+	@echo ""
+	@echo "=== Integration: kind (full, with GWS) ==="
+	./test/test-flow.sh kind --full
 
 ## ── Convenience targets ───────────────────────────────────────────────
 

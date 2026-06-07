@@ -195,21 +195,15 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 	// Step 4: Helm install
 	status.Step(4, "Deploying gateway via Helm")
 
-	var gatewayURL string
+	// routeHost is needed before Helm (for OCP PKI cert SAN).
+	// gatewayURL is resolved after Helm for nodeport (service doesn't exist yet).
 	var routeHost string
-
-	switch gwCfg.Gateway.Service {
-	case "route":
+	if gwCfg.Gateway.Service == "route" {
 		appsDomain, err := clusterRunner.GetJSONPath(ctx, "ingresses.config.openshift.io/cluster", "{.spec.domain}")
 		if err != nil || appsDomain == "" {
 			return fmt.Errorf("could not determine OpenShift apps domain — is this an OpenShift cluster? (kubectl get ingresses.config.openshift.io cluster)")
 		}
 		routeHost = fmt.Sprintf("gateway-openshell.%s", appsDomain)
-		gatewayURL = fmt.Sprintf("https://%s:443", routeHost)
-	case "nodeport":
-		gatewayURL = ""
-	case "loadbalancer":
-		gatewayURL = ""
 	}
 
 	helmArgs := []string{
@@ -241,11 +235,28 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 	}
 
 	// Step 5: CLI gateway config
+	// Resolve the gateway URL now that the service exists.
 	status.Step(5, "Configuring CLI gateway")
 	gatewayName := gwCfg.Gateway.Name
 
-	if gatewayURL == "" {
-		return fmt.Errorf("service type %q endpoint resolution not yet implemented", gwCfg.Gateway.Service)
+	var gatewayURL string
+	switch gwCfg.Gateway.Service {
+	case "route":
+		gatewayURL = fmt.Sprintf("https://%s:443", routeHost)
+	case "nodeport":
+		nodePort, err := kc.GetServiceNodePort(ctx, "openshell", 8080)
+		if err != nil {
+			return fmt.Errorf("getting NodePort: %w", err)
+		}
+		nodeIP, err := clusterRunner.GetNodeInternalIP(ctx)
+		if err != nil {
+			return fmt.Errorf("getting node IP: %w", err)
+		}
+		// Use HTTP — kind gateway runs with disableTls=true so the CLI
+		// registers plaintext, skipping mTLS and browser auth entirely.
+		gatewayURL = fmt.Sprintf("http://%s:%d", nodeIP, nodePort)
+	case "loadbalancer":
+		return fmt.Errorf("loadbalancer endpoint resolution not yet implemented")
 	}
 
 	existing, err := gw.GatewayList()
@@ -258,32 +269,40 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 		}
 	}
 
-	if err := gw.GatewayAdd(gatewayURL, gatewayName, true); err != nil {
+	if err := gw.GatewayAdd(gatewayURL, gatewayName, true, false); err != nil {
 		return fmt.Errorf("registering gateway %s: %w", gatewayName, err)
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("determining home directory: %w", err)
-	}
-	mtlsDir := filepath.Join(home, ".config", "openshell", "gateways", gatewayName, "mtls")
-	if err := os.MkdirAll(mtlsDir, 0o700); err != nil {
-		return fmt.Errorf("creating mtls directory: %w", err)
-	}
-	for _, field := range []string{"ca.crt", "tls.crt", "tls.key"} {
-		data, err := kc.GetSecretField(ctx, gwCfg.Secrets.MTLS, field)
+	// mTLS cert extraction — only needed for launcher mode (OCP/remote clusters).
+	// Direct mode (kind, plain k8s) uses HTTP or skips client cert auth.
+	if gwCfg.UsesLauncher() && gwCfg.Secrets.MTLS != "" {
+		home, err := os.UserHomeDir()
 		if err != nil {
-			return fmt.Errorf("extracting %s from %s: %w", field, gwCfg.Secrets.MTLS, err)
+			return fmt.Errorf("determining home directory: %w", err)
 		}
-		if err := os.WriteFile(filepath.Join(mtlsDir, field), data, 0o600); err != nil {
-			return fmt.Errorf("writing %s: %w", field, err)
+		mtlsDir := filepath.Join(home, ".config", "openshell", "gateways", gatewayName, "mtls")
+		if err := os.MkdirAll(mtlsDir, 0o700); err != nil {
+			return fmt.Errorf("creating mtls directory: %w", err)
+		}
+		for _, field := range []string{"ca.crt", "tls.crt", "tls.key"} {
+			data, err := kc.GetSecretField(ctx, gwCfg.Secrets.MTLS, field)
+			if err != nil {
+				return fmt.Errorf("extracting %s from %s: %w", field, gwCfg.Secrets.MTLS, err)
+			}
+			if err := os.WriteFile(filepath.Join(mtlsDir, field), data, 0o600); err != nil {
+				return fmt.Errorf("writing %s: %w", field, err)
+			}
 		}
 	}
 
 	if err := gw.GatewaySelect(gatewayName); err != nil {
 		return fmt.Errorf("selecting gateway %s: %w", gatewayName, err)
 	}
-	status.OKf("%s registered (certs from cluster)", gatewayName)
+	if gwCfg.UsesLauncher() {
+		status.OKf("%s registered (certs from cluster)", gatewayName)
+	} else {
+		status.OKf("%s registered", gatewayName)
+	}
 
 	fmt.Print("  Waiting for gateway...")
 	var gwReachable bool
