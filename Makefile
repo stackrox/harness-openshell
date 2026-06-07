@@ -20,6 +20,7 @@ DEV_LAUNCHER_IMAGE := $(DEV_REGISTRY):$(DEV_TAG)-launcher
 .PHONY: cli sandbox push-sandbox cli-launcher launcher push-launcher \
         vet lint test-unit test test-local test-kind test-ocp test-all validate \
         validate-local validate-local-ci validate-kind validate-kind-ci \
+        validate-ocp validate-ocp-ci \
         dev-sandbox dev-launcher validate-dev clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
@@ -195,6 +196,24 @@ validate-kind-ci: cli
 	@echo ""
 	@echo "=== Integration: kind gateway, ci mode ==="
 	./test/test-flow.sh kind --ci
+
+## OCP validation with credentials (default mode). Requires: KUBECONFIG, all provider creds.
+validate-ocp: cli push-launcher
+	@echo "=== Unit tests ==="
+	CGO_ENABLED=0 go test ./...
+	cd sandbox/launcher && go test ./...
+	@echo ""
+	@echo "=== Integration: OCP gateway, default mode ==="
+	./test/test-flow.sh ocp --full
+
+## OCP validation without credentials (ci mode). Requires: KUBECONFIG, launcher image pushed.
+validate-ocp-ci: cli push-launcher
+	@echo "=== Unit tests ==="
+	CGO_ENABLED=0 go test ./...
+	cd sandbox/launcher && go test ./...
+	@echo ""
+	@echo "=== Integration: OCP gateway, ci mode ==="
+	./test/test-flow.sh ocp --ci --full
 
 ## ── Convenience targets ───────────────────────────────────────────────
 

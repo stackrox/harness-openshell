@@ -313,13 +313,23 @@ test_ocp() {
     step "deploy" "$HARNESS" deploy --remote
   fi
 
-  step "setup providers" "$HARNESS" providers
-  step "gateway reachable" "$CLI" inference get
-  check_providers
+  if ! $NO_PROVIDERS; then
+    step "setup providers" "$HARNESS" providers
+    step "gateway reachable" "$CLI" inference get
+    check_providers
+  fi
 
   if $FULL; then
-    step_output "sandbox create (up)" "$HARNESS" up --remote
-    local sandbox_name="agent"
+    local sandbox_name
+    if $NO_PROVIDERS; then
+      # ci mode: use harness create (skips provider registration) with public ci profile
+      sandbox_name="test-ocp"
+      step_output "sandbox create" "$HARNESS" create --profile=ci --name "$sandbox_name"
+    else
+      # default mode: full up (deploy already done above, providers registered)
+      sandbox_name="agent"
+      step_output "sandbox create (up)" "$HARNESS" up --remote --name "$sandbox_name" --no-tty
+    fi
 
     for i in $(seq 1 30); do
       local phase=$("$CLI" sandbox list 2>/dev/null | strip_ansi | awk -v n="$sandbox_name" '$1==n {print $NF}')

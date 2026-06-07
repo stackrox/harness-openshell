@@ -39,7 +39,6 @@ scc-privileged = ["openshell", "openshell-sandbox"]
 scc-anyuid = ["openshell"]
 
 [secrets]
-names = ["openshell-atlassian"]
 mtls = "openshell-client-tls"
 
 [launcher]
