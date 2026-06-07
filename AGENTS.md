@@ -70,11 +70,62 @@ Current workarounds and their upstream tracking:
 
 | Workaround | Why | Upstream |
 |------------|-----|----------|
-| GWS credential export/upload | gws CLI reads encrypted local files | [#1268](https://github.com/NVIDIA/OpenShell/issues/1268), [#1423](https://github.com/NVIDIA/OpenShell/issues/1423) |
 | Custom gateway image | `google-vertex-ai` provider not in released builds yet | Will ship in upstream release |
 | `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1` | Vertex AI rejects `context_management` beta header | Anthropic/Google to align APIs |
-| Atlassian `JIRA_URL`/`JIRA_USERNAME` as uploaded config | Provider v2 config keys not injected as env vars yet | OpenShell roadmap |
+| Atlassian `JIRA_URL`/`JIRA_USERNAME` as `--config` material | Provider v2 config keys not injected as env vars yet | OpenShell roadmap |
 | In-cluster launcher Job | OpenShell doesn't have a native K8s-triggered sandbox creation | Potential future CRD |
+
+Previously worked around, now resolved:
+
+| Was | Resolution |
+|-----|-----------|
+| GWS credential export/upload to sandbox | GWS is now a native provider (`google-workspace`). Gateway manages OAuth refresh via `oauth2_refresh_token` strategy + `request_body_credential_rewrite` on `oauth2.googleapis.com`. Sandbox gets a proxy-resolved placeholder. |
+
+## Validation
+
+There are two validation tiers, depending on whether real credentials are available.
+
+### No-credential flows (CI / kind)
+
+Run without any provider credentials. Tests sandbox lifecycle only — deploy, create, exec, delete.
+
+```bash
+make validate-kind          # kind cluster (local)
+./test/test-flow.sh kind --full --no-providers --profile=ci
+```
+
+The `ci` profile uses the public community base image and attaches no providers. These flows run in GitHub Actions on every PR (the `kind` job in `.github/workflows/integration.yml`).
+
+### Full flows (local dev, personal credentials)
+
+Run with real credentials. Tests the complete provider chain including GWS OAuth token lifecycle.
+
+```bash
+make validate-local         # local Podman gateway
+./test/test-flow.sh local --full
+```
+
+Requires:
+- `openshell` gateway running locally (`brew services start openshell`)
+- `JIRA_API_TOKEN`, `JIRA_URL`, `JIRA_USERNAME` for Atlassian
+- `gcloud auth application-default login` for Vertex AI
+- `gws auth login` for Google Workspace
+- `GITHUB_TOKEN` for GitHub
+
+These flows do not run in GitHub Actions today — they require personal OAuth credentials. Future work: service accounts for Vertex AI and Atlassian can run in GHA; GWS would need a dedicated service account.
+
+### What each flow tests
+
+| Check | No-cred (CI) | Full (local) |
+|-------|-------------|--------------|
+| Gateway deploy and rollout | ✓ | ✓ |
+| Sandbox create / exec / delete | ✓ | ✓ |
+| Provider registration | — | ✓ |
+| `GOOGLE_WORKSPACE_CLI_TOKEN` is proxy placeholder | — | ✓ |
+| Gmail/Calendar/Drive API via proxy | — | ✓ |
+| GWS token rotation survives in sandbox | — | ✓ |
+| Inference (Vertex AI) | — | ✓ |
+| Atlassian MCP server | — | ✓ |
 
 ## Adding a new integration
 
