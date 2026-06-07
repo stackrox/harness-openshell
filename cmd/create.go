@@ -203,19 +203,6 @@ func createDirect(harnessDir string, gw gateway.Gateway, profileName string, cfg
 		}
 	}
 
-	providersPath := filepath.Join(harnessDir, "providers.toml")
-	if allProviders, err := preflight.LoadProviders(providersPath); err == nil {
-		providerEnv := preflight.ProviderEnvVars(allProviders, cfg.Providers)
-		if cfg.Env == nil {
-			cfg.Env = make(map[string]string)
-		}
-		for k, v := range providerEnv {
-			if _, exists := cfg.Env[k]; !exists {
-				cfg.Env[k] = v
-			}
-		}
-	}
-
 	tmpParent, err := os.MkdirTemp("", "harness-")
 	if err != nil {
 		return fmt.Errorf("creating staging dir: %w", err)
