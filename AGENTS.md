@@ -83,41 +83,54 @@ Previously worked around, now resolved:
 
 ## Validation
 
-There are two validation tiers, depending on whether real credentials are available.
+Validation has two modes — **default** and **ci** — that are independent of where
+the gateway runs (local Podman, kind, OCP). The mode controls what is tested, not
+the target.
 
-### No-credential flows (CI / kind)
+### Modes
 
-Run without any provider credentials. Tests sandbox lifecycle only — deploy, create, exec, delete.
+**`default`** — expects user credentials. Tests the full stack including provider
+registration, credential injection, and the GWS OAuth token lifecycle.
 
-```bash
-make validate-kind          # kind cluster (local)
-./test/test-flow.sh kind --full --no-providers --profile=ci
+**`ci`** — no credentials required. Tests gateway deploy and sandbox lifecycle only.
+Runs in GitHub Actions on every PR.
+
+```
+--ci flag  =  --no-providers --profile=ci --full
 ```
 
-The `ci` profile uses the public community base image and attaches no providers. These flows run in GitHub Actions on every PR (the `kind` job in `.github/workflows/integration.yml`).
+### Make targets
 
-### Full flows (local dev, personal credentials)
+| Target | Gateway | Mode |
+|--------|---------|------|
+| `make validate-local` | local Podman | default (needs creds) |
+| `make validate-local-ci` | local Podman | ci (no creds) |
+| `make validate-kind` | kind cluster | default (needs creds) |
+| `make validate-kind-ci` | kind cluster | ci (no creds) |
 
-Run with real credentials. Tests the complete provider chain including GWS OAuth token lifecycle.
-
+Or directly:
 ```bash
-make validate-local         # local Podman gateway
-./test/test-flow.sh local --full
+./test/test-flow.sh local          # default mode
+./test/test-flow.sh local --ci     # ci mode
+./test/test-flow.sh kind --ci      # used in GitHub Actions
 ```
 
-Requires:
+### Default mode requirements
+
 - `openshell` gateway running locally (`brew services start openshell`)
 - `JIRA_API_TOKEN`, `JIRA_URL`, `JIRA_USERNAME` for Atlassian
 - `gcloud auth application-default login` for Vertex AI
 - `gws auth login` for Google Workspace
 - `GITHUB_TOKEN` for GitHub
 
-These flows do not run in GitHub Actions today — they require personal OAuth credentials. Future work: service accounts for Vertex AI and Atlassian can run in GHA; GWS would need a dedicated service account.
+Default mode does not run in GitHub Actions today — it requires personal OAuth
+credentials. Future: service accounts for Vertex AI and Atlassian can run in GHA;
+GWS would need a dedicated OAuth service account.
 
-### What each flow tests
+### What each mode tests
 
-| Check | No-cred (CI) | Full (local) |
-|-------|-------------|--------------|
+| Check | ci | default |
+|-------|----|---------|
 | Gateway deploy and rollout | ✓ | ✓ |
 | Sandbox create / exec / delete | ✓ | ✓ |
 | Provider registration | — | ✓ |

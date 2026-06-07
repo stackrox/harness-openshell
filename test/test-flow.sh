@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
-# End-to-end validation for local, kind, and OCP flows.
+# End-to-end validation. Validation mode (default/ci) is independent of
+# the gateway target (local/kind/ocp).
+#
+# Validation modes:
+#   default  Expects user credentials (GITHUB_TOKEN, JIRA_API_TOKEN, gcloud ADC,
+#            gws auth). Tests the full provider chain including GWS token lifecycle.
+#   ci       No credentials required. Validates gateway deploy + sandbox lifecycle
+#            only. Suitable for GitHub Actions.
 #
 # Usage:
-#   ./test-flow.sh local                 # quick: deploy + providers + teardown
-#   ./test-flow.sh local --full          # full: + sandbox + verify integrations
-#   ./test-flow.sh local --full --no-providers --profile=ci   # CI mode (no creds)
-#   ./test-flow.sh kind [--full]                 # kind cluster variants
-#   ./test-flow.sh ocp [--full]                  # OCP variants
-#   ./test-flow.sh ocp --full --reuse-gateway   # skip deploy/teardown-k8s (~50s vs ~130s)
-#   ./test-flow.sh all [--full]                  # all platforms
+#   ./test-flow.sh local                 # default mode, local gateway
+#   ./test-flow.sh local --ci            # ci mode, local gateway
+#   ./test-flow.sh kind                  # default mode, kind cluster
+#   ./test-flow.sh kind --ci             # ci mode, kind cluster (used in GHA)
+#   ./test-flow.sh ocp [--ci]            # OCP variants
+#   ./test-flow.sh ocp --reuse-gateway   # skip deploy/teardown (~50s vs ~130s)
+#   ./test-flow.sh all [--ci]            # all gateways
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,6 +37,7 @@ PROFILE="default"
 
 for arg in "$@"; do
   case "$arg" in
+    --ci)             NO_PROVIDERS=true; PROFILE="ci"; FULL=true ;;
     --full)           FULL=true ;;
     --reuse-gateway)  REUSE_GATEWAY=true ;;
     --no-providers)   NO_PROVIDERS=true ;;
@@ -40,7 +48,7 @@ for arg in "$@"; do
 done
 
 if [[ -z "$TARGET" ]]; then
-  echo "Usage: $0 <local|kind|ocp|all> [--full] [--reuse-gateway]"
+  echo "Usage: $0 <local|kind|ocp|all> [--ci] [--full] [--reuse-gateway]"
   exit 1
 fi
 

@@ -19,7 +19,8 @@ DEV_LAUNCHER_IMAGE := $(DEV_REGISTRY):$(DEV_TAG)-launcher
 
 .PHONY: cli sandbox push-sandbox cli-launcher launcher push-launcher \
         vet lint test-unit test test-local test-kind test-ocp test-all validate \
-        validate-local validate-kind dev-sandbox dev-launcher validate-dev clean help
+        validate-local validate-local-ci validate-kind validate-kind-ci \
+        dev-sandbox dev-launcher validate-dev clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
@@ -151,8 +152,9 @@ validate-dev: cli dev-sandbox dev-launcher
 	@echo "=== Integration: OCP (full) ==="
 	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) LAUNCHER_IMAGE=$(DEV_LAUNCHER_IMAGE) ./test/test-flow.sh ocp --full
 
-## Local validate: unit tests + bats + full local integration with GWS lifecycle test.
-## Requires: openshell gateway running locally (brew services start openshell).
+## Default validation: unit tests + bats + full integration with user credentials.
+## Requires: openshell gateway running locally (brew services start openshell),
+## JIRA_API_TOKEN, gcloud ADC, gws auth login.
 validate-local: cli
 	@echo "=== Unit tests ==="
 	CGO_ENABLED=0 go test ./...
@@ -161,18 +163,38 @@ validate-local: cli
 	@echo "=== Bats ==="
 	bats test/preflight.bats
 	@echo ""
-	@echo "=== Integration: local (full, with GWS) ==="
+	@echo "=== Integration: local gateway, default mode ==="
 	./test/test-flow.sh local --full
 
-## kind validate: unit tests + full kind integration with GWS lifecycle test.
+## CI validation: unit tests + integration without credentials (local gateway).
+## Requires: openshell gateway running locally only.
+validate-local-ci: cli
+	@echo "=== Unit tests ==="
+	CGO_ENABLED=0 go test ./...
+	cd sandbox/launcher && go test ./...
+	@echo ""
+	@echo "=== Integration: local gateway, ci mode ==="
+	./test/test-flow.sh local --ci
+
+## Default validation on kind: unit tests + full integration with user credentials.
 ## Requires: kind create cluster --name openshell
 validate-kind: cli
 	@echo "=== Unit tests ==="
 	CGO_ENABLED=0 go test ./...
 	cd sandbox/launcher && go test ./...
 	@echo ""
-	@echo "=== Integration: kind (full, with GWS) ==="
+	@echo "=== Integration: kind gateway, default mode ==="
 	./test/test-flow.sh kind --full
+
+## CI validation on kind: unit tests + integration without credentials.
+## Requires: kind create cluster --name openshell
+validate-kind-ci: cli
+	@echo "=== Unit tests ==="
+	CGO_ENABLED=0 go test ./...
+	cd sandbox/launcher && go test ./...
+	@echo ""
+	@echo "=== Integration: kind gateway, ci mode ==="
+	./test/test-flow.sh kind --ci
 
 ## ── Convenience targets ───────────────────────────────────────────────
 

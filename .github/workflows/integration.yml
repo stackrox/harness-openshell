@@ -31,8 +31,8 @@ jobs:
           done
           openshell gateway list
 
-      - name: Run integration tests
-        run: ./test/test-flow.sh local --full --no-providers --profile=ci
+      - name: Run integration tests (ci mode — no credentials)
+        run: ./test/test-flow.sh local --ci
 
       - name: Export gateway logs
         if: always()
@@ -72,8 +72,8 @@ jobs:
       - name: Deploy gateway to kind
         run: ./harness deploy kind
 
-      - name: Run integration tests
-        run: ./test/test-flow.sh kind --full --no-providers --profile=ci
+      - name: Run integration tests (ci mode — no credentials)
+        run: ./test/test-flow.sh kind --ci
 
       - name: Export logs
         if: always()
