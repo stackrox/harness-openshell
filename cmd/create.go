@@ -49,6 +49,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 			if sandboxName != "" {
 				cfg.Name = sandboxName
 			}
+			injectAtlassianEnv(cfg)
 
 			status.Section("Profile")
 			fmt.Printf("  Name: %s\n", cfg.Name)

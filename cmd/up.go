@@ -120,6 +120,7 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 	if sandboxName != "" {
 		cfg.Name = sandboxName
 	}
+	injectAtlassianEnv(cfg)
 
 	// Resolve sandbox image for remote deploys.
 	// SANDBOX_IMAGE env var overrides everything (dev/CI builds).
@@ -300,6 +301,7 @@ func upLocal(opts upLocalOpts) error {
 	if opts.sandboxName != "" {
 		cfg.Name = opts.sandboxName
 	}
+	injectAtlassianEnv(cfg)
 
 	// Resolve Dockerfile path relative to harnessDir
 	if cfg.From != "" && !filepath.IsAbs(cfg.From) {
@@ -385,6 +387,22 @@ func upLocal(opts upLocalOpts) error {
 		time.Sleep(opts.retrySleep)
 	}
 	return nil // unreachable but required by compiler
+}
+
+// injectAtlassianEnv adds JIRA_URL and JIRA_USERNAME from the local environment
+// into cfg.Env so they land in sandbox.env. Interim until Phase 2 payload renderer
+// ships; remove when harness create renders payload/env.sh instead.
+func injectAtlassianEnv(cfg *profile.Config) {
+	if cfg.Env == nil {
+		cfg.Env = make(map[string]string)
+	}
+	for _, key := range []string{"JIRA_URL", "JIRA_USERNAME"} {
+		if _, exists := cfg.Env[key]; !exists {
+			if v := os.Getenv(key); v != "" {
+				cfg.Env[key] = v
+			}
+		}
+	}
 }
 
 func launcherEnv(gatewayEndpoint, sandboxImage string) []map[string]any {
