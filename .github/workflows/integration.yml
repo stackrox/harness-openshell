@@ -62,17 +62,12 @@ jobs:
       - name: Install openshell
         run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
 
-      - name: Install kind
-        run: |
-          curl -Lo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
-          chmod +x /usr/local/bin/kind
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: openshell
 
       - name: Install helm
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-      - name: Create kind cluster
-        run: kind create cluster --name openshell --wait 60s
+        uses: azure/setup-helm@v4
 
       - name: Deploy gateway to kind
         run: ./harness deploy kind
