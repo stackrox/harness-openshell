@@ -31,7 +31,7 @@ credentials:
         - https://www.googleapis.com/auth/gmail.readonly
         - https://www.googleapis.com/auth/calendar.readonly
         - https://www.googleapis.com/auth/drive.readonly
-        - https://www.googleapis.com/auth/tasks.readonly
+        - https://www.googleapis.com/auth/tasks
       refresh_before_seconds: 300
       max_lifetime_seconds: 3600
       material:
@@ -79,7 +79,7 @@ endpoints:
   - host: tasks.googleapis.com
     port: 443
     protocol: rest
-    access: read-only
+    access: read-write
     enforcement: enforce
   - host: oauth2.googleapis.com
     port: 443
@@ -95,3 +95,5 @@ endpoints:
 binaries:
   - /usr/local/bin/gws
   - /sandbox/.local/bin/gws
+  - /usr/bin/curl
+  - /usr/local/bin/curl
