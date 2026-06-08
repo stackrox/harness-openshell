@@ -17,6 +17,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install bats
+        run: sudo apt-get install -y bats
+
       - name: Install openshell
         run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
 
@@ -52,6 +55,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      - name: Install bats
+        run: sudo apt-get install -y bats
 
       - name: Install openshell
         run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
