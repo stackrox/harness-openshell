@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/robbycochran/harness-openshell/internal/profile"
 )
 
 func TestParseConfig_Full(t *testing.T) {
@@ -21,7 +23,7 @@ ANTHROPIC_BASE_URL = "https://inference.local"
 JIRA_URL = "https://example.atlassian.net"
 `), 0o644)
 
-	cfg, err := parseConfig(path)
+	cfg, err := profile.ParseFile(path)
 	if err != nil {
 		t.Fatalf("parseConfig: %v", err)
 	}
@@ -58,7 +60,7 @@ func TestParseConfig_Defaults(t *testing.T) {
 from = "quay.io/test/sandbox:latest"
 `), 0o644)
 
-	cfg, err := parseConfig(path)
+	cfg, err := profile.ParseFile(path)
 	if err != nil {
 		t.Fatalf("parseConfig: %v", err)
 	}
@@ -77,7 +79,7 @@ from = "quay.io/test/sandbox:latest"
 }
 
 func TestParseConfig_Missing(t *testing.T) {
-	_, err := parseConfig("/nonexistent/config.toml")
+	_, err := profile.ParseFile("/nonexistent/config.toml")
 	if err == nil {
 		t.Error("expected error for missing file")
 	}
@@ -88,7 +90,7 @@ func TestParseConfig_Invalid(t *testing.T) {
 	path := filepath.Join(dir, "config.toml")
 	os.WriteFile(path, []byte(`not valid toml {{{{`), 0o644)
 
-	_, err := parseConfig(path)
+	_, err := profile.ParseFile(path)
 	if err == nil {
 		t.Error("expected error for invalid TOML")
 	}

@@ -10,38 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	"github.com/robbycochran/harness-openshell/internal/profile"
 )
-
-type Config struct {
-	Name      string            `toml:"name"`
-	From      string            `toml:"from"`
-	Command   string            `toml:"command"`
-	Keep      *bool             `toml:"keep"`
-	Providers []string          `toml:"providers"`
-	Env       map[string]string `toml:"env"`
-}
-
-func (c *Config) KeepSandbox() bool {
-	if c.Keep == nil {
-		return true
-	}
-	return *c.Keep
-}
-
-func parseConfig(path string) (*Config, error) {
-	var cfg Config
-	if _, err := toml.DecodeFile(path, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", path, err)
-	}
-	if cfg.Name == "" {
-		cfg.Name = "agent"
-	}
-	if cfg.Command == "" {
-		cfg.Command = "claude --bare"
-	}
-	return &cfg, nil
-}
 
 func configureGateway(endpoint, mtlsDir, cli string) error {
 	requiredCerts := []string{"ca.crt", "tls.crt", "tls.key"}
@@ -146,7 +116,7 @@ func stageFiles(harnessDir string) error {
 	return nil
 }
 
-func createSandbox(cfg *Config, providers []string, cli string) error {
+func createSandbox(cfg *profile.Config, providers []string, cli string) error {
 	fmt.Println("\n=== Creating sandbox ===")
 	for attempt := 1; attempt <= 5; attempt++ {
 		args := []string{"sandbox", "create", "--name", cfg.Name, "--no-tty"}
@@ -243,7 +213,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg, err := parseConfig(configPath)
+	cfg, err := profile.ParseFile(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
