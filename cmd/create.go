@@ -143,7 +143,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				providers:  registered,
 				noTTY:      true,
 				retrySleep: 5 * time.Second,
-				sandboxCmd: []string{"bash", "/sandbox/.config/openshell/run.sh"},
+				sandboxCmd: []string{"true"},
 				payloadDir: payloadDir,
 				onSuccess: func(n string) {
 					fmt.Println()

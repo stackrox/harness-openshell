@@ -43,24 +43,24 @@ func createSandbox(opts sandboxOpts) error {
 		}
 	}
 
-	// Determine upload source: pre-rendered payload or legacy profile staging.
-	uploadSrc := opts.payloadDir
-	uploadDst := "/sandbox/.config/openshell"
-	var tmpParent string
-	if uploadSrc == "" {
-		var err error
-		tmpParent, err = os.MkdirTemp("", "harness-")
-		if err != nil {
-			return fmt.Errorf("creating staging dir: %w", err)
+	// Stage upload directory. openshell --upload copies the source directory
+	// BY NAME into the destination, so we always create a subdirectory called
+	// "openshell" and upload to /sandbox/.config → /sandbox/.config/openshell/*.
+	tmpParent, err := os.MkdirTemp("", "harness-")
+	if err != nil {
+		return fmt.Errorf("creating staging dir: %w", err)
+	}
+	defer os.RemoveAll(tmpParent)
+	uploadDir := filepath.Join(tmpParent, "openshell")
+
+	if opts.payloadDir != "" {
+		if err := os.Rename(opts.payloadDir, uploadDir); err != nil {
+			return fmt.Errorf("staging payload: %w", err)
 		}
-		uploadSrc = filepath.Join(tmpParent, "openshell")
-		uploadDst = "/sandbox/.config"
-		if err := profile.StageHarnessDir(cfg, uploadSrc); err != nil {
+	} else {
+		if err := profile.StageHarnessDir(cfg, uploadDir); err != nil {
 			return fmt.Errorf("staging files: %w", err)
 		}
-	}
-	if tmpParent != "" {
-		defer os.RemoveAll(tmpParent)
 	}
 
 	// Create sandbox with retry loop (up to 5 attempts).
@@ -71,8 +71,8 @@ func createSandbox(opts sandboxOpts) error {
 			Providers: opts.providers,
 			TTY:       !opts.noTTY,
 			Keep:      cfg.KeepSandbox(),
-			UploadSrc: uploadSrc,
-			UploadDst: uploadDst,
+			UploadSrc: uploadDir,
+			UploadDst: "/sandbox/.config",
 			Command:   opts.sandboxCmd,
 		})
 		if err == nil {

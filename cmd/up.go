@@ -329,7 +329,12 @@ func upLocal(opts upLocalOpts) error {
 	// 7. Create sandbox
 	fmt.Println()
 	fmt.Println("=== Creating sandbox ===")
-	sandboxCmd := []string{"bash", "/sandbox/.config/openshell/run.sh"}
+	var sandboxCmd []string
+	if noTTY {
+		sandboxCmd = []string{"true"}
+	} else {
+		sandboxCmd = []string{"bash", "/sandbox/.config/openshell/run.sh"}
+	}
 
 	return createSandbox(sandboxOpts{
 		harnessDir: opts.harnessDir,
