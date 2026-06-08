@@ -67,9 +67,17 @@ echo ""
 
 kubectl create namespace openshell --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
 
-# Set up pull secret for dev images if docker credentials exist
-if [[ -f "$HOME/.docker/config.json" ]]; then
-  QUAY_PASS=$(python3 -c "
+# Pre-load dev sandbox image into kind (avoids pull secrets and ImagePullBackOff).
+# SANDBOX_IMAGE is set by the Makefile for dev builds; CI uses the public community image.
+if [[ -n "${SANDBOX_IMAGE:-}" ]]; then
+  echo "  Pre-loading image: $SANDBOX_IMAGE"
+  if docker image inspect "$SANDBOX_IMAGE" &>/dev/null; then
+    kind load docker-image "$SANDBOX_IMAGE" --name "$CLUSTER_NAME" 2>/dev/null || true
+  else
+    echo "  Image not in local docker — kind will pull at sandbox creation time"
+    # Fall back to pull secret for private registries
+    if [[ -f "$HOME/.docker/config.json" ]]; then
+      QUAY_PASS=$(python3 -c "
 import json, base64, pathlib, sys
 try:
     d = json.loads(pathlib.Path('$HOME/.docker/config.json').read_text())
@@ -77,12 +85,13 @@ try:
 except Exception:
     sys.exit(1)
 " 2>/dev/null) || true
-
-  if [[ -n "${QUAY_PASS:-}" ]]; then
-    kubectl create secret docker-registry quay-pull \
-      --docker-server=quay.io --docker-username=rcochran \
-      --docker-password="$QUAY_PASS" \
-      -n openshell --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+      if [[ -n "${QUAY_PASS:-}" ]]; then
+        kubectl create secret docker-registry quay-pull \
+          --docker-server=quay.io --docker-username=rcochran \
+          --docker-password="$QUAY_PASS" \
+          -n openshell --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+      fi
+    fi
   fi
 fi
 

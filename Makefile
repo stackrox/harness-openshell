@@ -105,11 +105,12 @@ dev-test-local: cli ci
 
 ## Kind: unit + bats + kind full (self-contained lifecycle)
 ## Creates/destroys its own kind cluster. Never touches your OCP kubectl context.
-## Builds dev sandbox image to quay.io (kind can't pull private ghcr.io).
+## Builds sandbox image locally and pre-loads into kind (no registry push needed).
 ## Use KEEP=1 to keep the cluster after tests (for debugging).
-dev-test-kind: cli ci dev-sandbox
+dev-test-kind: cli ci
+	docker build -t $(DEV_SANDBOX_IMAGE) sandbox/
 	@echo ""
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) SANDBOX_PULL_SECRET=quay-pull ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
+	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
 
 ## Remote (OCP): unit + bats + OCP full + OCP CI
 ## Requires: KUBECONFIG set, provider credentials.
