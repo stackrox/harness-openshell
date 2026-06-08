@@ -107,22 +107,23 @@ dev-test-local: cli ci
 
 ## Kind: unit + bats + kind full (self-contained lifecycle)
 ## Creates/destroys its own kind cluster. Never touches your OCP kubectl context.
+## Builds dev sandbox image to quay.io (kind can't pull private ghcr.io).
 ## Use KEEP=1 to keep the cluster after tests (for debugging).
-dev-test-kind: cli ci
+dev-test-kind: cli ci dev-sandbox
 	@echo ""
-	./test/kind-lifecycle.sh $(if $(KEEP),--keep)
+	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) SANDBOX_PULL_SECRET=quay-pull ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
 
 ## Remote (OCP): unit + bats + OCP full + OCP CI
 ## Requires: KUBECONFIG set, provider credentials.
-## If using dev images, run: make dev-sandbox dev-launcher first.
-dev-test-remote: cli ci
+## Builds dev images to quay.io (OCP can't pull private ghcr.io).
+dev-test-remote: cli ci dev-sandbox dev-launcher
 	@test -n "$${KUBECONFIG}" || { echo "ERROR: Set KUBECONFIG for OCP (e.g. export KUBECONFIG=infracluster/kubeconfig)"; exit 1; }
 	@echo ""
 	@echo "=== Integration: OCP (full) ==="
-	./test/test-flow.sh ocp --full
+	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) LAUNCHER_IMAGE=$(DEV_LAUNCHER_IMAGE) ./test/test-flow.sh ocp --full
 	@echo ""
 	@echo "=== Integration: OCP (ci) ==="
-	./test/test-flow.sh ocp --ci
+	LAUNCHER_IMAGE=$(DEV_LAUNCHER_IMAGE) ./test/test-flow.sh ocp --ci
 
 ## All: local + kind + remote
 dev-test-all: dev-test-local dev-test-kind dev-test-remote
