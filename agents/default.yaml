@@ -1,0 +1,26 @@
+# Default agent configuration.
+#
+# Usage:
+#   harness up                         # uses agents/default.yaml
+#   harness up --agent research        # uses agents/research.yaml
+
+name: agent
+image: ghcr.io/robbycochran/harness-openshell:sandbox
+entrypoint: claude --bare
+tty: true
+
+providers:
+  - type: github
+  - type: vertex-local
+  - type: atlassian
+    config:
+      JIRA_URL: ${JIRA_URL}
+      JIRA_USERNAME: ${JIRA_USERNAME}
+  - type: gws
+
+# Non-secret env vars injected into sandbox.
+# Proxy config: gateway routes inference through its local proxy.
+env:
+  ANTHROPIC_BASE_URL: https://inference.local
+  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
+  CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"

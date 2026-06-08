@@ -16,14 +16,15 @@ type ProviderRef struct {
 }
 
 type AgentConfig struct {
-	Name       string        `yaml:"name"`
-	Providers  []ProviderRef `yaml:"providers"`
-	Task       string        `yaml:"task,omitempty"`
-	Entrypoint string        `yaml:"entrypoint,omitempty"`
-	TTY        *bool         `yaml:"tty,omitempty"`
-	Policy     string        `yaml:"policy,omitempty"`
-	Image      string        `yaml:"image,omitempty"`
-	Include    []string      `yaml:"include,omitempty"`
+	Name       string            `yaml:"name"`
+	Providers  []ProviderRef     `yaml:"providers"`
+	Env        map[string]string `yaml:"env,omitempty"`
+	Task       string            `yaml:"task,omitempty"`
+	Entrypoint string            `yaml:"entrypoint,omitempty"`
+	TTY        *bool             `yaml:"tty,omitempty"`
+	Policy     string            `yaml:"policy,omitempty"`
+	Image      string            `yaml:"image,omitempty"`
+	Include    []string          `yaml:"include,omitempty"`
 }
 
 func (c *AgentConfig) NoTTY() bool {
@@ -74,6 +75,9 @@ func Parse(data []byte) (*AgentConfig, error) {
 
 func (c *AgentConfig) BuildEnvSh() string {
 	env := make(map[string]string)
+	for k, v := range c.Env {
+		env[k] = v
+	}
 	for _, p := range c.Providers {
 		for k, v := range p.Config {
 			env[k] = v

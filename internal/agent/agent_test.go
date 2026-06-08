@@ -169,6 +169,70 @@ func TestBuildEnvSh_Empty(t *testing.T) {
 	}
 }
 
+func TestBuildEnvSh_TopLevelEnv(t *testing.T) {
+	cfg := &AgentConfig{
+		Env: map[string]string{
+			"ANTHROPIC_BASE_URL": "https://inference.local",
+			"ANTHROPIC_API_KEY":  "sk-proxy",
+		},
+		Providers: []ProviderRef{
+			{Type: "atlassian", Config: map[string]string{"JIRA_URL": "https://jira.example.com"}},
+		},
+	}
+	env := cfg.BuildEnvSh()
+	if !strings.Contains(env, `export ANTHROPIC_BASE_URL="https://inference.local"`) {
+		t.Errorf("missing top-level env var in:\n%s", env)
+	}
+	if !strings.Contains(env, `export JIRA_URL="https://jira.example.com"`) {
+		t.Errorf("missing provider config var in:\n%s", env)
+	}
+}
+
+func TestBuildEnvSh_ProviderOverridesTopLevel(t *testing.T) {
+	cfg := &AgentConfig{
+		Env:       map[string]string{"FOO": "from-top"},
+		Providers: []ProviderRef{{Type: "test", Config: map[string]string{"FOO": "from-provider"}}},
+	}
+	env := cfg.BuildEnvSh()
+	if !strings.Contains(env, `"from-provider"`) {
+		t.Errorf("provider config should override top-level env:\n%s", env)
+	}
+}
+
+func TestParseFile_AgentYAML(t *testing.T) {
+	dir := t.TempDir()
+	yamlContent := `name: test-agent
+image: ghcr.io/test:latest
+entrypoint: claude --bare
+tty: true
+providers:
+  - type: github
+  - type: atlassian
+    config:
+      JIRA_URL: https://jira.example.com
+env:
+  ANTHROPIC_BASE_URL: https://inference.local
+`
+	os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte(yamlContent), 0o644)
+
+	cfg, err := ParseFile(filepath.Join(dir, "agent.yaml"))
+	if err != nil {
+		t.Fatalf("ParseFile: %v", err)
+	}
+	if cfg.Name != "test-agent" {
+		t.Errorf("Name = %q", cfg.Name)
+	}
+	if cfg.Image != "ghcr.io/test:latest" {
+		t.Errorf("Image = %q", cfg.Image)
+	}
+	if cfg.Env["ANTHROPIC_BASE_URL"] != "https://inference.local" {
+		t.Errorf("Env ANTHROPIC_BASE_URL = %q", cfg.Env["ANTHROPIC_BASE_URL"])
+	}
+	if len(cfg.Providers) != 2 {
+		t.Errorf("Providers = %d, want 2", len(cfg.Providers))
+	}
+}
+
 func TestBuildEnvSh_Sorted(t *testing.T) {
 	cfg := &AgentConfig{
 		Providers: []ProviderRef{
