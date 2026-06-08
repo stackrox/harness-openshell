@@ -197,23 +197,6 @@ func createViaLauncher(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatew
 
 // createDirect deploys a sandbox via the openshell CLI (no launcher needed).
 func createDirect(harnessDir string, gw gateway.Gateway, profileName string, cfg *profile.Config, registered []string) error {
-	if cfg.From != "" && !filepath.IsAbs(cfg.From) {
-		candidate := filepath.Join(harnessDir, cfg.From)
-		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-			cfg.From = candidate
-		}
-	}
-
-	tmpParent, err := os.MkdirTemp("", "harness-")
-	if err != nil {
-		return fmt.Errorf("creating staging dir: %w", err)
-	}
-	defer os.RemoveAll(tmpParent)
-	harnessUploadDir := filepath.Join(tmpParent, "openshell")
-	if err := profile.StageHarnessDir(cfg, harnessUploadDir); err != nil {
-		return fmt.Errorf("staging files: %w", err)
-	}
-
 	var sandboxCmd []string
 	if cfg.Startup != "" {
 		sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". %s", cfg.Startup)}
@@ -221,32 +204,19 @@ func createDirect(harnessDir string, gw gateway.Gateway, profileName string, cfg
 		sandboxCmd = []string{"true"}
 	}
 
-	for attempt := 1; attempt <= 5; attempt++ {
-		err := gw.SandboxCreate(gateway.SandboxCreateOpts{
-			Name:      cfg.Name,
-			From:      cfg.From,
-			Providers: registered,
-			TTY:       false,
-			Keep:      cfg.KeepSandbox(),
-			UploadSrc: harnessUploadDir,
-			UploadDst: "/sandbox/.config",
-			Command:   sandboxCmd,
-		})
-		if err == nil {
+	return createSandbox(sandboxOpts{
+		harnessDir: harnessDir,
+		gw:         gw,
+		cfg:        cfg,
+		providers:  registered,
+		noTTY:      true,
+		retrySleep: 5 * time.Second,
+		sandboxCmd: sandboxCmd,
+		onSuccess: func(name string) {
 			fmt.Println()
-			status.OKf("Sandbox created: %s — connect with: harness connect %s", cfg.Name, cfg.Name)
-			return nil
-		}
-
-		fmt.Printf("  Attempt %d failed: %v, retrying in 5s...\n", attempt, err)
-		gw.SandboxDelete(cfg.Name)
-
-		if attempt == 5 {
-			return fmt.Errorf("sandbox create failed after 5 attempts: %w", err)
-		}
-		time.Sleep(5 * time.Second)
-	}
-	return nil
+			status.OKf("Sandbox created: %s — connect with: harness connect %s", name, name)
+		},
+	})
 }
 
 func providerInList(name string, providers []string) bool {

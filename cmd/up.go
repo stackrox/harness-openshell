@@ -303,11 +303,11 @@ func upLocal(opts upLocalOpts) error {
 	}
 	injectAtlassianEnv(cfg)
 
-	// SANDBOX_IMAGE env var overrides the profile's image (dev/CI builds).
+	// Resolve image before printing so the log shows the effective path.
+	// createSandbox resolves idempotently, so this won't double-resolve.
 	if envImage := os.Getenv("SANDBOX_IMAGE"); envImage != "" {
 		cfg.From = envImage
 	} else if cfg.From != "" && !filepath.IsAbs(cfg.From) {
-		// Resolve Dockerfile path relative to harnessDir
 		candidate := filepath.Join(opts.harnessDir, cfg.From)
 		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
 			cfg.From = candidate
@@ -333,21 +333,7 @@ func upLocal(opts upLocalOpts) error {
 		status.Warn("no providers available — run: harness providers")
 	}
 
-	// 5. Stage files
-	// The upload preserves the source dir name as a subdirectory at the destination.
-	// startup.sh expects files at /sandbox/.config/openshell/sandbox.env, so the
-	// staging dir must be named "openshell".
-	tmpParent, err := os.MkdirTemp("", "harness-")
-	if err != nil {
-		return fmt.Errorf("creating staging dir: %w", err)
-	}
-	defer os.RemoveAll(tmpParent)
-	harnessUploadDir := filepath.Join(tmpParent, "openshell")
-	if err := profile.StageHarnessDir(cfg, harnessUploadDir); err != nil {
-		return fmt.Errorf("staging files: %w", err)
-	}
-
-	// 6. Build command
+	// 5. Build command
 	var sandboxCmd []string
 	if cfg.Startup != "" {
 		if opts.noTTY {
@@ -363,33 +349,18 @@ func upLocal(opts upLocalOpts) error {
 		}
 	}
 
-	// 7. Create sandbox with retry
+	// 6. Create sandbox
 	fmt.Println()
 	fmt.Println("=== Creating sandbox ===")
-	for attempt := 1; attempt <= 5; attempt++ {
-		err := gw.SandboxCreate(gateway.SandboxCreateOpts{
-			Name:      cfg.Name,
-			From:      cfg.From,
-			Providers: registered,
-			TTY:       !opts.noTTY,
-			Keep:      cfg.KeepSandbox(),
-			UploadSrc: harnessUploadDir,
-			UploadDst: "/sandbox/.config",
-			Command:   sandboxCmd,
-		})
-		if err == nil {
-			return nil
-		}
-
-		fmt.Printf("  Attempt %d failed: %v, retrying in 5s...\n", attempt, err)
-		gw.SandboxDelete(cfg.Name) // best-effort cleanup
-
-		if attempt == 5 {
-			return fmt.Errorf("sandbox create failed after 5 attempts: %w", err)
-		}
-		time.Sleep(opts.retrySleep)
-	}
-	return nil // unreachable but required by compiler
+	return createSandbox(sandboxOpts{
+		harnessDir: opts.harnessDir,
+		gw:         gw,
+		cfg:        cfg,
+		providers:  registered,
+		noTTY:      opts.noTTY,
+		retrySleep: opts.retrySleep,
+		sandboxCmd: sandboxCmd,
+	})
 }
 
 // injectAtlassianEnv adds JIRA_URL and JIRA_USERNAME from the local environment
