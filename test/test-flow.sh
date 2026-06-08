@@ -158,7 +158,8 @@ sandbox_verify() {
   printf "  ✓ %-35s\n" "sandbox ready"
   ((PASS++))
 
-  # Basic exec works
+  # Basic exec works (brief wait for SSH readiness after Ready state)
+  sleep 2
   step "sandbox: exec" "$CLI" sandbox exec --name "$name" -- echo "hello"
 
   if $NO_PROVIDERS; then
