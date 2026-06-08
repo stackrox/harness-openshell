@@ -100,8 +100,11 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 	kc := k8s.New("", namespace)
 	clusterRunner := k8s.New("", "")
 
-	// 1. Ensure gateway
-	if err := gw.InferenceGet(); err != nil {
+	// 1. Ensure gateway and namespace
+	gwReachable := gw.InferenceGet() == nil
+	_, nsErr := kc.RunKubectl(ctx, "get", "namespace", namespace)
+	nsExists := nsErr == nil
+	if !gwReachable || !nsExists {
 		if gwCfg == nil {
 			return fmt.Errorf("no active gateway and no gateway config — use: harness deploy ocp")
 		}
