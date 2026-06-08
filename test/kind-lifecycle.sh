@@ -29,10 +29,12 @@ done
 
 cleanup() {
   local rc=$?
+  # Deregister kind gateway from openshell CLI so it doesn't leak into OCP sessions
+  openshell gateway remove openshell-kind 2>/dev/null || true
   if $KEEP_CLUSTER; then
     echo ""
     echo "Cluster kept: $CLUSTER_NAME"
-    echo "  KUBECONFIG=$KIND_KUBECONFIG kubectl get nodes"
+    echo "  KUBECONFIG=$KIND_KUBECONFIG OPENSHELL_NAMESPACE=openshell-kind-test kubectl get nodes"
     echo "  kind delete cluster --name $CLUSTER_NAME"
   else
     echo ""
@@ -48,6 +50,7 @@ trap cleanup EXIT
 
 KIND_KUBECONFIG=$(mktemp /tmp/kind-${CLUSTER_NAME}-XXXXXX.kubeconfig)
 export KUBECONFIG="$KIND_KUBECONFIG"
+export OPENSHELL_NAMESPACE="openshell-kind-test"
 
 echo "=== kind cluster lifecycle ==="
 echo "  Cluster:    $CLUSTER_NAME"
@@ -65,7 +68,7 @@ echo ""
 
 # ── Pre-test setup ──────────────────────────────────────────────────
 
-kubectl create namespace openshell --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+kubectl create namespace "$OPENSHELL_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
 
 # Pre-load dev sandbox image into kind (avoids pull secrets and ImagePullBackOff).
 # SANDBOX_IMAGE is set by the Makefile for dev builds; CI uses the public community image.
