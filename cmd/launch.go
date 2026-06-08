@@ -63,16 +63,8 @@ func runLaunch(cli string) error {
 	}
 	fmt.Printf("  Payload: %s\n", payloadDir)
 
-	if err := launchCreateSandbox(agentCfg, registered, cli); err != nil {
+	if err := launchCreateSandbox(agentCfg, registered, payloadDir, cli); err != nil {
 		return err
-	}
-
-	if err := launchUploadPayload(agentCfg.Name, payloadDir, cli); err != nil {
-		return fmt.Errorf("upload failed: %w", err)
-	}
-
-	if err := launchSetupEnv(agentCfg.Name, cli); err != nil {
-		return fmt.Errorf("env setup failed: %w", err)
 	}
 
 	fmt.Printf("\nSandbox '%s' is ready.\n", agentCfg.Name)
@@ -163,8 +155,11 @@ func checkProviders(providers []string, cli string) []string {
 	return registered
 }
 
-func launchCreateSandbox(cfg *agent.AgentConfig, providers []string, cli string) error {
+func launchCreateSandbox(cfg *agent.AgentConfig, providers []string, payloadDir, cli string) error {
 	fmt.Println("\n=== Creating sandbox ===")
+	envInit := ". /sandbox/.config/openshell/sandbox.env 2>/dev/null && " +
+		"cat /sandbox/.config/openshell/sandbox.env >> /sandbox/.bashrc 2>/dev/null; " +
+		"gh auth setup-git 2>/dev/null; true"
 	for attempt := 1; attempt <= 5; attempt++ {
 		args := []string{"sandbox", "create", "--name", cfg.Name, "--no-tty"}
 		if cfg.Image != "" {
@@ -173,7 +168,8 @@ func launchCreateSandbox(cfg *agent.AgentConfig, providers []string, cli string)
 		for _, p := range providers {
 			args = append(args, "--provider", p)
 		}
-		args = append(args, "--", "true")
+		args = append(args, "--upload", payloadDir+":/sandbox/.config/openshell", "--no-git-ignore")
+		args = append(args, "--", "bash", "-c", envInit)
 
 		cmd := exec.Command(cli, args...)
 		cmd.Stdout = os.Stdout
@@ -196,24 +192,6 @@ func launchCreateSandbox(cfg *agent.AgentConfig, providers []string, cli string)
 	return nil
 }
 
-func launchUploadPayload(name, payloadDir, cli string) error {
-	fmt.Println("  Uploading payload...")
-	cmd := exec.Command(cli, "sandbox", "upload", name, payloadDir, "/sandbox/.config/openshell", "--no-git-ignore")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func launchSetupEnv(name, cli string) error {
-	fmt.Println("  Setting up sandbox environment...")
-	setupCmd := ". /sandbox/.config/openshell/sandbox.env 2>/dev/null && " +
-		"cat /sandbox/.config/openshell/sandbox.env >> /sandbox/.bashrc 2>/dev/null; " +
-		"gh auth setup-git 2>/dev/null; true"
-	cmd := exec.Command(cli, "sandbox", "exec", "--name", name, "--", "bash", "-c", setupCmd)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
 
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
