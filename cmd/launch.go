@@ -173,9 +173,7 @@ func launchCreateSandbox(cfg *agent.AgentConfig, providers []string, cli string)
 		for _, p := range providers {
 			args = append(args, "--provider", p)
 		}
-		args = append(args, "--", "bash", "-c",
-			". /sandbox/.config/openshell/sandbox.env 2>/dev/null && "+
-				"cat /sandbox/.config/openshell/sandbox.env >> /sandbox/.bashrc 2>/dev/null; true")
+		args = append(args, "--", "true")
 
 		cmd := exec.Command(cli, args...)
 		cmd.Stdout = os.Stdout
@@ -207,8 +205,11 @@ func launchUploadPayload(name, payloadDir, cli string) error {
 }
 
 func launchExecEntrypoint(name, cli string) error {
-	fmt.Println("  Starting entrypoint...")
-	cmd := exec.Command(cli, "sandbox", "exec", "--name", name, "--", "bash", "/sandbox/.config/openshell/run.sh")
+	fmt.Println("  Sourcing env + starting entrypoint...")
+	initCmd := ". /sandbox/.config/openshell/sandbox.env 2>/dev/null && " +
+		"cat /sandbox/.config/openshell/sandbox.env >> /sandbox/.bashrc 2>/dev/null; " +
+		"exec bash /sandbox/.config/openshell/run.sh"
+	cmd := exec.Command(cli, "sandbox", "exec", "--name", name, "--", "bash", "-c", initCmd)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
