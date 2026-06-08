@@ -1,13 +1,13 @@
-# Default agent configuration.
+# Hackathon demo agent -- runs the cross-tool status snapshot task.
 #
 # Usage:
-#   harness up                         # uses agents/default.yaml
-#   harness up --agent research        # uses agents/research.yaml
+#   harness up --local --agent demo
 
-name: agent
+name: demo
 image: ghcr.io/robbycochran/harness-openshell:sandbox
-entrypoint: claude --bare
-tty: true
+entrypoint: claude --bare -p
+task: demo/DEMO-TASK.md
+tty: false
 
 providers:
   - profile: github
@@ -18,8 +18,6 @@ providers:
       JIRA_USERNAME: ${JIRA_USERNAME}
   - profile: gws
 
-# Non-secret env vars injected into sandbox.
-# Proxy config: gateway routes inference through its local proxy.
 env:
   ANTHROPIC_BASE_URL: https://inference.local
   ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed

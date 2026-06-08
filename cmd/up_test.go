@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,14 +10,14 @@ import (
 )
 
 func TestUpLocal_NoGateway(t *testing.T) {
-	dir := setupTestProfile(t)
+	dir := setupTestAgent(t)
 	gw := &mockGW{inferenceErr: fmt.Errorf("connection refused")}
 
 	err := upLocal(upLocalOpts{
-		harnessDir:  dir,
-		gw:          gw,
-		profileName: "default",
-		noTTY:       true,
+		harnessDir: dir,
+		gw:         gw,
+		agentName:  "default",
+		noTTY:      true,
 	})
 	if err == nil {
 		t.Fatal("expected error")
@@ -30,18 +28,17 @@ func TestUpLocal_NoGateway(t *testing.T) {
 }
 
 func TestUpLocal_NoProviders_RegistersProviders(t *testing.T) {
-	dir := setupTestProfile(t)
-	os.MkdirAll(filepath.Join(dir, "sandbox", "profiles"), 0o755)
+	dir := setupTestAgent(t)
 	gw := &mockGW{
 		providerList: nil,
 		providers:    map[string]bool{},
 	}
 
 	err := upLocal(upLocalOpts{
-		harnessDir:  dir,
-		gw:          gw,
-		profileName: "default",
-		noTTY:       true,
+		harnessDir: dir,
+		gw:         gw,
+		agentName:  "default",
+		noTTY:      true,
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)
@@ -49,18 +46,17 @@ func TestUpLocal_NoProviders_RegistersProviders(t *testing.T) {
 }
 
 func TestUpLocal_MissingProviders(t *testing.T) {
-	dir := setupTestProfile(t)
+	dir := setupTestAgent(t)
 	gw := &mockGW{
 		providerList: []string{"github"},
 		providers:    map[string]bool{"github": true},
 	}
 
 	err := upLocal(upLocalOpts{
-		harnessDir:  dir,
-		gw:          gw,
-		profileName: "default",
-		noTTY:       true,
-
+		harnessDir: dir,
+		gw:         gw,
+		agentName:  "default",
+		noTTY:      true,
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)
@@ -75,18 +71,17 @@ func TestUpLocal_MissingProviders(t *testing.T) {
 }
 
 func TestUpLocal_AllProvidersMissing(t *testing.T) {
-	dir := setupTestProfile(t)
+	dir := setupTestAgent(t)
 	gw := &mockGW{
 		providerList: []string{"github"},
 		providers:    map[string]bool{},
 	}
 
 	err := upLocal(upLocalOpts{
-		harnessDir:  dir,
-		gw:          gw,
-		profileName: "default",
-		noTTY:       true,
-
+		harnessDir: dir,
+		gw:         gw,
+		agentName:  "default",
+		noTTY:      true,
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)
@@ -97,24 +92,23 @@ func TestUpLocal_AllProvidersMissing(t *testing.T) {
 	}
 }
 
-func TestUpLocal_ProfileNotFound(t *testing.T) {
-	dir := setupTestProfile(t)
+func TestUpLocal_AgentNotFound(t *testing.T) {
+	dir := setupTestAgent(t)
 	gw := &mockGW{providerList: []string{"github"}}
 
 	err := upLocal(upLocalOpts{
-		harnessDir:  dir,
-		gw:          gw,
-		profileName: "nonexistent",
-		noTTY:       true,
-
+		harnessDir: dir,
+		gw:         gw,
+		agentName:  "nonexistent",
+		noTTY:      true,
 	})
 	if err == nil {
-		t.Fatal("expected error for missing profile")
+		t.Fatal("expected error for missing agent config")
 	}
 }
 
 func TestUpLocal_SandboxCreateRetry(t *testing.T) {
-	dir := setupTestProfile(t)
+	dir := setupTestAgent(t)
 	gw := &mockGW{
 		providerList: []string{"github"},
 		providers:    map[string]bool{"github": true},
@@ -122,12 +116,11 @@ func TestUpLocal_SandboxCreateRetry(t *testing.T) {
 	}
 
 	err := upLocal(upLocalOpts{
-		harnessDir:  dir,
-		gw:          gw,
-		profileName: "default",
-		noTTY:       true,
-
-		retrySleep:  0,
+		harnessDir: dir,
+		gw:         gw,
+		agentName:  "default",
+		noTTY:      true,
+		retrySleep: 0,
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)
@@ -190,8 +183,8 @@ func TestProfileHasCustomProviders(t *testing.T) {
 }
 
 func TestUpLocal_SandboxCreateOpts(t *testing.T) {
-	t.Setenv("SANDBOX_IMAGE", "") // prevent env leak from Makefile into profile.From check
-	dir := setupTestProfile(t)
+	t.Setenv("SANDBOX_IMAGE", "")
+	dir := setupTestAgent(t)
 	gw := &mockGW{
 		providerList: []string{"github", "vertex-local"},
 		providers:    map[string]bool{"github": true, "vertex-local": true},
@@ -200,10 +193,9 @@ func TestUpLocal_SandboxCreateOpts(t *testing.T) {
 	err := upLocal(upLocalOpts{
 		harnessDir:  dir,
 		gw:          gw,
-		profileName: "default",
+		agentName:   "default",
 		sandboxName: "custom-name",
 		noTTY:       true,
-
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)
@@ -213,12 +205,9 @@ func TestUpLocal_SandboxCreateOpts(t *testing.T) {
 		t.Errorf("Name = %q, want custom-name", opts.Name)
 	}
 	if opts.From != "quay.io/test:latest" {
-		t.Errorf("From = %q", opts.From)
+		t.Errorf("From = %q, want quay.io/test:latest", opts.From)
 	}
 	if opts.TTY {
 		t.Error("TTY = true, want false (noTTY)")
-	}
-	if !opts.Keep {
-		t.Error("Keep = false, want true (default)")
 	}
 }

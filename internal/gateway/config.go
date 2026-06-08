@@ -56,7 +56,7 @@ type AddonsSection struct {
 }
 
 type ImagesSection struct {
-	Launcher string `toml:"launcher"`
+	Runner string `toml:"runner"`
 }
 
 type OCPSection struct {
@@ -93,8 +93,8 @@ func (c *GatewayConfig) applyDefaults() {
 	if c.Chart.CRD.URL == "" {
 		c.Chart.CRD.URL = "https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/manifest.yaml"
 	}
-	if c.Images.Launcher == "" {
-		c.Images.Launcher = "ghcr.io/robbycochran/harness-openshell:launcher"
+	if c.Images.Runner == "" {
+		c.Images.Runner = "ghcr.io/robbycochran/harness-openshell:runner"
 	}
 	if c.Secrets.MTLS == "" {
 		c.Secrets.MTLS = "openshell-client-tls"
@@ -115,8 +115,8 @@ func (c *GatewayConfig) applyDefaults() {
 }
 
 func (c *GatewayConfig) applyEnvOverrides() {
-	if v := os.Getenv("LAUNCHER_IMAGE"); v != "" {
-		c.Images.Launcher = v
+	if v := os.Getenv("RUNNER_IMAGE"); v != "" {
+		c.Images.Runner = v
 	}
 	if v := os.Getenv("GATEWAY_NAME"); v != "" {
 		c.Gateway.Name = v

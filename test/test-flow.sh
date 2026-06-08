@@ -41,7 +41,7 @@ for arg in "$@"; do
     --full)           FULL=true ;;
     --reuse-gateway)  REUSE_GATEWAY=true ;;
     --no-providers)   NO_PROVIDERS=true ;;
-    --profile=*)      PROFILE="${arg#--profile=}" ;;
+    --agent=*)      PROFILE="${arg#--agent=}" ;;
     -*)               ;;
     *)                [[ -z "$TARGET" ]] && TARGET="$arg" ;;
   esac
@@ -190,7 +190,7 @@ test_errors() {
   echo "=== test: error scenarios ==="
 
   # Bad profile
-  step_fail "nonexistent profile" "$HARNESS" up --local --profile nonexistent --no-tty
+  step_fail "nonexistent profile" "$HARNESS" up --local --agent nonexistent --no-tty
 
   # Teardown idempotency (skip k8s teardown when reusing gateway)
   if $REUSE_GATEWAY; then
@@ -225,13 +225,13 @@ test_local() {
 
   if $FULL; then
     local sandbox_name="test-agent"
-    step_output "sandbox create (up)" "$HARNESS" up --local --name "$sandbox_name" --profile "$PROFILE" --no-tty
+    step_output "sandbox create (up)" "$HARNESS" up --local --name "$sandbox_name" --agent "$PROFILE" --no-tty
     sandbox_verify "$sandbox_name"
     step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
     # Test harness create (non-interactive sandbox creation without deploy/providers)
     local create_name="test-create"
-    step_output "sandbox create (create)" "$HARNESS" create --name "$create_name" --profile "$PROFILE"
+    step_output "sandbox create (create)" "$HARNESS" create --name "$create_name" --agent "$PROFILE"
     step "sandbox verify (create)" "$CLI" sandbox exec --name "$create_name" -- echo "hello"
     step "sandbox delete (create)" "$CLI" sandbox delete "$create_name"
 
@@ -298,7 +298,7 @@ test_kind() {
 
   if $FULL; then
     local sandbox_name="test-kind"
-    step_output "sandbox create" "$HARNESS" up --name "$sandbox_name" --profile "$PROFILE" --no-tty
+    step_output "sandbox create" "$HARNESS" up --name "$sandbox_name" --agent "$PROFILE" --no-tty
     sandbox_verify "$sandbox_name"
 
     if ! $NO_PROVIDERS; then
@@ -348,7 +348,7 @@ test_ocp() {
     if $NO_PROVIDERS; then
       # ci mode: use harness create (skips provider registration) with public ci profile
       sandbox_name="test-ocp"
-      step_output "sandbox create" "$HARNESS" create --profile=ci --name "$sandbox_name"
+      step_output "sandbox create" "$HARNESS" create --agent=ci --name "$sandbox_name"
     else
       # default mode: full up (deploy already done above, providers registered)
       sandbox_name="agent"

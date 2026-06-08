@@ -13,7 +13,7 @@
 ##
 ## Images:
 ##   make sandbox           # build + push sandbox (multi-arch)
-##   make launcher          # build + push launcher
+##   make runner            # build + push runner
 
 REGISTRY      ?= ghcr.io/robbycochran/harness-openshell
 DEV_REGISTRY  ?= quay.io/rcochran/openshell
@@ -21,14 +21,14 @@ DEV_TAG       := dev-$(shell git rev-parse --short HEAD)
 PLATFORM      := linux/amd64
 
 SANDBOX_IMAGE  := $(REGISTRY):sandbox
-LAUNCHER_IMAGE := $(REGISTRY):launcher
+RUNNER_IMAGE   := $(REGISTRY):runner
 DEV_SANDBOX_IMAGE  := $(DEV_REGISTRY):$(DEV_TAG)-sandbox
-DEV_LAUNCHER_IMAGE := $(DEV_REGISTRY):$(DEV_TAG)-launcher
+DEV_RUNNER_IMAGE   := $(DEV_REGISTRY):$(DEV_TAG)-runner
 
-.PHONY: cli sandbox push-sandbox cli-launcher launcher push-launcher \
+.PHONY: cli sandbox push-sandbox cli-runner runner push-runner \
         vet lint ci ci-local ci-kind \
         dev-test-local dev-test-kind dev-test-remote dev-test-all \
-        dev-sandbox dev-launcher clean help
+        dev-sandbox dev-runner clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
@@ -48,25 +48,24 @@ sandbox: sandbox/Dockerfile sandbox/startup.sh \
 push-sandbox: sandbox
 	@echo "Already pushed by buildx"
 
-## Cross-compile Go launcher binary for linux/amd64
-cli-launcher:
-	cd sandbox/launcher && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o launcher .
-	@echo "Built: sandbox/launcher/launcher"
+## Cross-compile harness binary for the runner image
+cli-runner:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/runner/harness .
+	@echo "Built: build/runner/harness"
 
-## Launcher image (Go binary + openshell CLI, scratch-based)
-launcher: cli-launcher sandbox/launcher/Dockerfile sandbox/launcher/openshell
-	docker build --platform $(PLATFORM) -t $(LAUNCHER_IMAGE) sandbox/launcher/
-	@echo "Built: $(LAUNCHER_IMAGE)"
+## Runner image (harness binary + openshell CLI)
+runner: cli-runner build/runner/Dockerfile
+	docker build --platform $(PLATFORM) -t $(RUNNER_IMAGE) build/runner/
+	@echo "Built: $(RUNNER_IMAGE)"
 
-push-launcher: launcher
-	docker push $(LAUNCHER_IMAGE)
+push-runner: runner
+	docker push $(RUNNER_IMAGE)
 
 ## ── Lint targets ─────────────────────────────────────────────────────
 
 ## Run go vet
 vet:
 	go vet ./...
-	cd sandbox/launcher && go vet ./...
 
 ## Run golangci-lint (install: https://golangci-lint.run/usage/install/)
 lint:
@@ -82,7 +81,6 @@ lint:
 ## Unit tests + bats + lint (fast, ~2min, no gateway needed)
 ci: vet
 	CGO_ENABLED=0 go test ./...
-	cd sandbox/launcher && go test ./...
 	bats test/preflight.bats
 
 ## CI + local gateway integration (ci mode, no credentials)
@@ -116,14 +114,14 @@ dev-test-kind: cli ci dev-sandbox
 ## Remote (OCP): unit + bats + OCP full + OCP CI
 ## Requires: KUBECONFIG set, provider credentials.
 ## Builds dev images to quay.io (OCP can't pull private ghcr.io).
-dev-test-remote: cli ci dev-sandbox dev-launcher
+dev-test-remote: cli ci dev-sandbox dev-runner
 	@test -n "$${KUBECONFIG}" || { echo "ERROR: Set KUBECONFIG for OCP (e.g. export KUBECONFIG=infracluster/kubeconfig)"; exit 1; }
 	@echo ""
 	@echo "=== Integration: OCP (full) ==="
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) LAUNCHER_IMAGE=$(DEV_LAUNCHER_IMAGE) ./test/test-flow.sh ocp --full
+	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) RUNNER_IMAGE=$(DEV_RUNNER_IMAGE) ./test/test-flow.sh ocp --full
 	@echo ""
 	@echo "=== Integration: OCP (ci) ==="
-	LAUNCHER_IMAGE=$(DEV_LAUNCHER_IMAGE) ./test/test-flow.sh ocp --ci
+	RUNNER_IMAGE=$(DEV_RUNNER_IMAGE) ./test/test-flow.sh ocp --ci
 
 ## All: local + kind + remote
 dev-test-all: dev-test-local dev-test-kind dev-test-remote
@@ -135,17 +133,17 @@ dev-sandbox:
 	docker buildx build --platform linux/amd64,linux/arm64 -t $(DEV_SANDBOX_IMAGE) sandbox/ --push
 	@echo "Built and pushed: $(DEV_SANDBOX_IMAGE)"
 
-## Build dev launcher image to quay.io
-dev-launcher: cli-launcher
-	docker build --platform $(PLATFORM) -t $(DEV_LAUNCHER_IMAGE) sandbox/launcher/
-	docker push $(DEV_LAUNCHER_IMAGE)
-	@echo "Built and pushed: $(DEV_LAUNCHER_IMAGE)"
+## Build dev runner image to quay.io
+dev-runner: cli-runner
+	docker build --platform $(PLATFORM) -t $(DEV_RUNNER_IMAGE) build/runner/
+	docker push $(DEV_RUNNER_IMAGE)
+	@echo "Built and pushed: $(DEV_RUNNER_IMAGE)"
 
 ## ── Convenience targets ───────────────────────────────────────────────
 
 ## Clean built binaries
 clean:
-	rm -f harness sandbox/launcher/launcher
+	rm -f harness build/runner/harness
 	@echo "Cleaned binaries"
 
 ## Show available targets

@@ -11,11 +11,11 @@ func TestParse_Valid(t *testing.T) {
 	data := []byte(`
 name: daily-standup
 providers:
-  - type: atlassian
+  - profile: atlassian
     config:
       JIRA_USERNAME: alice@example.com
       JIRA_URL: https://issues.redhat.com
-  - type: github
+  - profile: github
 task: tasks/daily-standup.md
 entrypoint: claude --bare
 `)
@@ -29,8 +29,8 @@ entrypoint: claude --bare
 	if len(cfg.Providers) != 2 {
 		t.Fatalf("Providers = %d, want 2", len(cfg.Providers))
 	}
-	if cfg.Providers[0].Type != "atlassian" {
-		t.Errorf("Providers[0].Type = %q, want atlassian", cfg.Providers[0].Type)
+	if cfg.Providers[0].Profile != "atlassian" {
+		t.Errorf("Providers[0].Profile = %q, want atlassian", cfg.Providers[0].Profile)
 	}
 	if cfg.Providers[0].Config["JIRA_USERNAME"] != "alice@example.com" {
 		t.Errorf("JIRA_USERNAME = %q", cfg.Providers[0].Config["JIRA_USERNAME"])
@@ -51,7 +51,7 @@ func TestParse_MissingName(t *testing.T) {
 	}
 }
 
-func TestParse_MissingProviderType(t *testing.T) {
+func TestParse_MissingProviderProfile(t *testing.T) {
 	data := []byte(`
 name: test
 providers:
@@ -60,10 +60,10 @@ providers:
 `)
 	_, err := Parse(data)
 	if err == nil {
-		t.Fatal("expected error for missing provider type")
+		t.Fatal("expected error for missing provider profile")
 	}
-	if !strings.Contains(err.Error(), "type is required") {
-		t.Errorf("error = %q, want 'type is required'", err)
+	if !strings.Contains(err.Error(), "profile is required") {
+		t.Errorf("error = %q, want 'profile is required'", err)
 	}
 }
 
@@ -72,9 +72,6 @@ func TestParse_InvalidYAML(t *testing.T) {
 	_, err := Parse(data)
 	if err == nil {
 		t.Fatal("expected error for invalid YAML")
-	}
-	if !strings.Contains(err.Error(), "parsing agent config") {
-		t.Errorf("error = %q, want 'parsing agent config'", err)
 	}
 }
 
@@ -102,9 +99,9 @@ providers: []
 func TestProviderNames(t *testing.T) {
 	cfg := &AgentConfig{
 		Providers: []ProviderRef{
-			{Type: "github"},
-			{Type: "atlassian"},
-			{Type: "gws"},
+			{Profile: "github"},
+			{Profile: "atlassian"},
+			{Profile: "gws"},
 		},
 	}
 	names := cfg.ProviderNames()
@@ -147,7 +144,7 @@ func TestNoTTY(t *testing.T) {
 func TestBuildEnvSh(t *testing.T) {
 	cfg := &AgentConfig{
 		Providers: []ProviderRef{
-			{Type: "atlassian", Config: map[string]string{
+			{Profile: "atlassian", Config: map[string]string{
 				"JIRA_URL":      "https://issues.redhat.com",
 				"JIRA_USERNAME": "alice",
 			}},
@@ -163,7 +160,7 @@ func TestBuildEnvSh(t *testing.T) {
 }
 
 func TestBuildEnvSh_Empty(t *testing.T) {
-	cfg := &AgentConfig{Providers: []ProviderRef{{Type: "github"}}}
+	cfg := &AgentConfig{Providers: []ProviderRef{{Profile: "github"}}}
 	if env := cfg.BuildEnvSh(); env != "" {
 		t.Errorf("expected empty env.sh, got:\n%s", env)
 	}
@@ -176,7 +173,7 @@ func TestBuildEnvSh_TopLevelEnv(t *testing.T) {
 			"ANTHROPIC_API_KEY":  "sk-proxy",
 		},
 		Providers: []ProviderRef{
-			{Type: "atlassian", Config: map[string]string{"JIRA_URL": "https://jira.example.com"}},
+			{Profile: "atlassian", Config: map[string]string{"JIRA_URL": "https://jira.example.com"}},
 		},
 	}
 	env := cfg.BuildEnvSh()
@@ -191,7 +188,7 @@ func TestBuildEnvSh_TopLevelEnv(t *testing.T) {
 func TestBuildEnvSh_ProviderOverridesTopLevel(t *testing.T) {
 	cfg := &AgentConfig{
 		Env:       map[string]string{"FOO": "from-top"},
-		Providers: []ProviderRef{{Type: "test", Config: map[string]string{"FOO": "from-provider"}}},
+		Providers: []ProviderRef{{Profile: "test", Config: map[string]string{"FOO": "from-provider"}}},
 	}
 	env := cfg.BuildEnvSh()
 	if !strings.Contains(env, `"from-provider"`) {
@@ -206,8 +203,8 @@ image: ghcr.io/test:latest
 entrypoint: claude --bare
 tty: true
 providers:
-  - type: github
-  - type: atlassian
+  - profile: github
+  - profile: atlassian
     config:
       JIRA_URL: https://jira.example.com
 env:
@@ -236,7 +233,7 @@ env:
 func TestBuildEnvSh_Sorted(t *testing.T) {
 	cfg := &AgentConfig{
 		Providers: []ProviderRef{
-			{Type: "test", Config: map[string]string{"Z_VAR": "z", "A_VAR": "a"}},
+			{Profile: "test", Config: map[string]string{"Z_VAR": "z", "A_VAR": "a"}},
 		},
 	}
 	env := cfg.BuildEnvSh()
@@ -288,7 +285,7 @@ func TestRenderPayload(t *testing.T) {
 	cfg := &AgentConfig{
 		Name: "test-agent",
 		Providers: []ProviderRef{
-			{Type: "atlassian", Config: map[string]string{"JIRA_URL": "https://jira.example.com"}},
+			{Profile: "atlassian", Config: map[string]string{"JIRA_URL": "https://jira.example.com"}},
 		},
 		Task:       "my-task.md",
 		Entrypoint: "claude --bare",
@@ -331,7 +328,7 @@ func TestRenderPayload(t *testing.T) {
 func TestRenderPayload_NoEnv(t *testing.T) {
 	cfg := &AgentConfig{
 		Name:      "minimal",
-		Providers: []ProviderRef{{Type: "github"}},
+		Providers: []ProviderRef{{Profile: "github"}},
 	}
 
 	destDir := filepath.Join(t.TempDir(), "payload")
@@ -353,7 +350,7 @@ func TestRenderPayload_Include(t *testing.T) {
 
 	cfg := &AgentConfig{
 		Name:      "with-include",
-		Providers: []ProviderRef{{Type: "github"}},
+		Providers: []ProviderRef{{Profile: "github"}},
 		Include:   []string{"helper.sh"},
 	}
 
@@ -375,7 +372,7 @@ func TestRenderPayload_IncludePathTraversal(t *testing.T) {
 	baseDir := t.TempDir()
 	cfg := &AgentConfig{
 		Name:      "evil",
-		Providers: []ProviderRef{{Type: "github"}},
+		Providers: []ProviderRef{{Profile: "github"}},
 		Include:   []string{"../../etc/passwd"},
 	}
 

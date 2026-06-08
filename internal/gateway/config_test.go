@@ -43,7 +43,7 @@ values = "values.yaml"
 manifests = ["addons/rbac.yaml", "addons/route.yaml"]
 
 [images]
-launcher = "example.com/launcher:v1"
+runner = "example.com/runner:v1"
 
 [ocp]
 scc-privileged = ["sa1", "sa2"]
@@ -93,8 +93,8 @@ gateway-endpoint = "https://gw.cluster.local:9090"
 	if cfg.Chart.CRD.URL != "https://example.com/crd.yaml" {
 		t.Errorf("chart.crd.url = %q", cfg.Chart.CRD.URL)
 	}
-	if cfg.Images.Launcher != "example.com/launcher:v1" {
-		t.Errorf("images.launcher = %q", cfg.Images.Launcher)
+	if cfg.Images.Runner != "example.com/runner:v1" {
+		t.Errorf("images.runner = %q", cfg.Images.Runner)
 	}
 	if len(cfg.OCP.SCCPrivileged) != 2 {
 		t.Errorf("ocp.scc-privileged = %v, want 2 entries", cfg.OCP.SCCPrivileged)
@@ -197,10 +197,10 @@ type = "remote"
 name = "original-name"
 
 [images]
-launcher = "original-launcher"
+runner = "original-runner"
 `)
 
-	t.Setenv("LAUNCHER_IMAGE", "env-launcher:v2")
+	t.Setenv("RUNNER_IMAGE", "env-runner:v2")
 	t.Setenv("GATEWAY_NAME", "env-gw-name")
 
 	cfg, err := LoadConfig(dir)
@@ -208,8 +208,8 @@ launcher = "original-launcher"
 		t.Fatal(err)
 	}
 
-	if cfg.Images.Launcher != "env-launcher:v2" {
-		t.Errorf("LAUNCHER_IMAGE override: got %q", cfg.Images.Launcher)
+	if cfg.Images.Runner != "env-runner:v2" {
+		t.Errorf("RUNNER_IMAGE override: got %q", cfg.Images.Runner)
 	}
 	if cfg.Gateway.Name != "env-gw-name" {
 		t.Errorf("GATEWAY_NAME override: got %q", cfg.Gateway.Name)
@@ -226,7 +226,7 @@ name = "original-name"
 `)
 
 	// Ensure env vars are not set
-	t.Setenv("LAUNCHER_IMAGE", "")
+	t.Setenv("RUNNER_IMAGE", "")
 	t.Setenv("GATEWAY_NAME", "")
 
 	cfg, err := LoadConfig(dir)

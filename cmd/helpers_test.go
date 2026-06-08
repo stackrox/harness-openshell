@@ -69,18 +69,19 @@ func (m *mockGW) GatewaySelect(string) error                                    
 func (m *mockGW) ProviderRefreshConfigure(string, gateway.ProviderRefreshOpts) error     { return nil }
 func (m *mockGW) ProviderRefreshRotate(string, string) error                             { return nil }
 
-func setupTestProfile(t *testing.T) string {
+func setupTestAgent(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "profiles"), 0o755)
-	os.WriteFile(filepath.Join(dir, "profiles", "default.toml"), []byte(`
-name = "test-agent"
-from = "quay.io/test:latest"
-command = "claude --bare"
-providers = ["github", "vertex-local", "atlassian"]
-
-[env]
-FOO = "bar"
+	os.MkdirAll(filepath.Join(dir, "agents"), 0o755)
+	os.WriteFile(filepath.Join(dir, "agents", "default.yaml"), []byte(`name: test-agent
+image: quay.io/test:latest
+entrypoint: claude --bare
+providers:
+  - profile: github
+  - profile: vertex-local
+  - profile: atlassian
+env:
+  FOO: bar
 `), 0o644)
 	return dir
 }

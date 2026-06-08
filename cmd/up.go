@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/robbycochran/harness-openshell/internal/agent"
 	"github.com/robbycochran/harness-openshell/internal/gateway"
 	"github.com/robbycochran/harness-openshell/internal/k8s"
 	"github.com/robbycochran/harness-openshell/internal/profile"
@@ -20,7 +21,7 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 	var (
 		local       bool
 		remote      bool
-		profileName string
+		agentName   string
 		sandboxName string
 		noTTY       bool
 	)
@@ -28,7 +29,7 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "up [flags]",
 		Short: "Deploy gateway, register providers, and create a sandbox",
-		Long:  "Deploy gateway and register providers if needed, then create a sandbox from a profile.",
+		Long:  "Deploy gateway and register providers if needed, then render an agent config into a running sandbox.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if local && remote {
 				return fmt.Errorf("--local and --remote are mutually exclusive")
@@ -39,23 +40,22 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 
 			gw := gateway.New(cli)
 
-			// Load gateway config for the selected target
 			gwName := "local"
 			if remote {
 				gwName = "ocp"
 			}
 			gwDir := filepath.Join(harnessDir, "gateways", gwName)
-			gwCfg, _ := gateway.LoadConfig(gwDir) // nil is fine — backward compat
+			gwCfg, _ := gateway.LoadConfig(gwDir)
 
 			if remote {
-				return upRemote(harnessDir, gwCfg, gw, profileName, sandboxName)
+				return upRemote(harnessDir, gwCfg, gw, agentName, sandboxName)
 			}
 			return upLocal(upLocalOpts{
 				harnessDir:  harnessDir,
 				gw:          gw,
 				gwCfg:       gwCfg,
 				ensureLocal: local,
-				profileName: profileName,
+				agentName:   agentName,
 				sandboxName: sandboxName,
 				noTTY:       noTTY,
 				retrySleep:  5 * time.Second,
@@ -65,8 +65,8 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 
 	cmd.Flags().BoolVar(&local, "local", false, "Ensure local podman gateway")
 	cmd.Flags().BoolVar(&remote, "remote", false, "Ensure OCP gateway")
-	cmd.Flags().StringVar(&profileName, "profile", "default", "Profile name (from profiles/)")
-	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides profile)")
+	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from agents/)")
+	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides agent config)")
 	cmd.Flags().BoolVar(&noTTY, "no-tty", false, "Non-interactive mode (for testing)")
 
 	return cmd
@@ -77,13 +77,13 @@ type upLocalOpts struct {
 	gw          gateway.Gateway
 	gwCfg       *gateway.GatewayConfig
 	ensureLocal bool
-	profileName string
+	agentName   string
 	sandboxName string
 	noTTY       bool
 	retrySleep  time.Duration
 }
 
-func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gateway, profileName, sandboxName string) error {
+func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gateway, agentName, sandboxName string) error {
 	ctx := context.Background()
 	namespace := k8s.DefaultNamespace()
 	kc := k8s.New("", namespace)
@@ -112,38 +112,26 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 		}
 	}
 
-	// Parse profile
-	cfg, err := profile.Parse(harnessDir, profileName)
+	// 3. Parse agent config
+	agentPath := filepath.Join(harnessDir, "agents", agentName+".yaml")
+	agentCfg, err := agent.ParseFile(agentPath)
 	if err != nil {
 		return err
 	}
+	name := agentCfg.Name
 	if sandboxName != "" {
-		cfg.Name = sandboxName
+		name = sandboxName
 	}
-	injectAtlassianEnv(cfg)
 
-	// Resolve sandbox image for remote deploys.
-	// SANDBOX_IMAGE env var overrides everything (dev/CI builds).
-	// Otherwise the profile's 'from' field is authoritative — each profile
-	// specifies its own image (default.toml uses the custom sandbox,
-	// ci.toml uses the upstream community base).
+	// Resolve sandbox image
+	sandboxImage := agentCfg.Image
 	if envImage := os.Getenv("SANDBOX_IMAGE"); envImage != "" {
-		cfg.From = envImage
-	} else if cfg.From != "" {
-		fromPath := cfg.From
-		if !filepath.IsAbs(fromPath) {
-			fromPath = filepath.Join(harnessDir, fromPath)
-		}
-		if info, err := os.Stat(fromPath); err == nil && info.IsDir() {
-			cfg.From = envOr("SANDBOX_IMAGE", "ghcr.io/robbycochran/harness-openshell:sandbox")
-		}
+		sandboxImage = envImage
 	}
 
-	profilePath := filepath.Join(harnessDir, "profiles", profileName+".toml")
-
-	// 1. ConfigMap from profile
-	out, err := kc.RunKubectl(ctx, "create", "configmap", "sandbox-"+cfg.Name,
-		"--from-file=config.toml="+profilePath,
+	// 4. ConfigMap from agent.yaml
+	out, err := kc.RunKubectl(ctx, "create", "configmap", "sandbox-"+name,
+		"--from-file=agent.yaml="+agentPath,
 		"--dry-run=client", "-o", "yaml")
 	if err != nil {
 		return fmt.Errorf("creating config configmap: %w", err)
@@ -155,36 +143,20 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 		return fmt.Errorf("applying config configmap: %w", err)
 	}
 
-	// 2. ConfigMap from env (conditional)
-	envContent := cfg.BuildSandboxEnv()
-	if envContent != "" {
-		out, err := kc.RunKubectl(ctx, "create", "configmap", "sandbox-"+cfg.Name+"-env",
-			"--from-literal=sandbox.env="+envContent,
-			"--dry-run=client", "-o", "yaml")
-		if err == nil {
-			if _, err := kc.RunKubectlOpts(ctx, k8s.KubectlOpts{
-				Args:  []string{"apply", "-f", "-"},
-				Stdin: strings.NewReader(out),
-			}); err != nil {
-				return fmt.Errorf("applying env configmap: %w", err)
-			}
-		}
-	}
-
-	// 3. Clean up old job (best-effort — may not exist)
-	jobName := "sandbox-" + cfg.Name
+	// 5. Clean up old job
+	jobName := "sandbox-" + name
 	kc.RunKubectl(ctx, "delete", "job", jobName, "--grace-period=30")
 	kc.RunKubectl(ctx, "delete", "pod", "-l", "job-name="+jobName, "--grace-period=30")
 
-	// 4. Apply launcher Job
-	launcherImage := envOr("LAUNCHER_IMAGE", "ghcr.io/robbycochran/harness-openshell:launcher")
-	launcherSA := "openshell-launcher"
-	launcherEndpoint := "https://openshell.openshell.svc.cluster.local:8080"
+	// 6. Apply runner Job
+	runnerImage := envOr("RUNNER_IMAGE", "ghcr.io/robbycochran/harness-openshell:runner")
+	runnerSA := "openshell-launcher"
+	gatewayEndpoint := "https://openshell.openshell.svc.cluster.local:8080"
 	mtlsSecret := "openshell-client-tls"
 	if gwCfg != nil {
-		launcherImage = gwCfg.Images.Launcher
-		launcherSA = gwCfg.Launcher.ServiceAccount
-		launcherEndpoint = gwCfg.Launcher.GatewayEndpoint
+		runnerImage = gwCfg.Images.Runner
+		runnerSA = gwCfg.Launcher.ServiceAccount
+		gatewayEndpoint = gwCfg.Launcher.GatewayEndpoint
 		mtlsSecret = gwCfg.Secrets.MTLS
 	}
 
@@ -196,53 +168,52 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 			"backoffLimit": 0,
 			"template": map[string]any{
 				"spec": map[string]any{
-					"serviceAccountName": launcherSA,
+					"serviceAccountName": runnerSA,
 					"restartPolicy":      "Never",
 					"containers": []map[string]any{{
-						"name":            "launcher",
-						"image":           launcherImage,
+						"name":            "runner",
+						"image":           runnerImage,
 						"imagePullPolicy": "Always",
-						"env": launcherEnv(launcherEndpoint, cfg.From),
+						"command":         []string{"harness", "launch"},
+						"env":             runnerEnv(gatewayEndpoint, sandboxImage),
 						"volumeMounts": []map[string]any{
 							{"name": "config", "mountPath": "/etc/openshell/sandbox", "readOnly": true},
 							{"name": "gateway-mtls", "mountPath": "/secrets/mtls", "readOnly": true},
-							{"name": "sandbox-env", "mountPath": "/etc/openshell/env", "readOnly": true},
 						},
 					}},
 					"volumes": []map[string]any{
-						{"name": "config", "configMap": map[string]any{"name": "sandbox-" + cfg.Name}},
+						{"name": "config", "configMap": map[string]any{"name": "sandbox-" + name}},
 						{"name": "gateway-mtls", "secret": map[string]any{"secretName": mtlsSecret}},
-						{"name": "sandbox-env", "configMap": map[string]any{"name": "sandbox-" + cfg.Name + "-env", "optional": true}},
 					},
 				},
 			},
 		},
 	}
 	if err := kc.ApplyYAML(ctx, job); err != nil {
-		return fmt.Errorf("applying launcher job: %w", err)
+		return fmt.Errorf("applying runner job: %w", err)
 	}
 
-	// 5. Wait for launcher pod
+	// 7. Wait for runner pod
 	fmt.Println()
-	status.Info("Waiting for launcher...")
+	status.Info("Waiting for runner...")
 	kc.RunKubectl(ctx, "wait", "--for=condition=ready", "pod",
 		"-l", "job-name="+jobName, "--timeout=120s")
 
-	// 6. Tail logs in background
+	// 8. Tail logs in background
 	logCmd := exec.CommandContext(ctx, "kubectl", "-n", namespace,
 		"logs", "-f", "-l", "job-name="+jobName)
 	logCmd.Stdout = os.Stdout
 	logCmd.Stderr = os.Stderr
 	logCmd.Start()
 
-	// 7. Poll job status (10 min timeout)
+	// 9. Poll job status (10 min timeout)
 	var jobStatus string
 	deadline := time.Now().Add(10 * time.Minute)
 	for time.Now().Before(deadline) {
 		jobStatus, err = kc.RunKubectl(ctx, "get", "job", jobName,
 			"-o", "jsonpath={.status.conditions[0].type}")
 		if err != nil {
-			return fmt.Errorf("checking launcher job status: %w", err)
+			return fmt.Errorf("checking runner job status: %w", err)
 		}
 		if jobStatus == "Complete" || jobStatus == "Failed" || jobStatus == "SuccessCriteriaMet" {
 			break
@@ -257,13 +228,13 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 
 	fmt.Println()
 	if jobStatus == "Complete" || jobStatus == "SuccessCriteriaMet" {
-		status.OKf("Sandbox ready. Connect with: harness connect %s", cfg.Name)
+		status.OKf("Sandbox ready. Connect with: harness connect %s", name)
 		return nil
 	}
 	if jobStatus == "" {
-		return fmt.Errorf("launcher job timed out — check: kubectl logs -n %s -l job-name=%s", namespace, jobName)
+		return fmt.Errorf("runner job timed out — check: kubectl logs -n %s -l job-name=%s", namespace, jobName)
 	}
-	return fmt.Errorf("launcher job failed (status: %s) — check: kubectl logs -n %s -l job-name=%s", jobStatus, namespace, jobName)
+	return fmt.Errorf("runner job failed (status: %s) — check: kubectl logs -n %s -l job-name=%s", jobStatus, namespace, jobName)
 }
 
 func upLocal(opts upLocalOpts) error {
@@ -293,35 +264,53 @@ func upLocal(opts upLocalOpts) error {
 		}
 	}
 
-	// 3. Parse profile
-	cfg, err := profile.Parse(opts.harnessDir, opts.profileName)
+	// 3. Parse agent config
+	agentPath := filepath.Join(opts.harnessDir, "agents", opts.agentName+".yaml")
+	agentCfg, err := agent.ParseFile(agentPath)
 	if err != nil {
 		return err
 	}
-	if opts.sandboxName != "" {
-		cfg.Name = opts.sandboxName
-	}
-	injectAtlassianEnv(cfg)
 
-	// Resolve image before printing so the log shows the effective path.
-	// createSandbox resolves idempotently, so this won't double-resolve.
+	// 4. Render payload
+	payloadDir, err := os.MkdirTemp("", "harness-payload-")
+	if err != nil {
+		return fmt.Errorf("creating payload dir: %w", err)
+	}
+	defer os.RemoveAll(payloadDir)
+
+	if err := agent.RenderPayload(agentCfg, opts.harnessDir, payloadDir); err != nil {
+		return fmt.Errorf("rendering payload: %w", err)
+	}
+
+	// 5. Build sandbox config
+	sandboxName := agentCfg.Name
+	if opts.sandboxName != "" {
+		sandboxName = opts.sandboxName
+	}
+	noTTY := opts.noTTY || agentCfg.NoTTY()
+
+	sandboxImage := agentCfg.Image
 	if envImage := os.Getenv("SANDBOX_IMAGE"); envImage != "" {
-		cfg.From = envImage
-	} else if cfg.From != "" && !filepath.IsAbs(cfg.From) {
-		candidate := filepath.Join(opts.harnessDir, cfg.From)
-		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-			cfg.From = candidate
-		}
+		sandboxImage = envImage
+	}
+
+	cfg := &profile.Config{
+		Name: sandboxName,
+		From: sandboxImage,
 	}
 
 	fmt.Println()
 	fmt.Println("=== Sandbox ===")
-	fmt.Printf("  Profile: %s\n", opts.profileName)
-	fmt.Printf("  From:    %s\n", cfg.From)
+	fmt.Printf("  Agent: %s\n", opts.agentName)
+	fmt.Printf("  Image: %s\n", cfg.From)
+	if agentCfg.Task != "" {
+		fmt.Printf("  Task:  %s\n", agentCfg.Task)
+	}
 
-	// 4. Validate providers against profile
+	// 6. Validate providers
 	status.Section("Providers")
-	registered, missing := profile.ValidateProviders(cfg.Providers, gw)
+	providerNames := agentCfg.ProviderNames()
+	registered, missing := profile.ValidateProviders(providerNames, gw)
 	for _, name := range registered {
 		status.OKf("%s: attached", name)
 	}
@@ -333,53 +322,24 @@ func upLocal(opts upLocalOpts) error {
 		status.Warn("no providers available — run: harness providers")
 	}
 
-	// 5. Build command
-	var sandboxCmd []string
-	if cfg.Startup != "" {
-		if opts.noTTY {
-			sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". %s", cfg.Startup)}
-		} else {
-			sandboxCmd = []string{"bash", "-c", fmt.Sprintf(". %s && exec %s", cfg.Startup, cfg.Command)}
-		}
-	} else {
-		if opts.noTTY {
-			sandboxCmd = []string{"true"}
-		} else {
-			sandboxCmd = []string{"bash", "-c", fmt.Sprintf("exec %s", cfg.Command)}
-		}
-	}
-
-	// 6. Create sandbox
+	// 7. Create sandbox
 	fmt.Println()
 	fmt.Println("=== Creating sandbox ===")
+	sandboxCmd := []string{"bash", "/sandbox/.config/openshell/run.sh"}
+
 	return createSandbox(sandboxOpts{
 		harnessDir: opts.harnessDir,
 		gw:         gw,
 		cfg:        cfg,
 		providers:  registered,
-		noTTY:      opts.noTTY,
+		noTTY:      noTTY,
 		retrySleep: opts.retrySleep,
 		sandboxCmd: sandboxCmd,
+		payloadDir: payloadDir,
 	})
 }
 
-// injectAtlassianEnv adds JIRA_URL and JIRA_USERNAME from the local environment
-// into cfg.Env so they land in sandbox.env. Interim until Phase 2 payload renderer
-// ships; remove when harness create renders payload/env.sh instead.
-func injectAtlassianEnv(cfg *profile.Config) {
-	if cfg.Env == nil {
-		cfg.Env = make(map[string]string)
-	}
-	for _, key := range []string{"JIRA_URL", "JIRA_USERNAME"} {
-		if _, exists := cfg.Env[key]; !exists {
-			if v := os.Getenv(key); v != "" {
-				cfg.Env[key] = v
-			}
-		}
-	}
-}
-
-func launcherEnv(gatewayEndpoint, sandboxImage string) []map[string]any {
+func runnerEnv(gatewayEndpoint, sandboxImage string) []map[string]any {
 	env := []map[string]any{
 		{"name": "GATEWAY_ENDPOINT", "value": gatewayEndpoint},
 		{"name": "HOME", "value": "/tmp"},

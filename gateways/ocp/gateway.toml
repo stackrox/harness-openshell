@@ -32,7 +32,7 @@ values = "values.yaml"
 manifests = ["addons/rbac.yaml", "addons/route.yaml"]
 
 [images]
-launcher = "ghcr.io/robbycochran/harness-openshell:launcher"
+runner = "ghcr.io/robbycochran/harness-openshell:runner"
 
 [ocp]
 scc-privileged = ["openshell", "openshell-sandbox"]

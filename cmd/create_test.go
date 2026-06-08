@@ -6,7 +6,6 @@ import (
 
 	"github.com/robbycochran/harness-openshell/internal/gateway"
 	"github.com/robbycochran/harness-openshell/internal/preflight"
-	"github.com/robbycochran/harness-openshell/internal/profile"
 )
 
 func TestActiveGatewayInfo_ListError(t *testing.T) {
@@ -34,76 +33,6 @@ func TestActiveGatewayInfo_RemoteGateway(t *testing.T) {
 	}
 	if info.Name != "openshell-remote-ocp" {
 		t.Errorf("Name = %q, want openshell-remote-ocp", info.Name)
-	}
-}
-
-func TestCreateDirect_NoProviders(t *testing.T) {
-	dir := setupTestProfile(t)
-	gw := &mockGW{
-		providers: map[string]bool{},
-	}
-
-	cfg, err := profile.Parse(dir, "default")
-	if err != nil {
-		t.Fatalf("parse profile: %v", err)
-	}
-
-	err = createDirect(dir, gw, "default", cfg, nil)
-	if err != nil {
-		t.Fatalf("createDirect: %v", err)
-	}
-	if gw.createCalls != 1 {
-		t.Errorf("createCalls = %d, want 1", gw.createCalls)
-	}
-	opts := gw.createOpts[0]
-	if len(opts.Providers) != 0 {
-		t.Errorf("Providers = %v, want empty", opts.Providers)
-	}
-}
-
-func TestCreateDirect_WithProviders(t *testing.T) {
-	dir := setupTestProfile(t)
-	gw := &mockGW{
-		providers: map[string]bool{"github": true},
-	}
-
-	cfg, err := profile.Parse(dir, "default")
-	if err != nil {
-		t.Fatalf("parse profile: %v", err)
-	}
-
-	err = createDirect(dir, gw, "default", cfg, []string{"github"})
-	if err != nil {
-		t.Fatalf("createDirect: %v", err)
-	}
-	opts := gw.createOpts[0]
-	if len(opts.Providers) != 1 || opts.Providers[0] != "github" {
-		t.Errorf("Providers = %v, want [github]", opts.Providers)
-	}
-	if opts.TTY {
-		t.Error("TTY should be false for create (non-interactive)")
-	}
-}
-
-func TestCreateDirect_SandboxName(t *testing.T) {
-	dir := setupTestProfile(t)
-	gw := &mockGW{
-		providers: map[string]bool{},
-	}
-
-	cfg, err := profile.Parse(dir, "default")
-	if err != nil {
-		t.Fatalf("parse profile: %v", err)
-	}
-	cfg.Name = "custom-sandbox"
-
-	err = createDirect(dir, gw, "default", cfg, nil)
-	if err != nil {
-		t.Fatalf("createDirect: %v", err)
-	}
-	opts := gw.createOpts[0]
-	if opts.Name != "custom-sandbox" {
-		t.Errorf("Name = %q, want custom-sandbox", opts.Name)
 	}
 }
 

@@ -21,6 +21,7 @@ type sandboxOpts struct {
 	noTTY      bool              // true → TTY=false for the sandbox
 	retrySleep time.Duration     // pause between retry attempts
 	sandboxCmd []string          // command to run inside the sandbox
+	payloadDir string            // pre-rendered payload dir; skips StageHarnessDir when set
 	onSuccess  func(name string) // called after successful creation (optional)
 }
 
