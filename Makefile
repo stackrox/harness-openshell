@@ -39,11 +39,13 @@ cli:
 ## Sandbox image (Claude Code + mcp-atlassian + gws, multi-arch)
 sandbox: sandbox/Dockerfile sandbox/startup.sh \
          sandbox/policy.yaml sandbox/CLAUDE.md sandbox/settings.json
-	$(CONTAINER_CLI) buildx build --platform linux/amd64,linux/arm64 -t $(SANDBOX_IMAGE) sandbox/ --push
-	@echo "Built and pushed: $(SANDBOX_IMAGE) (multi-arch)"
+	-$(CONTAINER_CLI) manifest rm $(SANDBOX_IMAGE) 2>/dev/null
+	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(SANDBOX_IMAGE) sandbox/
+	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(SANDBOX_IMAGE) sandbox/
+	@echo "Built: $(SANDBOX_IMAGE) (multi-arch)"
 
 push-sandbox: sandbox
-	@echo "Already pushed by buildx"
+	$(CONTAINER_CLI) manifest push $(SANDBOX_IMAGE)
 
 ## Cross-compile harness binary for the runner image
 cli-runner:
@@ -105,7 +107,7 @@ test-all: test-local test-kind test-remote
 
 ## ── Dev image builds ─────────────────────────────────────────────────
 
-## Build dev sandbox image locally
+## Build dev sandbox image locally (native arch only)
 dev-sandbox:
 	$(CONTAINER_CLI) build -t $(DEV_SANDBOX_IMAGE) sandbox/
 	@echo "Built: $(DEV_SANDBOX_IMAGE)"
@@ -115,11 +117,16 @@ dev-runner: cli-runner
 	$(CONTAINER_CLI) build --platform $(PLATFORM) -t $(DEV_RUNNER_IMAGE) build/runner/
 	@echo "Built: $(DEV_RUNNER_IMAGE)"
 
-## Push dev images to registry
-dev-push: dev-sandbox dev-runner
-	$(CONTAINER_CLI) push $(DEV_SANDBOX_IMAGE)
+## Build and push dev images (sandbox: multi-arch, runner: amd64)
+dev-push: cli-runner
+	-$(CONTAINER_CLI) rmi $(DEV_SANDBOX_IMAGE) 2>/dev/null
+	-$(CONTAINER_CLI) manifest rm $(DEV_SANDBOX_IMAGE) 2>/dev/null
+	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(DEV_SANDBOX_IMAGE) sandbox/
+	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(DEV_SANDBOX_IMAGE) sandbox/
+	$(CONTAINER_CLI) manifest push $(DEV_SANDBOX_IMAGE)
+	$(CONTAINER_CLI) build --platform $(PLATFORM) -t $(DEV_RUNNER_IMAGE) build/runner/
 	$(CONTAINER_CLI) push $(DEV_RUNNER_IMAGE)
-	@echo "Pushed: $(DEV_SANDBOX_IMAGE) $(DEV_RUNNER_IMAGE)"
+	@echo "Pushed: $(DEV_SANDBOX_IMAGE) (multi-arch) $(DEV_RUNNER_IMAGE) (amd64)"
 
 ## ── Convenience targets ───────────────────────────────────────────────
 

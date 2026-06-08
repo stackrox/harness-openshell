@@ -115,7 +115,7 @@ detection (`.textproto` → `prototext`, `.json` → `protojson`).
 
 ### Proto stability
 
-OpenShell is alpha (v0.0.55). The proto could change. However:
+OpenShell is alpha (v0.0.58). The proto could change. However:
 
 - `SandboxSpec` core fields (`image`, `environment`, `providers`) are stable
   — they map directly to the CLI's `sandbox create` flags which have been

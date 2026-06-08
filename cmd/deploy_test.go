@@ -33,7 +33,7 @@ mode = "launcher"
 
 [chart]
 oci = "oci://ghcr.io/nvidia/openshell/helm-chart"
-version = "0.0.55"
+version = "0.0.58"
 [chart.crd]
 url = "https://example.com/crd.yaml"
 
@@ -78,7 +78,7 @@ mode = "direct"
 
 [chart]
 oci = "oci://ghcr.io/nvidia/openshell/helm-chart"
-version = "0.0.55"
+version = "0.0.58"
 [chart.crd]
 url = "https://example.com/crd.yaml"
 
@@ -89,7 +89,7 @@ url = "https://example.com/crd.yaml"
 func TestDeployFromConfig_OCP_Success(t *testing.T) {
 	dir := setupDeployHarnessDir(t)
 	gwDir := setupOCPGatewayConfig(t, dir)
-	t.Setenv("OPENSHELL_CHART_VERSION", "0.0.55")
+	t.Setenv("OPENSHELL_CHART_VERSION", "0.0.58")
 	t.Setenv("OPENSHELL_NAMESPACE", "openshell")
 	t.Setenv("HOME", t.TempDir())
 
@@ -139,7 +139,7 @@ func TestDeployFromConfig_OCP_Success(t *testing.T) {
 func TestDeployFromConfig_K8s_NoSCCs(t *testing.T) {
 	dir := setupDeployHarnessDir(t)
 	gwDir := setupK8sGatewayConfig(t, dir)
-	t.Setenv("OPENSHELL_CHART_VERSION", "0.0.55")
+	t.Setenv("OPENSHELL_CHART_VERSION", "0.0.58")
 	t.Setenv("OPENSHELL_NAMESPACE", "openshell")
 	t.Setenv("HOME", t.TempDir())
 
@@ -173,7 +173,7 @@ func TestDeployFromConfig_K8s_NoSCCs(t *testing.T) {
 func TestDeployFromConfig_HelmFailure(t *testing.T) {
 	dir := setupDeployHarnessDir(t)
 	gwDir := setupOCPGatewayConfig(t, dir)
-	t.Setenv("OPENSHELL_CHART_VERSION", "0.0.55")
+	t.Setenv("OPENSHELL_CHART_VERSION", "0.0.58")
 	t.Setenv("OPENSHELL_NAMESPACE", "openshell")
 
 	gwCfg, err := gateway.LoadConfig(gwDir)
@@ -200,7 +200,7 @@ func TestDeployFromConfig_HelmFailure(t *testing.T) {
 func TestDeployFromConfig_CRDFailure(t *testing.T) {
 	dir := setupDeployHarnessDir(t)
 	gwDir := setupOCPGatewayConfig(t, dir)
-	t.Setenv("OPENSHELL_CHART_VERSION", "0.0.55")
+	t.Setenv("OPENSHELL_CHART_VERSION", "0.0.58")
 	t.Setenv("OPENSHELL_NAMESPACE", "openshell")
 
 	gwCfg, err := gateway.LoadConfig(gwDir)

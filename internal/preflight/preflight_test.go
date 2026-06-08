@@ -74,7 +74,7 @@ providers = ["github", "vertex-local"]
 providers-custom = ["gws"]
 
 [upstream]
-chart-version = "0.0.55"
+chart-version = "0.0.58"
 `), 0o644)
 
 	cfg, err := LoadConfig(path)
@@ -90,7 +90,7 @@ chart-version = "0.0.55"
 	if len(cfg.ProvidersCustom) != 1 || cfg.ProvidersCustom[0] != "gws" {
 		t.Errorf("providers-custom = %v", cfg.ProvidersCustom)
 	}
-	if cfg.Upstream.ChartVersion != "0.0.55" {
+	if cfg.Upstream.ChartVersion != "0.0.58" {
 		t.Errorf("Upstream.ChartVersion = %q", cfg.Upstream.ChartVersion)
 	}
 }

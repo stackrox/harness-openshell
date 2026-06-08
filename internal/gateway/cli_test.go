@@ -281,11 +281,11 @@ echo "Model: claude-sonnet-4-6"
 
 func TestCLIVersion(t *testing.T) {
 	bin := writeStub(t, `#!/bin/bash
-echo "openshell v0.0.55"
+echo "openshell v0.0.58"
 `)
 	gw := New(bin)
 	ver := gw.CLIVersion()
-	if ver != "openshell v0.0.55" {
+	if ver != "openshell v0.0.58" {
 		t.Errorf("CLIVersion = %q", ver)
 	}
 }

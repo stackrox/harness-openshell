@@ -149,7 +149,7 @@ Three files, one per domain. No duplication.
 # Gateway deployment settings.
 
 [upstream]
-chart-version = "0.0.55"
+chart-version = "0.0.58"
 
 # Optional overrides (also settable via env vars):
 # namespace = "openshell"          # HARNESS_NAMESPACE
