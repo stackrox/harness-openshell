@@ -1,15 +1,11 @@
 ## OpenShell Harness — build, push, and test
 ##
-## CI targets (no credentials, GHA-safe):
-##   make ci               # unit + bats + lint (~2min)
-##   make ci-local          # ci + local gateway integration
-##   make ci-kind           # ci + kind (self-contained cluster)
-##
-## Developer targets (credentials available):
-##   make dev-test-local    # pre-commit: unit + bats + local full + ci
-##   make dev-test-kind     # kind: self-contained lifecycle
-##   make dev-test-remote   # OCP: needs KUBECONFIG
-##   make dev-test-all      # all of the above
+## Tests (CI mode auto-detects from CI env var):
+##   make test              # unit + bats + lint (~2min)
+##   make test-local        # test + local gateway integration
+##   make test-kind         # test + kind (self-contained cluster)
+##   make test-remote       # test + OCP (needs KUBECONFIG)
+##   make test-all          # all of the above
 ##
 ## Images:
 ##   make sandbox           # build + push sandbox (multi-arch)
@@ -27,8 +23,7 @@ DEV_SANDBOX_IMAGE  := $(REGISTRY):$(DEV_TAG)-sandbox
 DEV_RUNNER_IMAGE   := $(REGISTRY):$(DEV_TAG)-runner
 
 .PHONY: cli sandbox push-sandbox cli-runner runner push-runner \
-        vet lint ci ci-local ci-kind \
-        dev-test-local dev-test-kind dev-test-remote dev-test-all \
+        vet lint test test-local test-kind test-remote test-all \
         dev-sandbox dev-runner clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
@@ -77,55 +72,35 @@ lint:
 		$(MAKE) vet; \
 	fi
 
-## ── CI targets (no credentials, GHA-safe) ────────────────────────────
+## ── Test targets ──────────────────────────────────────────────────────
+## CI mode auto-detects from the CI env var (set by GitHub Actions).
+## Locally: full tests with credentials. On GHA: no-credential mode.
 
 ## Unit tests + bats + lint (fast, ~2min, no gateway needed)
-ci: vet
+test: vet
 	CGO_ENABLED=0 go test ./...
 	bats test/preflight.bats
 
-## CI + local gateway integration (ci mode, no credentials)
-ci-local: cli ci
-	./test/test-flow.sh local --ci
+## Local gateway integration
+test-local: cli test
+	./test/test-flow.sh local
 
-## CI + kind gateway integration (self-contained, isolated kubeconfig)
-ci-kind: cli ci
-	./test/kind-lifecycle.sh --ci
-
-## ── Developer targets (credentials available) ────────────────────────
-
-## Pre-commit local: unit + bats + local full + local CI
-## Requires: openshell gateway running locally, provider credentials.
-dev-test-local: cli ci
-	@echo ""
-	@echo "=== Integration: local (full) ==="
-	./test/test-flow.sh local --full
-	@echo ""
-	@echo "=== Integration: local (ci) ==="
-	./test/test-flow.sh local --ci
-
-## Kind: unit + bats + kind full (self-contained lifecycle)
-## Creates/destroys its own kind cluster. Never touches your OCP kubectl context.
+## Kind: self-contained cluster lifecycle
 ## Builds sandbox image locally and pre-loads into kind (no registry push needed).
 ## Use KEEP=1 to keep the cluster after tests (for debugging).
-dev-test-kind: cli ci
+test-kind: cli test
 	docker build -t $(DEV_SANDBOX_IMAGE) sandbox/
 	@echo ""
 	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
 
-## Remote (OCP): unit + bats + OCP full + OCP CI
-## Requires: KUBECONFIG set, provider credentials.
-dev-test-remote: cli ci dev-sandbox dev-runner
+## Remote (OCP): requires KUBECONFIG set
+test-remote: cli test dev-sandbox dev-runner
 	@test -n "$${KUBECONFIG}" || { echo "ERROR: Set KUBECONFIG for OCP (e.g. export KUBECONFIG=infracluster/kubeconfig)"; exit 1; }
 	@echo ""
-	@echo "=== Integration: OCP (full) ==="
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) RUNNER_IMAGE=$(DEV_RUNNER_IMAGE) ./test/test-flow.sh ocp --full
-	@echo ""
-	@echo "=== Integration: OCP (ci) ==="
-	RUNNER_IMAGE=$(DEV_RUNNER_IMAGE) ./test/test-flow.sh ocp --ci
+	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) RUNNER_IMAGE=$(DEV_RUNNER_IMAGE) ./test/test-flow.sh ocp
 
 ## All: local + kind + remote
-dev-test-all: dev-test-local dev-test-kind dev-test-remote
+test-all: test-local test-kind test-remote
 
 ## ── Dev image builds ─────────────────────────────────────────────────
 

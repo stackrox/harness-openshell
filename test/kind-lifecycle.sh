@@ -4,9 +4,10 @@
 # Creates a kind cluster with an isolated kubeconfig (never touches your
 # OCP/cloud kubectl context), runs the test flow, then tears down.
 #
+# CI mode auto-detects from the CI env var. Override with --ci.
+#
 # Usage:
-#   ./test/kind-lifecycle.sh              # default mode (full, with creds)
-#   ./test/kind-lifecycle.sh --ci         # ci mode (no creds)
+#   ./test/kind-lifecycle.sh              # full test with credentials
 #   ./test/kind-lifecycle.sh --keep       # don't delete cluster after tests
 #
 # Works alongside any existing KUBECONFIG. The cluster gets its own temp
@@ -17,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLUSTER_NAME="openshell-test"
 KIND_KUBECONFIG=""
 KEEP_CLUSTER=false
-TEST_ARGS=("kind" "--full")
+TEST_ARGS=("kind")
 
 for arg in "$@"; do
   case "$arg" in

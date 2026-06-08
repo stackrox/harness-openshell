@@ -31,8 +31,8 @@ jobs:
           done
           openshell gateway list
 
-      - name: Run CI local
-        run: make ci-local
+      - name: Run local integration
+        run: make test-local
 
       - name: Export gateway logs
         if: always()
@@ -69,8 +69,8 @@ jobs:
       - name: Install helm
         uses: azure/setup-helm@v4
 
-      - name: Run CI kind
-        run: make ci-kind
+      - name: Run kind integration
+        run: make test-kind
 
       - name: Export logs
         if: always()
