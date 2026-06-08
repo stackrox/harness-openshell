@@ -51,7 +51,7 @@ push-sandbox: sandbox
 ## Cross-compile harness binary for the runner image
 cli-runner:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/runner/harness .
-	cp "$$(which openshell)" build/runner/openshell
+	rm -f build/runner/openshell && cp "$$(which openshell)" build/runner/openshell
 	@echo "Built: build/runner/harness + openshell"
 
 ## Runner image (harness binary + openshell CLI)
