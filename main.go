@@ -71,7 +71,5 @@ func detectHarnessDir() string {
 			dir = filepath.Dir(dir)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "ERROR: could not detect harness directory — set HARNESS_DIR or run from the project root\n")
-	os.Exit(1)
 	return ""
 }
