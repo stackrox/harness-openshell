@@ -35,6 +35,7 @@ func main() {
 		cli = "openshell"
 	}
 
+	cmd.Version = version
 	root.CompletionOptions.HiddenDefaultCmd = true
 
 	root.AddCommand(

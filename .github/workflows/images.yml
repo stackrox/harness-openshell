@@ -3,26 +3,11 @@ name: Images
 on:
   push:
     branches: [main]
-    paths:
-      - 'sandbox/**'
-      - 'build/**'
-      - 'agents/**'
-      - 'providers.toml'
-      - '*.go'
-      - 'go.*'
-      - 'cmd/**'
-      - 'internal/**'
     tags: ["v*"]
   pull_request:
     paths:
       - 'sandbox/**'
       - 'build/**'
-      - 'agents/**'
-      - 'providers.toml'
-      - '*.go'
-      - 'go.*'
-      - 'cmd/**'
-      - 'internal/**'
 
 permissions:
   contents: read

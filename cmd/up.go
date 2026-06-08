@@ -162,7 +162,7 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 	kc.RunKubectl(ctx, "delete", "pod", "-l", "job-name="+jobName, "--grace-period=30")
 
 	// 6. Apply runner Job
-	runnerImage := envOr("RUNNER_IMAGE", "ghcr.io/robbycochran/harness-openshell:runner")
+	runnerImage := defaultRunnerImage()
 	runnerSA := "openshell-launcher"
 	gatewayEndpoint := "https://openshell.openshell.svc.cluster.local:8080"
 	mtlsSecret := "openshell-client-tls"
@@ -351,6 +351,19 @@ func upLocal(opts upLocalOpts) error {
 		sandboxCmd: sandboxCmd,
 		payloadDir: payloadDir,
 	})
+}
+
+var Version = "dev"
+
+func defaultRunnerImage() string {
+	if v := os.Getenv("RUNNER_IMAGE"); v != "" {
+		return v
+	}
+	base := "ghcr.io/robbycochran/harness-openshell"
+	if Version != "dev" && Version != "" {
+		return base + ":runner-v" + Version
+	}
+	return base + ":runner"
 }
 
 func runnerEnv(gatewayEndpoint, sandboxImage string) []map[string]any {
