@@ -17,9 +17,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Build harness CLI
-        run: make cli
-
       - name: Install openshell
         run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
 
@@ -31,8 +28,8 @@ jobs:
           done
           openshell gateway list
 
-      - name: Run integration tests (ci mode — no credentials)
-        run: ./test/test-flow.sh local --ci
+      - name: Run CI local
+        run: make ci-local
 
       - name: Export gateway logs
         if: always()
@@ -56,9 +53,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Build harness CLI
-        run: make cli
-
       - name: Install openshell
         run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
 
@@ -69,11 +63,8 @@ jobs:
       - name: Install helm
         uses: azure/setup-helm@v4
 
-      - name: Deploy gateway to kind
-        run: ./harness deploy kind
-
-      - name: Run integration tests (ci mode — no credentials)
-        run: ./test/test-flow.sh kind --ci
+      - name: Run CI kind
+        run: make ci-kind
 
       - name: Export logs
         if: always()

@@ -1,11 +1,19 @@
 ## OpenShell Harness — build, push, and test
 ##
-## Usage:
-##   make sandbox        # build + push sandbox image (multi-arch)
-##   make launcher       # build + push launcher image
-##   make test           # build images + run full tests on both platforms
-##   make test-podman    # build + test podman only
-##   make test-ocp       # build + test OCP only
+## CI targets (no credentials, GHA-safe):
+##   make ci               # unit + bats + lint (~2min)
+##   make ci-local          # ci + local gateway integration
+##   make ci-kind           # ci + kind (self-contained cluster)
+##
+## Developer targets (credentials available):
+##   make dev-test-local    # pre-commit: unit + bats + local full + ci
+##   make dev-test-kind     # kind: self-contained lifecycle
+##   make dev-test-remote   # OCP: needs KUBECONFIG
+##   make dev-test-all      # all of the above
+##
+## Images:
+##   make sandbox           # build + push sandbox (multi-arch)
+##   make launcher          # build + push launcher
 
 REGISTRY      ?= ghcr.io/robbycochran/harness-openshell
 DEV_REGISTRY  ?= quay.io/rcochran/openshell
@@ -18,10 +26,9 @@ DEV_SANDBOX_IMAGE  := $(DEV_REGISTRY):$(DEV_TAG)-sandbox
 DEV_LAUNCHER_IMAGE := $(DEV_REGISTRY):$(DEV_TAG)-launcher
 
 .PHONY: cli sandbox push-sandbox cli-launcher launcher push-launcher \
-        vet lint test-unit test test-local test-kind test-ocp test-all validate \
-        validate-local validate-local-ci validate-kind validate-kind-ci validate-kind-keep \
-        validate-ocp validate-ocp-ci \
-        dev-sandbox dev-launcher validate-dev clean help
+        vet lint ci ci-local ci-kind \
+        dev-test-local dev-test-kind dev-test-remote dev-test-all \
+        dev-sandbox dev-launcher clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
@@ -70,156 +77,68 @@ lint:
 		$(MAKE) vet; \
 	fi
 
-## ── Test targets ─────────────────────────────────────────────────────
+## ── CI targets (no credentials, GHA-safe) ────────────────────────────
 
-## Unit tests only (no live gateway, fast)
-test-unit:
+## Unit tests + bats + lint (fast, ~2min, no gateway needed)
+ci: vet
 	CGO_ENABLED=0 go test ./...
 	cd sandbox/launcher && go test ./...
 	bats test/preflight.bats
 
-## Both platforms (full lifecycle, rebuilds images)
-test: cli sandbox push-launcher
-	./test/test-flow.sh all --full
+## CI + local gateway integration (ci mode, no credentials)
+ci-local: cli ci
+	./test/test-flow.sh local --ci
 
-## Local gateway (full lifecycle)
-test-local: cli
-	./test/test-flow.sh local --full
+## CI + kind gateway integration (self-contained, isolated kubeconfig)
+ci-kind: cli ci
+	./test/kind-lifecycle.sh --ci
 
-## kind cluster (full lifecycle — requires: kind create cluster --name openshell)
-test-kind: cli
-	./test/test-flow.sh kind --full
+## ── Developer targets (credentials available) ────────────────────────
 
-## OCP only (full lifecycle)
-test-ocp: cli sandbox push-launcher
-	./test/test-flow.sh ocp --full
-
-## All combinations: local + kind + ocp
-test-all: cli sandbox push-launcher
-	./test/test-flow.sh all --full
-
-## Full validation: unit tests + bats + integration (local + OCP)
-## Run this before every commit.
-validate: cli sandbox push-launcher
-	@echo "=== Unit tests ==="
-	CGO_ENABLED=0 go test ./...
-	cd sandbox/launcher && go test ./...
+## Pre-commit local: unit + bats + local full + local CI
+## Requires: openshell gateway running locally, provider credentials.
+dev-test-local: cli ci
 	@echo ""
-	@echo "=== Bats ==="
-	bats test/preflight.bats
-	@echo ""
-	@echo "=== Integration: local ==="
+	@echo "=== Integration: local (full) ==="
 	./test/test-flow.sh local --full
 	@echo ""
-	@echo "=== Integration: OCP ==="
-	./test/test-flow.sh ocp --full
+	@echo "=== Integration: local (ci) ==="
+	./test/test-flow.sh local --ci
 
-## Dev validation: unit tests + bats + build images + full integration matrix.
-## Builds sandbox + launcher to DEV_REGISTRY (quay.io/rcochran/openshell), runs every flow.
-## Requires: openshell gateway running locally, OCP cluster via KUBECONFIG.
+## Kind: unit + bats + kind full (self-contained lifecycle)
+## Creates/destroys its own kind cluster. Never touches your OCP kubectl context.
+## Use KEEP=1 to keep the cluster after tests (for debugging).
+dev-test-kind: cli ci
+	@echo ""
+	./test/kind-lifecycle.sh $(if $(KEEP),--keep)
+
+## Remote (OCP): unit + bats + OCP full + OCP CI
+## Requires: KUBECONFIG set, provider credentials.
+## If using dev images, run: make dev-sandbox dev-launcher first.
+dev-test-remote: cli ci
+	@test -n "$${KUBECONFIG}" || { echo "ERROR: Set KUBECONFIG for OCP (e.g. export KUBECONFIG=infracluster/kubeconfig)"; exit 1; }
+	@echo ""
+	@echo "=== Integration: OCP (full) ==="
+	./test/test-flow.sh ocp --full
+	@echo ""
+	@echo "=== Integration: OCP (ci) ==="
+	./test/test-flow.sh ocp --ci
+
+## All: local + kind + remote
+dev-test-all: dev-test-local dev-test-kind dev-test-remote
+
+## ── Dev image builds ─────────────────────────────────────────────────
+
+## Build dev sandbox image to quay.io (multi-arch)
 dev-sandbox:
 	docker buildx build --platform linux/amd64,linux/arm64 -t $(DEV_SANDBOX_IMAGE) sandbox/ --push
 	@echo "Built and pushed: $(DEV_SANDBOX_IMAGE)"
 
+## Build dev launcher image to quay.io
 dev-launcher: cli-launcher
 	docker build --platform $(PLATFORM) -t $(DEV_LAUNCHER_IMAGE) sandbox/launcher/
 	docker push $(DEV_LAUNCHER_IMAGE)
 	@echo "Built and pushed: $(DEV_LAUNCHER_IMAGE)"
-
-validate-dev: cli dev-sandbox dev-launcher
-	@echo "=== Images ==="
-	@echo "  SANDBOX_IMAGE:  $(DEV_SANDBOX_IMAGE)"
-	@echo "  LAUNCHER_IMAGE: $(DEV_LAUNCHER_IMAGE)"
-	@echo ""
-	@echo "=== Unit tests ==="
-	CGO_ENABLED=0 go test ./...
-	cd sandbox/launcher && go test ./...
-	@echo ""
-	@echo "=== Bats ==="
-	bats test/preflight.bats
-	@echo ""
-	@echo "=== Integration: local (quick) ==="
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) ./test/test-flow.sh local
-	@echo ""
-	@echo "=== Integration: local (full) ==="
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) ./test/test-flow.sh local --full
-	@echo ""
-	@echo "=== Integration: local CI profile (no providers) ==="
-	./test/test-flow.sh local --full --no-providers --profile=ci
-	@echo ""
-	@echo "=== Integration: OCP (quick) ==="
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) LAUNCHER_IMAGE=$(DEV_LAUNCHER_IMAGE) ./test/test-flow.sh ocp
-	@echo ""
-	@echo "=== Integration: OCP (full) ==="
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) LAUNCHER_IMAGE=$(DEV_LAUNCHER_IMAGE) ./test/test-flow.sh ocp --full
-
-## Default validation: unit tests + bats + full integration with user credentials.
-## Requires: openshell gateway running locally (brew services start openshell),
-## JIRA_API_TOKEN, gcloud ADC, gws auth login.
-validate-local: cli
-	@echo "=== Unit tests ==="
-	CGO_ENABLED=0 go test ./...
-	cd sandbox/launcher && go test ./...
-	@echo ""
-	@echo "=== Bats ==="
-	bats test/preflight.bats
-	@echo ""
-	@echo "=== Integration: local gateway, default mode ==="
-	./test/test-flow.sh local --full
-
-## CI validation: unit tests + integration without credentials (local gateway).
-## Requires: openshell gateway running locally only.
-validate-local-ci: cli
-	@echo "=== Unit tests ==="
-	CGO_ENABLED=0 go test ./...
-	cd sandbox/launcher && go test ./...
-	@echo ""
-	@echo "=== Integration: local gateway, ci mode ==="
-	./test/test-flow.sh local --ci
-
-## Self-contained kind validation: creates cluster, runs tests, tears down.
-## No prerequisites — manages its own kind cluster and kubeconfig.
-## Never touches your OCP/cloud kubectl context.
-validate-kind: cli dev-sandbox
-	@echo "=== Unit tests ==="
-	CGO_ENABLED=0 go test ./...
-	cd sandbox/launcher && go test ./...
-	@echo ""
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) SANDBOX_PULL_SECRET=quay-pull ./test/kind-lifecycle.sh
-
-## Self-contained kind CI validation (no credentials).
-validate-kind-ci: cli
-	@echo "=== Unit tests ==="
-	CGO_ENABLED=0 go test ./...
-	cd sandbox/launcher && go test ./...
-	@echo ""
-	./test/kind-lifecycle.sh --ci
-
-## Kind validation keeping the cluster after tests (for debugging).
-validate-kind-keep: cli dev-sandbox
-	@echo "=== Unit tests ==="
-	CGO_ENABLED=0 go test ./...
-	cd sandbox/launcher && go test ./...
-	@echo ""
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) SANDBOX_PULL_SECRET=quay-pull ./test/kind-lifecycle.sh --keep
-
-## OCP validation with credentials (default mode). Requires: KUBECONFIG, all provider creds.
-validate-ocp: cli dev-launcher dev-sandbox
-	@echo "=== Unit tests ==="
-	CGO_ENABLED=0 go test ./...
-	cd sandbox/launcher && go test ./...
-	@echo ""
-	@echo "=== Integration: OCP gateway, default mode ==="
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) LAUNCHER_IMAGE=$(DEV_LAUNCHER_IMAGE) ./test/test-flow.sh ocp --full
-
-## OCP validation without credentials (ci mode). Requires: KUBECONFIG, launcher image pushed.
-validate-ocp-ci: cli dev-launcher
-	@echo "=== Unit tests ==="
-	CGO_ENABLED=0 go test ./...
-	cd sandbox/launcher && go test ./...
-	@echo ""
-	@echo "=== Integration: OCP gateway, ci mode ==="
-	LAUNCHER_IMAGE=$(DEV_LAUNCHER_IMAGE) ./test/test-flow.sh ocp --ci --full
 
 ## ── Convenience targets ───────────────────────────────────────────────
 
