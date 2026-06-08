@@ -4,5 +4,11 @@
     "allow": ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)", "Glob(*)", "Grep(*)", "WebFetch(*)", "WebSearch(*)", "mcp__*"],
     "deny": []
   },
-  "trustedMcpServers": ["atlassian"]
+  "enableAllProjectMcpServers": true,
+  "trustedMcpServers": ["atlassian"],
+  "spinnerTipsEnabled": false,
+  "companyAnnouncements": false,
+  "env": {
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"
+  }
 }

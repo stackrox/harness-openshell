@@ -64,6 +64,7 @@ COPY policy.yaml /etc/openshell/policy.yaml
 # Agent instructions + Claude config
 COPY CLAUDE.md /sandbox/CLAUDE.md
 COPY settings.json /sandbox/.claude/settings.json
+COPY claude.json /sandbox/.claude.json
 COPY mcp.json /sandbox/.mcp.json
 
 # Runtime script
@@ -77,7 +78,7 @@ COPY bin/claude /usr/local/bin/claude
 RUN mkdir -p /sandbox/.config/openshell && chown sandbox:sandbox /sandbox/.config/openshell
 
 RUN chmod +x /sandbox/startup.sh /usr/local/bin/claude && \
-    chown -R sandbox:sandbox /sandbox/.claude /sandbox/.mcp.json /sandbox/.config /sandbox/CLAUDE.md /sandbox/startup.sh
+    chown -R sandbox:sandbox /sandbox/.claude /sandbox/.claude.json /sandbox/.mcp.json /sandbox/.config /sandbox/CLAUDE.md /sandbox/startup.sh
 
 USER sandbox
 
