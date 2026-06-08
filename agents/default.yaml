@@ -6,7 +6,7 @@
 
 name: agent
 image: ghcr.io/robbycochran/harness-openshell:sandbox
-entrypoint: claude --bare
+entrypoint: claude
 tty: true
 
 providers:

@@ -36,7 +36,7 @@ func (c *AgentConfig) NoTTY() bool {
 
 func (c *AgentConfig) EffectiveEntrypoint() string {
 	if c.Entrypoint == "" {
-		return "claude --bare"
+		return "claude"
 	}
 	return c.Entrypoint
 }

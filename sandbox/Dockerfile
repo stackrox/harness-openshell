@@ -69,10 +69,14 @@ COPY mcp.json /sandbox/.mcp.json
 # Runtime script
 COPY startup.sh /sandbox/startup.sh
 
+# Claude wrapper: sets --bare --dangerously-skip-permissions so the sandbox
+# starts clean with no interactive modals.
+COPY bin/claude /usr/local/bin/claude
+
 # Harness config directory (populated at runtime via upload)
 RUN mkdir -p /sandbox/.config/openshell && chown sandbox:sandbox /sandbox/.config/openshell
 
-RUN chmod +x /sandbox/startup.sh && \
+RUN chmod +x /sandbox/startup.sh /usr/local/bin/claude && \
     chown -R sandbox:sandbox /sandbox/.claude /sandbox/.mcp.json /sandbox/.config /sandbox/CLAUDE.md /sandbox/startup.sh
 
 USER sandbox

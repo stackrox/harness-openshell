@@ -115,8 +115,8 @@ func TestProviderNames(t *testing.T) {
 
 func TestEffectiveEntrypoint(t *testing.T) {
 	cfg := &AgentConfig{}
-	if ep := cfg.EffectiveEntrypoint(); ep != "claude --bare" {
-		t.Errorf("default = %q, want 'claude --bare'", ep)
+	if ep := cfg.EffectiveEntrypoint(); ep != "claude" {
+		t.Errorf("default = %q, want 'claude'", ep)
 	}
 	cfg.Entrypoint = "codex"
 	if ep := cfg.EffectiveEntrypoint(); ep != "codex" {

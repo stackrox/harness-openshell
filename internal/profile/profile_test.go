@@ -71,7 +71,7 @@ func TestParseFile_Defaults(t *testing.T) {
 	if cfg.Name != "agent" {
 		t.Errorf("Name = %q, want default 'agent'", cfg.Name)
 	}
-	if cfg.Command != "claude --bare" {
+	if cfg.Command != "claude" {
 		t.Errorf("Command = %q, want default", cfg.Command)
 	}
 	if !cfg.KeepSandbox() {

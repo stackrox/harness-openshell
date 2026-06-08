@@ -64,7 +64,7 @@ func ParseFile(path string) (*Config, error) {
 		cfg.Name = "agent"
 	}
 	if cfg.Command == "" {
-		cfg.Command = "claude --bare"
+		cfg.Command = "claude"
 	}
 	return &cfg, nil
 }

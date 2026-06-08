@@ -5,7 +5,7 @@
 
 name: demo
 image: ghcr.io/robbycochran/harness-openshell:sandbox
-entrypoint: claude --bare -p
+entrypoint: claude -p
 task: demo/DEMO-TASK.md
 tty: false
 
