@@ -1,5 +1,11 @@
 {
   "hasCompletedOnboarding": true,
   "numStartups": 1,
-  "autoUpdates": false
+  "autoUpdates": false,
+  "projects": {
+    "/sandbox": {
+      "hasTrustDialogAccepted": true,
+      "allowedTools": []
+    }
+  }
 }

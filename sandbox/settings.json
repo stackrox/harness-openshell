@@ -6,6 +6,8 @@
   },
   "enableAllProjectMcpServers": true,
   "trustedMcpServers": ["atlassian"],
+  "skipDangerousModePermissionPrompt": true,
+  "apiKeyHelper": "echo sk-ant-openshell-proxy-managed",
   "env": {
     "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"
   }

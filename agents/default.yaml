@@ -21,5 +21,4 @@ providers:
 # Proxy config: gateway routes inference through its local proxy.
 env:
   ANTHROPIC_BASE_URL: https://inference.local
-  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
   CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
