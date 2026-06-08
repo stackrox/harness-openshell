@@ -143,7 +143,9 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				providers:  registered,
 				noTTY:      true,
 				retrySleep: 5 * time.Second,
-				sandboxCmd: []string{"true"},
+				sandboxCmd: []string{"bash", "-c",
+					". /sandbox/.config/openshell/sandbox.env 2>/dev/null && " +
+						"cat /sandbox/.config/openshell/sandbox.env >> /sandbox/.bashrc 2>/dev/null; true"},
 				payloadDir: payloadDir,
 				onSuccess: func(n string) {
 					fmt.Println()

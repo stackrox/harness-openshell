@@ -329,11 +329,13 @@ func upLocal(opts upLocalOpts) error {
 	// 7. Create sandbox
 	fmt.Println()
 	fmt.Println("=== Creating sandbox ===")
+	envInit := ". /sandbox/.config/openshell/sandbox.env 2>/dev/null && " +
+		"cat /sandbox/.config/openshell/sandbox.env >> /sandbox/.bashrc 2>/dev/null; "
 	var sandboxCmd []string
 	if noTTY {
-		sandboxCmd = []string{"true"}
+		sandboxCmd = []string{"bash", "-c", envInit + "true"}
 	} else {
-		sandboxCmd = []string{"bash", "/sandbox/.config/openshell/run.sh"}
+		sandboxCmd = []string{"bash", "-c", envInit + "exec bash /sandbox/.config/openshell/run.sh"}
 	}
 
 	return createSandbox(sandboxOpts{
