@@ -1,0 +1,20 @@
+# Built-in agent config embedded in the harness binary.
+# Used when no agents/ directory exists on disk.
+# Covers the most common providers; missing credentials are skipped gracefully.
+
+name: agent
+entrypoint: claude
+tty: true
+
+providers:
+  - profile: github
+  - profile: vertex-local
+  - profile: atlassian
+    config:
+      JIRA_URL: ${JIRA_URL}
+      JIRA_USERNAME: ${JIRA_USERNAME}
+
+env:
+  ANTHROPIC_BASE_URL: https://inference.local
+  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
+  CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"

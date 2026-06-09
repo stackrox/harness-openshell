@@ -31,7 +31,10 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				sandboxName = args[0]
 			}
 
-			agentPath := resolveAgentPath(harnessDir, agentName, agentFile)
+			agentCfg, err := resolveAgentConfig(harnessDir, agentName, agentFile)
+			if err != nil {
+				return err
+			}
 
 			gw := gateway.New(cli)
 
@@ -44,10 +47,6 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 
 			status.Header("Gateway")
 			status.OKf("%s (%s)", activeGW.Name, activeGW.Endpoint)
-			agentCfg, err := agent.ParseFile(agentPath)
-			if err != nil {
-				return err
-			}
 			name := agentCfg.Name
 			if sandboxName != "" {
 				name = sandboxName

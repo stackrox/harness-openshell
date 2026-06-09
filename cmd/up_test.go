@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -210,5 +211,103 @@ func TestUpLocal_SandboxCreateOpts(t *testing.T) {
 	}
 	if opts.TTY {
 		t.Error("TTY = true, want false (noTTY)")
+	}
+}
+
+func TestUpLocal_EnsureLocal_DeploysGateway(t *testing.T) {
+	dir := setupTestAgent(t)
+	gw := &mockGW{
+		providerList: []string{"github"},
+		providers:    map[string]bool{"github": true},
+		gatewayListResult: []gateway.GatewayInfo{
+			{Name: "local", Endpoint: "127.0.0.1:17670", Active: true},
+		},
+	}
+
+	err := upLocal(upLocalOpts{
+		harnessDir:  dir,
+		gw:          gw,
+		agentPath:   filepath.Join(dir, "agents", "default.yaml"),
+		ensureLocal: true,
+		noTTY:       true,
+	})
+	if err != nil {
+		t.Fatalf("upLocal with ensureLocal=true: %v", err)
+	}
+	if gw.createCalls != 1 {
+		t.Fatalf("createCalls = %d, want 1", gw.createCalls)
+	}
+}
+
+func TestResolveAgentConfig_EmbeddedFallback(t *testing.T) {
+	dir := t.TempDir()
+	DefaultAgentConfig = []byte(`name: embedded-default
+entrypoint: claude
+providers:
+  - profile: github
+`)
+	t.Cleanup(func() { DefaultAgentConfig = nil })
+
+	cfg, err := resolveAgentConfig(dir, "default", "")
+	if err != nil {
+		t.Fatalf("resolveAgentConfig: %v", err)
+	}
+	if cfg.Name != "embedded-default" {
+		t.Errorf("Name = %q, want embedded-default", cfg.Name)
+	}
+}
+
+func TestResolveAgentConfig_DiskOverridesEmbedded(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "agents"), 0o755)
+	os.WriteFile(filepath.Join(dir, "agents", "default.yaml"), []byte(`name: disk-agent
+entrypoint: claude
+providers:
+  - profile: github
+`), 0o644)
+
+	DefaultAgentConfig = []byte(`name: embedded-default
+entrypoint: claude
+providers:
+  - profile: github
+`)
+	t.Cleanup(func() { DefaultAgentConfig = nil })
+
+	cfg, err := resolveAgentConfig(dir, "default", "")
+	if err != nil {
+		t.Fatalf("resolveAgentConfig: %v", err)
+	}
+	if cfg.Name != "disk-agent" {
+		t.Errorf("Name = %q, want disk-agent (disk should override embedded)", cfg.Name)
+	}
+}
+
+func TestResolveAgentConfig_ExplicitFileNoFallback(t *testing.T) {
+	dir := t.TempDir()
+	DefaultAgentConfig = []byte(`name: embedded-default
+entrypoint: claude
+providers:
+  - profile: github
+`)
+	t.Cleanup(func() { DefaultAgentConfig = nil })
+
+	_, err := resolveAgentConfig(dir, "default", "/nonexistent/agent.yaml")
+	if err == nil {
+		t.Fatal("expected error for explicit nonexistent --file, should not fall back to embedded")
+	}
+}
+
+func TestResolveAgentConfig_NonDefaultNameNoFallback(t *testing.T) {
+	dir := t.TempDir()
+	DefaultAgentConfig = []byte(`name: embedded-default
+entrypoint: claude
+providers:
+  - profile: github
+`)
+	t.Cleanup(func() { DefaultAgentConfig = nil })
+
+	_, err := resolveAgentConfig(dir, "research", "")
+	if err == nil {
+		t.Fatal("expected error for --agent research when file doesn't exist, should not fall back to embedded")
 	}
 }

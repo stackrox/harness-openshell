@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,9 @@ import (
 )
 
 var version = "dev"
+
+//go:embed agents/builtin.yaml
+var defaultAgentConfig []byte
 
 func main() {
 	harnessDir := detectHarnessDir()
@@ -39,6 +43,7 @@ func main() {
 	}
 
 	cmd.Version = version
+	cmd.DefaultAgentConfig = defaultAgentConfig
 	root.CompletionOptions.HiddenDefaultCmd = true
 
 	root.AddCommand(
