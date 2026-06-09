@@ -39,7 +39,7 @@ cli:
 ## Sandbox image (Claude Code + mcp-atlassian + gws, multi-arch)
 sandbox: sandbox/Dockerfile sandbox/startup.sh \
          sandbox/policy.yaml sandbox/CLAUDE.md sandbox/settings.json
-	-$(CONTAINER_CLI) manifest rm $(SANDBOX_IMAGE) 2>/dev/null
+	@$(CONTAINER_CLI) manifest rm $(SANDBOX_IMAGE) 2>/dev/null || true
 	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(SANDBOX_IMAGE) sandbox/
 	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(SANDBOX_IMAGE) sandbox/
 	@echo "Built: $(SANDBOX_IMAGE) (multi-arch)"
@@ -119,8 +119,8 @@ dev-runner: cli-runner
 
 ## Build and push dev images (sandbox: multi-arch, runner: amd64)
 dev-push: cli-runner
-	-$(CONTAINER_CLI) rmi $(DEV_SANDBOX_IMAGE) 2>/dev/null
-	-$(CONTAINER_CLI) manifest rm $(DEV_SANDBOX_IMAGE) 2>/dev/null
+	@$(CONTAINER_CLI) rmi --force $(DEV_SANDBOX_IMAGE) 2>/dev/null || true
+	@$(CONTAINER_CLI) manifest rm $(DEV_SANDBOX_IMAGE) 2>/dev/null || true
 	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(DEV_SANDBOX_IMAGE) sandbox/
 	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(DEV_SANDBOX_IMAGE) sandbox/
 	$(CONTAINER_CLI) manifest push $(DEV_SANDBOX_IMAGE)
