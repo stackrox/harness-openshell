@@ -228,6 +228,93 @@ printf "\033[32mtest-agent\033[0m\tReady\n"
 	}
 }
 
+func TestSandboxStatus_ParsesTable(t *testing.T) {
+	bin := writeStub(t, `#!/bin/bash
+printf "NAME\tPHASE\n"
+printf "agent\tReady\n"
+printf "test-agent\tStopped\n"
+`)
+	gw := New(bin)
+	infos, err := gw.SandboxStatus()
+	if err != nil {
+		t.Fatalf("SandboxStatus: %v", err)
+	}
+	if len(infos) != 2 {
+		t.Fatalf("got %d sandboxes, want 2: %v", len(infos), infos)
+	}
+	if infos[0].Name != "agent" || infos[0].Phase != "Ready" {
+		t.Errorf("infos[0] = %+v", infos[0])
+	}
+	if infos[1].Name != "test-agent" || infos[1].Phase != "Stopped" {
+		t.Errorf("infos[1] = %+v", infos[1])
+	}
+}
+
+func TestSandboxStatus_Empty(t *testing.T) {
+	bin := writeStub(t, `#!/bin/bash
+printf "NAME\tPHASE\n"
+`)
+	gw := New(bin)
+	infos, err := gw.SandboxStatus()
+	if err != nil {
+		t.Fatalf("SandboxStatus: %v", err)
+	}
+	if len(infos) != 0 {
+		t.Errorf("got %d, want 0", len(infos))
+	}
+}
+
+func TestSandboxStop_Silent(t *testing.T) {
+	bin := writeStub(t, `#!/bin/bash
+exit 0
+`)
+	gw := New(bin)
+	if err := gw.SandboxStop("test"); err != nil {
+		t.Errorf("SandboxStop = %v", err)
+	}
+}
+
+func TestSandboxStart_Silent(t *testing.T) {
+	bin := writeStub(t, `#!/bin/bash
+exit 0
+`)
+	gw := New(bin)
+	if err := gw.SandboxStart("test"); err != nil {
+		t.Errorf("SandboxStart = %v", err)
+	}
+}
+
+func TestSandboxLogs_PassesFollow(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	bin := writeStub(t, `#!/bin/bash
+echo "$@" > `+argsFile+`
+`)
+	gw := New(bin)
+	gw.SandboxLogs("my-agent", true)
+	data, _ := os.ReadFile(argsFile)
+	args := strings.TrimSpace(string(data))
+	if !strings.Contains(args, "sandbox logs my-agent --follow") {
+		t.Errorf("expected sandbox logs with --follow, got: %s", args)
+	}
+}
+
+func TestSandboxLogs_NoFollow(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	bin := writeStub(t, `#!/bin/bash
+echo "$@" > `+argsFile+`
+`)
+	gw := New(bin)
+	gw.SandboxLogs("my-agent", false)
+	data, _ := os.ReadFile(argsFile)
+	args := strings.TrimSpace(string(data))
+	if strings.Contains(args, "--follow") {
+		t.Errorf("should not have --follow: %s", args)
+	}
+	if !strings.Contains(args, "sandbox logs my-agent") {
+		t.Errorf("missing sandbox logs: %s", args)
+	}
+}
+
 func TestSandboxList_Empty(t *testing.T) {
 	bin := writeStub(t, `#!/bin/bash
 printf "NAME\tPHASE\n"

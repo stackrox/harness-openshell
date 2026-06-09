@@ -14,9 +14,13 @@ type Gateway interface {
 
 	// Sandboxes
 	SandboxList() ([]string, error)
+	SandboxStatus() ([]SandboxInfo, error)
 	SandboxCreate(opts SandboxCreateOpts) error
 	SandboxDelete(name string) error
 	SandboxConnect(name string) error
+	SandboxLogs(name string, follow bool) error
+	SandboxStop(name string) error
+	SandboxStart(name string) error
 
 	// Inference
 	InferenceGet() error
@@ -52,6 +56,11 @@ type GatewayInfo struct {
 	Name     string
 	Endpoint string
 	Active   bool
+}
+
+type SandboxInfo struct {
+	Name  string
+	Phase string
 }
 
 type SandboxCreateOpts struct {

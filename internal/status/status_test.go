@@ -12,6 +12,7 @@ func captureCmd(name string, args ...string) string {
 	r, w, _ := os.Pipe()
 	os.Stderr = w
 	Verbose = true
+	ShowCommands = false
 	Cmd(name, args...)
 	w.Close()
 	os.Stderr = old
@@ -92,6 +93,7 @@ func TestCmdNotVerbose(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stderr = w
 	Verbose = false
+	ShowCommands = false
 	Cmd("openshell", "--credential", "TOKEN=secret")
 	w.Close()
 	os.Stderr = old
@@ -107,6 +109,111 @@ func TestCmdNormalArgs(t *testing.T) {
 	expected := "  $ openshell sandbox create --from image:latest --provider github\n"
 	if out != expected {
 		t.Errorf("expected %q, got %q", expected, out)
+	}
+}
+
+func TestCmdShowCommands_PrintsToStdout(t *testing.T) {
+	Verbose = false
+	ShowCommands = true
+	defer func() { ShowCommands = false }()
+	out := captureStdout(func() {
+		Cmd("openshell", "sandbox", "create", "--name", "test")
+	})
+	if !strings.Contains(out, "$ openshell sandbox create --name test") {
+		t.Errorf("expected command on stdout, got: %q", out)
+	}
+}
+
+func TestCmdShowCommands_RedactsCredentials(t *testing.T) {
+	Verbose = false
+	ShowCommands = true
+	defer func() { ShowCommands = false }()
+	out := captureStdout(func() {
+		Cmd("openshell", "provider", "create", "github", "--credential", "TOKEN=secret")
+	})
+	if contains(out, "secret") {
+		t.Errorf("credential leaked in show-commands: %s", out)
+	}
+	if !contains(out, "TOKEN=***") {
+		t.Errorf("expected redacted credential: %s", out)
+	}
+}
+
+func TestShowEquivalentCmd_OnlyWhenEnabled(t *testing.T) {
+	ShowCommands = false
+	out := captureStdout(func() {
+		ShowEquivalentCmd("openshell", "sandbox", "list")
+	})
+	if out != "" {
+		t.Errorf("expected no output when ShowCommands=false, got: %q", out)
+	}
+}
+
+func TestShowEquivalentCmd_Prints(t *testing.T) {
+	ShowCommands = true
+	defer func() { ShowCommands = false }()
+	out := captureStdout(func() {
+		ShowEquivalentCmd("openshell", "sandbox", "list")
+	})
+	if !strings.Contains(out, "$ openshell sandbox list") {
+		t.Errorf("expected equivalent command, got: %q", out)
+	}
+}
+
+func captureStdout(fn func()) string {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	fn()
+	w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	return buf.String()
+}
+
+func TestHeader(t *testing.T) {
+	out := captureStdout(func() { Header("Sandboxes") })
+	if !strings.Contains(out, "Sandboxes") {
+		t.Errorf("missing title: %q", out)
+	}
+	if !strings.Contains(out, "─") {
+		t.Errorf("missing underline: %q", out)
+	}
+}
+
+func TestTable_Alignment(t *testing.T) {
+	out := captureStdout(func() {
+		Table(
+			[]string{"NAME", "PHASE"},
+			[][]string{
+				{"my-agent", "Ready"},
+				{"test", "Stopped"},
+			},
+		)
+	})
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 4 {
+		t.Fatalf("expected 4 lines (header + separator + 2 rows), got %d: %q", len(lines), out)
+	}
+	if !strings.HasPrefix(lines[0], "NAME") {
+		t.Errorf("header missing NAME: %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "─") {
+		t.Errorf("separator missing: %q", lines[1])
+	}
+	if !strings.Contains(lines[2], "my-agent") {
+		t.Errorf("row 1 missing: %q", lines[2])
+	}
+}
+
+func TestTable_Empty(t *testing.T) {
+	out := captureStdout(func() {
+		Table([]string{"NAME", "PHASE"}, nil)
+	})
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines (header + separator), got %d: %q", len(lines), out)
 	}
 }
 

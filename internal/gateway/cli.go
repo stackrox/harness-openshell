@@ -226,6 +226,46 @@ func (c *CLI) SandboxCreate(opts SandboxCreateOpts) error {
 	return c.passthrough(args...)
 }
 
+func (c *CLI) SandboxStatus() ([]SandboxInfo, error) {
+	out, err := c.output("sandbox", "list")
+	if err != nil {
+		return nil, err
+	}
+	var infos []SandboxInfo
+	for i, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if i == 0 || strings.TrimSpace(line) == "" {
+			continue
+		}
+		cleaned := ansiRE.ReplaceAllString(line, "")
+		fields := strings.Fields(cleaned)
+		if len(fields) >= 2 {
+			infos = append(infos, SandboxInfo{Name: fields[0], Phase: fields[1]})
+		} else if len(fields) == 1 {
+			infos = append(infos, SandboxInfo{Name: fields[0]})
+		}
+	}
+	return infos, nil
+}
+
+func (c *CLI) SandboxLogs(name string, follow bool) error {
+	args := []string{"sandbox", "logs"}
+	if name != "" {
+		args = append(args, name)
+	}
+	if follow {
+		args = append(args, "--follow")
+	}
+	return c.passthrough(args...)
+}
+
+func (c *CLI) SandboxStop(name string) error {
+	return c.silent("sandbox", "stop", name)
+}
+
+func (c *CLI) SandboxStart(name string) error {
+	return c.silent("sandbox", "start", name)
+}
+
 func (c *CLI) SandboxDelete(name string) error {
 	return c.silent("sandbox", "delete", name)
 }

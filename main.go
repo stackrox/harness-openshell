@@ -16,6 +16,7 @@ func main() {
 	harnessDir := detectHarnessDir()
 
 	var verbose bool
+	var showCommands bool
 
 	root := &cobra.Command{
 		Use:           "harness",
@@ -25,10 +26,12 @@ func main() {
 		SilenceUsage:  true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			status.Verbose = verbose
+			status.ShowCommands = showCommands
 		},
 	}
 
 	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show kubectl/helm/openshell commands")
+	root.PersistentFlags().BoolVar(&showCommands, "show-commands", false, "Show openshell commands being executed")
 
 	cli := os.Getenv("OPENSHELL_CLI")
 	if cli == "" {
@@ -47,6 +50,10 @@ func main() {
 		cmd.NewPreflightCmd(harnessDir, cli),
 		cmd.NewProvidersCmd(harnessDir, cli),
 		cmd.NewLaunchCmd(harnessDir, cli),
+		cmd.NewStatusCmd(harnessDir, cli),
+		cmd.NewLogsCmd(harnessDir, cli),
+		cmd.NewStopCmd(harnessDir, cli),
+		cmd.NewStartCmd(harnessDir, cli),
 	)
 
 	if err := root.Execute(); err != nil {
