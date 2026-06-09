@@ -39,6 +39,10 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 				sandboxName = args[0]
 			}
 
+			agentCfg, err := resolveAgentConfig(harnessDir, agentName, agentFile)
+			if err != nil {
+				return err
+			}
 			agentPath := resolveAgentPath(harnessDir, agentName, agentFile)
 
 			gw := gateway.New(cli)
@@ -57,7 +61,8 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 				harnessDir:  harnessDir,
 				gw:          gw,
 				gwCfg:       gwCfg,
-				ensureLocal: local,
+				ensureLocal: !remote,
+				agentCfg:    agentCfg,
 				agentPath:   agentPath,
 				sandboxName: sandboxName,
 				noTTY:       noTTY,
@@ -66,7 +71,7 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&local, "local", false, "Ensure local podman gateway")
+	cmd.Flags().BoolVar(&local, "local", false, "Ensure local podman gateway (default when --remote is not specified)")
 	cmd.Flags().BoolVar(&remote, "remote", false, "Ensure OCP gateway")
 	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from agents/)")
 	cmd.Flags().StringVarP(&agentFile, "file", "f", "", "Path to agent YAML file (overrides --agent)")
@@ -83,11 +88,29 @@ func resolveAgentPath(harnessDir, agentName, agentFile string) string {
 	return filepath.Join(harnessDir, "agents", agentName+".yaml")
 }
 
+// resolveAgentConfig parses the agent config from disk, falling back to the
+// embedded default when the file does not exist and no explicit --file was given.
+func resolveAgentConfig(harnessDir, agentName, agentFile string) (*agent.AgentConfig, error) {
+	path := resolveAgentPath(harnessDir, agentName, agentFile)
+	cfg, err := agent.ParseFile(path)
+	if err == nil {
+		return cfg, nil
+	}
+	if agentFile != "" || agentName != "default" || len(DefaultAgentConfig) == 0 {
+		return nil, err
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		return nil, err
+	}
+	return agent.Parse(DefaultAgentConfig)
+}
+
 type upLocalOpts struct {
 	harnessDir  string
 	gw          gateway.Gateway
 	gwCfg       *gateway.GatewayConfig
 	ensureLocal bool
+	agentCfg    *agent.AgentConfig
 	agentPath   string
 	sandboxName string
 	noTTY       bool
@@ -259,9 +282,13 @@ func upLocal(opts upLocalOpts) error {
 	gw := opts.gw
 
 	// 1. Parse agent config
-	agentCfg, err := agent.ParseFile(opts.agentPath)
-	if err != nil {
-		return err
+	agentCfg := opts.agentCfg
+	if agentCfg == nil {
+		var err error
+		agentCfg, err = agent.ParseFile(opts.agentPath)
+		if err != nil {
+			return err
+		}
 	}
 	sandboxName := agentCfg.Name
 	if opts.sandboxName != "" {
@@ -355,6 +382,9 @@ func upLocal(opts upLocalOpts) error {
 }
 
 var Version = "dev"
+
+// DefaultAgentConfig holds the embedded default agent YAML, set from main.go.
+var DefaultAgentConfig []byte
 
 func defaultSandboxImage() string {
 	if v := os.Getenv("SANDBOX_IMAGE"); v != "" {

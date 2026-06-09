@@ -1,8 +1,30 @@
 # OpenShell Harness
 
-Orchestration library and CLI for [OpenShell](https://github.com/NVIDIA/OpenShell).
-* Wraps the `openshell` CLI -- does not replace it.
-* Automates gateway deployment, provider registration, and sandbox creation across local Podman and remote Kubernetes/OpenShift targets.
+Orchestration CLI for [OpenShell](https://github.com/NVIDIA/OpenShell) AI agent sandboxes.
+Automates gateway deployment, provider registration, and sandbox creation across local Podman and remote Kubernetes/OpenShift targets.
+
+## Quick Start
+
+**Prerequisites:** [OpenShell](https://github.com/NVIDIA/OpenShell) installed and running, Podman, `GITHUB_TOKEN` env var set.
+
+```bash
+# macOS
+brew install openshell && brew services start openshell
+
+# Download the harness binary (macOS ARM64 shown -- see Releases for other platforms)
+curl -L https://github.com/robbycochran/harness-openshell/releases/latest/download/harness_darwin_arm64 -o harness
+chmod +x harness
+
+# Set credentials
+export GITHUB_TOKEN=ghp_...
+
+# Launch a sandbox
+./harness up
+```
+
+This deploys a local gateway, registers providers with available credentials, and creates a sandbox running Claude Code. The sandbox gets `gh` CLI access via the gateway's credential proxy. Add more providers (Vertex AI, Jira, GWS) by setting their credentials -- see [Credentials](#credentials) below.
+
+The binary includes a built-in default agent config. To customize, create an `agents/default.yaml` in your project directory -- it takes precedence over the builtin.
 
 ## Where This Fits
 
@@ -10,7 +32,7 @@ Orchestration library and CLI for [OpenShell](https://github.com/NVIDIA/OpenShel
 
 This harness fills a different gap: multi-provider credential management (preflight validation, registration, health checks) across deployment targets (local Podman, kind, OpenShift) with declarative agent configs. It is model-agnostic -- the agent config chooses the entrypoint and inference backend. The harness orchestrates the infrastructure around it.
 
-## Example
+## Agent Configs
 
 An agent config declares the sandbox image, entrypoint, and which providers to attach:
 
@@ -36,10 +58,8 @@ env:
 ```
 
 ```bash
-harness up --local
+harness up
 ```
-
-This deploys a local gateway, registers four providers, and creates a sandbox running Claude Code. The sandbox has: `gh` CLI (GitHub), `mcp-atlassian` (Jira/Confluence MCP server), `gws` CLI (Gmail, Calendar, Docs), and Vertex AI inference routed through the gateway proxy at `inference.local`.
 
 Credentials are proxy-managed. The sandbox holds placeholder tokens; real secrets are substituted by the gateway at the network boundary.
 
@@ -60,11 +80,11 @@ tty: false
 
 - [OpenShell CLI](https://github.com/NVIDIA/OpenShell) (`brew install openshell && brew services start openshell` on macOS)
 - Podman/Docker
-- Go 1.23+
+- Go 1.23+ (only needed for building from source)
 
 ### Credentials
 
-Each provider requires credentials on the host. The harness validates these before registration.
+Each provider requires credentials on the host. The harness validates these before registration. Providers with missing credentials are skipped with an info message.
 
 | Provider | Required |
 |----------|----------|
@@ -75,11 +95,11 @@ Each provider requires credentials on the host. The harness validates these befo
 
 See `providers.toml` for the full input schema and health checks per provider.
 
-### Run
+### Build from Source
 
 ```bash
 make cli
-./harness up --local
+./harness up
 ```
 
 For remote OpenShift: `./harness up --remote` (requires `kubectl`, `helm`, cluster access).
@@ -120,9 +140,10 @@ See the [OpenShell docs](https://github.com/NVIDIA/OpenShell) for the full secur
 ## Commands
 
 ```
-harness up [--local|--remote] [--agent NAME] [-f FILE] [--name SANDBOX]
+harness up [--remote] [--agent NAME] [-f FILE] [--name SANDBOX]
     Deploy gateway + register providers + create sandbox.
-    --agent defaults to "default" (reads agents/default.yaml).
+    Defaults to local gateway (use --remote for OCP).
+    --agent defaults to "default" (embedded or agents/default.yaml).
     -f renders any agent YAML file directly.
 
 harness create [--agent NAME] [-f FILE] [--name SANDBOX]
