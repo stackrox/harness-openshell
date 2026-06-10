@@ -58,7 +58,7 @@ func createSandbox(opts sandboxOpts) error {
 			return fmt.Errorf("staging payload: %w", err)
 		}
 	} else {
-		if err := profile.StageHarnessDir(cfg, uploadDir); err != nil {
+		if err := profile.StageHarnessDir(uploadDir); err != nil {
 			return fmt.Errorf("staging files: %w", err)
 		}
 	}

@@ -133,12 +133,7 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 		name = sandboxName
 	}
 
-	sandboxImage := agentCfg.Image
-	if sandboxImage == "" {
-		sandboxImage = defaultSandboxImage()
-	} else if envImage := os.Getenv("SANDBOX_IMAGE"); envImage != "" {
-		sandboxImage = envImage
-	}
+	sandboxImage := resolveSandboxImage(agentCfg.Image)
 
 	// Top-level context
 	status.Infof("Agent: %s (%s)", name, filepath.Base(agentPath))
@@ -296,12 +291,7 @@ func upLocal(opts upLocalOpts) error {
 	}
 	noTTY := opts.noTTY || agentCfg.NoTTY()
 
-	sandboxImage := agentCfg.Image
-	if sandboxImage == "" {
-		sandboxImage = defaultSandboxImage()
-	} else if envImage := os.Getenv("SANDBOX_IMAGE"); envImage != "" {
-		sandboxImage = envImage
-	}
+	sandboxImage := resolveSandboxImage(agentCfg.Image)
 
 	// Top-level context
 	status.Infof("Agent: %s (%s)", sandboxName, filepath.Base(opts.agentPath))

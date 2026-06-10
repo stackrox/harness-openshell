@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -52,12 +53,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				name = sandboxName
 			}
 
-			sandboxImage := agentCfg.Image
-			if sandboxImage == "" {
-				sandboxImage = defaultSandboxImage()
-			} else if envImage := os.Getenv("SANDBOX_IMAGE"); envImage != "" {
-				sandboxImage = envImage
-			}
+			sandboxImage := resolveSandboxImage(agentCfg.Image)
 
 			status.Header("Agent")
 			status.Infof("Name:  %s", name)
@@ -86,7 +82,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				status.Header("Preflight")
 				preflightOK := true
 				for _, p := range allProviders {
-					if !providerInList(p.Name, missing) {
+					if !slices.Contains(missing, p.Name) {
 						continue
 					}
 					ok, details := preflight.CheckProvider(p)
@@ -222,11 +218,3 @@ func createViaRunner(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway
 	return upRemote(harnessDir, gwCfg, gw, agentPath, sandboxName)
 }
 
-func providerInList(name string, providers []string) bool {
-	for _, p := range providers {
-		if p == name {
-			return true
-		}
-	}
-	return false
-}

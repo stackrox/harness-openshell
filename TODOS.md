@@ -1,5 +1,13 @@
 # TODOs
 
+## remove providers.tooml, add a todo for provider profile validation in thefture
+## convert toml to yaml for gateways 
+## specify the yaml formats
+
+## for flows that  supports agent.yaml (create and up..) should also support --provider-profile and config
+
+## document that we need a way to specify non secret env vars in providers to capture like secrets, thats what provider config captures
+
 ## registerProviders should filter by agent's provider list
 
 **What:** `registerProviders()` in `cmd/providers.go` uses the gateway config's provider

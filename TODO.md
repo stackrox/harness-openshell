@@ -16,10 +16,10 @@
 - Consider: gateway.toml uses a `registry` field and images are relative to it
 
 ### Consolidate internal/profile into internal/agent
-- `internal/profile/` has dead code: `Parse()`, `ParseFile()`, `BuildSandboxEnv()`
-- Only `Config` struct, `ValidateProviders`, and `StageHarnessDir` still used
-- Move `ValidateProviders` to agent or gateway package, inline `Config` into sandbox.go
-- Remove TOML dependency
+- ✅ Removed dead code: `Parse()`, `ParseFile()`, `BuildSandboxEnv()`
+- Only `Config` struct, `ValidateProviders`, and `StageHarnessDir` remain
+- TODO: Move `ValidateProviders` to agent or gateway package, inline `Config` into sandbox.go
+- TODO: Remove TOML dependency (github.com/BurntSushi/toml) if no longer used
 
 ## Agent Config
 

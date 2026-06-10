@@ -15,7 +15,9 @@ __pycache__/
 
 # Build artifacts
 harness
+harness-openshell
 build/runner/harness
+build/runner/openshell
 infracluster/
 .claude/
 

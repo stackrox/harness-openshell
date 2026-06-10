@@ -56,14 +56,3 @@ func TestProfileHasCustomProviders_WithCustom(t *testing.T) {
 	}
 }
 
-func TestProviderInList(t *testing.T) {
-	if !providerInList("github", []string{"github", "vertex-local"}) {
-		t.Error("github should be in list")
-	}
-	if providerInList("atlassian", []string{"github", "vertex-local"}) {
-		t.Error("atlassian should not be in list")
-	}
-	if providerInList("github", nil) {
-		t.Error("nil list should return false")
-	}
-}
