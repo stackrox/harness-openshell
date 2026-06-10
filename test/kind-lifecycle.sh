@@ -70,22 +70,15 @@ echo ""
 
 kubectl create namespace openshell --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
 
-# Pre-load dev sandbox image into kind (avoids pull secrets and ImagePullBackOff).
-# SANDBOX_IMAGE and CONTAINER_CLI are set by the Makefile for dev builds.
-# The podman save + kind load can take 60-90s; run a gateway keep-alive loop
-# in the background so the local openshell service stays responsive during the
-# I/O-heavy transfer.
+# Pre-load dev sandbox image into kind.
+# In CI (CI=true), images.yml has already pushed the image to the registry so
+# kind can pull it directly — skip the 60-90s local preload that disrupts the
+# local openshell service.  Locally, preload from the container daemon so
+# tests work without a registry push.
 CONTAINER_CLI=${CONTAINER_CLI:-podman}
-if [[ -n "${SANDBOX_IMAGE:-}" ]]; then
+if [[ -n "${SANDBOX_IMAGE:-}" ]] && [[ -z "${CI:-}" ]]; then
   if "$CONTAINER_CLI" image inspect "$SANDBOX_IMAGE" &>/dev/null; then
     echo "  Pre-loading image: $SANDBOX_IMAGE"
-
-    # Start keep-alive in background: ping gateway every 5s so it doesn't idle out.
-    if command -v openshell &>/dev/null; then
-      ( while true; do openshell inference get &>/dev/null; sleep 5; done ) &
-      KEEPALIVE_PID=$!
-    fi
-
     if [[ "$CONTAINER_CLI" == "docker" ]]; then
       kind load docker-image "$SANDBOX_IMAGE" --name "$CLUSTER_NAME"
     else
@@ -95,12 +88,11 @@ if [[ -n "${SANDBOX_IMAGE:-}" ]]; then
       kind load image-archive "$IMAGE_ARCHIVE" --name "$CLUSTER_NAME"
       rm -f "$IMAGE_ARCHIVE"
     fi
-
-    # Stop keep-alive
-    [[ -n "${KEEPALIVE_PID:-}" ]] && kill "$KEEPALIVE_PID" 2>/dev/null || true
   else
-    echo "  Image not found in $CONTAINER_CLI — kind will pull at sandbox creation time"
+    echo "  Image not found locally — kind will pull from registry at sandbox create time"
   fi
+elif [[ -n "${SANDBOX_IMAGE:-}" ]]; then
+  echo "  CI mode — kind will pull image from registry at sandbox create time"
 fi
 
 # ── Run tests ───────────────────────────────────────────────────────
