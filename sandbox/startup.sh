@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runtime setup for the sandbox. Runs once via harness launch.
+# Runtime setup for the sandbox. Runs once at sandbox creation.
 set -euo pipefail
 
 # ── Source env vars from agent config ─────────────────────────────────

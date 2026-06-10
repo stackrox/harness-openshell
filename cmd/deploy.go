@@ -281,9 +281,9 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 		return fmt.Errorf("registering gateway %s: %w", gatewayName, err)
 	}
 
-	// mTLS cert extraction — only needed for launcher mode (OCP/remote clusters).
-	// Direct mode (kind, plain k8s) uses HTTP or skips client cert auth.
-	if gwCfg.UsesLauncher() && gwCfg.Secrets.MTLS != "" {
+	// mTLS cert extraction — needed for remote clusters (OCP) where the
+	// gateway is exposed via TLS-passthrough Route.
+	if !gwCfg.IsLocal() && gwCfg.Secrets.MTLS != "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return fmt.Errorf("determining home directory: %w", err)
@@ -306,7 +306,7 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 	if err := gw.GatewaySelect(gatewayName); err != nil {
 		return fmt.Errorf("selecting gateway %s: %w", gatewayName, err)
 	}
-	if gwCfg.UsesLauncher() {
+	if !gwCfg.IsLocal() && gwCfg.Secrets.MTLS != "" {
 		status.OKf("%s registered (certs from cluster)", gatewayName)
 	} else {
 		status.OKf("%s registered", gatewayName)

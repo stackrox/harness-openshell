@@ -60,8 +60,7 @@ Full flow: deploy gateway, register providers, render agent config, create sandb
 4. **Render payload** -- `env.sh` (resolved env vars), `run.sh` (entrypoint wrapper), `task.md` (if set).
 5. **Create sandbox** -- `openshell sandbox create` with `--upload` (payload) and the startup command. Retry up to 5 times for supervisor race conditions.
 
-Local: sandbox created directly via the openshell CLI on the user's machine.
-Remote: a runner Job is deployed to the cluster (`harness launch`), which creates the sandbox from inside the cluster with mTLS gateway access.
+Both local and remote targets create the sandbox directly from the user's machine. Remote gateways are accessed via an external Route endpoint with mTLS authentication.
 
 ### `harness create [--agent NAME] [-f FILE] [--name SANDBOX]`
 
@@ -99,10 +98,6 @@ Stop or start a sandbox without deleting it. When NAME is omitted and exactly on
 
 Tear down resources. At least one flag required.
 
-### `harness launch` (hidden)
-
-In-cluster command for the runner Job. Reads agent config from `/etc/openshell/sandbox/agent.yaml` (mounted ConfigMap), configures mTLS gateway, renders payload, creates sandbox, sets up environment. Not meant for direct user invocation.
-
 ## Config Files
 
 | File | Purpose |
@@ -113,17 +108,16 @@ In-cluster command for the runner Job. Reads agent config from `/etc/openshell/s
 | `gateways/*/gateway.toml` | Deployment target config with Helm, images, RBAC |
 | `openshell.toml` | Deployment-level overrides (enabled providers, inference model) |
 | `sandbox/Dockerfile` | Sandbox image: OpenShell base + MCP servers + CLI tools |
-| `build/runner/Dockerfile` | Runner image: harness binary + openshell CLI |
 | `sandbox/policy.yaml` | Network egress rules applied to sandboxes |
 
 ## Image Tags
 
-All images are published to `ghcr.io/robbycochran/harness-openshell`. CI never publishes floating tags (`:latest`, `:sandbox`, `:runner`); the bare `:sandbox` fallback below exists only for local `go build` binaries without version ldflags.
+All images are published to `ghcr.io/robbycochran/harness-openshell`. CI never publishes floating tags (`:latest`, `:sandbox`); the bare `:sandbox` fallback below exists only for local `go build` binaries without version ldflags.
 
-| Trigger | Sandbox | Runner |
-|---------|---------|--------|
-| Release `v0.1.2` | `:sandbox-v0.1.2` | `:runner-v0.1.2` |
-| Any push/PR | `:sandbox-<sha>` | `:runner-<sha>` |
+| Trigger | Sandbox |
+|---------|---------|
+| Release `v0.1.2` | `:sandbox-v0.1.2` |
+| Any push/PR | `:sandbox-<sha>` |
 
 The CLI resolves images from its embedded version (set via `-ldflags` at build time):
 
@@ -131,14 +125,13 @@ The CLI resolves images from its embedded version (set via `-ldflags` at build t
 - `v0.1.2-5-gabc1234` → `:sandbox-v0.1.2-5-gabc1234` (dev build, matches `make dev-sandbox`)
 - `dev` → `:sandbox` (bare `go build` without ldflags)
 
-`SANDBOX_IMAGE` and `RUNNER_IMAGE` env vars override the version-based resolution.
+`SANDBOX_IMAGE` env var overrides the version-based resolution.
 
 ## Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
 | `SANDBOX_IMAGE` | Override sandbox image (dev/CI builds) |
-| `RUNNER_IMAGE` | Override runner image (dev/CI builds) |
 | `HARNESS_DIR` | Override harness directory detection |
 | `OPENSHELL_NAMESPACE` | Override K8s namespace (default: `openshell`) |
 | `OPENSHELL_CLI` | Override openshell binary path |
@@ -148,7 +141,7 @@ The CLI resolves images from its embedded version (set via `-ldflags` at build t
 | `CONFIG_TOML` / `PROVIDERS_TOML` | Override paths to `openshell.toml` / `providers.toml` (preflight) |
 | `KUBECONFIG` | K8s cluster config for remote targets |
 
-`GATEWAY_ENDPOINT` and `GATEWAY_NAME` are internal — set on the in-cluster runner Job, not by users.
+`GATEWAY_NAME` is internal — used by env override in gateway config, not typically set by users.
 
 ## Payload
 

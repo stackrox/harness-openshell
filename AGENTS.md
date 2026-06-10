@@ -73,13 +73,13 @@ Current workarounds and their upstream tracking:
 | Custom sandbox image | Adds mcp-atlassian and GWS CLI to community base | Upstreaming MCP integrations |
 | `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1` | Vertex AI rejects `context_management` beta header | Anthropic/Google to align APIs |
 | Atlassian `JIRA_URL`/`JIRA_USERNAME` as `--config` material | Provider v2 config keys not injected as env vars yet | OpenShell roadmap |
-| In-cluster runner Job | OpenShell doesn't have a native K8s-triggered sandbox creation | Potential future CRD |
 
 Previously worked around, now resolved:
 
 | Was | Resolution |
 |-----|-----------|
 | GWS credential export/upload to sandbox | GWS is now a native provider (`google-workspace`). Gateway manages OAuth refresh via `oauth2-refresh-token` strategy + `request_body_credential_rewrite` on `oauth2.googleapis.com`. Sandbox gets a proxy-resolved placeholder. |
+| In-cluster runner Job | Eliminated — all targets now use direct mode. The gateway is accessible via external Route + mTLS, so sandboxes are created from the user's machine. |
 
 ## Validation
 

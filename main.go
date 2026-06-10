@@ -54,7 +54,6 @@ func main() {
 		cmd.NewTeardownCmd(harnessDir, cli),
 		cmd.NewPreflightCmd(harnessDir, cli),
 		cmd.NewProvidersCmd(harnessDir, cli),
-		cmd.NewLaunchCmd(harnessDir, cli),
 		cmd.NewStatusCmd(harnessDir, cli),
 		cmd.NewLogsCmd(harnessDir, cli),
 		cmd.NewStopCmd(harnessDir, cli),

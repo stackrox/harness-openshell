@@ -5,7 +5,6 @@
 #   - KUBECONFIG set or default context pointing to OCP
 #
 # Addons applied in order:
-#   - addons/rbac.yaml    — launcher ServiceAccount + Role
 #   - addons/route.yaml   — OpenShift Route for external access
 #   - SCC grants for openshell service accounts (via oc CLI)
 
@@ -14,7 +13,6 @@ type = "remote"
 platform = "ocp"
 service = "route"
 name = "openshell-remote-ocp"
-mode = "launcher"
 
 [providers]
 enabled = ["github", "vertex-local", "atlassian", "gws"]
@@ -29,7 +27,7 @@ url = "https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download
 values = "values.yaml"
 
 [addons]
-manifests = ["addons/rbac.yaml", "addons/route.yaml"]
+manifests = ["addons/route.yaml"]
 
 [ocp]
 scc-privileged = ["openshell", "openshell-sandbox"]
@@ -37,7 +35,3 @@ scc-anyuid = ["openshell"]
 
 [secrets]
 mtls = "openshell-client-tls"
-
-[launcher]
-service-account = "openshell-launcher"
-gateway-endpoint = "https://openshell.openshell.svc.cluster.local:8080"

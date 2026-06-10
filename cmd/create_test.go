@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/robbycochran/harness-openshell/internal/gateway"
-	"github.com/robbycochran/harness-openshell/internal/preflight"
 )
 
 func TestActiveGatewayInfo_ListError(t *testing.T) {
@@ -36,23 +35,4 @@ func TestActiveGatewayInfo_RemoteGateway(t *testing.T) {
 	}
 }
 
-func TestProfileHasCustomProviders_NoCustom(t *testing.T) {
-	allProviders := []preflight.Provider{
-		{Name: "github", Type: "openshell"},
-		{Name: "vertex-local", Type: "openshell"},
-	}
-	if profileHasCustomProviders([]string{"github", "vertex-local"}, allProviders) {
-		t.Error("no custom providers, should return false")
-	}
-}
-
-func TestProfileHasCustomProviders_WithCustom(t *testing.T) {
-	allProviders := []preflight.Provider{
-		{Name: "github", Type: "openshell"},
-		{Name: "gws", Type: "custom"},
-	}
-	if !profileHasCustomProviders([]string{"github", "gws"}, allProviders) {
-		t.Error("gws is custom, should return true")
-	}
-}
 

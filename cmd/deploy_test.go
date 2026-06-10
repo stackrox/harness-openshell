@@ -29,7 +29,6 @@ type = "remote"
 platform = "ocp"
 service = "route"
 name = "test-ocp"
-mode = "launcher"
 
 [chart]
 oci = "oci://ghcr.io/nvidia/openshell/helm-chart"
@@ -43,9 +42,6 @@ values = "values.yaml"
 [addons]
 manifests = ["addons/rbac.yaml", "addons/route.yaml"]
 
-[images]
-runner = "test-runner:v1"
-
 [ocp]
 scc-privileged = ["sa1", "sa2"]
 scc-anyuid = ["sa1"]
@@ -53,10 +49,6 @@ scc-anyuid = ["sa1"]
 [secrets]
 names = ["secret-a"]
 mtls = "test-client-tls"
-
-[launcher]
-service-account = "test-launcher-sa"
-gateway-endpoint = "https://gw.cluster.local:8080"
 `), 0o644)
 	os.WriteFile(filepath.Join(gwDir, "helm", "values.yaml"), []byte("image:\n  pullPolicy: Always\n"), 0o644)
 	os.WriteFile(filepath.Join(gwDir, "addons", "rbac.yaml"), []byte("# rbac\n"), 0o644)

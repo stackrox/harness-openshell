@@ -138,7 +138,6 @@ See the [OpenShell docs](https://github.com/NVIDIA/OpenShell) for the full secur
 | `gateways/*/gateway.toml` | Deployment target config: `local/` (Podman), `kind/`, `ocp/` (OpenShift) |
 | `openshell.toml` | Deployment-level overrides (enabled providers, inference model, chart version) |
 | `sandbox/Dockerfile` | Sandbox image: OpenShell base + MCP servers + CLI tools |
-| `build/runner/Dockerfile` | Runner image: harness binary for in-cluster sandbox creation |
 | `sandbox/policy.yaml` | Network egress rules applied to sandboxes |
 
 ## Commands
