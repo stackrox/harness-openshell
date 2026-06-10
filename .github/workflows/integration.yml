@@ -56,6 +56,14 @@ jobs:
       - name: Install openshell
         run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
 
+      - name: Wait for gateway
+        run: |
+          for i in $(seq 1 30); do
+            openshell inference get &>/dev/null && break
+            sleep 1
+          done
+          openshell gateway list
+
       # install_only: kind-lifecycle.sh creates its own cluster with an
       # isolated kubeconfig — only the kind binary is needed here.
       - uses: helm/kind-action@v1
