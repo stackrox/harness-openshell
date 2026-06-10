@@ -115,7 +115,18 @@ func deployLocal(gw gateway.Gateway) error {
 		return fmt.Errorf("selecting gateway %s: %w", localGW, err)
 	}
 
-	if gw.InferenceGet() == nil {
+	// Retry InferenceGet a few times: the openshell daemon can briefly reload
+	// its config after a gateway add/select and take a few seconds to respond.
+	var inferErr error
+	for i := 0; i < 5; i++ {
+		if inferErr = gw.InferenceGet(); inferErr == nil {
+			break
+		}
+		if i < 4 {
+			time.Sleep(3 * time.Second)
+		}
+	}
+	if inferErr == nil {
 		status.OKf("%s (active, reachable)", localGW)
 	} else {
 		status.Failf("%s (not responding)", localGW)
