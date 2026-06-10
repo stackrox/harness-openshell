@@ -1,5 +1,9 @@
 # Provider definitions for the OpenShell harness.
-# See PROVIDERS-SPEC.md for format documentation.
+#
+# Each [[providers]] entry declares preflight inputs validated on the host
+# before registration: kind = "env" (env var), "file" (path exists), or
+# "check" (command exits 0). secret = true marks values that must never be
+# echoed. See SPEC.md "Config Files" for where this fits.
 
 [[providers]]
 name = "github"

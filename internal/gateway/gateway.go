@@ -39,6 +39,24 @@ type Gateway interface {
 	SettingsSet(key, value string) error
 }
 
+// ProviderChecker is the subset of Gateway needed to check provider registration.
+type ProviderChecker interface {
+	ProviderGet(name string) error
+}
+
+// ValidateProviders checks which providers are registered on the gateway.
+// Returns the list of registered providers and a list of missing ones.
+func ValidateProviders(providers []string, gw ProviderChecker) (registered, missing []string) {
+	for _, name := range providers {
+		if gw.ProviderGet(name) == nil {
+			registered = append(registered, name)
+		} else {
+			missing = append(missing, name)
+		}
+	}
+	return
+}
+
 type ProviderCreateOpts struct {
 	Credentials []string
 	Configs     []string

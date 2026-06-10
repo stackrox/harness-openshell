@@ -3,7 +3,7 @@ package cmd
 import "os"
 
 // resolveSandboxImage returns the final sandbox image path following
-// the precedence: SANDBOX_IMAGE env var > agentImage > defaultSandboxImage().
+// the precedence: SANDBOX_IMAGE env var > agentImage > version-derived default.
 func resolveSandboxImage(agentImage string) string {
 	if envImage := os.Getenv("SANDBOX_IMAGE"); envImage != "" {
 		return envImage
@@ -11,5 +11,5 @@ func resolveSandboxImage(agentImage string) string {
 	if agentImage != "" {
 		return agentImage
 	}
-	return defaultSandboxImage()
+	return versionedImage("sandbox")
 }

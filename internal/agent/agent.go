@@ -167,14 +167,17 @@ func RenderPayload(cfg *AgentConfig, baseDir, destDir string) error {
 	}
 
 	for _, inc := range cfg.Include {
+		// Absolute includes are allowed as-is (the user authors the config);
+		// relative includes must stay within the base directory.
 		src := inc
 		if !filepath.IsAbs(src) {
 			src = filepath.Join(baseDir, src)
+			rel, err := filepath.Rel(filepath.Clean(baseDir), filepath.Clean(src))
+			if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return fmt.Errorf("include path %q escapes base directory", inc)
+			}
 		}
 		clean := filepath.Clean(src)
-		if !strings.HasPrefix(clean, filepath.Clean(baseDir)) && !filepath.IsAbs(inc) {
-			return fmt.Errorf("include path %q escapes base directory", inc)
-		}
 		data, err := os.ReadFile(clean)
 		if err != nil {
 			return fmt.Errorf("reading include %s: %w", inc, err)

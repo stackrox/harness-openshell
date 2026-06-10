@@ -40,7 +40,7 @@ for arg in "$@"; do
     --reuse-gateway)  REUSE_GATEWAY=true ;;
     --no-providers)   NO_PROVIDERS=true ;;
     --agent=*)        PROFILE="${arg#--agent=}" ;;
-    -*)               ;;
+    -*)               echo "Unknown flag: $arg"; exit 1 ;;
     *)                [[ -z "$TARGET" ]] && TARGET="$arg" ;;
   esac
 done
@@ -141,12 +141,6 @@ sandbox_verify() {
   if ! sandbox_wait "$name"; then
     phase=$("$CLI" sandbox list 2>/dev/null | strip_ansi | awk -v n="$name" '$1==n {print $NF}')
     printf "  ✗ %-35s %s\n" "sandbox ready" "(phase: ${phase:-not found})"
-    ((FAIL++))
-    return
-  fi
-  phase="Ready"
-  if [[ "$phase" != "Ready" ]]; then
-    printf "  ✗ %-35s\n" "sandbox ready"
     ((FAIL++))
     return
   fi

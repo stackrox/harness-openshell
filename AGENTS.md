@@ -99,14 +99,19 @@ Runs in GitHub Actions on every PR.
 --ci flag  =  --no-providers --agent=ci
 ```
 
+CI mode also auto-activates when the `CI` env var is `true` (set by GitHub Actions).
+
 ### Make targets
+
+See `make help` for the full list. The test entry points:
 
 | Target | Gateway | Mode |
 |--------|---------|------|
-| `make validate-local` | local Podman | default (needs creds) |
-| `make validate-local-ci` | local Podman | ci (no creds) |
-| `make validate-kind` | kind cluster | default (needs creds) |
-| `make validate-kind-ci` | kind cluster | ci (no creds) |
+| `make test` | none | vet + unit tests + bats |
+| `make test-local` | local Podman | default locally, ci on GHA |
+| `make test-kind` | kind cluster | default locally, ci on GHA |
+| `make test-remote` | OCP | default (needs KUBECONFIG + creds) |
+| `make test-all` | all of the above | |
 
 Or directly:
 ```bash

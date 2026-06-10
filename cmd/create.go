@@ -11,7 +11,6 @@ import (
 	"github.com/robbycochran/harness-openshell/internal/agent"
 	"github.com/robbycochran/harness-openshell/internal/gateway"
 	"github.com/robbycochran/harness-openshell/internal/preflight"
-	"github.com/robbycochran/harness-openshell/internal/profile"
 	"github.com/robbycochran/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
 )
@@ -62,7 +61,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 			// 3. Validate providers are registered
 			status.Header("Providers")
 			providerNames := agentCfg.ProviderNames()
-			registered, missing := profile.ValidateProviders(providerNames, gw)
+			registered, missing := gateway.ValidateProviders(providerNames, gw)
 			for _, n := range registered {
 				status.OKf("%s: attached", n)
 			}
@@ -128,15 +127,11 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				return fmt.Errorf("rendering payload: %w", err)
 			}
 
-			cfg := &profile.Config{
-				Name: name,
-				From: sandboxImage,
-			}
-
 			return createSandbox(sandboxOpts{
 				harnessDir: harnessDir,
 				gw:         gw,
-				cfg:        cfg,
+				name:       name,
+				image:      sandboxImage,
 				providers:  registered,
 				noTTY:      true,
 				retrySleep: 5 * time.Second,

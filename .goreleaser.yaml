@@ -1,5 +1,9 @@
 version: 2
 
+# Asset names match the README install instructions:
+#   releases/latest/download/harness_darwin_arm64
+project_name: harness
+
 builds:
   - binary: harness
     env:
@@ -14,4 +18,5 @@ builds:
       - -s -w -X main.version={{.Version}}
 
 archives:
-  - format: tar.gz
+  - formats: ["binary"]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"

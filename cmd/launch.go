@@ -187,7 +187,7 @@ func launchCreateSandbox(cfg *agent.AgentConfig, providers []string, payloadDir,
 		}
 		time.Sleep(10 * time.Second)
 	}
-	return nil
+	return nil // unreachable but required by compiler
 }
 
 

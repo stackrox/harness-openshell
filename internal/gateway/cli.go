@@ -159,21 +159,13 @@ func (c *CLI) GatewayList() ([]GatewayInfo, error) {
 		if i == 0 || strings.TrimSpace(line) == "" {
 			continue
 		}
-		cleaned := ansiRE.ReplaceAllString(line, "")
+		cleaned := strings.TrimSpace(ansiRE.ReplaceAllString(line, ""))
 		active := strings.HasPrefix(cleaned, "*")
-		fields := strings.Fields(cleaned)
+		fields := strings.Fields(strings.TrimPrefix(cleaned, "*"))
 		if len(fields) >= 2 {
-			name := fields[0]
-			if name == "*" && len(fields) >= 3 {
-				name = fields[1]
-			}
-			endpoint := fields[1]
-			if active && len(fields) >= 3 {
-				endpoint = fields[2]
-			}
 			gateways = append(gateways, GatewayInfo{
-				Name:     name,
-				Endpoint: endpoint,
+				Name:     fields[0],
+				Endpoint: fields[1],
 				Active:   active,
 			})
 		}

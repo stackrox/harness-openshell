@@ -74,6 +74,10 @@ func resolveGatewayName(args []string, local, remote bool) (string, error) {
 	return "", fmt.Errorf("specify a gateway: harness deploy <local|ocp|kind>")
 }
 
+// lookPath is exec.LookPath, overridable in tests to avoid a host
+// dependency on podman.
+var lookPath = exec.LookPath
+
 func deployLocal(gw gateway.Gateway) error {
 	cliPath := gw.CLIPath()
 	if cliPath == "" {
@@ -81,7 +85,7 @@ func deployLocal(gw gateway.Gateway) error {
 	}
 
 	status.Header("Deploy")
-	if _, err := exec.LookPath("podman"); err != nil {
+	if _, err := lookPath("podman"); err != nil {
 		status.Fail("Podman not found")
 		return fmt.Errorf("podman is required")
 	}
@@ -111,7 +115,18 @@ func deployLocal(gw gateway.Gateway) error {
 		return fmt.Errorf("selecting gateway %s: %w", localGW, err)
 	}
 
-	if gw.InferenceGet() == nil {
+	// Retry InferenceGet a few times: the openshell daemon can briefly reload
+	// its config after a gateway add/select and take a few seconds to respond.
+	var inferErr error
+	for i := range 5 {
+		if inferErr = gw.InferenceGet(); inferErr == nil {
+			break
+		}
+		if i < 4 {
+			time.Sleep(3 * time.Second)
+		}
+	}
+	if inferErr == nil {
 		status.OKf("%s (active, reachable)", localGW)
 	} else {
 		status.Failf("%s (not responding)", localGW)

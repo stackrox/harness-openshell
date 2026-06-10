@@ -12,7 +12,6 @@ import (
 	"github.com/robbycochran/harness-openshell/internal/agent"
 	"github.com/robbycochran/harness-openshell/internal/gateway"
 	"github.com/robbycochran/harness-openshell/internal/k8s"
-	"github.com/robbycochran/harness-openshell/internal/profile"
 	"github.com/robbycochran/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
 )
@@ -155,7 +154,7 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 	// 2. Ensure providers needed by the agent
 	providerNames := agentCfg.ProviderNames()
 	if len(providerNames) > 0 {
-		_, missing := profile.ValidateProviders(providerNames, gw)
+		_, missing := gateway.ValidateProviders(providerNames, gw)
 		if len(missing) > 0 {
 			if err := registerProviders(harnessDir, gw, false, gwCfg, false); err != nil {
 				return fmt.Errorf("provider registration failed: %w", err)
@@ -163,7 +162,7 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 		}
 	}
 
-	// 4. ConfigMap from agent.yaml
+	// 3. ConfigMap from agent.yaml
 	out, err := kc.RunKubectl(ctx, "create", "configmap", "sandbox-"+name,
 		"--from-file=agent.yaml="+agentPath,
 		"--dry-run=client", "-o", "yaml")
@@ -177,12 +176,12 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 		return fmt.Errorf("applying config configmap: %w", err)
 	}
 
-	// 5. Clean up old job
+	// 4. Clean up old job
 	jobName := "sandbox-" + name
 	kc.RunKubectl(ctx, "delete", "job", jobName, "--grace-period=30")
 	kc.RunKubectl(ctx, "delete", "pod", "-l", "job-name="+jobName, "--grace-period=30")
 
-	// 6. Apply runner Job (gwCfg provides defaults + RUNNER_IMAGE env override)
+	// 5. Apply runner Job (gwCfg provides defaults + RUNNER_IMAGE env override)
 	runnerImage := defaultRunnerImage()
 	runnerSA := "openshell-launcher"
 	gatewayEndpoint := "https://openshell.openshell.svc.cluster.local:8080"
@@ -229,20 +228,20 @@ func upRemote(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gatewa
 		return fmt.Errorf("applying runner job: %w", err)
 	}
 
-	// 7. Wait for runner pod
+	// 6. Wait for runner pod
 	status.Header("Sandbox")
 	status.Info("Waiting for runner...")
 	kc.RunKubectl(ctx, "wait", "--for=condition=ready", "pod",
 		"-l", "job-name="+jobName, "--timeout=120s")
 
-	// 8. Tail logs in background
+	// 7. Tail logs in background
 	logCmd := exec.CommandContext(ctx, "kubectl", "-n", namespace,
 		"logs", "-f", "-l", "job-name="+jobName)
 	logCmd.Stdout = os.Stdout
 	logCmd.Stderr = os.Stderr
 	logCmd.Start()
 
-	// 9. Poll job status (10 min timeout)
+	// 8. Poll job status (15 min timeout)
 	var jobStatus string
 	deadline := time.Now().Add(15 * time.Minute)
 	for time.Now().Before(deadline) {
@@ -316,12 +315,12 @@ func upLocal(opts upLocalOpts) error {
 	var registered []string
 	if len(providerNames) > 0 {
 		var missing []string
-		registered, missing = profile.ValidateProviders(providerNames, gw)
+		registered, missing = gateway.ValidateProviders(providerNames, gw)
 		if len(missing) > 0 {
 			if err := registerProviders(opts.harnessDir, gw, false, opts.gwCfg, false); err != nil {
 				status.Warn(fmt.Sprintf("provider registration: %v", err))
 			}
-			registered, missing = profile.ValidateProviders(providerNames, gw)
+			registered, missing = gateway.ValidateProviders(providerNames, gw)
 		}
 		status.Header("Providers")
 		for _, name := range registered {
@@ -343,11 +342,6 @@ func upLocal(opts upLocalOpts) error {
 		return fmt.Errorf("rendering payload: %w", err)
 	}
 
-	cfg := &profile.Config{
-		Name: sandboxName,
-		From: sandboxImage,
-	}
-
 	// 5. Create sandbox
 	status.Header("Sandbox")
 	envInit := ". /sandbox/.config/openshell/sandbox.env 2>/dev/null && " +
@@ -362,7 +356,8 @@ func upLocal(opts upLocalOpts) error {
 	return createSandbox(sandboxOpts{
 		harnessDir: opts.harnessDir,
 		gw:         gw,
-		cfg:        cfg,
+		name:       sandboxName,
+		image:      sandboxImage,
 		providers:  registered,
 		noTTY:      noTTY,
 		retrySleep: opts.retrySleep,
@@ -375,13 +370,6 @@ var Version = "dev"
 
 // DefaultAgentConfig holds the embedded default agent YAML, set from main.go.
 var DefaultAgentConfig []byte
-
-func defaultSandboxImage() string {
-	if v := os.Getenv("SANDBOX_IMAGE"); v != "" {
-		return v
-	}
-	return versionedImage("sandbox")
-}
 
 func defaultRunnerImage() string {
 	if v := os.Getenv("RUNNER_IMAGE"); v != "" {

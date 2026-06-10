@@ -81,7 +81,7 @@ tty: false
 
 ### Prerequisites
 
-- [OpenShell CLI](https://github.com/NVIDIA/OpenShell) (`brew install openshell && brew services start openshell` on macOS)
+- [OpenShell CLI](https://github.com/NVIDIA/OpenShell) (`brew tap nvidia/openshell && brew install openshell && brew services start openshell` on macOS)
 - Podman/Docker
 - Go 1.23+ (only needed for building from source)
 
@@ -136,6 +136,7 @@ See the [OpenShell docs](https://github.com/NVIDIA/OpenShell) for the full secur
 | `agents/providers/profiles/` | OpenShell provider profiles (imported to gateway on registration) |
 | `providers.toml` | Provider catalog: required inputs and health checks per provider |
 | `gateways/*/gateway.toml` | Deployment target config: `local/` (Podman), `kind/`, `ocp/` (OpenShift) |
+| `openshell.toml` | Deployment-level overrides (enabled providers, inference model, chart version) |
 | `sandbox/Dockerfile` | Sandbox image: OpenShell base + MCP servers + CLI tools |
 | `build/runner/Dockerfile` | Runner image: harness binary for in-cluster sandbox creation |
 | `sandbox/policy.yaml` | Network egress rules applied to sandboxes |
@@ -164,12 +165,26 @@ harness providers [--force]
 harness preflight [--strict]
     Validate local credentials and prerequisites.
 
+harness status
+    Show gateway, provider, and sandbox status.
+
+harness logs [NAME] [-f]
+    Stream sandbox logs (-f to follow).
+
+harness stop [NAME] / harness start [NAME]
+    Stop or start a sandbox without deleting it.
+
 harness teardown [--sandboxes] [--providers] [--k8s]
     Tear down resources. At least one flag required.
 ```
 
-## References
+## Documentation Map
 
-- [AGENTS.md](AGENTS.md) -- coding guidelines, project principles, workaround tracking
-- [SPEC.md](SPEC.md) -- full CLI specification
-- [TODO.md](TODO.md) -- roadmap and known gaps
+| Document | What it is |
+|----------|------------|
+| [SPEC.md](SPEC.md) | **Authoritative** behavior spec for the CLI — commands, configs, payload |
+| [AGENTS.md](AGENTS.md) | Contributor guide: coding principles, workaround tracking, validation modes |
+| [TODO.md](TODO.md) | Roadmap and known gaps |
+| [docs/archive/](docs/archive/README.md) | Historical design docs (e.g. the June 2026 design-v1 proposal) — outdated, kept for context |
+| [docs/release-plan.md](docs/release-plan.md) | Release phases: CI (done), embed + `harness init`, GoReleaser |
+| [docs/proto-migration.md](docs/proto-migration.md) | Deferred plan to adopt proto-generated config types |

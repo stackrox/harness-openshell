@@ -15,11 +15,29 @@
 - Two sources of truth: gateway.toml hardcodes a registry, env vars override it
 - Consider: gateway.toml uses a `registry` field and images are relative to it
 
-### Consolidate internal/profile into internal/agent
-- ✅ Removed dead code: `Parse()`, `ParseFile()`, `BuildSandboxEnv()`
-- Only `Config` struct, `ValidateProviders`, and `StageHarnessDir` remain
-- TODO: Move `ValidateProviders` to agent or gateway package, inline `Config` into sandbox.go
-- TODO: Remove TOML dependency (github.com/BurntSushi/toml) if no longer used
+### registerProviders should filter by agent's provider list
+- `registerProviders()` in `cmd/providers.go` uses the gateway config's provider
+  list, not the agent config's. When `gwCfg` is nil (common case), it tries to
+  register all providers regardless of what the agent needs.
+- Why: confusing output — users see "skipped" messages for providers their
+  agent doesn't reference. No functional impact (missing credentials are
+  silently handled).
+- Fix: pass the agent's provider names to `registerProviders` and use them as
+  a filter alongside (or instead of) the gateway config's list.
+- Files: `cmd/providers.go` (registerProviders signature), `cmd/up.go` (call site)
+
+## Config Format
+
+- [ ] Remove `providers.toml`; add provider profile validation in its place
+- [ ] Convert gateway configs from TOML to YAML
+- [ ] Specify/document the YAML formats (agent config, provider profiles)
+- [ ] Document non-secret provider env vars (what `providers[].config` captures
+      and why it exists alongside secret credentials)
+
+## CLI
+
+- [ ] Flows that support agent.yaml (`create`, `up`) should also support
+      `--provider-profile` and provider config overrides
 
 ## Agent Config
 
@@ -31,15 +49,14 @@
 ## Testing
 
 ### Current coverage
-- Go unit tests across cmd/, internal/agent, internal/gateway, internal/k8s
-- 29 bats preflight tests
-- Integration: local + kind + OCP via `make dev-test-all`
+- Go unit tests across cmd/ (including launch.go) and all internal/ packages
+- 29 bats preflight tests (run in CI via `.github/workflows/ci.yml`)
+- Integration: local + kind + OCP via `make test-all`
 
 ### Gaps
-- [ ] Tests for cmd/launch.go (configureGateway mTLS, in-cluster flow)
 - [ ] Integration test for `providers --force`
-- [ ] Preflight Go unit tests (internal/preflight/ has no _test.go)
-- [ ] Add bats step to `.github/workflows/ci.yml` (Makefile ci runs bats, GHA doesn't)
+- [ ] Unit test for the full `runLaunch` orchestration (currently only its
+      helpers — configureGateway, checkProviders, launchCreateSandbox — are tested)
 
 ## Release
 

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -215,6 +216,9 @@ func TestUpLocal_SandboxCreateOpts(t *testing.T) {
 }
 
 func TestUpLocal_EnsureLocal_DeploysGateway(t *testing.T) {
+	lookPath = func(string) (string, error) { return "/usr/bin/podman", nil }
+	t.Cleanup(func() { lookPath = exec.LookPath })
+
 	dir := setupTestAgent(t)
 	gw := &mockGW{
 		providerList: []string{"github"},

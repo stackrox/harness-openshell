@@ -83,6 +83,18 @@ Register providers with the gateway. Reads `providers.toml` for the catalog, imp
 
 Validate local credentials and prerequisites against `providers.toml`.
 
+### `harness status`
+
+Show gateway, provider, and sandbox status. Read-only.
+
+### `harness logs [NAME] [-f|--follow]`
+
+Stream logs for a sandbox (name resolution delegated to `openshell sandbox logs` when NAME is omitted).
+
+### `harness stop [NAME]` / `harness start [NAME]`
+
+Stop or start a sandbox without deleting it. When NAME is omitted and exactly one sandbox is running, it is used; otherwise the command errors.
+
 ### `harness teardown [--sandboxes] [--providers] [--k8s]`
 
 Tear down resources. At least one flag required.
@@ -106,7 +118,7 @@ In-cluster command for the runner Job. Reads agent config from `/etc/openshell/s
 
 ## Image Tags
 
-All images are published to `ghcr.io/robbycochran/harness-openshell`. No floating tags (`:latest`, `:sandbox`, `:runner`) are used.
+All images are published to `ghcr.io/robbycochran/harness-openshell`. CI never publishes floating tags (`:latest`, `:sandbox`, `:runner`); the bare `:sandbox` fallback below exists only for local `go build` binaries without version ldflags.
 
 | Trigger | Sandbox | Runner |
 |---------|---------|--------|
@@ -130,7 +142,13 @@ The CLI resolves images from its embedded version (set via `-ldflags` at build t
 | `HARNESS_DIR` | Override harness directory detection |
 | `OPENSHELL_NAMESPACE` | Override K8s namespace (default: `openshell`) |
 | `OPENSHELL_CLI` | Override openshell binary path |
+| `OPENSHELL_MODEL` | Inference model for provider registration (default: `claude-sonnet-4-6`) |
+| `OPENSHELL_CHART_VERSION` | Override Helm chart version (beats `openshell.toml` and `gateway.toml`) |
+| `PULL_SECRET` / `SANDBOX_PULL_SECRET` | Image pull secret names passed to the Helm install |
+| `CONFIG_TOML` / `PROVIDERS_TOML` | Override paths to `openshell.toml` / `providers.toml` (preflight) |
 | `KUBECONFIG` | K8s cluster config for remote targets |
+
+`GATEWAY_ENDPOINT` and `GATEWAY_NAME` are internal — set on the in-cluster runner Job, not by users.
 
 ## Payload
 
