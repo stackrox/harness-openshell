@@ -118,7 +118,7 @@ func deployLocal(gw gateway.Gateway) error {
 	// Retry InferenceGet a few times: the openshell daemon can briefly reload
 	// its config after a gateway add/select and take a few seconds to respond.
 	var inferErr error
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		if inferErr = gw.InferenceGet(); inferErr == nil {
 			break
 		}

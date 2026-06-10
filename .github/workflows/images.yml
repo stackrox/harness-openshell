@@ -75,8 +75,8 @@ jobs:
         with:
           context: build/runner
           platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ env.IMAGE_BASE }}:runner-cache
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:runner-cache,mode=max', env.IMAGE_BASE) || '' }}
+          cache-to: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && format('type=registry,ref={0}:runner-cache,mode=max', env.IMAGE_BASE) || '' }}
