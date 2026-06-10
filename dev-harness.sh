@@ -23,9 +23,8 @@ REGISTRY=${REGISTRY:-ghcr.io/robbycochran/harness-openshell}
 if [[ " $* " == *" --remote "* ]]; then
     make -C "$REPO_ROOT" cli dev-push
 else
-    make -C "$REPO_ROOT" cli dev-sandbox dev-runner
+    make -C "$REPO_ROOT" cli dev-sandbox
 fi
 
 export SANDBOX_IMAGE="${REGISTRY}:sandbox-${VERSION}"
-export RUNNER_IMAGE="${REGISTRY}:runner-${VERSION}"
 exec "$REPO_ROOT/harness" "$@"

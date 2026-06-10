@@ -14,10 +14,8 @@ type GatewayConfig struct {
 	Chart     ChartSection     `toml:"chart"`
 	Helm      HelmSection      `toml:"helm"`
 	Addons    AddonsSection    `toml:"addons"`
-	Images    ImagesSection    `toml:"images"`
 	OCP       OCPSection       `toml:"ocp"`
 	Secrets   SecretsSection   `toml:"secrets"`
-	Launcher  LauncherSection  `toml:"launcher"`
 
 	// Dir is the directory containing the gateway.toml (set after parsing).
 	// Used to resolve relative paths (helm values, addon manifests).
@@ -29,7 +27,6 @@ type GatewaySection struct {
 	Platform string `toml:"platform"` // "ocp" or "k8s"
 	Service  string `toml:"service"`  // "route", "nodeport", "loadbalancer"
 	Name     string `toml:"name"`     // CLI gateway registration name
-	Mode     string `toml:"mode"`     // "launcher" or "direct"
 }
 
 type ProvidersSection struct {
@@ -55,10 +52,6 @@ type AddonsSection struct {
 	Manifests []string `toml:"manifests"` // relative to <dir>/
 }
 
-type ImagesSection struct {
-	Runner string `toml:"runner"`
-}
-
 type OCPSection struct {
 	SCCPrivileged []string `toml:"scc-privileged"`
 	SCCAnyuid     []string `toml:"scc-anyuid"`
@@ -67,11 +60,6 @@ type OCPSection struct {
 type SecretsSection struct {
 	Names []string `toml:"names"`
 	MTLS  string   `toml:"mtls"`
-}
-
-type LauncherSection struct {
-	ServiceAccount  string `toml:"service-account"`
-	GatewayEndpoint string `toml:"gateway-endpoint"`
 }
 
 func LoadConfig(dir string) (*GatewayConfig, error) {
@@ -93,29 +81,9 @@ func (c *GatewayConfig) applyDefaults() {
 	if c.Chart.CRD.URL == "" {
 		c.Chart.CRD.URL = "https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/manifest.yaml"
 	}
-	// Runner image default left empty -- resolved by defaultRunnerImage() in cmd/up.go
-	if c.Secrets.MTLS == "" {
-		c.Secrets.MTLS = "openshell-client-tls"
-	}
-	if c.Launcher.ServiceAccount == "" {
-		c.Launcher.ServiceAccount = "openshell-launcher"
-	}
-	if c.Launcher.GatewayEndpoint == "" {
-		c.Launcher.GatewayEndpoint = "https://openshell.openshell.svc.cluster.local:8080"
-	}
-	if c.Gateway.Mode == "" {
-		if c.Gateway.Type == "local" {
-			c.Gateway.Mode = "direct"
-		} else {
-			c.Gateway.Mode = "launcher"
-		}
-	}
 }
 
 func (c *GatewayConfig) applyEnvOverrides() {
-	if v := os.Getenv("RUNNER_IMAGE"); v != "" {
-		c.Images.Runner = v
-	}
 	if v := os.Getenv("GATEWAY_NAME"); v != "" {
 		c.Gateway.Name = v
 	}
@@ -127,10 +95,6 @@ func (c *GatewayConfig) IsLocal() bool {
 
 func (c *GatewayConfig) IsOCP() bool {
 	return c.Gateway.Platform == "ocp"
-}
-
-func (c *GatewayConfig) UsesLauncher() bool {
-	return c.Gateway.Mode == "launcher"
 }
 
 // HasProviders returns true if the gateway config specifies its own provider lists,

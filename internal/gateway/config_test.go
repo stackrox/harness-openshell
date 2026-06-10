@@ -24,7 +24,6 @@ type = "remote"
 platform = "ocp"
 service = "route"
 name = "my-ocp"
-mode = "launcher"
 
 [providers]
 enabled = ["github", "vertex-local"]
@@ -40,10 +39,7 @@ url = "https://example.com/crd.yaml"
 values = "values.yaml"
 
 [addons]
-manifests = ["addons/rbac.yaml", "addons/route.yaml"]
-
-[images]
-runner = "example.com/runner:v1"
+manifests = ["addons/route.yaml"]
 
 [ocp]
 scc-privileged = ["sa1", "sa2"]
@@ -52,10 +48,6 @@ scc-anyuid = ["sa1"]
 [secrets]
 names = ["secret-a", "secret-b"]
 mtls = "my-mtls-secret"
-
-[launcher]
-service-account = "my-launcher-sa"
-gateway-endpoint = "https://gw.cluster.local:9090"
 `)
 
 	cfg, err := LoadConfig(dir)
@@ -75,9 +67,6 @@ gateway-endpoint = "https://gw.cluster.local:9090"
 	if cfg.Gateway.Name != "my-ocp" {
 		t.Errorf("name = %q, want my-ocp", cfg.Gateway.Name)
 	}
-	if cfg.Gateway.Mode != "launcher" {
-		t.Errorf("mode = %q, want launcher", cfg.Gateway.Mode)
-	}
 	if len(cfg.Providers.Enabled) != 2 {
 		t.Errorf("providers.enabled = %v, want 2 entries", cfg.Providers.Enabled)
 	}
@@ -93,9 +82,6 @@ gateway-endpoint = "https://gw.cluster.local:9090"
 	if cfg.Chart.CRD.URL != "https://example.com/crd.yaml" {
 		t.Errorf("chart.crd.url = %q", cfg.Chart.CRD.URL)
 	}
-	if cfg.Images.Runner != "example.com/runner:v1" {
-		t.Errorf("images.runner = %q", cfg.Images.Runner)
-	}
 	if len(cfg.OCP.SCCPrivileged) != 2 {
 		t.Errorf("ocp.scc-privileged = %v, want 2 entries", cfg.OCP.SCCPrivileged)
 	}
@@ -104,12 +90,6 @@ gateway-endpoint = "https://gw.cluster.local:9090"
 	}
 	if cfg.Secrets.MTLS != "my-mtls-secret" {
 		t.Errorf("secrets.mtls = %q", cfg.Secrets.MTLS)
-	}
-	if cfg.Launcher.ServiceAccount != "my-launcher-sa" {
-		t.Errorf("launcher.service-account = %q", cfg.Launcher.ServiceAccount)
-	}
-	if cfg.Launcher.GatewayEndpoint != "https://gw.cluster.local:9090" {
-		t.Errorf("launcher.gateway-endpoint = %q", cfg.Launcher.GatewayEndpoint)
 	}
 	if cfg.Dir != dir {
 		t.Errorf("Dir = %q, want %q", cfg.Dir, dir)
@@ -131,19 +111,13 @@ type = "local"
 	if !cfg.IsLocal() {
 		t.Error("IsLocal() = false, want true")
 	}
-	if cfg.Gateway.Mode != "direct" {
-		t.Errorf("default mode for local = %q, want direct", cfg.Gateway.Mode)
-	}
 
 	// Defaults applied
 	if cfg.Chart.OCI != "oci://ghcr.io/nvidia/openshell/helm-chart" {
 		t.Errorf("default chart.oci = %q", cfg.Chart.OCI)
 	}
-	if cfg.Secrets.MTLS != "openshell-client-tls" {
-		t.Errorf("default secrets.mtls = %q", cfg.Secrets.MTLS)
-	}
-	if cfg.Launcher.ServiceAccount != "openshell-launcher" {
-		t.Errorf("default launcher.service-account = %q", cfg.Launcher.ServiceAccount)
+	if cfg.Secrets.MTLS != "" {
+		t.Errorf("default secrets.mtls = %q, want empty", cfg.Secrets.MTLS)
 	}
 }
 
@@ -160,9 +134,6 @@ platform = "k8s"
 		t.Fatal(err)
 	}
 
-	if cfg.Gateway.Mode != "launcher" {
-		t.Errorf("default mode for remote = %q, want launcher", cfg.Gateway.Mode)
-	}
 	if cfg.IsLocal() {
 		t.Error("IsLocal() = true for remote")
 	}
@@ -195,12 +166,8 @@ func TestEnvOverrides(t *testing.T) {
 [gateway]
 type = "remote"
 name = "original-name"
-
-[images]
-runner = "original-runner"
 `)
 
-	t.Setenv("RUNNER_IMAGE", "env-runner:v2")
 	t.Setenv("GATEWAY_NAME", "env-gw-name")
 
 	cfg, err := LoadConfig(dir)
@@ -208,9 +175,6 @@ runner = "original-runner"
 		t.Fatal(err)
 	}
 
-	if cfg.Images.Runner != "env-runner:v2" {
-		t.Errorf("RUNNER_IMAGE override: got %q", cfg.Images.Runner)
-	}
 	if cfg.Gateway.Name != "env-gw-name" {
 		t.Errorf("GATEWAY_NAME override: got %q", cfg.Gateway.Name)
 	}
@@ -222,11 +186,8 @@ func TestEnvOverrides_NotSet(t *testing.T) {
 [gateway]
 type = "remote"
 name = "original-name"
-
 `)
 
-	// Ensure env vars are not set
-	t.Setenv("RUNNER_IMAGE", "")
 	t.Setenv("GATEWAY_NAME", "")
 
 	cfg, err := LoadConfig(dir)
@@ -323,35 +284,28 @@ type = "remote"
 
 func TestPredicates(t *testing.T) {
 	tests := []struct {
-		name         string
-		toml         string
-		isLocal      bool
-		isOCP        bool
-		usesLauncher bool
+		name    string
+		toml    string
+		isLocal bool
+		isOCP   bool
 	}{
 		{
-			name: "local",
-			toml: "[gateway]\ntype = \"local\"",
-
-			isLocal:      true,
-			isOCP:        false,
-			usesLauncher: false,
+			name:    "local",
+			toml:    "[gateway]\ntype = \"local\"",
+			isLocal: true,
+			isOCP:   false,
 		},
 		{
-			name: "remote ocp launcher",
-			toml: "[gateway]\ntype = \"remote\"\nplatform = \"ocp\"\nmode = \"launcher\"",
-
-			isLocal:      false,
-			isOCP:        true,
-			usesLauncher: true,
+			name:    "remote ocp",
+			toml:    "[gateway]\ntype = \"remote\"\nplatform = \"ocp\"",
+			isLocal: false,
+			isOCP:   true,
 		},
 		{
-			name: "remote k8s direct",
-			toml: "[gateway]\ntype = \"remote\"\nplatform = \"k8s\"\nmode = \"direct\"",
-
-			isLocal:      false,
-			isOCP:        false,
-			usesLauncher: false,
+			name:    "remote k8s",
+			toml:    "[gateway]\ntype = \"remote\"\nplatform = \"k8s\"",
+			isLocal: false,
+			isOCP:   false,
 		},
 	}
 
@@ -370,9 +324,6 @@ func TestPredicates(t *testing.T) {
 			}
 			if cfg.IsOCP() != tt.isOCP {
 				t.Errorf("IsOCP() = %v, want %v", cfg.IsOCP(), tt.isOCP)
-			}
-			if cfg.UsesLauncher() != tt.usesLauncher {
-				t.Errorf("UsesLauncher() = %v, want %v", cfg.UsesLauncher(), tt.usesLauncher)
 			}
 		})
 	}

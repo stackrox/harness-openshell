@@ -20,11 +20,10 @@ VERSION       := $(shell git describe --tags --always 2>/dev/null || echo dev)
 LDFLAGS       := -s -w -X main.version=$(VERSION)
 
 DEV_SANDBOX_IMAGE  := $(REGISTRY):sandbox-$(VERSION)
-DEV_RUNNER_IMAGE   := $(REGISTRY):runner-$(VERSION)
 
-.PHONY: all cli cli-runner \
+.PHONY: all cli \
         vet lint test test-local test-kind test-remote test-all \
-        dev-sandbox dev-runner dev-push clean help
+        dev-sandbox dev-push clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
@@ -35,13 +34,6 @@ all: cli dev-sandbox
 cli:
 	CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)' -o harness .
 	@echo "Built: ./harness ($(VERSION))"
-
-## ── Images ────────────────────────────────────────────────────────────
-
-## Cross-compile harness binary for the runner image
-cli-runner:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o build/runner/harness .
-	@echo "Built: build/runner/harness ($(VERSION))"
 
 ## ── Lint targets ─────────────────────────────────────────────────────
 
@@ -80,10 +72,10 @@ test-kind: cli
 	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) CONTAINER_CLI=$(CONTAINER_CLI) ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
 
 ## Remote (OCP): requires KUBECONFIG set
-test-remote: cli dev-sandbox dev-runner
+test-remote: cli dev-sandbox
 	@test -n "$${KUBECONFIG}" || { echo "ERROR: Set KUBECONFIG for OCP (e.g. export KUBECONFIG=infracluster/kubeconfig)"; exit 1; }
 	@echo ""
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) RUNNER_IMAGE=$(DEV_RUNNER_IMAGE) ./test/test-flow.sh ocp
+	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) ./test/test-flow.sh ocp
 
 ## All: unit + local + kind + remote
 test-all: test test-local test-kind test-remote
@@ -95,27 +87,20 @@ dev-sandbox:
 	$(CONTAINER_CLI) build -t $(DEV_SANDBOX_IMAGE) sandbox/
 	@echo "Built: $(DEV_SANDBOX_IMAGE)"
 
-## Build dev runner image locally
-dev-runner: cli-runner
-	$(CONTAINER_CLI) build --platform $(PLATFORM) -t $(DEV_RUNNER_IMAGE) build/runner/
-	@echo "Built: $(DEV_RUNNER_IMAGE)"
-
-## Build and push dev images (sandbox: multi-arch, runner: amd64)
-dev-push: cli-runner
+## Build and push dev sandbox image (multi-arch)
+dev-push:
 	@$(CONTAINER_CLI) rmi --force $(DEV_SANDBOX_IMAGE) 2>/dev/null || true
 	@$(CONTAINER_CLI) manifest rm $(DEV_SANDBOX_IMAGE) 2>/dev/null || true
 	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(DEV_SANDBOX_IMAGE) sandbox/
 	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(DEV_SANDBOX_IMAGE) sandbox/
 	$(CONTAINER_CLI) manifest push $(DEV_SANDBOX_IMAGE)
-	$(CONTAINER_CLI) build --platform $(PLATFORM) -t $(DEV_RUNNER_IMAGE) build/runner/
-	$(CONTAINER_CLI) push $(DEV_RUNNER_IMAGE)
-	@echo "Pushed: $(DEV_SANDBOX_IMAGE) (multi-arch) $(DEV_RUNNER_IMAGE) (amd64)"
+	@echo "Pushed: $(DEV_SANDBOX_IMAGE) (multi-arch)"
 
 ## ── Convenience targets ───────────────────────────────────────────────
 
 ## Clean built binaries
 clean:
-	rm -f harness build/runner/harness build/runner/openshell
+	rm -f harness
 	@echo "Cleaned binaries"
 
 ## Show available targets

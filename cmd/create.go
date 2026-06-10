@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/robbycochran/harness-openshell/internal/agent"
@@ -38,12 +37,11 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 
 			gw := gateway.New(cli)
 
-			// 1. Check which gateway is active and whether it's local or remote.
+			// 1. Check which gateway is active.
 			activeGW, err := activeGatewayInfo(gw)
 			if err != nil {
 				return err
 			}
-			isLocal := strings.Contains(activeGW.Endpoint, "127.0.0.1")
 
 			status.Header("Gateway")
 			status.OKf("%s (%s)", activeGW.Name, activeGW.Endpoint)
@@ -102,21 +100,8 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				}
 			}
 
-			// 6. Determine whether the in-cluster runner is needed.
-			needsRunner := false
-			if !isLocal {
-				needsRunner = profileHasCustomProviders(providerNames, allProviders)
-			}
-
 			// 6. Deploy the sandbox
 			status.Header("Creating sandbox")
-			if needsRunner {
-				status.Info("Custom providers detected — using in-cluster runner")
-				gwCfg := loadGatewayConfigForActive(harnessDir, activeGW)
-				return createViaRunner(harnessDir, gwCfg, gw, agentName, name)
-			}
-
-			// Render payload and create directly
 			payloadDir, err := os.MkdirTemp("", "harness-payload-")
 			if err != nil {
 				return fmt.Errorf("creating payload dir: %w", err)
@@ -167,49 +152,4 @@ func activeGatewayInfo(gw gateway.Gateway) (*gateway.GatewayInfo, error) {
 	return nil, fmt.Errorf("no active gateway — deploy one first: harness deploy")
 }
 
-func profileHasCustomProviders(providerNames []string, allProviders []preflight.Provider) bool {
-	custom := make(map[string]bool)
-	for _, p := range allProviders {
-		if p.Type == "custom" {
-			custom[p.Name] = true
-		}
-	}
-	for _, name := range providerNames {
-		if custom[name] {
-			return true
-		}
-	}
-	return false
-}
-
-func loadGatewayConfigForActive(harnessDir string, active *gateway.GatewayInfo) *gateway.GatewayConfig {
-	if active != nil && active.Name != "" {
-		dir := filepath.Join(harnessDir, "gateways", active.Name)
-		if cfg, err := gateway.LoadConfig(dir); err == nil {
-			return cfg
-		}
-	}
-	gwDir := filepath.Join(harnessDir, "gateways")
-	entries, err := os.ReadDir(gwDir)
-	if err != nil {
-		return nil
-	}
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		cfg, err := gateway.LoadConfig(filepath.Join(gwDir, e.Name()))
-		if err == nil && !cfg.IsLocal() {
-			return cfg
-		}
-	}
-	return nil
-}
-
-func createViaRunner(harnessDir string, gwCfg *gateway.GatewayConfig, gw gateway.Gateway, agentPath, sandboxName string) error {
-	if gwCfg == nil {
-		return fmt.Errorf("no gateway config found for remote gateway — expected gateways/<name>/gateway.toml")
-	}
-	return upRemote(harnessDir, gwCfg, gw, agentPath, sandboxName)
-}
 

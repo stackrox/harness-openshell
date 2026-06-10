@@ -10,9 +10,7 @@
 - Prerequisite: proto files stabilize (OpenShell is alpha)
 
 ### Image registry as gateway config vs env override
-- gateway.toml `[images]` section sets sandbox/runner image refs
-- `SANDBOX_IMAGE`/`RUNNER_IMAGE` env vars override config (for dev/CI)
-- Two sources of truth: gateway.toml hardcodes a registry, env vars override it
+- `SANDBOX_IMAGE` env var overrides the version-based image resolution (for dev/CI)
 - Consider: gateway.toml uses a `registry` field and images are relative to it
 
 ### registerProviders should filter by agent's provider list
@@ -49,14 +47,12 @@
 ## Testing
 
 ### Current coverage
-- Go unit tests across cmd/ (including launch.go) and all internal/ packages
+- Go unit tests across cmd/ and all internal/ packages
 - 29 bats preflight tests (run in CI via `.github/workflows/ci.yml`)
 - Integration: local + kind + OCP via `make test-all`
 
 ### Gaps
 - [ ] Integration test for `providers --force`
-- [ ] Unit test for the full `runLaunch` orchestration (currently only its
-      helpers — configureGateway, checkProviders, launchCreateSandbox — are tested)
 
 ## Release
 
@@ -66,8 +62,6 @@
 
 ## Deferred (post-0.1)
 
-- [ ] Rename K8s SA `openshell-launcher` -> `openshell-runner` (breaking for deployed OCP clusters)
-- [ ] Rename `LauncherSection` -> `RunnerSection` in gateway config TOML
 - [ ] Gateway-level LLM proxy/logging (gateway.toml `[proxy]` section)
 - [ ] Multi-agent workflow support (fleet.yaml / workflow.yaml)
 - [ ] `harness policy suggest` (DenialEvent stream -> policy proposals)
