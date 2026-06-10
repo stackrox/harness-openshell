@@ -90,12 +90,12 @@ if [[ -n "${SANDBOX_IMAGE:-}" ]]; then
   fi
 fi
 
-# ── Confirm local gateway is up before running tests ────────────────
-# The image preload (podman save + kind load) can take 60-90s and may
-# cause the local openshell service to become unresponsive.  Confirm it
-# is responding before handing off to test-flow.sh, which calls
-# `harness up` (no --remote) and relies on the local gateway.
+# ── Restore local gateway after image preload ───────────────────────
+# The image preload (podman save + kind load) can take 60-90s and leaves
+# the local openshell service unresponsive.  Restart it so `harness up`
+# (which uses the local gateway via deployLocal) can proceed.
 if command -v openshell &>/dev/null; then
+  systemctl --user restart openshell-gateway 2>/dev/null || true
   for i in $(seq 1 30); do
     openshell inference get &>/dev/null && break
     sleep 2
