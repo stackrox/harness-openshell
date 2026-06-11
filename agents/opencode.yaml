@@ -1,0 +1,22 @@
+# OpenCode agent configuration.
+#
+# Usage:
+#   harness up -f agents/opencode.yaml
+#   harness up --agent opencode
+
+name: opencode-agent
+entrypoint: opencode
+tty: true
+
+providers:
+  - profile: github
+  - profile: vertex-local
+  - profile: atlassian
+    config:
+      JIRA_URL: ${JIRA_URL}
+      JIRA_USERNAME: ${JIRA_USERNAME}
+  - profile: gws
+
+env:
+  ANTHROPIC_BASE_URL: https://inference.local
+  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
