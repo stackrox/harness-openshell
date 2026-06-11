@@ -1,10 +1,13 @@
 package gateway
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -36,6 +39,55 @@ func (c *CLI) CLIPath() string {
 		return ""
 	}
 	return path
+}
+
+func ParseCLIVersion(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if i := strings.LastIndex(raw, "v"); i >= 0 {
+		return raw[i+1:]
+	}
+	return raw
+}
+
+func parseVersionParts(v string) (major, minor, patch int, ok bool) {
+	parts := strings.SplitN(v, ".", 3)
+	if len(parts) != 3 {
+		return 0, 0, 0, false
+	}
+	var err error
+	major, err = strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, 0, false
+	}
+	minor, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, 0, false
+	}
+	patch, err = strconv.Atoi(parts[2])
+	if err != nil {
+		return 0, 0, 0, false
+	}
+	return major, minor, patch, true
+}
+
+func (c *CLI) CheckMinVersion(minVersion string) error {
+	raw := c.CLIVersion()
+	if raw == "" {
+		return fmt.Errorf("could not determine openshell version")
+	}
+	installed := ParseCLIVersion(raw)
+	iMaj, iMin, iPatch, ok := parseVersionParts(installed)
+	if !ok {
+		return fmt.Errorf("could not parse openshell version %q", installed)
+	}
+	mMaj, mMin, mPatch, ok := parseVersionParts(minVersion)
+	if !ok {
+		return fmt.Errorf("invalid minimum version %q", minVersion)
+	}
+	if iMaj < mMaj || (iMaj == mMaj && iMin < mMin) || (iMaj == mMaj && iMin == mMin && iPatch < mPatch) {
+		return fmt.Errorf("openshell %s is below minimum %s (upgrade: openshell update)", installed, minVersion)
+	}
+	return nil
 }
 
 func (c *CLI) InferenceGet() error {
@@ -210,6 +262,16 @@ func (c *CLI) SandboxCreate(opts SandboxCreateOpts) error {
 	}
 	if opts.UploadSrc != "" {
 		args = append(args, "--upload", opts.UploadSrc+":"+opts.UploadDst, "--no-git-ignore")
+	}
+	if len(opts.Env) > 0 {
+		keys := make([]string, 0, len(opts.Env))
+		for k := range opts.Env {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			args = append(args, "--env", k+"="+opts.Env[k])
+		}
 	}
 	if len(opts.Command) > 0 {
 		args = append(args, "--")

@@ -73,16 +73,21 @@ func Parse(data []byte) (*AgentConfig, error) {
 	return &cfg, nil
 }
 
-func (c *AgentConfig) BuildEnvSh() string {
+func (c *AgentConfig) BuildEnvMap() map[string]string {
 	env := make(map[string]string)
 	for k, v := range c.Env {
-		env[k] = v
+		env[k] = os.ExpandEnv(v)
 	}
 	for _, p := range c.Providers {
 		for k, v := range p.Config {
-			env[k] = v
+			env[k] = os.ExpandEnv(v)
 		}
 	}
+	return env
+}
+
+func (c *AgentConfig) BuildEnvSh() string {
+	env := c.BuildEnvMap()
 	if len(env) == 0 {
 		return ""
 	}
@@ -93,7 +98,7 @@ func (c *AgentConfig) BuildEnvSh() string {
 	sort.Strings(keys)
 	var b strings.Builder
 	for _, k := range keys {
-		fmt.Fprintf(&b, "export %s=%q\n", k, os.ExpandEnv(env[k]))
+		fmt.Fprintf(&b, "export %s=%q\n", k, env[k])
 	}
 	return b.String()
 }
@@ -102,10 +107,6 @@ func (c *AgentConfig) BuildRunSh() string {
 	var b strings.Builder
 	b.WriteString("#!/usr/bin/env bash\nset -euo pipefail\n\n")
 	b.WriteString("PAYLOAD_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n\n")
-	b.WriteString("# Source environment\n")
-	b.WriteString("if [[ -f \"$PAYLOAD_DIR/env.sh\" ]]; then\n")
-	b.WriteString("  . \"$PAYLOAD_DIR/env.sh\"\n")
-	b.WriteString("fi\n\n")
 	b.WriteString("# Prepend payload bin to PATH\n")
 	b.WriteString("export PATH=\"$PAYLOAD_DIR/bin:$PATH\"\n\n")
 	b.WriteString("# Git auth\n")
@@ -133,17 +134,6 @@ func RenderPayload(cfg *AgentConfig, baseDir, destDir string) error {
 	binDir := filepath.Join(destDir, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return fmt.Errorf("creating bin dir: %w", err)
-	}
-
-	if envContent := cfg.BuildEnvSh(); envContent != "" {
-		if err := os.WriteFile(filepath.Join(destDir, "env.sh"), []byte(envContent), 0o644); err != nil {
-			return fmt.Errorf("writing env.sh: %w", err)
-		}
-		// sandbox.env is sourced by the sandbox image's startup.sh on boot,
-		// making env vars available to sandbox exec sessions.
-		if err := os.WriteFile(filepath.Join(destDir, "sandbox.env"), []byte(envContent), 0o644); err != nil {
-			return fmt.Errorf("writing sandbox.env: %w", err)
-		}
 	}
 
 	runSh := cfg.BuildRunSh()

@@ -42,6 +42,9 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 			agentPath := resolveAgentPath(harnessDir, agentName, agentFile)
 
 			gw := gateway.New(cli)
+			if err := gw.CheckMinVersion("0.0.59"); err != nil {
+				status.Warn(fmt.Sprintf("OpenShell version: %v", err))
+			}
 
 			gwName := "local"
 			if remote {
@@ -187,13 +190,11 @@ func upLocal(opts upLocalOpts) error {
 
 	// 5. Create sandbox
 	status.Header("Sandbox")
-	envInit := ". /sandbox/.config/openshell/sandbox.env 2>/dev/null && " +
-		"cat /sandbox/.config/openshell/sandbox.env >> /sandbox/.bashrc 2>/dev/null; "
 	var sandboxCmd []string
 	if noTTY {
-		sandboxCmd = []string{"bash", "-c", envInit + "true"}
+		sandboxCmd = []string{"true"}
 	} else {
-		sandboxCmd = []string{"bash", "-c", envInit + "exec bash /sandbox/.config/openshell/run.sh"}
+		sandboxCmd = []string{"bash", "/sandbox/.config/openshell/run.sh"}
 	}
 
 	return createSandbox(sandboxOpts{
@@ -206,6 +207,7 @@ func upLocal(opts upLocalOpts) error {
 		retrySleep: opts.retrySleep,
 		sandboxCmd: sandboxCmd,
 		payloadDir: payloadDir,
+		env:        agentCfg.BuildEnvMap(),
 	})
 }
 

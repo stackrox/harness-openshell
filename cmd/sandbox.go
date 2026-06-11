@@ -22,6 +22,7 @@ type sandboxOpts struct {
 	retrySleep time.Duration     // pause between retry attempts
 	sandboxCmd []string          // command to run inside the sandbox
 	payloadDir string            // pre-rendered payload dir to upload
+	env        map[string]string // env vars injected via --env on sandbox create
 	onSuccess  func(name string) // called after successful creation (optional)
 }
 
@@ -64,6 +65,7 @@ func createSandbox(opts sandboxOpts) error {
 			UploadSrc: uploadDir,
 			UploadDst: "/sandbox/.config",
 			Command:   opts.sandboxCmd,
+			Env:       opts.env,
 		})
 		if err == nil {
 			if opts.onSuccess != nil {

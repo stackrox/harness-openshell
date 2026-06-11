@@ -90,4 +90,5 @@ type SandboxCreateOpts struct {
 	UploadSrc string
 	UploadDst string
 	Command   []string
+	Env       map[string]string
 }

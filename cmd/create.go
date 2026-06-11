@@ -120,10 +120,9 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				providers:  registered,
 				noTTY:      true,
 				retrySleep: 5 * time.Second,
-				sandboxCmd: []string{"bash", "-c",
-					". /sandbox/.config/openshell/sandbox.env 2>/dev/null && " +
-						"cat /sandbox/.config/openshell/sandbox.env >> /sandbox/.bashrc 2>/dev/null; true"},
+				sandboxCmd: []string{"true"},
 				payloadDir: payloadDir,
+				env:        agentCfg.BuildEnvMap(),
 				onSuccess: func(n string) {
 					fmt.Println()
 					status.OKf("Sandbox created: %s — connect with: harness connect %s", n, n)

@@ -19,4 +19,4 @@ providers = ["github", "vertex-local", "atlassian", "gws"]
 model = "claude-sonnet-4-6"
 
 [upstream]
-chart-version = "0.0.58"
+chart-version = "0.0.59"

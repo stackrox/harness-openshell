@@ -396,6 +396,112 @@ func TestCLIPath_NotFound(t *testing.T) {
 	}
 }
 
+func TestSandboxCreate_WithEnv(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	bin := writeStub(t, `#!/bin/bash
+echo "$@" > `+argsFile+`
+`)
+	gw := New(bin)
+	gw.SandboxCreate(SandboxCreateOpts{
+		Name: "env-test",
+		TTY:  false,
+		Keep: true,
+		Env: map[string]string{
+			"FOO":               "bar",
+			"ANTHROPIC_API_KEY": "sk-proxy",
+		},
+		Command: []string{"true"},
+	})
+	data, _ := os.ReadFile(argsFile)
+	args := strings.TrimSpace(string(data))
+	for _, want := range []string{
+		"--env ANTHROPIC_API_KEY=sk-proxy",
+		"--env FOO=bar",
+	} {
+		if !strings.Contains(args, want) {
+			t.Errorf("missing %q in: %s", want, args)
+		}
+	}
+	envIdx := strings.Index(args, "--env")
+	cmdIdx := strings.Index(args, "-- true")
+	if envIdx > cmdIdx {
+		t.Errorf("--env should appear before -- command separator: %s", args)
+	}
+}
+
+func TestSandboxCreate_NoEnv(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	bin := writeStub(t, `#!/bin/bash
+echo "$@" > `+argsFile+`
+`)
+	gw := New(bin)
+	gw.SandboxCreate(SandboxCreateOpts{
+		Name: "no-env",
+		TTY:  false,
+		Keep: true,
+	})
+	data, _ := os.ReadFile(argsFile)
+	args := strings.TrimSpace(string(data))
+	if strings.Contains(args, "--env") {
+		t.Errorf("should not have --env when env map is nil: %s", args)
+	}
+}
+
+func TestParseCLIVersion(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"openshell v0.0.59", "0.0.59"},
+		{"openshell v0.0.58", "0.0.58"},
+		{"v1.2.3", "1.2.3"},
+		{"0.0.59", "0.0.59"},
+	}
+	for _, tt := range tests {
+		got := ParseCLIVersion(tt.input)
+		if got != tt.want {
+			t.Errorf("ParseCLIVersion(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestCheckMinVersion_Below(t *testing.T) {
+	bin := writeStub(t, `#!/bin/bash
+echo "openshell v0.0.57"
+`)
+	gw := New(bin)
+	if err := gw.CheckMinVersion("0.0.59"); err == nil {
+		t.Error("expected error for version below minimum")
+	}
+}
+
+func TestCheckMinVersion_Equal(t *testing.T) {
+	bin := writeStub(t, `#!/bin/bash
+echo "openshell v0.0.59"
+`)
+	gw := New(bin)
+	if err := gw.CheckMinVersion("0.0.59"); err != nil {
+		t.Errorf("CheckMinVersion: %v", err)
+	}
+}
+
+func TestCheckMinVersion_Above(t *testing.T) {
+	bin := writeStub(t, `#!/bin/bash
+echo "openshell v0.0.60"
+`)
+	gw := New(bin)
+	if err := gw.CheckMinVersion("0.0.59"); err != nil {
+		t.Errorf("CheckMinVersion: %v", err)
+	}
+}
+
+func TestCheckMinVersion_NoCLI(t *testing.T) {
+	gw := New("/nonexistent/openshell")
+	if err := gw.CheckMinVersion("0.0.59"); err == nil {
+		t.Error("expected error when CLI not found")
+	}
+}
+
 func TestProviderCreate_Args(t *testing.T) {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")

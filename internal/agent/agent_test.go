@@ -230,6 +230,39 @@ env:
 	}
 }
 
+func TestBuildEnvMap(t *testing.T) {
+	cfg := &AgentConfig{
+		Env: map[string]string{
+			"TOP_VAR": "top-val",
+			"SHARED":  "from-top",
+		},
+		Providers: []ProviderRef{
+			{Profile: "atlassian", Config: map[string]string{
+				"JIRA_URL": "https://issues.redhat.com",
+				"SHARED":   "from-provider",
+			}},
+		},
+	}
+	env := cfg.BuildEnvMap()
+	if env["TOP_VAR"] != "top-val" {
+		t.Errorf("TOP_VAR = %q, want top-val", env["TOP_VAR"])
+	}
+	if env["JIRA_URL"] != "https://issues.redhat.com" {
+		t.Errorf("JIRA_URL = %q", env["JIRA_URL"])
+	}
+	if env["SHARED"] != "from-provider" {
+		t.Errorf("SHARED = %q, want from-provider (provider should override top-level)", env["SHARED"])
+	}
+}
+
+func TestBuildEnvMap_Empty(t *testing.T) {
+	cfg := &AgentConfig{Providers: []ProviderRef{{Profile: "github"}}}
+	env := cfg.BuildEnvMap()
+	if len(env) != 0 {
+		t.Errorf("expected empty map, got %v", env)
+	}
+}
+
 func TestBuildEnvSh_Sorted(t *testing.T) {
 	cfg := &AgentConfig{
 		Providers: []ProviderRef{
@@ -253,8 +286,8 @@ func TestBuildRunSh(t *testing.T) {
 	if !strings.Contains(runSh, "#!/usr/bin/env bash") {
 		t.Error("missing shebang")
 	}
-	if !strings.Contains(runSh, ". \"$PAYLOAD_DIR/env.sh\"") {
-		t.Error("missing env.sh source")
+	if strings.Contains(runSh, "env.sh") {
+		t.Error("run.sh should not source env.sh — env vars are injected via --env")
 	}
 	if !strings.Contains(runSh, "gh auth setup-git") {
 		t.Error("missing gh auth setup-git")
@@ -296,9 +329,6 @@ func TestRenderPayload(t *testing.T) {
 		t.Fatalf("RenderPayload: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(destDir, "env.sh")); err != nil {
-		t.Error("missing env.sh")
-	}
 	if _, err := os.Stat(filepath.Join(destDir, "run.sh")); err != nil {
 		t.Error("missing run.sh")
 	}
@@ -308,10 +338,8 @@ func TestRenderPayload(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(destDir, "bin")); err != nil {
 		t.Error("missing bin/ directory")
 	}
-
-	envData, _ := os.ReadFile(filepath.Join(destDir, "env.sh"))
-	if !strings.Contains(string(envData), "JIRA_URL") {
-		t.Errorf("env.sh missing JIRA_URL:\n%s", envData)
+	if _, err := os.Stat(filepath.Join(destDir, "env.sh")); !os.IsNotExist(err) {
+		t.Error("env.sh should not be created — env vars are injected via --env")
 	}
 
 	runData, _ := os.ReadFile(filepath.Join(destDir, "run.sh"))
