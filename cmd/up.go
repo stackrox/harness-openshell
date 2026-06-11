@@ -16,11 +16,12 @@ import (
 func NewUpCmd(harnessDir, cli string) *cobra.Command {
 	var (
 		local       bool
-		remote      bool
-		agentName   string
-		agentFile   string
-		sandboxName string
-		noTTY       bool
+		remote          bool
+		agentName       string
+		agentFile       string
+		sandboxName     string
+		noTTY           bool
+		providerRefresh bool
 	)
 
 	cmd := &cobra.Command{
@@ -54,15 +55,16 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 			gwCfg, _ := gateway.LoadConfig(gwDir)
 
 			return upLocal(upLocalOpts{
-				harnessDir:  harnessDir,
-				gw:          gw,
-				gwCfg:       gwCfg,
-				ensureLocal: !remote,
-				agentCfg:    agentCfg,
-				agentPath:   agentPath,
-				sandboxName: sandboxName,
-				noTTY:       noTTY,
-				retrySleep:  5 * time.Second,
+				harnessDir:      harnessDir,
+				gw:              gw,
+				gwCfg:           gwCfg,
+				ensureLocal:     !remote,
+				agentCfg:        agentCfg,
+				agentPath:       agentPath,
+				sandboxName:     sandboxName,
+				noTTY:           noTTY,
+				providerRefresh: providerRefresh,
+				retrySleep:      5 * time.Second,
 			})
 		},
 	}
@@ -73,6 +75,7 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 	cmd.Flags().StringVarP(&agentFile, "file", "f", "", "Path to agent YAML file (overrides --agent)")
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides agent config)")
 	cmd.Flags().BoolVar(&noTTY, "no-tty", false, "Non-interactive mode (for testing)")
+	cmd.Flags().BoolVar(&providerRefresh, "provider-refresh", false, "Delete and recreate all providers")
 
 	return cmd
 }
@@ -102,15 +105,16 @@ func resolveAgentConfig(harnessDir, agentName, agentFile string) (*agent.AgentCo
 }
 
 type upLocalOpts struct {
-	harnessDir  string
-	gw          gateway.Gateway
-	gwCfg       *gateway.GatewayConfig
-	ensureLocal bool
-	agentCfg    *agent.AgentConfig
-	agentPath   string
-	sandboxName string
-	noTTY       bool
-	retrySleep  time.Duration
+	harnessDir      string
+	gw              gateway.Gateway
+	gwCfg           *gateway.GatewayConfig
+	ensureLocal     bool
+	agentCfg        *agent.AgentConfig
+	agentPath       string
+	sandboxName     string
+	noTTY           bool
+	providerRefresh bool
+	retrySleep      time.Duration
 }
 
 func upLocal(opts upLocalOpts) error {
@@ -162,8 +166,8 @@ func upLocal(opts upLocalOpts) error {
 	if len(providerNames) > 0 {
 		var missing []string
 		registered, missing = gateway.ValidateProviders(providerNames, gw)
-		if len(missing) > 0 {
-			if err := registerProviders(opts.harnessDir, gw, false, opts.gwCfg, false); err != nil {
+		if len(missing) > 0 || opts.providerRefresh {
+			if err := registerProviders(opts.harnessDir, gw, opts.providerRefresh, opts.gwCfg, false); err != nil {
 				status.Warn(fmt.Sprintf("provider registration: %v", err))
 			}
 			registered, missing = gateway.ValidateProviders(providerNames, gw)

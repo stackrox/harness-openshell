@@ -57,15 +57,20 @@ RUN ARCH=$(uname -m | sed 's/arm64/aarch64/') && \
     curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v0.22.5/google-workspace-cli-${ARCH}-unknown-linux-gnu.tar.gz" \
     | tar xz -C /usr/local/bin
 
+# OpenCode AI coding agent
+# https://github.com/opencode-ai/opencode
+RUN npm install -g opencode-ai@latest
+
 # Sandbox policy (network egress rules — provider profiles contribute
 # additional endpoints at runtime via providers v2 composition)
 COPY policy.yaml /etc/openshell/policy.yaml
 
-# Agent instructions + Claude config
+# Agent instructions + config (Claude Code + OpenCode)
 COPY CLAUDE.md /sandbox/CLAUDE.md
 COPY settings.json /sandbox/.claude/settings.json
 COPY claude.json /sandbox/.claude.json
 COPY mcp.json /sandbox/.mcp.json
+COPY opencode.json /sandbox/opencode.json
 
 # Runtime script
 COPY startup.sh /sandbox/startup.sh
@@ -81,7 +86,7 @@ RUN mkdir -p /sandbox/.config/openshell && chown sandbox:sandbox /sandbox/.confi
 
 RUN chmod 755 /usr/local/bin/claude && \
     chmod +x /sandbox/startup.sh && \
-    chown -R sandbox:sandbox /sandbox/.claude /sandbox/.claude.json /sandbox/.mcp.json /sandbox/.config /sandbox/CLAUDE.md /sandbox/startup.sh
+    chown -R sandbox:sandbox /sandbox/.claude /sandbox/.claude.json /sandbox/.mcp.json /sandbox/opencode.json /sandbox/.config /sandbox/CLAUDE.md /sandbox/startup.sh
 
 USER sandbox
 

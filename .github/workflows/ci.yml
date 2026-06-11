@@ -16,13 +16,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install bats
-        run: sudo apt-get install -y bats
       - run: go vet ./...
       - run: CGO_ENABLED=0 go test ./...
-      - name: Build binary for bats
-        run: CGO_ENABLED=0 go build -o harness .
-      - run: bats test/preflight.bats
 
   lint:
     runs-on: ubuntu-latest

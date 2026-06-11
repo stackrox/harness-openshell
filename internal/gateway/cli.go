@@ -46,6 +46,9 @@ func ParseCLIVersion(raw string) string {
 	if i := strings.LastIndex(raw, "v"); i >= 0 {
 		return raw[i+1:]
 	}
+	if i := strings.LastIndex(raw, " "); i >= 0 {
+		return raw[i+1:]
+	}
 	return raw
 }
 

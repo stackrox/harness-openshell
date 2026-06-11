@@ -255,6 +255,31 @@ func TestBuildEnvMap(t *testing.T) {
 	}
 }
 
+func TestBuildEnvMap_EmptyValueReadsFromHost(t *testing.T) {
+	t.Setenv("MY_HOST_VAR", "from-host")
+	cfg := &AgentConfig{
+		Env: map[string]string{
+			"MY_HOST_VAR": "",
+		},
+	}
+	env := cfg.BuildEnvMap()
+	if env["MY_HOST_VAR"] != "from-host" {
+		t.Errorf("MY_HOST_VAR = %q, want from-host", env["MY_HOST_VAR"])
+	}
+}
+
+func TestBuildEnvMap_EmptyValueNotInHost(t *testing.T) {
+	cfg := &AgentConfig{
+		Env: map[string]string{
+			"NONEXISTENT_VAR_12345": "",
+		},
+	}
+	env := cfg.BuildEnvMap()
+	if _, ok := env["NONEXISTENT_VAR_12345"]; ok {
+		t.Error("empty env var not in host should be omitted from map")
+	}
+}
+
 func TestBuildEnvMap_Empty(t *testing.T) {
 	cfg := &AgentConfig{Providers: []ProviderRef{{Profile: "github"}}}
 	env := cfg.BuildEnvMap()
@@ -295,8 +320,8 @@ func TestBuildRunSh(t *testing.T) {
 	if !strings.Contains(runSh, `command -v "claude"`) {
 		t.Error("missing entrypoint validation")
 	}
-	if !strings.Contains(runSh, `exec claude --bare "$PAYLOAD_DIR/task.md"`) {
-		t.Errorf("missing task exec in:\n%s", runSh)
+	if !strings.Contains(runSh, `exec claude --bare -p "$(cat "$PAYLOAD_DIR/task.md")"`) {
+		t.Errorf("missing task exec with -p in:\n%s", runSh)
 	}
 }
 

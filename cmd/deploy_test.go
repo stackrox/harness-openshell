@@ -23,32 +23,27 @@ func setupOCPGatewayConfig(t *testing.T, dir string) string {
 	gwDir := filepath.Join(dir, "gateways", "ocp")
 	os.MkdirAll(filepath.Join(gwDir, "helm"), 0o755)
 	os.MkdirAll(filepath.Join(gwDir, "addons"), 0o755)
-	os.WriteFile(filepath.Join(gwDir, "gateway.toml"), []byte(`
-[gateway]
-type = "remote"
-platform = "ocp"
-service = "route"
-name = "test-ocp"
-
-[chart]
-oci = "oci://ghcr.io/nvidia/openshell/helm-chart"
-version = "0.0.58"
-[chart.crd]
-url = "https://example.com/crd.yaml"
-
-[helm]
-values = "values.yaml"
-
-[addons]
-manifests = ["addons/rbac.yaml", "addons/route.yaml"]
-
-[ocp]
-scc-privileged = ["sa1", "sa2"]
-scc-anyuid = ["sa1"]
-
-[secrets]
-names = ["secret-a"]
-mtls = "test-client-tls"
+	os.WriteFile(filepath.Join(gwDir, "gateway.yaml"), []byte(`
+gateway:
+  type: remote
+  platform: ocp
+  service: route
+  name: test-ocp
+chart:
+  oci: oci://ghcr.io/nvidia/openshell/helm-chart
+  version: "0.0.58"
+  crd:
+    url: https://example.com/crd.yaml
+helm:
+  values: values.yaml
+addons:
+  manifests: [addons/rbac.yaml, addons/route.yaml]
+ocp:
+  scc-privileged: [sa1, sa2]
+  scc-anyuid: [sa1]
+secrets:
+  names: [secret-a]
+  mtls: test-client-tls
 `), 0o644)
 	os.WriteFile(filepath.Join(gwDir, "helm", "values.yaml"), []byte("image:\n  pullPolicy: Always\n"), 0o644)
 	os.WriteFile(filepath.Join(gwDir, "addons", "rbac.yaml"), []byte("# rbac\n"), 0o644)
@@ -60,20 +55,18 @@ func setupK8sGatewayConfig(t *testing.T, dir string) string {
 	t.Helper()
 	gwDir := filepath.Join(dir, "gateways", "kind")
 	os.MkdirAll(gwDir, 0o755)
-	os.WriteFile(filepath.Join(gwDir, "gateway.toml"), []byte(`
-[gateway]
-type = "remote"
-platform = "k8s"
-service = "nodeport"
-name = "test-kind"
-mode = "direct"
-
-[chart]
-oci = "oci://ghcr.io/nvidia/openshell/helm-chart"
-version = "0.0.58"
-[chart.crd]
-url = "https://example.com/crd.yaml"
-
+	os.WriteFile(filepath.Join(gwDir, "gateway.yaml"), []byte(`
+gateway:
+  type: remote
+  platform: k8s
+  service: nodeport
+  name: test-kind
+  mode: direct
+chart:
+  oci: oci://ghcr.io/nvidia/openshell/helm-chart
+  version: "0.0.58"
+  crd:
+    url: https://example.com/crd.yaml
 `), 0o644)
 	return gwDir
 }

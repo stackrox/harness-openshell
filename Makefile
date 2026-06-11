@@ -1,7 +1,7 @@
 ## OpenShell Harness — build, push, and test
 ##
 ## Tests (CI mode auto-detects from CI env var):
-##   make test              # vet + unit + bats (~2min)
+##   make test              # vet + unit tests
 ##   make test-local        # local gateway integration
 ##   make test-kind         # kind integration (self-contained cluster)
 ##   make test-remote       # OCP integration (needs KUBECONFIG)
@@ -54,10 +54,9 @@ lint:
 ## CI mode auto-detects from the CI env var (set by GitHub Actions).
 ## Locally: full tests with credentials. On GHA: no-credential mode.
 
-## Vet + unit tests + bats (fast, ~2min, no gateway needed)
+## Vet + unit tests
 test: vet
 	CGO_ENABLED=0 go test ./...
-	bats test/preflight.bats
 
 ## Local gateway integration (unit tests run separately via 'make test')
 test-local: cli

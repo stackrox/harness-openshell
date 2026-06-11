@@ -5,67 +5,70 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/BurntSushi/toml"
+	"gopkg.in/yaml.v3"
 )
 
 type GatewayConfig struct {
-	Gateway   GatewaySection   `toml:"gateway"`
-	Providers ProvidersSection `toml:"providers"`
-	Chart     ChartSection     `toml:"chart"`
-	Helm      HelmSection      `toml:"helm"`
-	Addons    AddonsSection    `toml:"addons"`
-	OCP       OCPSection       `toml:"ocp"`
-	Secrets   SecretsSection   `toml:"secrets"`
+	Gateway   GatewaySection   `yaml:"gateway"`
+	Providers ProvidersSection `yaml:"providers"`
+	Chart     ChartSection     `yaml:"chart"`
+	Helm      HelmSection      `yaml:"helm"`
+	Addons    AddonsSection    `yaml:"addons"`
+	OCP       OCPSection       `yaml:"ocp"`
+	Secrets   SecretsSection   `yaml:"secrets"`
 
-	// Dir is the directory containing the gateway.toml (set after parsing).
-	// Used to resolve relative paths (helm values, addon manifests).
-	Dir string `toml:"-"`
+	Dir string `yaml:"-"`
 }
 
 type GatewaySection struct {
-	Type     string `toml:"type"`     // "local" or "remote"
-	Platform string `toml:"platform"` // "ocp" or "k8s"
-	Service  string `toml:"service"`  // "route", "nodeport", "loadbalancer"
-	Name     string `toml:"name"`     // CLI gateway registration name
+	Type     string `yaml:"type"`
+	Platform string `yaml:"platform"`
+	Service  string `yaml:"service"`
+	Name     string `yaml:"name"`
+	Mode     string `yaml:"mode"`
 }
 
 type ProvidersSection struct {
-	Enabled []string `toml:"enabled"`
-	Custom  []string `toml:"custom"`
+	Enabled []string `yaml:"enabled"`
+	Custom  []string `yaml:"custom"`
 }
 
 type ChartSection struct {
-	OCI     string    `toml:"oci"`
-	Version string    `toml:"version"`
-	CRD     CRDConfig `toml:"crd"`
+	OCI     string    `yaml:"oci"`
+	Version string    `yaml:"version"`
+	CRD     CRDConfig `yaml:"crd"`
 }
 
 type CRDConfig struct {
-	URL string `toml:"url"`
+	URL string `yaml:"url"`
 }
 
 type HelmSection struct {
-	Values string `toml:"values"` // relative to <dir>/helm/
+	Values string `yaml:"values"`
 }
 
 type AddonsSection struct {
-	Manifests []string `toml:"manifests"` // relative to <dir>/
+	Manifests []string `yaml:"manifests"`
 }
 
 type OCPSection struct {
-	SCCPrivileged []string `toml:"scc-privileged"`
-	SCCAnyuid     []string `toml:"scc-anyuid"`
+	SCCPrivileged []string `yaml:"scc-privileged"`
+	SCCAnyuid     []string `yaml:"scc-anyuid"`
 }
 
 type SecretsSection struct {
-	Names []string `toml:"names"`
-	MTLS  string   `toml:"mtls"`
+	Names []string `yaml:"names"`
+	MTLS  string   `yaml:"mtls"`
 }
 
 func LoadConfig(dir string) (*GatewayConfig, error) {
-	path := filepath.Join(dir, "gateway.toml")
+	path := filepath.Join(dir, "gateway.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
 	var cfg GatewayConfig
-	if _, err := toml.DecodeFile(path, &cfg); err != nil {
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
 	cfg.Dir = dir
@@ -97,13 +100,10 @@ func (c *GatewayConfig) IsOCP() bool {
 	return c.Gateway.Platform == "ocp"
 }
 
-// HasProviders returns true if the gateway config specifies its own provider lists,
-// overriding the global openshell.toml.
 func (c *GatewayConfig) HasProviders() bool {
 	return len(c.Providers.Enabled) > 0 || len(c.Providers.Custom) > 0
 }
 
-// AllProviders returns the combined enabled + custom provider names.
 func (c *GatewayConfig) AllProviders() []string {
 	all := make([]string, 0, len(c.Providers.Enabled)+len(c.Providers.Custom))
 	all = append(all, c.Providers.Enabled...)

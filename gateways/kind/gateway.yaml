@@ -9,21 +9,21 @@
 # Direct mode: no launcher Job, providers registered from workstation.
 # No mTLS: the gateway runs HTTP for local dev simplicity.
 
-[gateway]
-type = "remote"
-platform = "k8s"
-service = "nodeport"
-name = "openshell-kind"
-mode = "direct"
+gateway:
+  type: remote
+  platform: k8s
+  service: nodeport
+  name: openshell-kind
+  mode: direct
 
-[providers]
-enabled = ["github", "vertex-local", "atlassian", "gws"]
+providers:
+  enabled: [github, vertex-local, atlassian, gws]
 
-[chart]
-oci = "oci://ghcr.io/nvidia/openshell/helm-chart"
-version = "0.0.58"
-[chart.crd]
-url = "https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/manifest.yaml"
+chart:
+  oci: oci://ghcr.io/nvidia/openshell/helm-chart
+  version: "0.0.59"
+  crd:
+    url: https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/manifest.yaml
 
-[helm]
-values = "values.yaml"
+helm:
+  values: values.yaml

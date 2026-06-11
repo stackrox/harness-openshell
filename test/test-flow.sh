@@ -199,15 +199,9 @@ test_local() {
 
   step "teardown" "$HARNESS" teardown --sandboxes --providers
   step "deploy" "$HARNESS" deploy --local
+  step "gateway reachable" "$CLI" inference get
 
-  if ! $NO_PROVIDERS; then
-    step "setup providers" "$HARNESS" providers
-    step "gateway reachable" "$CLI" inference get
-    check_providers
-  else
-    step "gateway reachable" "$HARNESS" deploy --local
-  fi
-
+  # up auto-registers providers when missing
   local sandbox_name="test-agent"
   step_output "sandbox create (up)" "$HARNESS" up --local --name "$sandbox_name" --agent "$PROFILE" --no-tty
   sandbox_verify "$sandbox_name"
@@ -265,12 +259,7 @@ test_kind() {
 
   step "teardown" "$HARNESS" teardown --sandboxes --providers --k8s
   step "deploy" "$HARNESS" deploy kind
-
-  if ! $NO_PROVIDERS; then
-    step "setup providers" "$HARNESS" providers
-    step "gateway reachable" "$CLI" inference get
-    check_providers
-  fi
+  step "gateway reachable" "$CLI" inference get
 
   local sandbox_name="test-kind"
   step_output "sandbox create" "$HARNESS" up --name "$sandbox_name" --agent "$PROFILE" --no-tty
@@ -306,12 +295,6 @@ test_ocp() {
   else
     step "teardown" "$HARNESS" teardown --sandboxes --providers --k8s
     step "deploy" "$HARNESS" deploy --remote
-  fi
-
-  if ! $NO_PROVIDERS; then
-    step "setup providers" "$HARNESS" providers
-    step "gateway reachable" "$CLI" inference get
-    check_providers
   fi
 
   local sandbox_name

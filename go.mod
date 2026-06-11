@@ -3,7 +3,6 @@ module github.com/robbycochran/harness-openshell
 go 1.22.4
 
 require (
-	github.com/BurntSushi/toml v1.6.0
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 )

@@ -37,17 +37,19 @@ process:
   run_as_group: sandbox
 
 network_policies:
-  # Claude Code telemetry (inference goes through inference.local,
-  # but telemetry/updates still hit Anthropic directly)
-  claude_telemetry:
-    name: claude-telemetry
+  # Agent telemetry (inference goes through inference.local,
+  # but telemetry/updates still hit upstream directly)
+  agent_telemetry:
+    name: agent-telemetry
     endpoints:
       - { host: "*.anthropic.com", port: 443 }
       - { host: downloads.claude.ai, port: 443 }
       - { host: platform.claude.com, port: 443 }
       - { host: sentry.io, port: 443 }
+      - { host: opencode.ai, port: 443 }
     binaries:
       - { path: /usr/local/bin/claude }
+      - { path: /usr/local/bin/opencode }
       - { path: /usr/bin/node }
 
   # Git Smart HTTP transport — allows clone and fetch.

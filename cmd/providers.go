@@ -10,26 +10,8 @@ import (
 
 	"github.com/robbycochran/harness-openshell/internal/gateway"
 	"github.com/robbycochran/harness-openshell/internal/status"
-	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
-
-func NewProvidersCmd(harnessDir, cli string) *cobra.Command {
-	var force bool
-
-	cmd := &cobra.Command{
-		Use:   "providers",
-		Short: "Register providers with the gateway",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			gw := gateway.New(cli)
-			return registerProviders(harnessDir, gw, force, nil, true)
-		},
-	}
-
-	cmd.Flags().BoolVar(&force, "force", false, "Delete and recreate all providers")
-
-	return cmd
-}
 
 // registerProviders registers providers with the gateway. If gwCfg is non-nil
 // and has a [providers] section, only providers in that list are registered.

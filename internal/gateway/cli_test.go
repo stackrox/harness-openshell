@@ -454,6 +454,7 @@ func TestParseCLIVersion(t *testing.T) {
 	}{
 		{"openshell v0.0.59", "0.0.59"},
 		{"openshell v0.0.58", "0.0.58"},
+		{"openshell 0.0.59", "0.0.59"},
 		{"v1.2.3", "1.2.3"},
 		{"0.0.59", "0.0.59"},
 	}

@@ -6,9 +6,9 @@
 #
 # The harness verifies the gateway is reachable but does not manage its lifecycle.
 
-[gateway]
-type = "local"
+gateway:
+  type: local
 
-[providers]
-enabled = ["github", "vertex-local", "atlassian"]
-custom = ["gws"]
+providers:
+  enabled: [github, vertex-local, atlassian]
+  custom: [gws]

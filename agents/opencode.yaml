@@ -1,12 +1,12 @@
-# Hackathon demo agent -- runs the cross-tool status snapshot task.
+# OpenCode agent configuration.
 #
 # Usage:
-#   harness up --local --agent demo
+#   harness up -f agents/opencode.yaml
+#   harness up --agent opencode
 
-name: demo
-entrypoint: claude
-task: demo/DEMO-TASK.md
-tty: false
+name: opencode-agent
+entrypoint: opencode
+tty: true
 
 providers:
   - profile: github
@@ -20,4 +20,3 @@ providers:
 env:
   ANTHROPIC_BASE_URL: https://inference.local
   ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
-  CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"

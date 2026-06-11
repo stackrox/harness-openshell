@@ -6,48 +6,48 @@ import (
 	"testing"
 )
 
-func writeGatewayTOML(t *testing.T, dir, content string) {
+func writeGatewayYAML(t *testing.T, dir, content string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "gateway.toml"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "gateway.yaml"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestLoadConfig_FullOCP(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "remote"
-platform = "ocp"
-service = "route"
-name = "my-ocp"
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: remote
+  platform: ocp
+  service: route
+  name: my-ocp
 
-[providers]
-enabled = ["github", "vertex-local"]
-custom = ["gws"]
+providers:
+  enabled: [github, vertex-local]
+  custom: [gws]
 
-[chart]
-oci = "oci://example.com/chart"
-version = "1.2.3"
-[chart.crd]
-url = "https://example.com/crd.yaml"
+chart:
+  oci: oci://example.com/chart
+  version: "1.2.3"
+  crd:
+    url: https://example.com/crd.yaml
 
-[helm]
-values = "values.yaml"
+helm:
+  values: values.yaml
 
-[addons]
-manifests = ["addons/route.yaml"]
+addons:
+  manifests: [addons/route.yaml]
 
-[ocp]
-scc-privileged = ["sa1", "sa2"]
-scc-anyuid = ["sa1"]
+ocp:
+  scc-privileged: [sa1, sa2]
+  scc-anyuid: [sa1]
 
-[secrets]
-names = ["secret-a", "secret-b"]
-mtls = "my-mtls-secret"
+secrets:
+  names: [secret-a, secret-b]
+  mtls: my-mtls-secret
 `)
 
 	cfg, err := LoadConfig(dir)
@@ -98,9 +98,9 @@ mtls = "my-mtls-secret"
 
 func TestLoadConfig_MinimalLocal(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "local"
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: local
 `)
 
 	cfg, err := LoadConfig(dir)
@@ -112,7 +112,6 @@ type = "local"
 		t.Error("IsLocal() = false, want true")
 	}
 
-	// Defaults applied
 	if cfg.Chart.OCI != "oci://ghcr.io/nvidia/openshell/helm-chart" {
 		t.Errorf("default chart.oci = %q", cfg.Chart.OCI)
 	}
@@ -123,10 +122,10 @@ type = "local"
 
 func TestLoadConfig_MinimalRemote(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "remote"
-platform = "k8s"
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: remote
+  platform: k8s
 `)
 
 	cfg, err := LoadConfig(dir)
@@ -145,27 +144,26 @@ platform = "k8s"
 func TestLoadConfig_Missing(t *testing.T) {
 	_, err := LoadConfig(t.TempDir())
 	if err == nil {
-		t.Error("expected error for missing gateway.toml")
+		t.Error("expected error for missing gateway.yaml")
 	}
 }
 
-func TestLoadConfig_InvalidTOML(t *testing.T) {
+func TestLoadConfig_InvalidYAML(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `[gateway
-broken toml`)
+	writeGatewayYAML(t, dir, `gateway: [broken yaml`)
 
 	_, err := LoadConfig(dir)
 	if err == nil {
-		t.Error("expected error for invalid TOML")
+		t.Error("expected error for invalid YAML")
 	}
 }
 
 func TestEnvOverrides(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "remote"
-name = "original-name"
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: remote
+  name: original-name
 `)
 
 	t.Setenv("GATEWAY_NAME", "env-gw-name")
@@ -182,10 +180,10 @@ name = "original-name"
 
 func TestEnvOverrides_NotSet(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "remote"
-name = "original-name"
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: remote
+  name: original-name
 `)
 
 	t.Setenv("GATEWAY_NAME", "")
@@ -202,12 +200,11 @@ name = "original-name"
 
 func TestHelmValuesPath(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "remote"
-
-[helm]
-values = "values.yaml"
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: remote
+helm:
+  values: values.yaml
 `)
 
 	cfg, err := LoadConfig(dir)
@@ -223,9 +220,9 @@ values = "values.yaml"
 
 func TestHelmValuesPath_Empty(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "remote"
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: remote
 `)
 
 	cfg, err := LoadConfig(dir)
@@ -240,12 +237,13 @@ type = "remote"
 
 func TestManifestPaths(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "remote"
-
-[addons]
-manifests = ["addons/rbac.yaml", "addons/route.yaml"]
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: remote
+addons:
+  manifests:
+    - addons/rbac.yaml
+    - addons/route.yaml
 `)
 
 	cfg, err := LoadConfig(dir)
@@ -267,9 +265,9 @@ manifests = ["addons/rbac.yaml", "addons/route.yaml"]
 
 func TestManifestPaths_Empty(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "remote"
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: remote
 `)
 
 	cfg, err := LoadConfig(dir)
@@ -285,25 +283,25 @@ type = "remote"
 func TestPredicates(t *testing.T) {
 	tests := []struct {
 		name    string
-		toml    string
+		yaml    string
 		isLocal bool
 		isOCP   bool
 	}{
 		{
 			name:    "local",
-			toml:    "[gateway]\ntype = \"local\"",
+			yaml:    "gateway:\n  type: local",
 			isLocal: true,
 			isOCP:   false,
 		},
 		{
-			name:    "remote ocp",
-			toml:    "[gateway]\ntype = \"remote\"\nplatform = \"ocp\"",
+			name:    "remote ocp launcher",
+			yaml:    "gateway:\n  type: remote\n  platform: ocp",
 			isLocal: false,
 			isOCP:   true,
 		},
 		{
-			name:    "remote k8s",
-			toml:    "[gateway]\ntype = \"remote\"\nplatform = \"k8s\"",
+			name:    "remote k8s direct",
+			yaml:    "gateway:\n  type: remote\n  platform: k8s",
 			isLocal: false,
 			isOCP:   false,
 		},
@@ -312,7 +310,7 @@ func TestPredicates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			writeGatewayTOML(t, dir, tt.toml)
+			writeGatewayYAML(t, dir, tt.yaml)
 
 			cfg, err := LoadConfig(dir)
 			if err != nil {
@@ -331,13 +329,12 @@ func TestPredicates(t *testing.T) {
 
 func TestHasProviders(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "local"
-
-[providers]
-enabled = ["github"]
-custom = ["gws"]
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: local
+providers:
+  enabled: [github]
+  custom: [gws]
 `)
 
 	cfg, err := LoadConfig(dir)
@@ -357,9 +354,9 @@ custom = ["gws"]
 
 func TestHasProviders_Empty(t *testing.T) {
 	dir := t.TempDir()
-	writeGatewayTOML(t, dir, `
-[gateway]
-type = "local"
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: local
 `)
 
 	cfg, err := LoadConfig(dir)

@@ -11,7 +11,6 @@ import (
 
 	"github.com/robbycochran/harness-openshell/internal/gateway"
 	"github.com/robbycochran/harness-openshell/internal/k8s"
-	"github.com/robbycochran/harness-openshell/internal/preflight"
 	"github.com/robbycochran/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
 )
@@ -26,7 +25,7 @@ func NewDeployCmd(harnessDir, cli string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deploy [gateway]",
 		Short: "Deploy or verify the gateway",
-		Long:  "Deploy a gateway by name (e.g., local, ocp, kind). Reads configuration from gateways/<name>/gateway.toml.",
+		Long:  "Deploy a gateway by name (e.g., local, ocp, kind). Reads configuration from gateways/<name>/gateway.yaml.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			gatewayName, err := resolveGatewayName(args, local, remote)
@@ -148,12 +147,6 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 	namespace := k8s.DefaultNamespace()
 
 	chartVersion := os.Getenv("OPENSHELL_CHART_VERSION")
-	if chartVersion == "" {
-		cfg, _ := preflight.LoadConfig(filepath.Join(harnessDir, "openshell.toml"))
-		if cfg != nil && cfg.Upstream.ChartVersion != "" {
-			chartVersion = cfg.Upstream.ChartVersion
-		}
-	}
 	if chartVersion == "" {
 		chartVersion = gwCfg.Chart.Version
 	}
