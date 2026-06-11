@@ -4,7 +4,7 @@
 #   harness up --local --agent demo
 
 name: demo
-entrypoint: claude -p
+entrypoint: claude
 task: demo/DEMO-TASK.md
 tty: false
 

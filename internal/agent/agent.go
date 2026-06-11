@@ -73,14 +73,26 @@ func Parse(data []byte) (*AgentConfig, error) {
 	return &cfg, nil
 }
 
+func expandEnvVar(key, value string) string {
+	expanded := os.ExpandEnv(value)
+	if expanded == "" {
+		expanded = os.Getenv(key)
+	}
+	return expanded
+}
+
 func (c *AgentConfig) BuildEnvMap() map[string]string {
 	env := make(map[string]string)
 	for k, v := range c.Env {
-		env[k] = os.ExpandEnv(v)
+		if val := expandEnvVar(k, v); val != "" {
+			env[k] = val
+		}
 	}
 	for _, p := range c.Providers {
 		for k, v := range p.Config {
-			env[k] = os.ExpandEnv(v)
+			if val := expandEnvVar(k, v); val != "" {
+				env[k] = val
+			}
 		}
 	}
 	return env
@@ -120,7 +132,7 @@ func (c *AgentConfig) BuildRunSh() string {
 	b.WriteString("fi\n\n")
 	b.WriteString("# Execute entrypoint\n")
 	if c.Task != "" {
-		fmt.Fprintf(&b, "exec %s \"$PAYLOAD_DIR/task.md\"\n", entrypoint)
+		fmt.Fprintf(&b, "exec %s -p \"$(cat \"$PAYLOAD_DIR/task.md\")\"\n", entrypoint)
 	} else {
 		fmt.Fprintf(&b, "exec %s\n", entrypoint)
 	}
