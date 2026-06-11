@@ -134,7 +134,9 @@ func (c *CLI) ProviderGet(name string) error {
 
 func (c *CLI) ProviderCreate(name, providerType string, opts ProviderCreateOpts) error {
 	args := []string{"provider", "create", "--name", name, "--type", providerType}
-	if opts.FromADC {
+	if opts.FromExisting {
+		args = append(args, "--from-existing")
+	} else if opts.FromADC {
 		args = append(args, "--from-gcloud-adc")
 	}
 	for _, cred := range opts.Credentials {

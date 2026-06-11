@@ -58,9 +58,10 @@ func ValidateProviders(providers []string, gw ProviderChecker) (registered, miss
 }
 
 type ProviderCreateOpts struct {
-	Credentials []string
-	Configs     []string
-	FromADC     bool
+	Credentials  []string
+	Configs      []string
+	FromADC      bool
+	FromExisting bool
 }
 
 type ProviderRefreshOpts struct {

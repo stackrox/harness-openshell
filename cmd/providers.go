@@ -64,14 +64,25 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, gwCfg 
 	profilesDir := filepath.Join(harnessDir, "agents", "providers", "profiles")
 	gw.ProviderProfileImport(profilesDir)
 
-	if err := registerGitHub(gw, providerEnabled); err != nil {
-		return err
+	home, _ := os.UserHomeDir()
+	adcPath := envOr("GOOGLE_APPLICATION_CREDENTIALS",
+		filepath.Join(home, ".config", "gcloud", "application_default_credentials.json"))
+	project := envOr("ANTHROPIC_VERTEX_PROJECT_ID", readADCProject(adcPath))
+	region := envOr("CLOUD_ML_REGION", "global")
+
+	if providerEnabled("github") {
+		registerStandard("github", "github", gw, nil)
 	}
-	if err := registerVertexAI(gw, model, providerEnabled); err != nil {
-		return err
+	if providerEnabled("vertex-local") {
+		var vertexConfigs []string
+		if project != "" {
+			vertexConfigs = append(vertexConfigs, "VERTEX_AI_PROJECT_ID="+project)
+		}
+		vertexConfigs = append(vertexConfigs, "VERTEX_AI_REGION="+region)
+		registerADC("vertex-local", "google-vertex-ai", model, gw, vertexConfigs)
 	}
-	if err := registerAtlassian(gw, providerEnabled); err != nil {
-		return err
+	if providerEnabled("atlassian") {
+		registerStandard("atlassian", "atlassian", gw, nil)
 	}
 	if err := registerGWS(harnessDir, gw, providerEnabled); err != nil {
 		return err
@@ -95,96 +106,39 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, gwCfg 
 	return nil
 }
 
-func registerGitHub(gw gateway.Gateway, enabled func(string) bool) error {
-	if !enabled("github") {
-		status.Info("github: disabled by gateway config")
-		return nil
+func registerStandard(name, profileType string, gw gateway.Gateway, configs []string) {
+	if gw.ProviderGet(name) == nil {
+		status.Infof("%s: exists", name)
+		return
 	}
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		status.Info("github: skipped (GITHUB_TOKEN not set)")
-		return nil
-	}
-	if gw.ProviderGet("github") == nil {
-		status.Info("github: exists (use --force to recreate)")
-		return nil
-	}
-	if err := gw.ProviderCreate("github", "github", gateway.ProviderCreateOpts{
-		Credentials: []string{"GITHUB_TOKEN=" + token},
+	if err := gw.ProviderCreate(name, profileType, gateway.ProviderCreateOpts{
+		FromExisting: true,
+		Configs:      configs,
 	}); err != nil {
-		return fmt.Errorf("creating github provider: %w", err)
+		status.Infof("%s: skipped (%v)", name, err)
+		return
 	}
-	status.OK("github: registered")
-	return nil
+	status.OKf("%s: registered", name)
 }
 
-func registerVertexAI(gw gateway.Gateway, model string, enabled func(string) bool) error {
-	if !enabled("vertex-local") {
-		status.Info("vertex-local: disabled by gateway config")
-		return nil
+func registerADC(name, profileType, model string, gw gateway.Gateway, configs []string) {
+	if gw.ProviderGet(name) == nil {
+		status.Infof("%s: exists", name)
+		return
 	}
-	home, _ := os.UserHomeDir()
-	adcPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-	if adcPath == "" {
-		adcPath = filepath.Join(home, ".config", "gcloud", "application_default_credentials.json")
+	if err := gw.ProviderCreate(name, profileType, gateway.ProviderCreateOpts{
+		FromADC: true,
+		Configs: configs,
+	}); err != nil {
+		status.Infof("%s: skipped (%v)", name, err)
+		return
 	}
-	project := os.Getenv("ANTHROPIC_VERTEX_PROJECT_ID")
-	region := envOr("CLOUD_ML_REGION", "global")
-
-	if project == "" {
-		project = readADCProject(adcPath)
-	}
-
-	if !fileExists(adcPath) {
-		status.Infof("vertex-local: skipped (no ADC file at %s)", adcPath)
-		return nil
-	}
-	if project == "" {
-		status.Info("vertex-local: skipped (no project ID — set ANTHROPIC_VERTEX_PROJECT_ID)")
-		return nil
-	}
-	if gw.ProviderGet("vertex-local") == nil {
-		status.Info("vertex-local: exists (use --force to recreate)")
-	} else {
-		if err := gw.ProviderCreate("vertex-local", "google-vertex-ai", gateway.ProviderCreateOpts{
-			FromADC: true,
-			Configs: []string{
-				"VERTEX_AI_PROJECT_ID=" + project,
-				"VERTEX_AI_REGION=" + region,
-			},
-		}); err != nil {
-			return fmt.Errorf("creating vertex-local provider: %w", err)
-		}
-		status.OKf("vertex-local: registered (project: %s, region: %s)", project, region)
-	}
-	if err := gw.InferenceSet("vertex-local", model); err != nil {
-		return fmt.Errorf("setting inference: %w", err)
+	status.OKf("%s: registered", name)
+	if err := gw.InferenceSet(name, model); err != nil {
+		status.Infof("inference: %v", err)
+		return
 	}
 	status.OKf("inference: model %s", model)
-	return nil
-}
-
-func registerAtlassian(gw gateway.Gateway, enabled func(string) bool) error {
-	if !enabled("atlassian") {
-		status.Info("atlassian: disabled by gateway config")
-		return nil
-	}
-	token := os.Getenv("JIRA_API_TOKEN")
-	if token == "" {
-		status.Info("atlassian: skipped (JIRA_API_TOKEN not set)")
-		return nil
-	}
-	if gw.ProviderGet("atlassian") == nil {
-		status.Info("atlassian: exists (use --force to recreate)")
-		return nil
-	}
-	if err := gw.ProviderCreate("atlassian", "atlassian", gateway.ProviderCreateOpts{
-		Credentials: []string{"JIRA_API_TOKEN=" + token},
-	}); err != nil {
-		return fmt.Errorf("creating atlassian provider: %w", err)
-	}
-	status.OK("atlassian: registered")
-	return nil
 }
 
 func registerGWS(harnessDir string, gw gateway.Gateway, enabled func(string) bool) error {
@@ -318,11 +272,6 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 func readADCProject(path string) string {

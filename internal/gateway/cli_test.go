@@ -503,6 +503,26 @@ func TestCheckMinVersion_NoCLI(t *testing.T) {
 	}
 }
 
+func TestProviderCreate_FromExisting(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	bin := writeStub(t, `#!/bin/bash
+printf '%s\n' "$*" > `+argsFile+`
+`)
+	gw := New(bin)
+	gw.ProviderCreate("github", "github", ProviderCreateOpts{
+		FromExisting: true,
+	})
+	data, _ := os.ReadFile(argsFile)
+	args := strings.TrimSpace(string(data))
+	if !strings.Contains(args, "--from-existing") {
+		t.Errorf("missing --from-existing in: %s", args)
+	}
+	if strings.Contains(args, "--from-gcloud-adc") {
+		t.Errorf("should not have --from-gcloud-adc: %s", args)
+	}
+}
+
 func TestProviderCreate_Args(t *testing.T) {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")
