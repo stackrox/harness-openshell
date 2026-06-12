@@ -72,3 +72,11 @@ func resolveGatewayConfig(harnessDir, name string) (*gateway.GatewayConfig, erro
 	}
 	return nil, fmt.Errorf("gateway profile %q not found", name)
 }
+
+func resolveGatewayConfigFromFile(path string) (*gateway.GatewayConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading gateway profile %s: %w", path, err)
+	}
+	return gateway.LoadConfigFromBytes(data)
+}

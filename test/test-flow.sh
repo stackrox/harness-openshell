@@ -195,7 +195,7 @@ summary() {
 test_errors() {
   echo "=== test: error scenarios ==="
 
-  step_fail "nonexistent profile" "$HARNESS" up --local --agent nonexistent --no-tty
+  step_fail "nonexistent profile" "$HARNESS" up --gateway local --agent nonexistent --no-tty
 
   if $REUSE_GATEWAY; then
     step "teardown (first)" "$HARNESS" teardown --sandboxes --providers
@@ -216,12 +216,12 @@ test_local() {
   echo "=== test-flow: local ($mode) ==="
 
   step "teardown" "$HARNESS" teardown --sandboxes --providers
-  step "deploy" "$HARNESS" deploy --local
+  step "deploy" "$HARNESS" deploy local
   step "gateway reachable" "$CLI" inference get
 
   # up auto-registers providers when missing
   local sandbox_name="test-agent"
-  step_output "sandbox create (up)" "$HARNESS" up --local --name "$sandbox_name" --agent "$PROFILE" --no-tty
+  step_output "sandbox create (up)" "$HARNESS" up --gateway local --name "$sandbox_name" --agent "$PROFILE" --no-tty
   sandbox_verify "$sandbox_name"
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
@@ -234,7 +234,7 @@ test_local() {
     echo ""
     echo "=== test: missing providers ==="
     step "teardown providers" "$HARNESS" teardown --providers
-    step_output "up with no providers" "$HARNESS" up --local --name test-noprov --no-tty
+    step_output "up with no providers" "$HARNESS" up --gateway local --name test-noprov --no-tty
     step "cleanup" "$HARNESS" teardown --sandboxes
   fi
 
@@ -306,13 +306,13 @@ test_ocp() {
 
     step "teardown sandboxes+providers" "$HARNESS" teardown --sandboxes --providers
     if ! "$CLI" inference get &>/dev/null; then
-      step "deploy" "$HARNESS" deploy --remote
+      step "deploy" "$HARNESS" deploy ocp
     else
       step "gateway reachable" "$CLI" inference get
     fi
   else
     step "teardown" "$HARNESS" teardown --sandboxes --providers --k8s
-    step "deploy" "$HARNESS" deploy --remote
+    step "deploy" "$HARNESS" deploy ocp
   fi
 
   local sandbox_name
@@ -321,7 +321,7 @@ test_ocp() {
     step_output "sandbox create" "$HARNESS" create --agent=ci --name "$sandbox_name"
   else
     sandbox_name="agent"
-    step_output "sandbox create (up)" "$HARNESS" up --remote --name "$sandbox_name" --no-tty
+    step_output "sandbox create (up)" "$HARNESS" up --gateway ocp --name "$sandbox_name" --no-tty
   fi
 
   sandbox_verify "$sandbox_name"

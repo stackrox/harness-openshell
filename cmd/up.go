@@ -15,10 +15,10 @@ import (
 
 func NewUpCmd(harnessDir, cli string) *cobra.Command {
 	var (
-		local       bool
-		remote          bool
+		gatewayName     string
+		gatewayProfile  string
 		agentName       string
-		agentFile       string
+		agentProfile    string
 		sandboxName     string
 		noTTY           bool
 		providerRefresh bool
@@ -29,32 +29,43 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 		Short: "Deploy gateway, register providers, and create a sandbox",
 		Long:  "Deploy gateway and register providers if needed, then render an agent config into a running sandbox.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if local && remote {
-				return fmt.Errorf("--local and --remote are mutually exclusive")
+			if gatewayName != "" && gatewayProfile != "" {
+				return fmt.Errorf("--gateway and --gateway-profile are mutually exclusive")
 			}
 			if len(args) > 0 && sandboxName == "" {
 				sandboxName = args[0]
 			}
 
-			agentCfg, err := resolveAgentConfig(harnessDir, agentName, agentFile)
+			agentCfg, err := resolveAgentConfig(harnessDir, agentName, agentProfile)
 			if err != nil {
 				return err
 			}
-			agentPath := resolveAgentPath(harnessDir, agentName, agentFile)
+			agentPath := resolveAgentPath(harnessDir, agentName, agentProfile)
 
 			gw := gateway.New(cli)
 			if err := gw.CheckMinVersion("0.0.59"); err != nil {
 				status.Warn(fmt.Sprintf("OpenShell version: %v", err))
 			}
 
-			gwName := "local"
-			if remote {
-				gwName = "ocp"
-			} else if !local && agentCfg.Gateway != "" {
-				gwName = agentCfg.Gateway
+			var gwCfg *gateway.GatewayConfig
+			gwTarget := gatewayName
+			if gatewayProfile != "" {
+				gwCfg, err = resolveGatewayConfigFromFile(gatewayProfile)
+				if err != nil {
+					return err
+				}
+				gwTarget = gwCfg.Gateway.Type
+			} else {
+				if gwTarget == "" {
+					if agentCfg.Gateway != "" {
+						gwTarget = agentCfg.Gateway
+					} else {
+						gwTarget = "local"
+					}
+				}
+				gwCfg, _ = resolveGatewayConfig(harnessDir, gwTarget)
 			}
-			isRemote := gwName != "local"
-			gwCfg, _ := resolveGatewayConfig(harnessDir, gwName)
+			isRemote := gwTarget != "local"
 
 			return upLocal(upLocalOpts{
 				harnessDir:      harnessDir,
@@ -71,10 +82,10 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&local, "local", false, "Ensure local podman gateway (default when --remote is not specified)")
-	cmd.Flags().BoolVar(&remote, "remote", false, "Ensure OCP gateway")
+	cmd.Flags().StringVar(&gatewayName, "gateway", "", "Gateway profile name (local, kind, ocp)")
+	cmd.Flags().StringVar(&gatewayProfile, "gateway-profile", "", "Path to gateway profile YAML (overrides --gateway)")
 	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from agents/)")
-	cmd.Flags().StringVarP(&agentFile, "file", "f", "", "Path to agent YAML file (overrides --agent)")
+	cmd.Flags().StringVarP(&agentProfile, "agent-profile", "f", "", "Path to agent YAML file (overrides --agent)")
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides agent config)")
 	cmd.Flags().BoolVar(&noTTY, "no-tty", false, "Non-interactive mode (for testing)")
 	cmd.Flags().BoolVar(&providerRefresh, "provider-refresh", false, "Delete and recreate all providers")
