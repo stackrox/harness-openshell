@@ -128,10 +128,9 @@ Credentials are proxy-managed. The sandbox holds placeholder tokens; real secret
 For non-interactive task agents, set `task:` and `tty: false`:
 
 ```yaml
-# agents/demo.yaml
-name: demo
+name: standup
 entrypoint: claude
-task: demo/DEMO-TASK.md
+task: tasks/daily-standup.md
 tty: false
 # ... same providers and env
 ```
