@@ -151,6 +151,32 @@ harness up                        # defaults to local Podman
 
 `--local` and `--remote` flags override the `gateway:` field.
 
+For OCP, the harness runs the same provider registration commands as local, plus Helm-based gateway deployment. The `openshell sandbox create` call adds the OCP-specific image and routes through the remote gateway:
+
+```bash
+# 1-7. Same provider registration as local (settings, profiles, providers, inference)
+
+# 8. Deploy gateway to OCP via Helm (reads gateways/ocp/gateway.yaml)
+kubectl create ns openshell
+kubectl apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/.../manifest.yaml
+helm upgrade --install openshell oci://ghcr.io/nvidia/openshell/helm-chart \
+  --version 0.0.59 -n openshell -f gateways/ocp/helm/values.yaml
+kubectl rollout status statefulset/openshell -n openshell
+
+# 9. Create sandbox on the remote gateway
+openshell sandbox create --name agent \
+  --from ghcr.io/robbycochran/harness-openshell:sandbox \
+  --provider github --provider vertex-local --provider atlassian --provider gws \
+  --env ANTHROPIC_BASE_URL=https://inference.local \
+  --env ANTHROPIC_API_KEY=sk-ant-openshell-proxy-managed \
+  --env CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1 \
+  --env JIRA_URL=https://your-org.atlassian.net \
+  --env JIRA_USERNAME=you@company.com \
+  --upload payload:/sandbox/.config --no-git-ignore \
+  --tty \
+  -- bash /sandbox/.config/openshell/run.sh
+```
+
 ### Task Agents
 
 For non-interactive task agents, set `task:` and `tty: false`:
