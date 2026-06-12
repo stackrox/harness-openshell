@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -26,13 +28,16 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute version tag
+        id: version
+        run: echo "version=$(git describe --tags --always 2>/dev/null || echo dev)" >> "$GITHUB_OUTPUT"
       - uses: docker/metadata-action@v5
         id: meta
         with:
           images: ${{ env.IMAGE_BASE }}
           tags: |
             type=semver,pattern=sandbox-v{{version}}
-            type=sha,prefix=sandbox-,format=short
+            type=raw,value=sandbox-${{ steps.version.outputs.version }},enable=${{ github.ref_type != 'tag' }}
       # Fork PRs can't write to the registry; same-repo PRs push so the
       # integration (kind) job can pull the image without a local preload.
       - uses: docker/build-push-action@v6

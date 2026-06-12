@@ -23,7 +23,7 @@ DEV_SANDBOX_IMAGE  := $(REGISTRY):sandbox-$(VERSION)
 
 .PHONY: all cli \
         vet lint test test-local test-kind test-remote test-all \
-        dev-sandbox dev-push clean help
+        dev-sandbox dev-push tag clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
@@ -96,6 +96,13 @@ dev-push:
 	@echo "Pushed: $(DEV_SANDBOX_IMAGE) (multi-arch)"
 
 ## ── Convenience targets ───────────────────────────────────────────────
+
+## Create a release tag (e.g., make tag v=0.2.0)
+tag:
+	@test -n "$(v)" || { echo "Usage: make tag v=0.2.0"; exit 1; }
+	git tag -a "v$(v)" -m "v$(v)"
+	@echo "Tagged: v$(v)"
+	@echo "Push with: git push origin v$(v)"
 
 ## Clean built binaries
 clean:
