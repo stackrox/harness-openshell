@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -60,12 +62,20 @@ func versionedImage(name string) string {
 var EmbeddedGatewayProfiles map[string][]byte
 
 func resolveGatewayConfig(harnessDir, name string) (*gateway.GatewayConfig, error) {
-	if cfg, err := gateway.LoadProfile(harnessDir, name); err == nil {
+	cfg, err := gateway.LoadProfile(harnessDir, name)
+	if err == nil {
 		return cfg, nil
 	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
 	gwDir := filepath.Join(harnessDir, "gateways", name)
-	if cfg, err := gateway.LoadConfig(gwDir); err == nil {
+	cfg, err = gateway.LoadConfig(gwDir)
+	if err == nil {
 		return cfg, nil
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
 	}
 	if data, ok := EmbeddedGatewayProfiles[name]; ok {
 		return gateway.LoadConfigFromBytes(data)
@@ -78,5 +88,10 @@ func resolveGatewayConfigFromFile(path string) (*gateway.GatewayConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading gateway profile %s: %w", path, err)
 	}
-	return gateway.LoadConfigFromBytes(data)
+	cfg, err := gateway.LoadConfigFromBytes(data)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Dir = filepath.Dir(path)
+	return cfg, nil
 }

@@ -148,7 +148,7 @@ harness up -f agents/ocp.yaml    # deploys to OCP (reads profiles/gateways/ocp.y
 harness up                        # defaults to local Podman
 ```
 
-`--local` and `--remote` flags override the `gateway:` field.
+`--gateway local` and `--gateway ocp` flags override the `gateway:` field.
 
 For OCP, the harness first deploys the gateway via Helm, then runs the same provider registration and sandbox creation. The full sequence:
 
@@ -240,7 +240,7 @@ make cli
 ./harness up
 ```
 
-For remote OpenShift: `./harness up --remote` (requires `kubectl`, `helm`, cluster access).
+For remote OpenShift: `./harness up --gateway ocp` (requires `kubectl`, `helm`, cluster access).
 
 ## How It Works
 
@@ -277,15 +277,17 @@ See the [OpenShell docs](https://github.com/NVIDIA/OpenShell) for the full secur
 ## Commands
 
 ```
-harness up [--local|--remote] [--agent NAME] [-f FILE] [--name SANDBOX] [--no-tty] [--provider-refresh]
+harness up [--gateway NAME] [--gateway-profile FILE] [--agent NAME] [--agent-profile|-f FILE] [--name SANDBOX] [--no-tty] [--provider-refresh]
     Deploy gateway + register providers + create sandbox.
-    Defaults to local gateway (use --remote for OCP).
+    Defaults to local gateway (use --gateway ocp for OCP).
+    --gateway selects a gateway profile by name (local, kind, ocp).
+    --gateway-profile loads a gateway profile from a file path.
     --agent defaults to "default" (embedded or agents/default.yaml).
-    -f renders any agent YAML file directly.
+    --agent-profile (-f) renders any agent YAML file directly.
     --no-tty disables TTY allocation.
     --provider-refresh deletes and recreates all providers.
 
-harness create [--agent NAME] [-f FILE] [--name SANDBOX]
+harness create [--agent NAME] [--agent-profile|-f FILE] [--name SANDBOX]
     Create a sandbox without deploying the gateway.
     Assumes gateway is running. Auto-registers missing providers.
 
@@ -315,4 +317,3 @@ For sandbox connect/logs, use openshell directly:
 | [TODO.md](TODO.md) | Roadmap and known gaps |
 | [docs/archive/](docs/archive/README.md) | Historical design docs (e.g. the June 2026 design-v1 proposal) -- outdated, kept for context |
 | [docs/release-plan.md](docs/release-plan.md) | Release phases: CI (done), embed + `harness init`, GoReleaser |
-| [docs/proto-migration.md](docs/proto-migration.md) | Deferred plan to adopt proto-generated config types |

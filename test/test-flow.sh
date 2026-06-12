@@ -262,7 +262,7 @@ test_kind() {
   step "gateway reachable" "$CLI" inference get
 
   local sandbox_name="test-kind"
-  step "sandbox create" harness up --name "$sandbox_name" --agent "$PROFILE" --no-tty
+  step "sandbox create" harness up --gateway kind --name "$sandbox_name" --agent "$PROFILE" --no-tty
   sandbox_verify "$sandbox_name"
 
   if ! $NO_PROVIDERS; then

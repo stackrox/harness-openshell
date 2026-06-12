@@ -43,7 +43,7 @@ var Files embed.FS
 Create directory `internal/embed/files/` populated by `make embed-sync`. Runtime files to embed:
 - `sandbox/profiles/atlassian.yaml`
 - `sandbox/CLAUDE.md`, `settings.json`, `mcp.json`, `policy.yaml`, `startup.sh`
-- `profiles/default.toml`
+- `agents/default.yaml`
 - `values-ocp.yaml`
 
 **Decision: copy, not symlink.** `go:embed` doesn't follow symlinks. `make embed-sync` copies originals into `internal/embed/files/`. GoReleaser hooks call this automatically.
@@ -64,7 +64,7 @@ Add `~/.openshell/harness/` as fallback:
 1. $HARNESS_DIR env var
 2. Walk up from executable location
 3. Walk up from cwd
-4. ~/.openshell/harness/ (if profiles/default.toml exists there)
+4. ~/.openshell/harness/ (if agents/default.yaml exists there)
 5. Error + exit
 ```
 
@@ -108,7 +108,7 @@ harness init
 ```bash
 git clone ... && cd harness-openshell
 make cli
-./harness up --local
+./harness up
 ```
 
 ---

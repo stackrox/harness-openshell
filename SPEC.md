@@ -53,13 +53,13 @@ Provider profiles live in `profiles/providers/`. These are imported to the gatew
 
 ## CLI
 
-### `harness up [--local|--remote] [--agent NAME] [-f FILE] [--name SANDBOX] [--no-tty] [--provider-refresh]`
+### `harness up [--gateway NAME] [--gateway-profile FILE] [--agent NAME] [--agent-profile|-f FILE] [--name SANDBOX] [--no-tty] [--provider-refresh]`
 
 Full flow: deploy gateway, register providers, render agent config, create sandbox.
 
 1. **Check version** -- warn if openshell CLI is below v0.0.59.
-2. **Ensure gateway** -- deploy if needed (local: Podman, remote: Helm to K8s/OCP).
-3. **Parse agent config** -- read `agents/<name>.yaml` (default: `default`). `-f` overrides with a direct file path.
+2. **Ensure gateway** -- deploy if needed (local: Podman, remote: Helm to K8s/OCP). `--gateway` selects a profile by name; `--gateway-profile` loads from a file path.
+3. **Parse agent config** -- read `agents/<name>.yaml` (default: `default`). `--agent-profile` (`-f`) overrides with a direct file path.
 4. **Ensure providers** -- auto-register missing providers. Three registration flows:
    - **Standard** (`--from-existing`): GitHub, Atlassian -- OpenShell discovers credentials from local env.
    - **ADC** (`--from-gcloud-adc`): Vertex AI -- reads ADC file, configures inference routing.
@@ -69,7 +69,7 @@ Full flow: deploy gateway, register providers, render agent config, create sandb
 
 `--provider-refresh` deletes and recreates all providers (replaces the old `harness providers --force`).
 
-### `harness create [--agent NAME] [-f FILE] [--name SANDBOX]`
+### `harness create [--agent NAME] [--agent-profile|-f FILE] [--name SANDBOX]`
 
 Create a sandbox without deploying the gateway. Assumes gateway is running. Auto-registers missing providers.
 

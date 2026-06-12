@@ -44,8 +44,8 @@ type CRDConfig struct {
 }
 
 type HelmSection struct {
-	ValuesPath   string
-	ValuesInline map[string]any
+	ValuesPath   string         `yaml:"-"`
+	ValuesInline map[string]any `yaml:"-"`
 }
 
 func (h *HelmSection) UnmarshalYAML(value *yaml.Node) error {
@@ -72,8 +72,8 @@ func (h *HelmSection) UnmarshalYAML(value *yaml.Node) error {
 }
 
 type ManifestRef struct {
-	Path   string
-	Inline map[string]any
+	Path   string         `yaml:"-"`
+	Inline map[string]any `yaml:"-"`
 }
 
 type AddonsSection struct {
