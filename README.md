@@ -151,27 +151,39 @@ harness up                        # defaults to local Podman
 
 `--local` and `--remote` flags override the `gateway:` field.
 
-For OCP, the harness runs the same provider registration commands as local, plus Helm-based gateway deployment. The `openshell sandbox create` call adds the OCP-specific image and routes through the remote gateway:
+For OCP, the harness first deploys the gateway via Helm, then runs the same provider registration and sandbox creation. The full sequence:
 
 ```bash
-# 1-7. Same provider registration as local (settings, profiles, providers, inference)
-
-# 8. Deploy gateway to OCP via Helm (reads gateways/ocp/gateway.yaml)
+# 1. Deploy gateway to OCP
 kubectl create ns openshell
+kubectl label ns openshell pod-security.kubernetes.io/enforce=privileged
 kubectl apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/.../manifest.yaml
+oc adm policy add-scc-to-user privileged -z openshell -n openshell
+oc adm policy add-scc-to-user anyuid -z openshell -n openshell
 helm upgrade --install openshell oci://ghcr.io/nvidia/openshell/helm-chart \
   --version 0.0.59 -n openshell -f gateways/ocp/helm/values.yaml
-kubectl rollout status statefulset/openshell -n openshell
+kubectl rollout status statefulset/openshell -n openshell --timeout=300s
 
-# 9. Create sandbox on the remote gateway
+# 2. Register gateway with CLI (mTLS certs extracted from K8s secrets)
+openshell gateway add https://openshell-route.apps.cluster.example.com:443 \
+  --name openshell-remote-ocp --local
+openshell gateway select openshell-remote-ocp
+
+# 3-9. Same as local: settings, profiles, providers, inference, sandbox create
+openshell settings set --global --key providers_v2_enabled --value true
+openshell provider profile import --from agents/providers/profiles/
+openshell provider create --name github --type github --from-existing
+openshell provider create --name vertex-local --type google-vertex-ai \
+  --from-gcloud-adc --config VERTEX_AI_PROJECT_ID=... --config VERTEX_AI_REGION=global
+openshell provider create --name atlassian --type atlassian --from-existing
+# ... GWS multi-step registration (same as local)
+openshell inference set --provider vertex-local --model claude-sonnet-4-6 --no-verify
 openshell sandbox create --name agent \
   --from ghcr.io/robbycochran/harness-openshell:sandbox \
   --provider github --provider vertex-local --provider atlassian --provider gws \
   --env ANTHROPIC_BASE_URL=https://inference.local \
   --env ANTHROPIC_API_KEY=sk-ant-openshell-proxy-managed \
   --env CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1 \
-  --env JIRA_URL=https://your-org.atlassian.net \
-  --env JIRA_USERNAME=you@company.com \
   --upload payload:/sandbox/.config --no-git-ignore \
   --tty \
   -- bash /sandbox/.config/openshell/run.sh
