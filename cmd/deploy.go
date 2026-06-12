@@ -33,8 +33,7 @@ func NewDeployCmd(harnessDir, cli string) *cobra.Command {
 				return err
 			}
 
-			gwDir := filepath.Join(harnessDir, "gateways", gatewayName)
-			gwCfg, err := gateway.LoadConfig(gwDir)
+			gwCfg, err := resolveGatewayConfig(harnessDir, gatewayName)
 			if err != nil {
 				return fmt.Errorf("loading gateway config %q: %w", gatewayName, err)
 			}
@@ -146,6 +145,12 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 	ctx := context.Background()
 	namespace := k8s.DefaultNamespace()
 
+	tmpDir, err := os.MkdirTemp("", "harness-deploy-")
+	if err != nil {
+		return fmt.Errorf("creating temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
 	chartVersion := os.Getenv("OPENSHELL_CHART_VERSION")
 	if chartVersion == "" {
 		chartVersion = gwCfg.Chart.Version
@@ -187,9 +192,14 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 	}
 
 	// Addon manifests (RBAC, etc.)
-	for _, manifestPath := range gwCfg.ManifestPaths() {
+	for _, manifestPath := range gwCfg.ManifestFilePaths() {
 		if _, err := kc.RunKubectl(ctx, "apply", "-f", manifestPath); err != nil {
 			return fmt.Errorf("applying %s: %w", filepath.Base(manifestPath), err)
+		}
+	}
+	for _, manifest := range gwCfg.ManifestInline() {
+		if err := kc.ApplyYAML(ctx, manifest); err != nil {
+			return fmt.Errorf("applying inline manifest: %w", err)
 		}
 	}
 
@@ -211,7 +221,9 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 		"upgrade", "--install", "openshell", gwCfg.Chart.OCI,
 		"--version", chartVersion,
 	}
-	if valuesPath := gwCfg.HelmValuesPath(); valuesPath != "" {
+	if valuesPath, err := gwCfg.HelmValuesFile(tmpDir); err != nil {
+		return fmt.Errorf("helm values: %w", err)
+	} else if valuesPath != "" {
 		helmArgs = append(helmArgs, "--values", valuesPath)
 	}
 	if sandboxImage := os.Getenv("SANDBOX_IMAGE"); sandboxImage != "" {

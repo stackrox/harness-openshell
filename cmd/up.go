@@ -54,8 +54,7 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 				gwName = agentCfg.Gateway
 			}
 			isRemote := gwName != "local"
-			gwDir := filepath.Join(harnessDir, "gateways", gwName)
-			gwCfg, _ := gateway.LoadConfig(gwDir)
+			gwCfg, _ := resolveGatewayConfig(harnessDir, gwName)
 
 			return upLocal(upLocalOpts{
 				harnessDir:      harnessDir,

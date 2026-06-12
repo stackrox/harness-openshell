@@ -72,7 +72,7 @@ and replaces this sequence of `openshell` commands (captured from `harness up --
 openshell settings set --global --key providers_v2_enabled --value true --yes
 
 # 2. Import custom provider profiles (atlassian, gws)
-openshell provider profile import --from agents/providers/profiles/
+openshell provider profile import --from profiles/providers/
 
 # 3. Register GitHub (discovers GITHUB_TOKEN from environment)
 openshell provider create --name github --type github --from-existing
@@ -144,7 +144,7 @@ env:
 ```
 
 ```bash
-harness up -f agents/ocp.yaml    # deploys to OCP (reads gateways/ocp/gateway.yaml)
+harness up -f agents/ocp.yaml    # deploys to OCP (reads profiles/gateways/ocp.yaml)
 harness up                        # defaults to local Podman
 ```
 
@@ -160,7 +160,7 @@ kubectl apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/.../m
 oc adm policy add-scc-to-user privileged -z openshell -n openshell
 oc adm policy add-scc-to-user anyuid -z openshell -n openshell
 helm upgrade --install openshell oci://ghcr.io/nvidia/openshell/helm-chart \
-  --version 0.0.59 -n openshell -f gateways/ocp/helm/values.yaml
+  --version 0.0.59 -n openshell -f <inline-values-from-profile>
 kubectl rollout status statefulset/openshell -n openshell --timeout=300s
 
 # 2. Register gateway with CLI (mTLS certs extracted from K8s secrets)
@@ -170,7 +170,7 @@ openshell gateway select openshell-remote-ocp
 
 # 3-9. Same as local: settings, profiles, providers, inference, sandbox create
 openshell settings set --global --key providers_v2_enabled --value true
-openshell provider profile import --from agents/providers/profiles/
+openshell provider profile import --from profiles/providers/
 openshell provider create --name github --type github --from-existing
 openshell provider create --name vertex-local --type google-vertex-ai \
   --from-gcloud-adc --config VERTEX_AI_PROJECT_ID=... --config VERTEX_AI_REGION=global
@@ -231,7 +231,7 @@ Each provider requires credentials on the host. The harness validates these inli
 | `atlassian` | `JIRA_API_TOKEN` + `JIRA_URL` + `JIRA_USERNAME` env vars |
 | `gws` | `gws auth login` (OAuth via [gws CLI](https://github.com/googleworkspace/cli)) |
 
-Provider profiles are defined in `agents/providers/profiles/` and validated inline during registration.
+Provider profiles are defined in `profiles/providers/` and validated inline during registration.
 
 ### Build from Source
 
@@ -247,7 +247,7 @@ For remote OpenShift: `./harness up --remote` (requires `kubectl`, `helm`, clust
 The harness orchestrates three OpenShell components via the `openshell` CLI:
 
 - **Gateway** -- OpenShell's credential proxy and L7 network policy engine. Runs as a Podman container (local) or Kubernetes StatefulSet (remote). Manages provider credentials, inference routing, and sandbox lifecycle.
-- **Providers** -- Credential registrations on the gateway. Provider profiles are declared in `agents/providers/profiles/`. The harness validates credentials inline during registration -- providers with missing credentials are skipped.
+- **Providers** -- Credential registrations on the gateway. Provider profiles are declared in `profiles/providers/`. The harness validates credentials inline during registration -- providers with missing credentials are skipped.
 - **Sandbox** -- Container running the agent entrypoint (Claude Code or OpenCode), configured by `agents/*.yaml`. The gateway injects credentials at the network boundary -- the sandbox process sees proxy-managed placeholder tokens. Network egress is deny-by-default at L7.
 
 ```
@@ -268,8 +268,8 @@ See the [OpenShell docs](https://github.com/NVIDIA/OpenShell) for the full secur
 | File | Purpose |
 |------|---------|
 | `agents/*.yaml` | Agent config: image, entrypoint, providers, env, optional task file |
-| `agents/providers/profiles/` | OpenShell provider profiles (imported to gateway on registration) |
-| `gateways/*/gateway.yaml` | Deployment target config: `local/` (Podman), `kind/`, `ocp/` (OpenShift) |
+| `profiles/providers/` | OpenShell provider profiles (imported to gateway on registration) |
+| `profiles/gateways/*.yaml` | Gateway profiles: `local.yaml`, `kind.yaml`, `ocp.yaml` |
 | `sandbox/Dockerfile` | Sandbox image: OpenShell base + MCP servers + CLI tools |
 | `sandbox/policy.yaml` | Network egress rules applied to sandboxes |
 | `sandbox/opencode.json` | MCP server config for OpenCode agent |

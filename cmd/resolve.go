@@ -55,3 +55,20 @@ func versionedImage(name string) string {
 	}
 	return base + ":" + name + "-" + Version
 }
+
+// EmbeddedGatewayProfiles holds embedded gateway profile YAML, set from main.go.
+var EmbeddedGatewayProfiles map[string][]byte
+
+func resolveGatewayConfig(harnessDir, name string) (*gateway.GatewayConfig, error) {
+	if cfg, err := gateway.LoadProfile(harnessDir, name); err == nil {
+		return cfg, nil
+	}
+	gwDir := filepath.Join(harnessDir, "gateways", name)
+	if cfg, err := gateway.LoadConfig(gwDir); err == nil {
+		return cfg, nil
+	}
+	if data, ok := EmbeddedGatewayProfiles[name]; ok {
+		return gateway.LoadConfigFromBytes(data)
+	}
+	return nil, fmt.Errorf("gateway profile %q not found", name)
+}

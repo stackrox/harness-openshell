@@ -46,7 +46,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, provid
 		return fmt.Errorf("enabling providers v2: %w", err)
 	}
 
-	profilesDir := filepath.Join(harnessDir, "agents", "providers", "profiles")
+	profilesDir := filepath.Join(harnessDir, "profiles", "providers")
 	if err := gw.ProviderProfileImport(profilesDir); err != nil {
 		status.Warnf("provider profile import: %v", err)
 	}
@@ -213,7 +213,7 @@ func registerGWS(harnessDir string, gw gateway.Gateway) error {
 	return nil
 }
 
-// gwsProfileScopes reads the refresh.scopes list from agents/providers/profiles/gws.yaml
+// gwsProfileScopes reads the refresh.scopes list from profiles/providers/gws.yaml
 // and returns them as a space-separated string for use as OAuth scope material.
 func gwsProfileScopes(harnessDir string) string {
 	profilePath := filepath.Join(harnessDir, "agents", "providers", "profiles", "gws.yaml")
@@ -235,7 +235,7 @@ func gwsProfileScopes(harnessDir string) string {
 }
 
 func deleteCustomProfiles(harnessDir string, gw gateway.Gateway) {
-	profilesDir := filepath.Join(harnessDir, "agents", "providers", "profiles")
+	profilesDir := filepath.Join(harnessDir, "profiles", "providers")
 	entries, err := os.ReadDir(profilesDir)
 	if err != nil {
 		return

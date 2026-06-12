@@ -16,14 +16,16 @@ gateway:
   name: openshell-kind
   mode: direct
 
-providers:
-  enabled: [github, vertex-local, atlassian, gws]
-
 chart:
-  oci: oci://ghcr.io/nvidia/openshell/helm-chart
   version: "0.0.59"
-  crd:
-    url: https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/manifest.yaml
 
 helm:
-  values: values.yaml
+  values:
+    service:
+      type: NodePort
+    server:
+      disableTls: true
+      auth:
+        allowUnauthenticatedUsers: true
+    pkiInitJob:
+      enabled: true

@@ -49,7 +49,7 @@ Fields:
 - `policy` -- path to a network policy YAML
 - `gateway` -- target gateway name (overrides active gateway)
 
-Provider profiles live in `agents/providers/profiles/`. These are imported to the gateway during provider registration.
+Provider profiles live in `profiles/providers/`. These are imported to the gateway during provider registration.
 
 ## CLI
 
@@ -75,7 +75,7 @@ Create a sandbox without deploying the gateway. Assumes gateway is running. Auto
 
 ### `harness deploy [local|ocp|kind]`
 
-Deploy or verify the gateway for a target. Reads `gateways/<target>/gateway.yaml`.
+Deploy or verify the gateway for a target. Reads `profiles/gateways/<target>.yaml`.
 
 ### `harness status`
 
@@ -94,8 +94,8 @@ Tear down resources. At least one flag required.
 | File | Purpose |
 |------|---------|
 | `agents/*.yaml` | Agent config: image, entrypoint, providers, env, task |
-| `agents/providers/profiles/` | OpenShell provider profile YAMLs |
-| `gateways/*/gateway.yaml` | Deployment target config with Helm, images, RBAC |
+| `profiles/providers/` | OpenShell provider profile YAMLs |
+| `profiles/gateways/*.yaml` | Gateway profiles: deployment target config with inline Helm values |
 | `sandbox/Dockerfile` | Sandbox image: OpenShell base + MCP servers + CLI tools |
 | `sandbox/policy.yaml` | Network egress rules applied to sandboxes |
 | `sandbox/opencode.json` | MCP server config for OpenCode agent |

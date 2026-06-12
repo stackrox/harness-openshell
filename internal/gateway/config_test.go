@@ -3,6 +3,7 @@ package gateway
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -198,7 +199,7 @@ gateway:
 	}
 }
 
-func TestHelmValuesPath(t *testing.T) {
+func TestHelmValuesFile_Path(t *testing.T) {
 	dir := t.TempDir()
 	writeGatewayYAML(t, dir, `
 gateway:
@@ -212,13 +213,53 @@ helm:
 		t.Fatal(err)
 	}
 
+	tmpDir := t.TempDir()
 	want := filepath.Join(dir, "helm", "values.yaml")
-	if got := cfg.HelmValuesPath(); got != want {
-		t.Errorf("HelmValuesPath() = %q, want %q", got, want)
+	got, err := cfg.HelmValuesFile(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("HelmValuesFile() = %q, want %q", got, want)
 	}
 }
 
-func TestHelmValuesPath_Empty(t *testing.T) {
+func TestHelmValuesFile_Inline(t *testing.T) {
+	dir := t.TempDir()
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: remote
+helm:
+  values:
+    service:
+      type: NodePort
+    server:
+      disableTls: true
+`)
+
+	cfg, err := LoadConfig(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir := t.TempDir()
+	got, err := cfg.HelmValuesFile(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == "" {
+		t.Fatal("HelmValuesFile() returned empty path for inline values")
+	}
+	data, err := os.ReadFile(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "NodePort") {
+		t.Errorf("inline values file missing NodePort: %s", data)
+	}
+}
+
+func TestHelmValuesFile_Empty(t *testing.T) {
 	dir := t.TempDir()
 	writeGatewayYAML(t, dir, `
 gateway:
@@ -230,12 +271,17 @@ gateway:
 		t.Fatal(err)
 	}
 
-	if got := cfg.HelmValuesPath(); got != "" {
-		t.Errorf("HelmValuesPath() = %q, want empty", got)
+	tmpDir := t.TempDir()
+	got, err := cfg.HelmValuesFile(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "" {
+		t.Errorf("HelmValuesFile() = %q, want empty", got)
 	}
 }
 
-func TestManifestPaths(t *testing.T) {
+func TestManifestFilePaths(t *testing.T) {
 	dir := t.TempDir()
 	writeGatewayYAML(t, dir, `
 gateway:
@@ -251,9 +297,9 @@ addons:
 		t.Fatal(err)
 	}
 
-	paths := cfg.ManifestPaths()
+	paths := cfg.ManifestFilePaths()
 	if len(paths) != 2 {
-		t.Fatalf("ManifestPaths() returned %d paths, want 2", len(paths))
+		t.Fatalf("ManifestFilePaths() returned %d paths, want 2", len(paths))
 	}
 	if paths[0] != filepath.Join(dir, "addons", "rbac.yaml") {
 		t.Errorf("paths[0] = %q", paths[0])
@@ -263,7 +309,34 @@ addons:
 	}
 }
 
-func TestManifestPaths_Empty(t *testing.T) {
+func TestManifestInline(t *testing.T) {
+	dir := t.TempDir()
+	writeGatewayYAML(t, dir, `
+gateway:
+  type: remote
+addons:
+  manifests:
+    - apiVersion: route.openshift.io/v1
+      kind: Route
+      metadata:
+        name: gateway
+`)
+
+	cfg, err := LoadConfig(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inline := cfg.ManifestInline()
+	if len(inline) != 1 {
+		t.Fatalf("ManifestInline() returned %d, want 1", len(inline))
+	}
+	if inline[0]["kind"] != "Route" {
+		t.Errorf("expected kind=Route, got %v", inline[0]["kind"])
+	}
+}
+
+func TestManifests_Empty(t *testing.T) {
 	dir := t.TempDir()
 	writeGatewayYAML(t, dir, `
 gateway:
@@ -275,8 +348,31 @@ gateway:
 		t.Fatal(err)
 	}
 
-	if len(cfg.ManifestPaths()) != 0 {
-		t.Errorf("ManifestPaths() should be empty, got %v", cfg.ManifestPaths())
+	if len(cfg.ManifestFilePaths()) != 0 {
+		t.Errorf("ManifestFilePaths() should be empty")
+	}
+	if len(cfg.ManifestInline()) != 0 {
+		t.Errorf("ManifestInline() should be empty")
+	}
+}
+
+func TestLoadConfigFromBytes(t *testing.T) {
+	data := []byte(`
+gateway:
+  type: remote
+  platform: ocp
+chart:
+  version: "0.0.59"
+`)
+	cfg, err := LoadConfigFromBytes(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Gateway.Platform != "ocp" {
+		t.Errorf("platform = %q, want ocp", cfg.Gateway.Platform)
+	}
+	if cfg.Chart.OCI == "" {
+		t.Error("defaults not applied")
 	}
 }
 

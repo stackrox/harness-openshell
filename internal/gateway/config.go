@@ -44,11 +44,64 @@ type CRDConfig struct {
 }
 
 type HelmSection struct {
-	Values string `yaml:"values"`
+	ValuesPath   string
+	ValuesInline map[string]any
+}
+
+func (h *HelmSection) UnmarshalYAML(value *yaml.Node) error {
+	var raw struct {
+		Values yaml.Node `yaml:"values"`
+	}
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	if raw.Values.Kind == 0 {
+		return nil
+	}
+	switch raw.Values.Kind {
+	case yaml.ScalarNode:
+		h.ValuesPath = raw.Values.Value
+	case yaml.MappingNode:
+		var m map[string]any
+		if err := raw.Values.Decode(&m); err != nil {
+			return fmt.Errorf("decoding inline helm values: %w", err)
+		}
+		h.ValuesInline = m
+	}
+	return nil
+}
+
+type ManifestRef struct {
+	Path   string
+	Inline map[string]any
 }
 
 type AddonsSection struct {
-	Manifests []string `yaml:"manifests"`
+	Manifests []ManifestRef
+}
+
+func (a *AddonsSection) UnmarshalYAML(value *yaml.Node) error {
+	var raw struct {
+		Manifests []yaml.Node `yaml:"manifests"`
+	}
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	for _, node := range raw.Manifests {
+		var ref ManifestRef
+		switch node.Kind {
+		case yaml.ScalarNode:
+			ref.Path = node.Value
+		case yaml.MappingNode:
+			var m map[string]any
+			if err := node.Decode(&m); err != nil {
+				return fmt.Errorf("decoding inline manifest: %w", err)
+			}
+			ref.Inline = m
+		}
+		a.Manifests = append(a.Manifests, ref)
+	}
+	return nil
 }
 
 type OCPSection struct {
@@ -62,19 +115,35 @@ type SecretsSection struct {
 }
 
 func LoadConfig(dir string) (*GatewayConfig, error) {
-	path := filepath.Join(dir, "gateway.yaml")
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Join(dir, "gateway.yaml"))
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", path, err)
+		return nil, fmt.Errorf("reading gateway config: %w", err)
 	}
-	var cfg GatewayConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	cfg, err := LoadConfigFromBytes(data)
+	if err != nil {
+		return nil, err
 	}
 	cfg.Dir = dir
+	return cfg, nil
+}
+
+func LoadConfigFromBytes(data []byte) (*GatewayConfig, error) {
+	var cfg GatewayConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing gateway config: %w", err)
+	}
 	cfg.applyDefaults()
 	cfg.applyEnvOverrides()
 	return &cfg, nil
+}
+
+func LoadProfile(harnessDir, name string) (*GatewayConfig, error) {
+	path := filepath.Join(harnessDir, "profiles", "gateways", name+".yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return LoadConfigFromBytes(data)
 }
 
 func (c *GatewayConfig) applyDefaults() {
@@ -100,17 +169,40 @@ func (c *GatewayConfig) IsOCP() bool {
 	return c.Gateway.Platform == "ocp"
 }
 
-func (c *GatewayConfig) HelmValuesPath() string {
-	if c.Helm.Values == "" {
-		return ""
+func (c *GatewayConfig) HelmValuesFile(tmpDir string) (string, error) {
+	if c.Helm.ValuesInline != nil {
+		data, err := yaml.Marshal(c.Helm.ValuesInline)
+		if err != nil {
+			return "", fmt.Errorf("marshaling inline helm values: %w", err)
+		}
+		path := filepath.Join(tmpDir, "values.yaml")
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			return "", err
+		}
+		return path, nil
 	}
-	return filepath.Join(c.Dir, "helm", c.Helm.Values)
+	if c.Helm.ValuesPath == "" {
+		return "", nil
+	}
+	return filepath.Join(c.Dir, "helm", c.Helm.ValuesPath), nil
 }
 
-func (c *GatewayConfig) ManifestPaths() []string {
-	paths := make([]string, len(c.Addons.Manifests))
-	for i, m := range c.Addons.Manifests {
-		paths[i] = filepath.Join(c.Dir, m)
+func (c *GatewayConfig) ManifestFilePaths() []string {
+	var paths []string
+	for _, m := range c.Addons.Manifests {
+		if m.Path != "" {
+			paths = append(paths, filepath.Join(c.Dir, m.Path))
+		}
 	}
 	return paths
+}
+
+func (c *GatewayConfig) ManifestInline() []map[string]any {
+	var manifests []map[string]any
+	for _, m := range c.Addons.Manifests {
+		if m.Inline != nil {
+			manifests = append(manifests, m.Inline)
+		}
+	}
+	return manifests
 }

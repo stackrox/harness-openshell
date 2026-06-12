@@ -12,7 +12,7 @@ import (
 func setupProvidersTest(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "agents", "providers", "profiles"), 0o755)
+	os.MkdirAll(filepath.Join(dir, "profiles", "providers"), 0o755)
 	return dir
 }
 

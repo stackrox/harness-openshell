@@ -1,0 +1,53 @@
+# OpenShift gateway — deploys openshell to an OCP cluster.
+#
+# Prerequisites:
+#   - oc login to the target cluster
+#   - KUBECONFIG set or default context pointing to OCP
+
+gateway:
+  type: remote
+  platform: ocp
+  service: route
+  name: openshell-remote-ocp
+
+chart:
+  version: "0.0.59"
+
+helm:
+  values:
+    image:
+      pullPolicy: Always
+    supervisor:
+      image:
+        pullPolicy: Always
+    securityContext:
+      runAsUser: null
+      runAsNonRoot: null
+    server:
+      sandboxImagePullPolicy: Always
+      auth:
+        allowUnauthenticatedUsers: true
+    pkiInitJob:
+      enabled: true
+
+addons:
+  manifests:
+    - apiVersion: route.openshift.io/v1
+      kind: Route
+      metadata:
+        name: gateway
+      spec:
+        tls:
+          termination: passthrough
+        to:
+          kind: Service
+          name: openshell
+        port:
+          targetPort: grpc
+
+ocp:
+  scc-privileged: [openshell, openshell-sandbox]
+  scc-anyuid: [openshell]
+
+secrets:
+  mtls: openshell-client-tls
