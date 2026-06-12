@@ -89,14 +89,20 @@ func (c *AgentConfig) BuildEnvMap() map[string]string {
 			env[k] = val
 		}
 	}
-	for _, p := range c.Providers {
-		for k, v := range p.Config {
-			if val := expandEnvVar(k, v); val != "" {
-				env[k] = val
-			}
+	return env
+}
+
+func (p *ProviderRef) ConfigList() []string {
+	if len(p.Config) == 0 {
+		return nil
+	}
+	configs := make([]string, 0, len(p.Config))
+	for k, v := range p.Config {
+		if val := expandEnvVar(k, v); val != "" {
+			configs = append(configs, k+"="+val)
 		}
 	}
-	return env
+	return configs
 }
 
 func (c *AgentConfig) BuildEnvSh() string {

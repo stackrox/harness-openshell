@@ -143,19 +143,14 @@ func TestNoTTY(t *testing.T) {
 
 func TestBuildEnvSh(t *testing.T) {
 	cfg := &AgentConfig{
-		Providers: []ProviderRef{
-			{Profile: "atlassian", Config: map[string]string{
-				"JIRA_URL":      "https://issues.redhat.com",
-				"JIRA_USERNAME": "alice",
-			}},
+		Env: map[string]string{
+			"ANTHROPIC_BASE_URL": "https://inference.local",
+			"ANTHROPIC_API_KEY":  "sk-proxy",
 		},
 	}
 	env := cfg.BuildEnvSh()
-	if !strings.Contains(env, `export JIRA_URL="https://issues.redhat.com"`) {
-		t.Errorf("missing JIRA_URL in:\n%s", env)
-	}
-	if !strings.Contains(env, `export JIRA_USERNAME="alice"`) {
-		t.Errorf("missing JIRA_USERNAME in:\n%s", env)
+	if !strings.Contains(env, `export ANTHROPIC_BASE_URL="https://inference.local"`) {
+		t.Errorf("missing ANTHROPIC_BASE_URL in:\n%s", env)
 	}
 }
 
@@ -166,33 +161,53 @@ func TestBuildEnvSh_Empty(t *testing.T) {
 	}
 }
 
-func TestBuildEnvSh_TopLevelEnv(t *testing.T) {
+func TestBuildEnvSh_ExcludesProviderConfig(t *testing.T) {
 	cfg := &AgentConfig{
 		Env: map[string]string{
 			"ANTHROPIC_BASE_URL": "https://inference.local",
-			"ANTHROPIC_API_KEY":  "sk-proxy",
 		},
 		Providers: []ProviderRef{
 			{Profile: "atlassian", Config: map[string]string{"JIRA_URL": "https://jira.example.com"}},
 		},
 	}
 	env := cfg.BuildEnvSh()
-	if !strings.Contains(env, `export ANTHROPIC_BASE_URL="https://inference.local"`) {
+	if !strings.Contains(env, `ANTHROPIC_BASE_URL`) {
 		t.Errorf("missing top-level env var in:\n%s", env)
 	}
-	if !strings.Contains(env, `export JIRA_URL="https://jira.example.com"`) {
-		t.Errorf("missing provider config var in:\n%s", env)
+	if strings.Contains(env, "JIRA_URL") {
+		t.Errorf("provider config should not be in env.sh (goes via --config on provider create):\n%s", env)
 	}
 }
 
-func TestBuildEnvSh_ProviderOverridesTopLevel(t *testing.T) {
-	cfg := &AgentConfig{
-		Env:       map[string]string{"FOO": "from-top"},
-		Providers: []ProviderRef{{Profile: "test", Config: map[string]string{"FOO": "from-provider"}}},
+func TestProviderRef_ConfigList(t *testing.T) {
+	t.Setenv("JIRA_URL", "https://test.atlassian.net")
+	p := ProviderRef{
+		Profile: "atlassian",
+		Config: map[string]string{
+			"JIRA_URL":      "${JIRA_URL}",
+			"JIRA_USERNAME": "alice",
+		},
 	}
-	env := cfg.BuildEnvSh()
-	if !strings.Contains(env, `"from-provider"`) {
-		t.Errorf("provider config should override top-level env:\n%s", env)
+	configs := p.ConfigList()
+	if len(configs) != 2 {
+		t.Fatalf("ConfigList() = %v, want 2 entries", configs)
+	}
+	found := map[string]bool{}
+	for _, c := range configs {
+		found[c] = true
+	}
+	if !found["JIRA_URL=https://test.atlassian.net"] {
+		t.Errorf("missing expanded JIRA_URL in %v", configs)
+	}
+	if !found["JIRA_USERNAME=alice"] {
+		t.Errorf("missing JIRA_USERNAME in %v", configs)
+	}
+}
+
+func TestProviderRef_ConfigList_Empty(t *testing.T) {
+	p := ProviderRef{Profile: "github"}
+	if configs := p.ConfigList(); configs != nil {
+		t.Errorf("ConfigList() = %v, want nil", configs)
 	}
 }
 
@@ -234,12 +249,11 @@ func TestBuildEnvMap(t *testing.T) {
 	cfg := &AgentConfig{
 		Env: map[string]string{
 			"TOP_VAR": "top-val",
-			"SHARED":  "from-top",
+			"ANOTHER": "another-val",
 		},
 		Providers: []ProviderRef{
 			{Profile: "atlassian", Config: map[string]string{
 				"JIRA_URL": "https://issues.redhat.com",
-				"SHARED":   "from-provider",
 			}},
 		},
 	}
@@ -247,11 +261,11 @@ func TestBuildEnvMap(t *testing.T) {
 	if env["TOP_VAR"] != "top-val" {
 		t.Errorf("TOP_VAR = %q, want top-val", env["TOP_VAR"])
 	}
-	if env["JIRA_URL"] != "https://issues.redhat.com" {
-		t.Errorf("JIRA_URL = %q", env["JIRA_URL"])
+	if env["ANOTHER"] != "another-val" {
+		t.Errorf("ANOTHER = %q", env["ANOTHER"])
 	}
-	if env["SHARED"] != "from-provider" {
-		t.Errorf("SHARED = %q, want from-provider (provider should override top-level)", env["SHARED"])
+	if _, ok := env["JIRA_URL"]; ok {
+		t.Error("provider config should not be in BuildEnvMap — goes via --config on provider create")
 	}
 }
 
@@ -290,9 +304,7 @@ func TestBuildEnvMap_Empty(t *testing.T) {
 
 func TestBuildEnvSh_Sorted(t *testing.T) {
 	cfg := &AgentConfig{
-		Providers: []ProviderRef{
-			{Profile: "test", Config: map[string]string{"Z_VAR": "z", "A_VAR": "a"}},
-		},
+		Env: map[string]string{"Z_VAR": "z", "A_VAR": "a"},
 	}
 	env := cfg.BuildEnvSh()
 	aIdx := strings.Index(env, "A_VAR")

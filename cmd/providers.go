@@ -8,20 +8,21 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/robbycochran/harness-openshell/internal/agent"
 	"github.com/robbycochran/harness-openshell/internal/gateway"
 	"github.com/robbycochran/harness-openshell/internal/status"
 	"gopkg.in/yaml.v3"
 )
 
-// registerProviders registers the providers listed in providerNames with the
-// gateway. Only providers in the list are registered — the agent YAML is
-// the source of truth.
-func registerProviders(harnessDir string, gw gateway.Gateway, force bool, providerNames []string) error {
+// registerProviders registers the providers listed in the agent config with
+// the gateway. Only providers in the agent YAML are registered. Provider
+// config values are passed via --config during registration.
+func registerProviders(harnessDir string, gw gateway.Gateway, force bool, providers []agent.ProviderRef) error {
 	model := envOr("OPENSHELL_MODEL", "claude-sonnet-4-6")
 
-	wanted := make(map[string]bool, len(providerNames))
-	for _, n := range providerNames {
-		wanted[n] = true
+	wanted := make(map[string]*agent.ProviderRef, len(providers))
+	for i := range providers {
+		wanted[providers[i].Profile] = &providers[i]
 	}
 
 	if force {
@@ -32,8 +33,8 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, provid
 		if len(sandboxes) > 0 {
 			return fmt.Errorf("cannot --provider-refresh with running sandboxes — delete them first")
 		}
-		for _, name := range providerNames {
-			gw.ProviderDelete(name)
+		for _, p := range providers {
+			gw.ProviderDelete(p.Profile)
 		}
 		deleteCustomProfiles(harnessDir, gw)
 		status.Info("Deleted existing providers")
@@ -48,26 +49,26 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, provid
 	profilesDir := filepath.Join(harnessDir, "agents", "providers", "profiles")
 	gw.ProviderProfileImport(profilesDir)
 
-	if wanted["github"] {
-		registerStandard("github", "github", gw, nil)
+	if p, ok := wanted["github"]; ok {
+		registerStandard("github", "github", gw, p.ConfigList())
 	}
-	if wanted["vertex-local"] {
+	if p, ok := wanted["vertex-local"]; ok {
 		home, _ := os.UserHomeDir()
 		adcPath := envOr("GOOGLE_APPLICATION_CREDENTIALS",
 			filepath.Join(home, ".config", "gcloud", "application_default_credentials.json"))
 		project := envOr("ANTHROPIC_VERTEX_PROJECT_ID", readADCProject(adcPath))
 		region := envOr("CLOUD_ML_REGION", "global")
-		var vertexConfigs []string
+		configs := p.ConfigList()
 		if project != "" {
-			vertexConfigs = append(vertexConfigs, "VERTEX_AI_PROJECT_ID="+project)
+			configs = append(configs, "VERTEX_AI_PROJECT_ID="+project)
 		}
-		vertexConfigs = append(vertexConfigs, "VERTEX_AI_REGION="+region)
-		registerADC("vertex-local", "google-vertex-ai", model, gw, vertexConfigs)
+		configs = append(configs, "VERTEX_AI_REGION="+region)
+		registerADC("vertex-local", "google-vertex-ai", model, gw, configs)
 	}
-	if wanted["atlassian"] {
-		registerStandard("atlassian", "atlassian", gw, nil)
+	if p, ok := wanted["atlassian"]; ok {
+		registerStandard("atlassian", "atlassian", gw, p.ConfigList())
 	}
-	if wanted["gws"] {
+	if _, ok := wanted["gws"]; ok {
 		if err := registerGWS(harnessDir, gw); err != nil {
 			return err
 		}

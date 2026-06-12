@@ -58,7 +58,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 			providerNames := agentCfg.ProviderNames()
 			registered, missing := gateway.ValidateProviders(providerNames, gw)
 			if len(missing) > 0 {
-				if err := registerProviders(harnessDir, gw, false, providerNames); err != nil {
+				if err := registerProviders(harnessDir, gw, false, agentCfg.Providers); err != nil {
 					status.Warn(fmt.Sprintf("provider registration: %v", err))
 				}
 				registered, missing = gateway.ValidateProviders(providerNames, gw)
