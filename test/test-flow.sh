@@ -26,6 +26,7 @@ fi
 TARGET=""
 REUSE_GATEWAY=false
 NO_PROVIDERS=false
+DEBUG=false
 PROFILE="default"
 
 # Auto-detect CI mode
@@ -39,6 +40,7 @@ for arg in "$@"; do
     --ci)             NO_PROVIDERS=true; PROFILE="ci" ;;
     --reuse-gateway)  REUSE_GATEWAY=true ;;
     --no-providers)   NO_PROVIDERS=true ;;
+    --debug)          DEBUG=true ;;
     --agent=*)        PROFILE="${arg#--agent=}" ;;
     -*)               echo "Unknown flag: $arg"; exit 1 ;;
     *)                [[ -z "$TARGET" ]] && TARGET="$arg" ;;
@@ -46,8 +48,12 @@ for arg in "$@"; do
 done
 
 if [[ -z "$TARGET" ]]; then
-  echo "Usage: $0 <local|kind|ocp|all> [--ci] [--reuse-gateway]"
+  echo "Usage: $0 <local|kind|ocp|all> [--ci] [--reuse-gateway] [--debug]"
   exit 1
+fi
+
+if $DEBUG; then
+  HARNESS="$HARNESS --show-commands"
 fi
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -63,14 +69,26 @@ TOTAL_START=$(date +%s)
 step() {
   local label="$1"; shift
   local start=$(date +%s)
-  if "$@" &>/dev/null; then
-    local elapsed=$(( $(date +%s) - start ))
-    printf "  ✓ %-35s (%ds)\n" "$label" "$elapsed"
-    ((PASS++))
+  if $DEBUG; then
+    if "$@"; then
+      local elapsed=$(( $(date +%s) - start ))
+      printf "  ✓ %-35s (%ds)\n" "$label" "$elapsed"
+      ((PASS++))
+    else
+      local elapsed=$(( $(date +%s) - start ))
+      printf "  ✗ %-35s (%ds)\n" "$label" "$elapsed"
+      ((FAIL++))
+    fi
   else
-    local elapsed=$(( $(date +%s) - start ))
-    printf "  ✗ %-35s (%ds)\n" "$label" "$elapsed"
-    ((FAIL++))
+    if "$@" &>/dev/null; then
+      local elapsed=$(( $(date +%s) - start ))
+      printf "  ✓ %-35s (%ds)\n" "$label" "$elapsed"
+      ((PASS++))
+    else
+      local elapsed=$(( $(date +%s) - start ))
+      printf "  ✗ %-35s (%ds)\n" "$label" "$elapsed"
+      ((FAIL++))
+    fi
   fi
 }
 

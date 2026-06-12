@@ -65,53 +65,52 @@ env:
   ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
 ```
 
-and replaces this sequence of 8+ `openshell` commands:
+and replaces this sequence of `openshell` commands (captured from `harness up --show-commands`):
 
 ```bash
-# 1. Enable the providers v2 system
-openshell settings set --global --key providers_v2_enabled --value true
+# 1. Enable providers v2
+openshell settings set --global --key providers_v2_enabled --value true --yes
 
 # 2. Import custom provider profiles (atlassian, gws)
 openshell provider profile import --from agents/providers/profiles/
 
-# 3. Register GitHub (reads GITHUB_TOKEN from environment)
+# 3. Register GitHub (discovers GITHUB_TOKEN from environment)
 openshell provider create --name github --type github --from-existing
 
-# 4. Register Vertex AI (reads ADC from gcloud login)
+# 4. Register Vertex AI (reads ADC, configures inference routing)
 openshell provider create --name vertex-local --type google-vertex-ai \
   --from-gcloud-adc \
   --config VERTEX_AI_PROJECT_ID=my-project \
   --config VERTEX_AI_REGION=global
+openshell inference set --provider vertex-local --model claude-sonnet-4-6 --no-verify
 
-# 5. Register Atlassian (reads JIRA_API_TOKEN from environment)
+# 5. Register Atlassian (discovers JIRA_API_TOKEN from environment)
 openshell provider create --name atlassian --type atlassian --from-existing
 
-# 6. Register GWS (multi-step: create, configure OAuth refresh, rotate)
+# 6. Register GWS (export OAuth creds, create provider, configure refresh)
+gws auth export --unmasked
 openshell provider create --name gws --type google-workspace \
   --credential GOOGLE_WORKSPACE_CLI_TOKEN=pending
 openshell provider refresh configure gws \
   --credential-key GOOGLE_WORKSPACE_CLI_TOKEN \
   --strategy oauth2-refresh-token \
-  --material client_id=... \
-  --material client_secret=... \
-  --material refresh_token=... \
-  --secret-material-key client_secret \
-  --secret-material-key refresh_token
+  --material client_id=... --material client_secret=... \
+  --material refresh_token=... --material scopes=... \
+  --secret-material-key client_secret --secret-material-key refresh_token
 openshell provider refresh rotate gws \
   --credential-key GOOGLE_WORKSPACE_CLI_TOKEN
 
-# 7. Configure inference routing
-openshell inference set --provider vertex-local --model claude-sonnet-4-6 --no-verify
-
-# 8. Create the sandbox with providers and env vars
+# 7. Create sandbox with all providers and env vars
 openshell sandbox create --name agent \
   --from ghcr.io/robbycochran/harness-openshell:sandbox \
   --provider github --provider vertex-local --provider atlassian --provider gws \
-  --env ANTHROPIC_BASE_URL=https://inference.local \
   --env ANTHROPIC_API_KEY=sk-ant-openshell-proxy-managed \
+  --env ANTHROPIC_BASE_URL=https://inference.local \
+  --env CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1 \
+  --env JIRA_URL=https://your-org.atlassian.net \
+  --env JIRA_USERNAME=you@company.com \
   --upload payload:/sandbox/.config --no-git-ignore \
-  --tty \
-  -- bash /sandbox/.config/openshell/run.sh
+  --tty -- bash /sandbox/.config/openshell/run.sh
 ```
 
 The harness also handles: local gateway deployment, version checking (openshell >= v0.0.59), payload rendering, retry logic, and graceful skipping of providers whose credentials are not available.

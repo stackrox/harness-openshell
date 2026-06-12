@@ -13,6 +13,7 @@ providers:
     env:
       JIRA_URL: ${JIRA_URL}
       JIRA_USERNAME: ${JIRA_USERNAME}
+  - profile: gws
 
 env:
   ANTHROPIC_BASE_URL: https://inference.local

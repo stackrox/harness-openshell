@@ -124,6 +124,7 @@ func registerGWS(harnessDir string, gw gateway.Gateway) error {
 		return nil
 	}
 
+	status.Cmd("gws", "auth", "export", "--unmasked")
 	out, err := exec.Command(gwsPath, "auth", "export", "--unmasked").Output()
 	if err != nil {
 		status.Info("gws: not authenticated (run 'gws auth login')")
