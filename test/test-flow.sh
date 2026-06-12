@@ -52,7 +52,7 @@ if [[ -z "$TARGET" ]]; then
   exit 1
 fi
 
-HARNESS_FLAGS=()
+HARNESS_FLAGS=(--verbose)
 if $DEBUG; then
   HARNESS_FLAGS+=(--show-commands)
 fi
@@ -60,7 +60,6 @@ fi
 LOG_FILE="${TEST_LOG_FILE:-}"
 if [[ -n "$LOG_FILE" ]]; then
   mkdir -p "$(dirname "$LOG_FILE")"
-  HARNESS_FLAGS+=(--verbose)
   exec > >(tee -a "$LOG_FILE") 2>&1
 fi
 
@@ -81,56 +80,27 @@ TOTAL_START=$(date +%s)
 step() {
   local label="$1"; shift
   local start=$(date +%s)
-  if $DEBUG || [[ -n "$LOG_FILE" ]]; then
-    if "$@"; then
-      local elapsed=$(( $(date +%s) - start ))
-      printf "  ✓ %-35s (%ds)\n" "$label" "$elapsed"
-      ((PASS++))
-    else
-      local elapsed=$(( $(date +%s) - start ))
-      printf "  ✗ %-35s (%ds)\n" "$label" "$elapsed"
-      ((FAIL++))
-    fi
+  if "$@"; then
+    local elapsed=$(( $(date +%s) - start ))
+    printf "  ✓ %-35s (%ds)\n" "$label" "$elapsed"
+    ((PASS++))
   else
-    if "$@" &>/dev/null; then
-      local elapsed=$(( $(date +%s) - start ))
-      printf "  ✓ %-35s (%ds)\n" "$label" "$elapsed"
-      ((PASS++))
-    else
-      local elapsed=$(( $(date +%s) - start ))
-      printf "  ✗ %-35s (%ds)\n" "$label" "$elapsed"
-      ((FAIL++))
-    fi
+    local elapsed=$(( $(date +%s) - start ))
+    printf "  ✗ %-35s (%ds)\n" "$label" "$elapsed"
+    ((FAIL++))
   fi
 }
 
 step_fail() {
   local label="$1"; shift
   local start=$(date +%s)
-  if ! "$@" &>/dev/null; then
+  if ! "$@"; then
     local elapsed=$(( $(date +%s) - start ))
     printf "  ✓ %-35s (expected failure, %ds)\n" "$label" "$elapsed"
     ((PASS++))
   else
     local elapsed=$(( $(date +%s) - start ))
     printf "  ✗ %-35s (should have failed, %ds)\n" "$label" "$elapsed"
-    ((FAIL++))
-  fi
-}
-
-step_output() {
-  local label="$1"; shift
-  local start=$(date +%s)
-  local out
-  out=$("$@" 2>&1)
-  local rc=$?
-  local elapsed=$(( $(date +%s) - start ))
-  if [[ $rc -eq 0 ]]; then
-    printf "  ✓ %-35s (%ds)\n" "$label" "$elapsed"
-    ((PASS++))
-  else
-    printf "  ✗ %-35s (%ds)\n" "$label" "$elapsed"
-    echo "    $out" | head -3
     ((FAIL++))
   fi
 }
@@ -188,7 +158,7 @@ sandbox_verify() {
   step "sandbox: gws token placeholder" "$CLI" sandbox exec --name "$name" -- bash -c 'echo "$GOOGLE_WORKSPACE_CLI_TOKEN" | grep -q "openshell:resolve:env"'
   step "sandbox: gws api call" "$CLI" sandbox exec --name "$name" -- bash -c 'for i in 1 2 3; do curl -sf https://gmail.googleapis.com/gmail/v1/users/me/profile -H "Authorization: Bearer $GOOGLE_WORKSPACE_CLI_TOKEN" -o /dev/null && exit 0; sleep 3; done; exit 1'
   step "sandbox: mcp config" "$CLI" sandbox exec --name "$name" -- test -f /sandbox/.mcp.json
-  step_output "sandbox: claude responds" "$CLI" sandbox exec --name "$name" -- bash -c 'echo "respond with ok" | claude --bare --print 2>&1 | head -1'
+  step "sandbox: claude responds" "$CLI" sandbox exec --name "$name" -- bash -c 'echo "respond with ok" | claude --bare --print 2>&1 | head -1'
 }
 
 summary() {
@@ -233,12 +203,12 @@ test_local() {
 
   # up auto-registers providers when missing
   local sandbox_name="test-agent"
-  step_output "sandbox create (up)" harness up --gateway local --name "$sandbox_name" --agent "$PROFILE" --no-tty
+  step "sandbox create (up)" harness up --gateway local --name "$sandbox_name" --agent "$PROFILE" --no-tty
   sandbox_verify "$sandbox_name"
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
   local create_name="test-create"
-  step_output "sandbox create (create)" harness create --name "$create_name" --agent ci
+  step "sandbox create (create)" harness create --name "$create_name" --agent ci
   step "sandbox verify (create)" "$CLI" sandbox exec --name "$create_name" -- echo "hello"
   step "sandbox delete (create)" "$CLI" sandbox delete "$create_name"
 
@@ -246,7 +216,7 @@ test_local() {
     echo ""
     echo "=== test: missing providers ==="
     step "teardown providers" harness teardown --providers
-    step_output "up with no providers" harness up --gateway local --name test-noprov --no-tty
+    step "up with no providers" harness up --gateway local --name test-noprov --no-tty
     step "cleanup" harness teardown --sandboxes
   fi
 
@@ -292,7 +262,7 @@ test_kind() {
   step "gateway reachable" "$CLI" inference get
 
   local sandbox_name="test-kind"
-  step_output "sandbox create" harness up --name "$sandbox_name" --agent "$PROFILE" --no-tty
+  step "sandbox create" harness up --name "$sandbox_name" --agent "$PROFILE" --no-tty
   sandbox_verify "$sandbox_name"
 
   if ! $NO_PROVIDERS; then
@@ -330,10 +300,10 @@ test_ocp() {
   local sandbox_name
   if $NO_PROVIDERS; then
     sandbox_name="test-ocp"
-    step_output "sandbox create" harness create --agent=ci --name "$sandbox_name"
+    step "sandbox create" harness create --agent=ci --name "$sandbox_name"
   else
     sandbox_name="agent"
-    step_output "sandbox create (up)" harness up --gateway ocp --name "$sandbox_name" --no-tty
+    step "sandbox create (up)" harness up --gateway ocp --name "$sandbox_name" --no-tty
   fi
 
   sandbox_verify "$sandbox_name"
