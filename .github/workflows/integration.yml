@@ -30,20 +30,22 @@ jobs:
 
       - name: Run local integration
         run: make test-local
+        env:
+          TEST_LOG_FILE: /tmp/test-logs/test-flow-local.log
 
-      - name: Export gateway logs
+      - name: Export logs
         if: always()
         run: |
-          mkdir -p /tmp/gateway-logs
-          journalctl --user -u openshell-gateway --no-pager > /tmp/gateway-logs/gateway.log 2>/dev/null || true
-          openshell status > /tmp/gateway-logs/status.txt 2>&1 || true
-          openshell gateway list > /tmp/gateway-logs/gateways.txt 2>&1 || true
+          mkdir -p /tmp/test-logs
+          journalctl --user -u openshell-gateway --no-pager > /tmp/test-logs/gateway.log 2>/dev/null || true
+          openshell status > /tmp/test-logs/status.txt 2>&1 || true
+          openshell gateway list > /tmp/test-logs/gateways.txt 2>&1 || true
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: gateway-logs-local
-          path: /tmp/gateway-logs/
+          name: test-logs-local
+          path: /tmp/test-logs/
 
   kind:
     runs-on: ubuntu-latest
@@ -75,17 +77,19 @@ jobs:
 
       - name: Run kind integration
         run: make test-kind
+        env:
+          TEST_LOG_FILE: /tmp/test-logs/test-flow-kind.log
 
       - name: Export logs
         if: always()
         run: |
-          mkdir -p /tmp/kind-logs
-          kubectl -n openshell logs statefulset/openshell > /tmp/kind-logs/gateway.log 2>/dev/null || true
-          kubectl -n openshell get all > /tmp/kind-logs/resources.txt 2>&1 || true
-          openshell gateway list > /tmp/kind-logs/gateways.txt 2>&1 || true
+          mkdir -p /tmp/test-logs
+          kubectl -n openshell logs statefulset/openshell > /tmp/test-logs/gateway.log 2>/dev/null || true
+          kubectl -n openshell get all > /tmp/test-logs/resources.txt 2>&1 || true
+          openshell gateway list > /tmp/test-logs/gateways.txt 2>&1 || true
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: gateway-logs-kind
-          path: /tmp/kind-logs/
+          name: test-logs-kind
+          path: /tmp/test-logs/

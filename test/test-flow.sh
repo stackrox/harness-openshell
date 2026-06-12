@@ -56,6 +56,13 @@ if $DEBUG; then
   HARNESS="$HARNESS --show-commands"
 fi
 
+LOG_FILE="${TEST_LOG_FILE:-}"
+if [[ -n "$LOG_FILE" ]]; then
+  mkdir -p "$(dirname "$LOG_FILE")"
+  HARNESS="$HARNESS --verbose"
+  exec > >(tee -a "$LOG_FILE") 2>&1
+fi
+
 # ── Helpers ──────────────────────────────────────────────────────────
 
 strip_ansi() {
@@ -69,7 +76,7 @@ TOTAL_START=$(date +%s)
 step() {
   local label="$1"; shift
   local start=$(date +%s)
-  if $DEBUG; then
+  if $DEBUG || [[ -n "$LOG_FILE" ]]; then
     if "$@"; then
       local elapsed=$(( $(date +%s) - start ))
       printf "  ✓ %-35s (%ds)\n" "$label" "$elapsed"
