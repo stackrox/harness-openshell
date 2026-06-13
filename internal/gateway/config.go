@@ -156,7 +156,7 @@ func (c *GatewayConfig) applyDefaults() {
 }
 
 func (c *GatewayConfig) applyEnvOverrides() {
-	if v := os.Getenv("GATEWAY_NAME"); v != "" {
+	if v := os.Getenv("HARNESS_OS_GATEWAY"); v != "" {
 		c.Gateway.Name = v
 	}
 }

@@ -26,5 +26,5 @@ else
     make -C "$REPO_ROOT" cli dev-sandbox
 fi
 
-export SANDBOX_IMAGE="${REGISTRY}:sandbox-${VERSION}"
+export HARNESS_OS_IMAGE="${REGISTRY}:sandbox-${VERSION}"
 exec "$REPO_ROOT/harness" "$@"

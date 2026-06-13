@@ -72,27 +72,23 @@ kubectl create namespace openshell --dry-run=client -o yaml | kubectl apply -f -
 
 # Pre-load dev sandbox image into kind.
 # In CI (CI=true), images.yml has already pushed the image to the registry so
-# kind can pull it directly — skip the 60-90s local preload that disrupts the
-# local openshell service.  Locally, preload from the container daemon so
-# tests work without a registry push.
+# Pre-load the sandbox image into kind from the local container daemon
+# so tests work without a registry push.
 CONTAINER_CLI=${CONTAINER_CLI:-podman}
-if [[ -n "${SANDBOX_IMAGE:-}" ]] && [[ -z "${CI:-}" ]]; then
-  if "$CONTAINER_CLI" image inspect "$SANDBOX_IMAGE" &>/dev/null; then
-    echo "  Pre-loading image: $SANDBOX_IMAGE"
+if [[ -n "${HARNESS_OS_IMAGE:-}" ]]; then
+  if "$CONTAINER_CLI" image inspect "$HARNESS_OS_IMAGE" &>/dev/null; then
+    echo "  Pre-loading image: $HARNESS_OS_IMAGE"
     if [[ "$CONTAINER_CLI" == "docker" ]]; then
-      kind load docker-image "$SANDBOX_IMAGE" --name "$CLUSTER_NAME"
+      kind load docker-image "$HARNESS_OS_IMAGE" --name "$CLUSTER_NAME"
     else
-      # kind only loads from the docker daemon directly; podman goes via archive
       IMAGE_ARCHIVE=$(mktemp /tmp/kind-sandbox-image-XXXXXX.tar)
-      "$CONTAINER_CLI" save "$SANDBOX_IMAGE" -o "$IMAGE_ARCHIVE"
+      "$CONTAINER_CLI" save "$HARNESS_OS_IMAGE" -o "$IMAGE_ARCHIVE"
       kind load image-archive "$IMAGE_ARCHIVE" --name "$CLUSTER_NAME"
       rm -f "$IMAGE_ARCHIVE"
     fi
   else
     echo "  Image not found locally — kind will pull from registry at sandbox create time"
   fi
-elif [[ -n "${SANDBOX_IMAGE:-}" ]]; then
-  echo "  CI mode — kind will pull image from registry at sandbox create time"
 fi
 
 # ── Run tests ───────────────────────────────────────────────────────

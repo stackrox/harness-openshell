@@ -167,7 +167,7 @@ gateway:
   name: original-name
 `)
 
-	t.Setenv("GATEWAY_NAME", "env-gw-name")
+	t.Setenv("HARNESS_OS_GATEWAY", "env-gw-name")
 
 	cfg, err := LoadConfig(dir)
 	if err != nil {
@@ -175,7 +175,7 @@ gateway:
 	}
 
 	if cfg.Gateway.Name != "env-gw-name" {
-		t.Errorf("GATEWAY_NAME override: got %q", cfg.Gateway.Name)
+		t.Errorf("HARNESS_OS_GATEWAY override: got %q", cfg.Gateway.Name)
 	}
 }
 
@@ -187,7 +187,7 @@ gateway:
   name: original-name
 `)
 
-	t.Setenv("GATEWAY_NAME", "")
+	t.Setenv("HARNESS_OS_GATEWAY", "")
 
 	cfg, err := LoadConfig(dir)
 	if err != nil {

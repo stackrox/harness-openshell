@@ -226,16 +226,16 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 	} else if valuesPath != "" {
 		helmArgs = append(helmArgs, "--values", valuesPath)
 	}
-	if sandboxImage := os.Getenv("SANDBOX_IMAGE"); sandboxImage != "" {
+	if sandboxImage := os.Getenv("HARNESS_OS_IMAGE"); sandboxImage != "" {
 		helmArgs = append(helmArgs, "--set", "server.sandboxImage="+sandboxImage)
 	}
 	if routeHost != "" {
 		helmArgs = append(helmArgs, "--set", "pkiInitJob.serverDnsNames[0]="+routeHost)
 	}
-	if ps := os.Getenv("PULL_SECRET"); ps != "" {
+	if ps := os.Getenv("HARNESS_OS_PULL_SECRET"); ps != "" {
 		helmArgs = append(helmArgs, "--set", "imagePullSecrets[0].name="+ps)
 	}
-	if sps := os.Getenv("SANDBOX_PULL_SECRET"); sps != "" {
+	if sps := os.Getenv("HARNESS_OS_SANDBOX_PULL_SECRET"); sps != "" {
 		helmArgs = append(helmArgs, "--set", "server.sandboxImagePullSecrets[0].name="+sps)
 	}
 	if err := kc.RunHelm(ctx, helmArgs...); err != nil {

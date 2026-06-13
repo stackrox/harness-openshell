@@ -10,7 +10,7 @@
 - Prerequisite: proto files stabilize (OpenShell is alpha)
 
 ### Image registry as gateway config vs env override
-- `SANDBOX_IMAGE` env var overrides the version-based image resolution (for dev/CI)
+- `HARNESS_OS_IMAGE` env var overrides the version-based image resolution (for dev/CI)
 - Consider: gateway.yaml uses a `registry` field and images are relative to it
 
 ### registerProviders should filter by agent's provider list
