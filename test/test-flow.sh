@@ -60,7 +60,7 @@ fi
 LOG_FILE="${TEST_LOG_FILE:-}"
 if [[ -n "$LOG_FILE" ]]; then
   mkdir -p "$(dirname "$LOG_FILE")"
-  exec > >(tee -a "$LOG_FILE") 2>&1
+  exec > >(sed -u 's/\x1b\[[0-9;]*m//g' | tee -a "$LOG_FILE") 2>&1
 fi
 
 harness() {
