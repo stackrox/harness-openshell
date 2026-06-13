@@ -53,8 +53,8 @@
 
 ## Release
 
-- [ ] Add CHANGELOG.md for 0.1
-- [ ] Add LICENSE file
+- [x] Add CHANGELOG.md
+- [x] Add LICENSE file (Apache 2.0)
 - [ ] `harness init` command for standalone binary distribution (no repo clone)
 
 ## Deferred (post-0.1)
