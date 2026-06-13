@@ -76,7 +76,7 @@ func setupTestAgent(t *testing.T) string {
 	os.MkdirAll(filepath.Join(dir, "agents"), 0o755)
 	os.WriteFile(filepath.Join(dir, "agents", "default.yaml"), []byte(`name: test-agent
 image: quay.io/test:latest
-entrypoint: claude --bare
+entrypoint: claude
 providers:
   - profile: github
   - profile: vertex-local

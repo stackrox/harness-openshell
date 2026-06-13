@@ -17,7 +17,7 @@ providers:
       JIRA_URL: https://issues.redhat.com
   - profile: github
 task: tasks/daily-standup.md
-entrypoint: claude --bare
+entrypoint: claude
 `)
 	cfg, err := Parse(data)
 	if err != nil {
@@ -179,7 +179,7 @@ func TestParseFile_AgentYAML(t *testing.T) {
 	dir := t.TempDir()
 	yamlContent := `name: test-agent
 image: ghcr.io/test:latest
-entrypoint: claude --bare
+entrypoint: claude
 tty: true
 providers:
   - profile: github
@@ -268,7 +268,7 @@ func TestBuildEnvMap_Empty(t *testing.T) {
 
 func TestBuildRunSh(t *testing.T) {
 	cfg := &AgentConfig{
-		Entrypoint: "claude --bare",
+		Entrypoint: "claude",
 		Task:       "tasks/standup.md",
 	}
 	runSh := cfg.BuildRunSh()
@@ -284,7 +284,7 @@ func TestBuildRunSh(t *testing.T) {
 	if !strings.Contains(runSh, `command -v "claude"`) {
 		t.Error("missing entrypoint validation")
 	}
-	if !strings.Contains(runSh, `exec claude --bare -p "$(cat "$PAYLOAD_DIR/task.md")"`) {
+	if !strings.Contains(runSh, `exec claude -p "$(cat "$PAYLOAD_DIR/task.md")"`) {
 		t.Errorf("missing task exec with -p in:\n%s", runSh)
 	}
 }
@@ -310,7 +310,7 @@ func TestRenderPayload(t *testing.T) {
 			{Profile: "atlassian", Env: map[string]string{"JIRA_URL": "https://jira.example.com"}},
 		},
 		Task:       "my-task.md",
-		Entrypoint: "claude --bare",
+		Entrypoint: "claude",
 	}
 
 	destDir := filepath.Join(t.TempDir(), "payload")

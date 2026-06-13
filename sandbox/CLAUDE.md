@@ -22,7 +22,7 @@ You are running inside an OpenShell sandbox. Credentials are injected via the Op
 - Use `gws schema <service.resource.method>` to discover API parameters.
 
 ### AI Coding Agents
-- `claude` — Claude Code (wrapper at `/usr/local/bin/claude`)
+- `claude` — Claude Code
 - `opencode` — OpenCode (MCP config at `/sandbox/opencode.json`)
 
 ### General Tools

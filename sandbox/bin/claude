@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# Wrapper that sets sandbox defaults so Claude Code starts clean.
-exec /usr/local/lib/claude-real --bare --dangerously-skip-permissions "$@"
