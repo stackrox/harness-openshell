@@ -9,8 +9,7 @@
 ##
 ## Images (dev builds, tagged from git describe):
 ##   make dev-sandbox       # build sandbox image (native arch)
-##   make dev-runner        # build runner image
-##   make dev-push          # build + push both (sandbox multi-arch)
+##   make dev-push          # build + push sandbox image (multi-arch)
 ## Release images are built and pushed by .github/workflows/images.yml.
 
 REGISTRY      ?= ghcr.io/robbycochran/harness-openshell
@@ -19,7 +18,7 @@ PLATFORM      := linux/amd64
 VERSION       := $(shell git describe --tags --always 2>/dev/null || echo dev)
 LDFLAGS       := -s -w -X main.version=$(VERSION)
 
-DEV_SANDBOX_IMAGE  := $(REGISTRY):sandbox-$(VERSION)
+IMAGE  := $(REGISTRY):sandbox-$(VERSION)
 
 .PHONY: all cli \
         vet lint test test-local test-kind test-remote test-all \
@@ -66,15 +65,15 @@ test-local: cli
 ## Builds sandbox image locally and pre-loads into kind (no registry push needed).
 ## Use KEEP=1 to keep the cluster after tests (for debugging).
 test-kind: cli
-	$(CONTAINER_CLI) build -t $(DEV_SANDBOX_IMAGE) sandbox/
+	$(CONTAINER_CLI) build -t $(IMAGE) sandbox/
 	@echo ""
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) CONTAINER_CLI=$(CONTAINER_CLI) ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
+	HARNESS_OS_IMAGE=$(IMAGE) CONTAINER_CLI=$(CONTAINER_CLI) ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
 
 ## Remote (OCP): requires KUBECONFIG set
 test-remote: cli dev-sandbox
 	@test -n "$${KUBECONFIG}" || { echo "ERROR: Set KUBECONFIG for OCP (e.g. export KUBECONFIG=infracluster/kubeconfig)"; exit 1; }
 	@echo ""
-	SANDBOX_IMAGE=$(DEV_SANDBOX_IMAGE) ./test/test-flow.sh ocp
+	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh ocp
 
 ## All: unit + local + kind + remote
 test-all: test test-local test-kind test-remote
@@ -83,17 +82,17 @@ test-all: test test-local test-kind test-remote
 
 ## Build dev sandbox image locally (native arch only)
 dev-sandbox:
-	$(CONTAINER_CLI) build -t $(DEV_SANDBOX_IMAGE) sandbox/
-	@echo "Built: $(DEV_SANDBOX_IMAGE)"
+	$(CONTAINER_CLI) build -t $(IMAGE) sandbox/
+	@echo "Built: $(IMAGE)"
 
 ## Build and push dev sandbox image (multi-arch)
 dev-push:
-	@$(CONTAINER_CLI) rmi --force $(DEV_SANDBOX_IMAGE) 2>/dev/null || true
-	@$(CONTAINER_CLI) manifest rm $(DEV_SANDBOX_IMAGE) 2>/dev/null || true
-	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(DEV_SANDBOX_IMAGE) sandbox/
-	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(DEV_SANDBOX_IMAGE) sandbox/
-	$(CONTAINER_CLI) manifest push $(DEV_SANDBOX_IMAGE)
-	@echo "Pushed: $(DEV_SANDBOX_IMAGE) (multi-arch)"
+	@$(CONTAINER_CLI) rmi --force $(IMAGE) 2>/dev/null || true
+	@$(CONTAINER_CLI) manifest rm $(IMAGE) 2>/dev/null || true
+	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(IMAGE) sandbox/
+	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(IMAGE) sandbox/
+	$(CONTAINER_CLI) manifest push $(IMAGE)
+	@echo "Pushed: $(IMAGE) (multi-arch)"
 
 ## ── Convenience targets ───────────────────────────────────────────────
 

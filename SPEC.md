@@ -37,7 +37,7 @@ env:
 
 Fields:
 - `name` (required) -- sandbox name, used for `openshell sandbox connect`
-- `image` -- container image for the sandbox (default: version-matched from ghcr.io, override with `SANDBOX_IMAGE` env)
+- `image` -- container image for the sandbox (default: version-matched from ghcr.io, override with `HARNESS_OS_IMAGE` env)
 - `entrypoint` -- command to run (default: `claude`). Supports `claude`, `opencode`, `bash`, or any binary on PATH.
 - `tty` -- enable TTY (default: false)
 - `task` -- path to a task.md file, passed to entrypoint via `-p "$(cat task.md)"`
@@ -115,22 +115,24 @@ The CLI resolves images from its embedded version (set via `-ldflags` at build t
 - `v0.1.2-5-gabc1234` → `:sandbox-v0.1.2-5-gabc1234` (dev build, matches `make dev-sandbox`)
 - `dev` → `:sandbox` (bare `go build` without ldflags)
 
-`SANDBOX_IMAGE` env var overrides the version-based resolution.
+`HARNESS_OS_IMAGE` env var overrides the version-based resolution.
 
 ## Environment Variables
 
+Harness-specific variables use the `HARNESS_OS_` prefix. OpenShell runtime variables use `OPENSHELL_`.
+
 | Variable | Purpose |
 |----------|---------|
-| `SANDBOX_IMAGE` | Override sandbox image (dev/CI builds) |
-| `HARNESS_DIR` | Override harness directory detection |
-| `OPENSHELL_NAMESPACE` | Override K8s namespace (default: `openshell`) |
+| `HARNESS_OS_DIR` | Override harness directory detection |
+| `HARNESS_OS_IMAGE` | Override sandbox image (dev/CI builds) |
+| `HARNESS_OS_GATEWAY` | Override gateway name in gateway config |
+| `HARNESS_OS_PULL_SECRET` | Image pull secret name passed to Helm install |
+| `HARNESS_OS_SANDBOX_PULL_SECRET` | Sandbox image pull secret name passed to Helm install |
 | `OPENSHELL_CLI` | Override openshell binary path |
+| `OPENSHELL_NAMESPACE` | Override K8s namespace (default: `openshell`) |
 | `OPENSHELL_MODEL` | Inference model for provider registration (default: `claude-sonnet-4-6`) |
 | `OPENSHELL_CHART_VERSION` | Override Helm chart version (beats `gateway.yaml`) |
-| `PULL_SECRET` / `SANDBOX_PULL_SECRET` | Image pull secret names passed to the Helm install |
 | `KUBECONFIG` | K8s cluster config for remote targets |
-
-`GATEWAY_NAME` is internal -- used by env override in gateway config, not typically set by users.
 
 ## Payload
 

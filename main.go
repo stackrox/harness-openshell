@@ -77,7 +77,7 @@ func main() {
 }
 
 func detectHarnessDir() string {
-	if d := os.Getenv("HARNESS_DIR"); d != "" {
+	if d := os.Getenv("HARNESS_OS_DIR"); d != "" {
 		return d
 	}
 	var roots []string

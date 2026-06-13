@@ -167,7 +167,7 @@ func TestActiveGatewayInfo_LocalGateway(t *testing.T) {
 }
 
 func TestUpLocal_SandboxCreateOpts(t *testing.T) {
-	t.Setenv("SANDBOX_IMAGE", "")
+	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := setupTestAgent(t)
 	gw := &mockGW{
 		providerList: []string{"github", "vertex-local"},
