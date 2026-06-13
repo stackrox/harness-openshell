@@ -38,10 +38,6 @@
 #   GWS config could be provider-managed and the CLI could move to a
 #   community sandbox.
 #
-# startup.sh: Baked into the image to wire runtime credentials (Atlassian
-#   MCP config, GWS file placement). See sandbox.sh for the specific
-#   workarounds and their upstream tracking issues.
-
 ARG BASE_IMAGE=ghcr.io/nvidia/openshell-community/sandboxes/base:latest
 FROM ${BASE_IMAGE}
 
@@ -72,14 +68,10 @@ COPY claude.json /sandbox/.claude.json
 COPY mcp.json /sandbox/.mcp.json
 COPY opencode.json /sandbox/opencode.json
 
-# Runtime script
-COPY startup.sh /sandbox/startup.sh
-
 # Harness config directory (populated at runtime via upload)
 RUN mkdir -p /sandbox/.config/openshell && chown sandbox:sandbox /sandbox/.config/openshell
 
-RUN chmod +x /sandbox/startup.sh && \
-    chown -R sandbox:sandbox /sandbox/.claude /sandbox/.claude.json /sandbox/.mcp.json /sandbox/opencode.json /sandbox/.config /sandbox/startup.sh
+RUN chown -R sandbox:sandbox /sandbox/.claude /sandbox/.claude.json /sandbox/.mcp.json /sandbox/opencode.json /sandbox/.config
 
 USER sandbox
 

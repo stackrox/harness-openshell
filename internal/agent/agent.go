@@ -104,8 +104,6 @@ func (c *AgentConfig) BuildRunSh() string {
 	b.WriteString("PAYLOAD_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n\n")
 	b.WriteString("# Prepend payload bin to PATH\n")
 	b.WriteString("export PATH=\"$PAYLOAD_DIR/bin:$PATH\"\n\n")
-	b.WriteString("# Git auth\n")
-	b.WriteString("gh auth setup-git 2>/dev/null || true\n\n")
 	b.WriteString("# Validate entrypoint\n")
 	entrypoint := c.EffectiveEntrypoint()
 	epBin := strings.Fields(entrypoint)[0]

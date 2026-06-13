@@ -11,7 +11,7 @@ You are running inside an OpenShell sandbox. Credentials are injected via the Op
 
 ## Tools
 
-- `gh` — GitHub CLI (pre-authenticated)
+- `gh` — GitHub CLI (pre-authenticated). Run `gh auth setup-git` before any git clone/push/pull to configure git credential helper.
 - `gws` — Google Workspace CLI (when available). Use `gws schema <service.resource.method>` to discover API parameters.
 - MCP servers (Jira, Confluence) are configured in `.mcp.json` and connected automatically.
 - `python3`, `uv`, `node`, `npm`, `git`, `curl`

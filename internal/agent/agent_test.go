@@ -278,9 +278,6 @@ func TestBuildRunSh(t *testing.T) {
 	if strings.Contains(runSh, "env.sh") {
 		t.Error("run.sh should not source env.sh — env vars are injected via --env")
 	}
-	if !strings.Contains(runSh, "gh auth setup-git") {
-		t.Error("missing gh auth setup-git")
-	}
 	if !strings.Contains(runSh, `command -v "claude"`) {
 		t.Error("missing entrypoint validation")
 	}
