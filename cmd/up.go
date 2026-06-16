@@ -84,7 +84,7 @@ func NewUpCmd(harnessDir, cli string) *cobra.Command {
 
 	cmd.Flags().StringVar(&gatewayName, "gateway", "", "Gateway profile name (local, kind, ocp)")
 	cmd.Flags().StringVar(&gatewayProfile, "gateway-profile", "", "Path to gateway profile YAML (overrides --gateway)")
-	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from agents/)")
+	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from profiles/agent-<name>.yaml)")
 	cmd.Flags().StringVarP(&agentProfile, "agent-profile", "f", "", "Path to agent YAML file (overrides --agent)")
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides agent config)")
 	cmd.Flags().BoolVar(&noTTY, "no-tty", false, "Non-interactive mode (for testing)")

@@ -208,7 +208,7 @@ test_local() {
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
   local create_name="test-create"
-  step "sandbox create (create)" harness create --name "$create_name" --agent ci
+  step "sandbox create (create)" harness create --name "$create_name" --agent-profile test/ci-agent.yaml
   step "sandbox verify (create)" "$CLI" sandbox exec --name "$create_name" -- echo "hello"
   step "sandbox delete (create)" "$CLI" sandbox delete "$create_name"
 
@@ -300,7 +300,7 @@ test_ocp() {
   local sandbox_name
   if $NO_PROVIDERS; then
     sandbox_name="test-ocp"
-    step "sandbox create" harness create --agent=ci --name "$sandbox_name"
+    step "sandbox create" harness create --agent-profile=test/ci-agent.yaml --name "$sandbox_name"
   else
     sandbox_name="agent"
     step "sandbox create (up)" harness up --gateway ocp --name "$sandbox_name" --no-tty

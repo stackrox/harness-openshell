@@ -87,7 +87,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from agents/)")
+	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from profiles/agent-<name>.yaml)")
 	cmd.Flags().StringVarP(&agentProfile, "agent-profile", "f", "", "Path to agent YAML file (overrides --agent)")
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides agent config)")
 

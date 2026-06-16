@@ -32,7 +32,30 @@ func resolveAgentPath(harnessDir, agentName, agentFile string) string {
 	if agentFile != "" {
 		return agentFile
 	}
-	return filepath.Join(harnessDir, "agents", agentName+".yaml")
+	filename := "agent-" + agentName + ".yaml"
+	match, _ := findFile(harnessDir, filename)
+	if match != "" {
+		return match
+	}
+	return filepath.Join(harnessDir, filename)
+}
+
+func findFile(root, name string) (string, error) {
+	var match string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.Name() == ".git" || d.Name() == "node_modules" {
+			return filepath.SkipDir
+		}
+		if d.Name() == name {
+			match = path
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return match, err
 }
 
 func resolveAgentConfig(harnessDir, agentName, agentFile string) (*agent.AgentConfig, error) {
