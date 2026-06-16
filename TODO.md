@@ -92,6 +92,9 @@
 - Like `kubectl get -o yaml` -- captures the running shape, not the source config
 - Round-trip: `harness render > snapshot.yaml && harness up -f snapshot.yaml` should
   reproduce the same agent setup (with different credentials from env)
+- [ ] `harness render preview -f harness.yaml` -- dry-run that resolves all references
+  (providers, gateway, env vars) and shows the fully resolved config without deploying.
+  Like `terraform plan` or `helm template`. Shows what `harness up` would do.
 
 ### Future fields
 - [ ] `description` -- one line of human-readable context per agent config
