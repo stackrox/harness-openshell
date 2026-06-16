@@ -28,16 +28,18 @@ REUSE_GATEWAY=false
 NO_PROVIDERS=false
 DEBUG=false
 PROFILE="default"
+AGENT_FLAG="--agent"
 
 # Auto-detect CI mode
 if [[ "${CI:-}" == "true" ]]; then
   NO_PROVIDERS=true
-  PROFILE="ci"
+  PROFILE="test/ci-agent.yaml"
+  AGENT_FLAG="--agent-profile"
 fi
 
 for arg in "$@"; do
   case "$arg" in
-    --ci)             NO_PROVIDERS=true; PROFILE="ci" ;;
+    --ci)             NO_PROVIDERS=true; PROFILE="test/ci-agent.yaml"; AGENT_FLAG="--agent-profile" ;;
     --reuse-gateway)  REUSE_GATEWAY=true ;;
     --no-providers)   NO_PROVIDERS=true ;;
     --debug)          DEBUG=true ;;
@@ -203,7 +205,7 @@ test_local() {
 
   # up auto-registers providers when missing
   local sandbox_name="test-agent"
-  step "sandbox create (up)" harness up --gateway local --name "$sandbox_name" --agent "$PROFILE" --no-tty
+  step "sandbox create (up)" harness up --gateway local --name "$sandbox_name" $AGENT_FLAG "$PROFILE" --no-tty
   sandbox_verify "$sandbox_name"
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
@@ -262,7 +264,7 @@ test_kind() {
   step "gateway reachable" "$CLI" inference get
 
   local sandbox_name="test-kind"
-  step "sandbox create" harness up --gateway kind --name "$sandbox_name" --agent "$PROFILE" --no-tty
+  step "sandbox create" harness up --gateway kind --name "$sandbox_name" $AGENT_FLAG "$PROFILE" --no-tty
   sandbox_verify "$sandbox_name"
 
   if ! $NO_PROVIDERS; then
