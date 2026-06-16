@@ -1,8 +1,8 @@
 # Default agent configuration.
 #
 # Usage:
-#   harness up                         # uses agents/default.yaml
-#   harness up --agent research        # uses agents/research.yaml
+#   harness up                         # uses profiles/agent-default.yaml
+#   harness up --agent research        # uses profiles/agent-research.yaml
 
 name: agent
 entrypoint: claude

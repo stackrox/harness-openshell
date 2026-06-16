@@ -27,10 +27,11 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 				sandboxName = args[0]
 			}
 
-			agentCfg, err := resolveAgentConfig(harnessDir, agentName, agentProfile)
+			harness, err := resolveHarness(harnessDir, agentName, agentProfile)
 			if err != nil {
 				return err
 			}
+			agentCfg := harness.Agent
 
 			gw := gateway.New(cli)
 
@@ -54,7 +55,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 			status.Infof("Image: %s", sandboxImage)
 
 			// 3. Ensure providers are registered
-			registered := ensureProviders(harnessDir, gw, agentCfg, false)
+			registered := ensureProviders(harnessDir, gw, agentCfg, false, harness)
 
 			// 4. Deploy the sandbox
 			status.Header("Sandbox")
@@ -87,7 +88,7 @@ func NewCreateCmd(harnessDir, cli string) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from agents/)")
+	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from profiles/agent-<name>.yaml)")
 	cmd.Flags().StringVarP(&agentProfile, "agent-profile", "f", "", "Path to agent YAML file (overrides --agent)")
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides agent config)")
 

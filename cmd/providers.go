@@ -85,11 +85,25 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, provid
 	return nil
 }
 
-func ensureProviders(harnessDir string, gw gateway.Gateway, agentCfg *agent.AgentConfig, forceRefresh bool) []string {
+func ensureProviders(harnessDir string, gw gateway.Gateway, agentCfg *agent.AgentConfig, forceRefresh bool, h *agent.Harness) []string {
 	providerNames := agentCfg.ProviderNames()
 	if len(providerNames) == 0 {
 		return nil
 	}
+	// Import harness-local provider profiles before checking registration
+	if h != nil && len(h.Providers) > 0 {
+		tmpDir, err := os.MkdirTemp("", "harness-providers-")
+		if err == nil {
+			defer os.RemoveAll(tmpDir)
+			for name, data := range h.Providers {
+				os.WriteFile(filepath.Join(tmpDir, name+".yaml"), data, 0o644)
+			}
+			if err := gw.ProviderProfileImport(tmpDir); err != nil {
+				status.Warnf("harness provider import: %v", err)
+			}
+		}
+	}
+
 	registered, missing := gateway.ValidateProviders(providerNames, gw)
 	if len(missing) > 0 || forceRefresh {
 		if err := registerProviders(harnessDir, gw, forceRefresh, agentCfg.Providers); err != nil {
@@ -216,7 +230,7 @@ func registerGWS(harnessDir string, gw gateway.Gateway) error {
 // gwsProfileScopes reads the refresh.scopes list from profiles/providers/gws.yaml
 // and returns them as a space-separated string for use as OAuth scope material.
 func gwsProfileScopes(harnessDir string) string {
-	profilePath := filepath.Join(harnessDir, "agents", "providers", "profiles", "gws.yaml")
+	profilePath := filepath.Join(harnessDir, "profiles", "providers", "gws.yaml")
 	data, err := os.ReadFile(profilePath)
 	if err != nil {
 		return ""

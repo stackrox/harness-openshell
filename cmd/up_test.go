@@ -244,8 +244,7 @@ providers:
 
 func TestResolveAgentConfig_DiskOverridesEmbedded(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "agents"), 0o755)
-	os.WriteFile(filepath.Join(dir, "agents", "default.yaml"), []byte(`name: disk-agent
+	os.WriteFile(filepath.Join(dir, "agent-default.yaml"), []byte(`name: disk-agent
 entrypoint: claude
 providers:
   - profile: github

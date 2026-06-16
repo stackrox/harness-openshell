@@ -15,7 +15,7 @@ Requires OpenShell v0.0.59+.
 
 ## Agent Config
 
-Agent configs live in `agents/*.yaml`. Each declares the sandbox image, entrypoint, providers, and environment:
+Agent configs live in `profiles/agent-<name>.yaml`. Each declares the sandbox image, entrypoint, providers, and environment:
 
 ```yaml
 name: agent
@@ -39,7 +39,7 @@ Fields:
 - `name` (required) -- sandbox name, used for `openshell sandbox connect`
 - `image` -- container image for the sandbox (default: version-matched from ghcr.io, override with `HARNESS_OS_IMAGE` env)
 - `entrypoint` -- command to run (default: `claude`). Supports `claude`, `opencode`, `bash`, or any binary on PATH.
-- `tty` -- enable TTY (default: false)
+- `tty` -- enable TTY (default: true)
 - `task` -- path to a task.md file, passed to entrypoint via `-p "$(cat task.md)"`
 - `providers` -- list of provider profile references
 - `providers[].profile` -- OpenShell provider profile name
@@ -57,21 +57,21 @@ Provider profiles live in `profiles/providers/`. These are imported to the gatew
 
 Full flow: deploy gateway, register providers, render agent config, create sandbox.
 
-1. **Check version** -- warn if openshell CLI is below v0.0.59.
-2. **Ensure gateway** -- deploy if needed (local: Podman, remote: Helm to K8s/OCP). `--gateway` selects a profile by name; `--gateway-profile` loads from a file path.
-3. **Parse agent config** -- read `agents/<name>.yaml` (default: `default`). `--agent-profile` (`-f`) overrides with a direct file path.
+1. **Parse agent config** -- resolve `agent-<name>.yaml` from harness directory (default: `default`). `--agent-profile` (`-f`) overrides with a direct file path. Falls back to embedded `agent-basic.yaml` when `agent-default.yaml` is not found on disk.
+2. **Check version** -- warn if openshell CLI is below v0.0.59.
+3. **Ensure gateway** -- deploy if needed (local: Podman, remote: Helm to K8s/OCP). `--gateway` selects a profile by name; `--gateway-profile` loads from a file path. Gateway target can come from agent config's `gateway` field.
 4. **Ensure providers** -- auto-register missing providers. Three registration flows:
    - **Standard** (`--from-existing`): GitHub, Atlassian -- OpenShell discovers credentials from local env.
    - **ADC** (`--from-gcloud-adc`): Vertex AI -- reads ADC file, configures inference routing.
    - **Custom**: GWS -- multi-step OAuth refresh flow (harness workaround until OpenShell adds native support).
-5. **Render payload** -- `run.sh` (entrypoint wrapper with PATH setup, git auth, `-p` task), `task.md` (if set).
+5. **Render payload** -- `run.sh` (entrypoint wrapper with PATH setup, entrypoint validation, `-p` task), `task.md` (if set).
 6. **Create sandbox** -- `openshell sandbox create` with `--env` (env vars), `--upload` (payload), and startup command. Retry up to 5 times.
 
 `--provider-refresh` deletes and recreates all providers (replaces the old `harness providers --force`).
 
 ### `harness create [--agent NAME] [--agent-profile|-f FILE] [--name SANDBOX]`
 
-Create a sandbox without deploying the gateway. Assumes gateway is running. Auto-registers missing providers.
+Create a sandbox without deploying the gateway. Always non-interactive (no TTY). Assumes gateway is running. Auto-registers missing providers.
 
 ### `harness deploy [local|ocp|kind]`
 
@@ -93,12 +93,16 @@ Tear down resources. At least one flag required.
 
 | File | Purpose |
 |------|---------|
-| `agents/*.yaml` | Agent config: image, entrypoint, providers, env, task |
+| `profiles/agent-*.yaml` | Agent config: image, entrypoint, providers, env, task |
 | `profiles/providers/` | OpenShell provider profile YAMLs |
 | `profiles/gateways/*.yaml` | Gateway profiles: deployment target config with inline Helm values |
-| `sandbox/Dockerfile` | Sandbox image: OpenShell base + MCP servers + CLI tools |
-| `sandbox/policy.yaml` | Network egress rules applied to sandboxes |
-| `sandbox/opencode.json` | MCP server config for OpenCode agent |
+| `profiles/images/sandbox-default/Dockerfile` | Sandbox image: OpenShell base + MCP servers + CLI tools |
+| `profiles/images/sandbox-default/CLAUDE.md` | Claude Code project instructions for sandbox |
+| `profiles/images/sandbox-default/claude.json` | Claude Code settings |
+| `profiles/images/sandbox-default/mcp.json` | MCP server config for Claude agent |
+| `profiles/images/sandbox-default/opencode.json` | MCP server config for OpenCode agent |
+| `profiles/images/sandbox-default/policy.yaml` | Network egress rules applied to sandboxes |
+| `profiles/images/sandbox-default/settings.json` | Claude Code settings overlay |
 
 ## Image Tags
 

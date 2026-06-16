@@ -42,7 +42,7 @@ jobs:
       # integration (kind) job can pull the image without a local preload.
       - uses: docker/build-push-action@v6
         with:
-          context: sandbox
+          context: profiles/images/sandbox-default
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}

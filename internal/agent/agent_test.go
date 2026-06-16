@@ -382,6 +382,172 @@ func TestRenderPayload_Include(t *testing.T) {
 	}
 }
 
+func TestParseHarness_SingleDoc(t *testing.T) {
+	data := []byte(`
+name: test
+entrypoint: claude
+providers:
+  - profile: github
+`)
+	h, err := ParseHarness(data)
+	if err != nil {
+		t.Fatalf("ParseHarness: %v", err)
+	}
+	if h.Agent.Name != "test" {
+		t.Errorf("Agent.Name = %q", h.Agent.Name)
+	}
+	if len(h.Gateways) != 0 {
+		t.Errorf("Gateways = %d, want 0", len(h.Gateways))
+	}
+	if len(h.Providers) != 0 {
+		t.Errorf("Providers = %d, want 0", len(h.Providers))
+	}
+}
+
+func TestParseHarness_MultiDoc(t *testing.T) {
+	data := []byte(`---
+kind: agent
+name: my-agent
+entrypoint: claude
+providers:
+  - profile: github
+---
+kind: provider
+name: github
+type: github
+credentials: [GITHUB_TOKEN]
+---
+kind: gateway
+name: local
+type: local
+---
+kind: policy
+network_policies:
+  github:
+    endpoints:
+      - host: api.github.com
+        port: 443
+`)
+	h, err := ParseHarness(data)
+	if err != nil {
+		t.Fatalf("ParseHarness: %v", err)
+	}
+	if h.Agent.Name != "my-agent" {
+		t.Errorf("Agent.Name = %q", h.Agent.Name)
+	}
+	if _, ok := h.Providers["github"]; !ok {
+		t.Error("missing provider 'github'")
+	}
+	if _, ok := h.Gateways["local"]; !ok {
+		t.Error("missing gateway 'local'")
+	}
+	if h.Policy == nil {
+		t.Error("missing policy")
+	}
+}
+
+func TestParseHarness_DuplicateAgent(t *testing.T) {
+	data := []byte(`---
+kind: agent
+name: first
+providers: []
+---
+kind: agent
+name: second
+providers: []
+`)
+	_, err := ParseHarness(data)
+	if err == nil {
+		t.Fatal("expected error for duplicate agent")
+	}
+	if !strings.Contains(err.Error(), "multiple agent") {
+		t.Errorf("error = %q", err)
+	}
+}
+
+func TestParseHarness_UnknownKind(t *testing.T) {
+	data := []byte(`---
+kind: agent
+name: test
+providers: []
+---
+kind: spaceship
+name: enterprise
+`)
+	_, err := ParseHarness(data)
+	if err == nil {
+		t.Fatal("expected error for unknown kind")
+	}
+	if !strings.Contains(err.Error(), "unknown kind") {
+		t.Errorf("error = %q", err)
+	}
+}
+
+func TestParseHarness_ProviderRequiresName(t *testing.T) {
+	data := []byte(`---
+kind: agent
+name: test
+providers: []
+---
+kind: provider
+type: github
+`)
+	_, err := ParseHarness(data)
+	if err == nil {
+		t.Fatal("expected error for provider without name")
+	}
+	if !strings.Contains(err.Error(), "requires a name") {
+		t.Errorf("error = %q", err)
+	}
+}
+
+func TestParseHarness_NoAgent(t *testing.T) {
+	data := []byte(`---
+kind: provider
+name: github
+type: github
+`)
+	_, err := ParseHarness(data)
+	if err == nil {
+		t.Fatal("expected error for no agent document")
+	}
+	if !strings.Contains(err.Error(), "no agent") {
+		t.Errorf("error = %q", err)
+	}
+}
+
+func TestRenderHarness(t *testing.T) {
+	h := &Harness{
+		Agent: &AgentConfig{
+			Name:       "test",
+			Entrypoint: "claude",
+			Providers:  []ProviderRef{{Profile: "github"}},
+		},
+		Gateways:  map[string][]byte{"local": []byte("type: local\n")},
+		Providers: map[string][]byte{"custom-prov": []byte("type: custom\n")},
+	}
+	builtin := map[string][]byte{
+		"github": []byte("type: github\ncredentials: [GITHUB_TOKEN]\n"),
+	}
+	out, err := RenderHarness(h, builtin)
+	if err != nil {
+		t.Fatalf("RenderHarness: %v", err)
+	}
+	s := string(out)
+	if !strings.Contains(s, "kind: agent") {
+		t.Error("missing agent document")
+	}
+	if !strings.Contains(s, "kind: gateway") {
+		t.Error("missing gateway document")
+	}
+	if !strings.Contains(s, "# built-in") {
+		t.Error("missing built-in provider comment")
+	}
+	if !strings.Contains(s, "# custom") {
+		t.Error("missing custom provider comment")
+	}
+}
+
 func TestRenderPayload_IncludePathTraversal(t *testing.T) {
 	baseDir := t.TempDir()
 	cfg := &AgentConfig{

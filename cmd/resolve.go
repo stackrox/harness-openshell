@@ -32,14 +32,37 @@ func resolveAgentPath(harnessDir, agentName, agentFile string) string {
 	if agentFile != "" {
 		return agentFile
 	}
-	return filepath.Join(harnessDir, "agents", agentName+".yaml")
+	filename := "agent-" + agentName + ".yaml"
+	match, _ := findFile(harnessDir, filename)
+	if match != "" {
+		return match
+	}
+	return filepath.Join(harnessDir, filename)
 }
 
-func resolveAgentConfig(harnessDir, agentName, agentFile string) (*agent.AgentConfig, error) {
+func findFile(root, name string) (string, error) {
+	var match string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.Name() == ".git" || d.Name() == "node_modules" {
+			return filepath.SkipDir
+		}
+		if d.Name() == name {
+			match = path
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return match, err
+}
+
+func resolveHarness(harnessDir, agentName, agentFile string) (*agent.Harness, error) {
 	path := resolveAgentPath(harnessDir, agentName, agentFile)
-	cfg, err := agent.ParseFile(path)
+	h, err := agent.ParseHarnessFile(path)
 	if err == nil {
-		return cfg, nil
+		return h, nil
 	}
 	if agentFile != "" || agentName != "default" || len(DefaultAgentConfig) == 0 {
 		return nil, err
@@ -47,7 +70,24 @@ func resolveAgentConfig(harnessDir, agentName, agentFile string) (*agent.AgentCo
 	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
 		return nil, err
 	}
-	return agent.Parse(DefaultAgentConfig)
+	return agent.ParseHarness(DefaultAgentConfig)
+}
+
+func resolveAgentConfig(harnessDir, agentName, agentFile string) (*agent.AgentConfig, error) {
+	h, err := resolveHarness(harnessDir, agentName, agentFile)
+	if err != nil {
+		return nil, err
+	}
+	return h.Agent, nil
+}
+
+func resolveGatewayConfigWithHarness(harnessDir, name string, h *agent.Harness) (*gateway.GatewayConfig, error) {
+	if h != nil {
+		if data, ok := h.Gateways[name]; ok {
+			return gateway.LoadConfigFromBytes(data)
+		}
+	}
+	return resolveGatewayConfig(harnessDir, name)
 }
 
 func versionedImage(name string) string {

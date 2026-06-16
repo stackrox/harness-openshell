@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,6 +73,139 @@ func Parse(data []byte) (*AgentConfig, error) {
 		}
 	}
 	return &cfg, nil
+}
+
+// Harness holds all documents parsed from a multi-document YAML file.
+// A single-document agent YAML (no kind field) produces a Harness with
+// just the Agent field populated.
+type Harness struct {
+	Agent     *AgentConfig
+	Gateways  map[string][]byte // name -> raw gateway YAML
+	Providers map[string][]byte // name -> raw provider profile YAML
+	Policy    []byte            // raw policy YAML
+}
+
+// kindHeader peeks at the kind and name fields of a YAML document.
+type kindHeader struct {
+	Kind string `yaml:"kind"`
+	Name string `yaml:"name"`
+}
+
+func ParseHarnessFile(path string) (*Harness, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading harness file: %w", err)
+	}
+	return ParseHarness(data)
+}
+
+func ParseHarness(data []byte) (*Harness, error) {
+	h := &Harness{
+		Gateways:  make(map[string][]byte),
+		Providers: make(map[string][]byte),
+	}
+
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	docIndex := 0
+	for {
+		var node yaml.Node
+		err := dec.Decode(&node)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("parsing document %d: %w", docIndex, err)
+		}
+
+		raw, err := yaml.Marshal(&node)
+		if err != nil {
+			return nil, fmt.Errorf("re-marshaling document %d: %w", docIndex, err)
+		}
+
+		var header kindHeader
+		if err := yaml.Unmarshal(raw, &header); err != nil {
+			return nil, fmt.Errorf("reading kind from document %d: %w", docIndex, err)
+		}
+
+		switch header.Kind {
+		case "", "agent":
+			if h.Agent != nil {
+				return nil, fmt.Errorf("multiple agent documents found")
+			}
+			cfg, err := Parse(raw)
+			if err != nil {
+				return nil, err
+			}
+			h.Agent = cfg
+
+		case "provider":
+			if header.Name == "" {
+				return nil, fmt.Errorf("document %d: kind: provider requires a name field", docIndex)
+			}
+			h.Providers[header.Name] = raw
+
+		case "gateway":
+			if header.Name == "" {
+				return nil, fmt.Errorf("document %d: kind: gateway requires a name field", docIndex)
+			}
+			h.Gateways[header.Name] = raw
+
+		case "policy":
+			if h.Policy != nil {
+				return nil, fmt.Errorf("multiple policy documents found")
+			}
+			h.Policy = raw
+
+		default:
+			return nil, fmt.Errorf("document %d: unknown kind %q", docIndex, header.Kind)
+		}
+		docIndex++
+	}
+
+	if h.Agent == nil {
+		return nil, fmt.Errorf("no agent document found")
+	}
+	return h, nil
+}
+
+// RenderHarness writes a complete multi-document YAML from a Harness.
+// builtinProviders are labeled with a comment; custom providers are included as-is.
+func RenderHarness(h *Harness, builtinProviders map[string][]byte) ([]byte, error) {
+	var buf bytes.Buffer
+
+	agentData, err := yaml.Marshal(h.Agent)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling agent: %w", err)
+	}
+	buf.WriteString("---\nkind: agent\n")
+	buf.Write(agentData)
+
+	for name, data := range h.Gateways {
+		buf.WriteString("---\nkind: gateway\nname: " + name + "\n")
+		buf.Write(data)
+	}
+
+	// Built-in providers (from OpenShell profiles)
+	for name, data := range builtinProviders {
+		if _, custom := h.Providers[name]; custom {
+			continue // custom override takes precedence
+		}
+		buf.WriteString("---\n# built-in (from OpenShell provider profiles)\nkind: provider\nname: " + name + "\n")
+		buf.Write(data)
+	}
+
+	// Custom providers (from harness config)
+	for name, data := range h.Providers {
+		buf.WriteString("---\n# custom\nkind: provider\nname: " + name + "\n")
+		buf.Write(data)
+	}
+
+	if h.Policy != nil {
+		buf.WriteString("---\nkind: policy\n")
+		buf.Write(h.Policy)
+	}
+
+	return buf.Bytes(), nil
 }
 
 func expandEnvVar(key, value string) string {

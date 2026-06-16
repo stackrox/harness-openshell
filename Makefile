@@ -65,7 +65,7 @@ test-local: cli
 ## Builds sandbox image locally and pre-loads into kind (no registry push needed).
 ## Use KEEP=1 to keep the cluster after tests (for debugging).
 test-kind: cli
-	$(CONTAINER_CLI) build -t $(IMAGE) sandbox/
+	$(CONTAINER_CLI) build -t $(IMAGE) profiles/images/sandbox-default/
 	@echo ""
 	HARNESS_OS_IMAGE=$(IMAGE) CONTAINER_CLI=$(CONTAINER_CLI) ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
 
@@ -82,15 +82,15 @@ test-all: test test-local test-kind test-remote
 
 ## Build dev sandbox image locally (native arch only)
 dev-sandbox:
-	$(CONTAINER_CLI) build -t $(IMAGE) sandbox/
+	$(CONTAINER_CLI) build -t $(IMAGE) profiles/images/sandbox-default/
 	@echo "Built: $(IMAGE)"
 
 ## Build and push dev sandbox image (multi-arch)
 dev-push:
 	@$(CONTAINER_CLI) rmi --force $(IMAGE) 2>/dev/null || true
 	@$(CONTAINER_CLI) manifest rm $(IMAGE) 2>/dev/null || true
-	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(IMAGE) sandbox/
-	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(IMAGE) sandbox/
+	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(IMAGE) profiles/images/sandbox-default/
+	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(IMAGE) profiles/images/sandbox-default/
 	$(CONTAINER_CLI) manifest push $(IMAGE)
 	@echo "Pushed: $(IMAGE) (multi-arch)"
 

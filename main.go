@@ -13,7 +13,7 @@ import (
 
 var version = "dev"
 
-//go:embed agents/builtin.yaml
+//go:embed profiles/agent-basic.yaml
 var defaultAgentConfig []byte
 
 //go:embed profiles/gateways/local.yaml
@@ -68,6 +68,7 @@ func main() {
 		cmd.NewStatusCmd(harnessDir, cli),
 		cmd.NewStopCmd(harnessDir, cli),
 		cmd.NewStartCmd(harnessDir, cli),
+		cmd.NewRenderCmd(harnessDir, cli),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -90,7 +91,10 @@ func detectHarnessDir() string {
 	for _, root := range roots {
 		dir := root
 		for range 5 {
-			if _, err := os.Stat(filepath.Join(dir, "agents", "default.yaml")); err == nil {
+			if _, err := os.Stat(filepath.Join(dir, "agent-default.yaml")); err == nil {
+				return dir
+			}
+			if _, err := os.Stat(filepath.Join(dir, "profiles", "agent-default.yaml")); err == nil {
 				return dir
 			}
 			dir = filepath.Dir(dir)

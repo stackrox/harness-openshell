@@ -27,7 +27,7 @@ export JIRA_USERNAME=you@company.com
 
 The built-in config registers three providers: GitHub, Jira, and Vertex AI. Providers with missing credentials are skipped with an info message -- you don't need all three to get started. The sandbox runs Claude Code with whatever providers are available.
 
-To customize providers or add GWS, create an `agents/default.yaml` in your project directory -- it takes precedence over the builtin. See [Agent Configs](#agent-configs) below.
+To customize providers or add GWS, create an `profiles/agent-default.yaml` in your project directory -- it takes precedence over the builtin. See [Agent Configs](#agent-configs) below.
 
 ## Where This Fits
 
@@ -43,10 +43,10 @@ One command:
 harness up
 ```
 
-reads `agents/default.yaml`:
+reads `profiles/agent-default.yaml`:
 
 ```yaml
-# agents/default.yaml
+# profiles/agent-default.yaml
 name: agent
 entrypoint: claude
 tty: true
@@ -122,7 +122,7 @@ Credentials are proxy-managed -- the sandbox holds placeholder tokens; real secr
 The `gateway:` field tells the harness which deployment target to use:
 
 ```yaml
-# agents/ocp.yaml
+# profiles/agent-ocp.yaml
 name: agent
 gateway: ocp
 entrypoint: claude
@@ -144,7 +144,7 @@ env:
 ```
 
 ```bash
-harness up -f agents/ocp.yaml    # deploys to OCP (reads profiles/gateways/ocp.yaml)
+harness up -f profiles/agent-ocp.yaml    # deploys to OCP (reads profiles/gateways/ocp.yaml)
 harness up                        # defaults to local Podman
 ```
 
@@ -210,7 +210,48 @@ When `task:` is set, the harness passes its content to the entrypoint via `-p`.
 harness up --agent opencode
 ```
 
-Same providers and gateway -- just a different agent binary. See `agents/opencode.yaml`.
+Same providers and gateway -- just a different agent binary. See `profiles/agent-opencode.yaml`.
+
+## Multi-Document Harness YAML
+
+A harness YAML can bundle all definitions into a single file using `---` separators and a `kind` field (similar to Kubernetes manifests). This enables fully declarative, self-contained agent configurations:
+
+```yaml
+---
+kind: agent
+name: my-agent
+entrypoint: claude
+gateway: local
+providers:
+  - profile: github
+  - profile: vertex
+env:
+  ANTHROPIC_BASE_URL: https://inference.local
+---
+kind: provider
+name: github
+type: github
+credentials: [GITHUB_TOKEN]
+endpoints:
+  - { host: "api.github.com", port: 443 }
+---
+kind: gateway
+name: local
+type: local
+```
+
+```bash
+harness up -f harness.yaml    # everything in one file
+```
+
+Definitions in the harness file take priority over the `profiles/` tree. Single-document agent YAMLs (without `kind`) continue to work unchanged.
+
+Use `harness render` to export an existing agent config as a complete harness YAML:
+
+```bash
+harness render --include-defaults    # outputs agent + gateway + all providers
+harness render -o harness.yaml       # write to file
+```
 
 ## Local Setup
 
@@ -248,7 +289,7 @@ The harness orchestrates three OpenShell components via the `openshell` CLI:
 
 - **Gateway** -- OpenShell's credential proxy and L7 network policy engine. Runs as a Podman container (local) or Kubernetes StatefulSet (remote). Manages provider credentials, inference routing, and sandbox lifecycle.
 - **Providers** -- Credential registrations on the gateway. Provider profiles are declared in `profiles/providers/`. The harness validates credentials inline during registration -- providers with missing credentials are skipped.
-- **Sandbox** -- Container running the agent entrypoint (Claude Code or OpenCode), configured by `agents/*.yaml`. The gateway injects credentials at the network boundary -- the sandbox process sees proxy-managed placeholder tokens. Network egress is deny-by-default at L7.
+- **Sandbox** -- Container running the agent entrypoint (Claude Code or OpenCode), configured by `profiles/agent-*.yaml`. The gateway injects credentials at the network boundary -- the sandbox process sees proxy-managed placeholder tokens. Network egress is deny-by-default at L7.
 
 ```
 harness CLI ──> openshell CLI ──> Gateway (Podman or K8s)
@@ -267,12 +308,12 @@ See the [OpenShell docs](https://github.com/NVIDIA/OpenShell) for the full secur
 
 | File | Purpose |
 |------|---------|
-| `agents/*.yaml` | Agent config: image, entrypoint, providers, env, optional task file |
+| `profiles/agent-*.yaml` | Agent config: image, entrypoint, providers, env, optional task file |
 | `profiles/providers/` | OpenShell provider profiles (imported to gateway on registration) |
 | `profiles/gateways/*.yaml` | Gateway profiles: `local.yaml`, `kind.yaml`, `ocp.yaml` |
-| `sandbox/Dockerfile` | Sandbox image: OpenShell base + MCP servers + CLI tools |
-| `sandbox/policy.yaml` | Network egress rules applied to sandboxes |
-| `sandbox/opencode.json` | MCP server config for OpenCode agent |
+| `profiles/images/sandbox-default/Dockerfile` | Sandbox image: OpenShell base + MCP servers + CLI tools |
+| `profiles/images/sandbox-default/policy.yaml` | Network egress rules applied to sandboxes |
+| `profiles/images/sandbox-default/opencode.json` | MCP server config for OpenCode agent |
 
 ## Commands
 
@@ -282,7 +323,7 @@ harness up [--gateway NAME] [--gateway-profile FILE] [--agent NAME] [--agent-pro
     Defaults to local gateway (use --gateway ocp for OCP).
     --gateway selects a gateway profile by name (local, kind, ocp).
     --gateway-profile loads a gateway profile from a file path.
-    --agent defaults to "default" (embedded or agents/default.yaml).
+    --agent defaults to "default" (embedded or profiles/agent-default.yaml).
     --agent-profile (-f) renders any agent YAML file directly.
     --no-tty disables TTY allocation.
     --provider-refresh deletes and recreates all providers.
@@ -299,6 +340,12 @@ harness status
 
 harness stop [NAME] / harness start [NAME]
     Stop or start a sandbox without deleting it.
+
+harness render [--agent NAME] [--agent-profile|-f FILE] [--output|-o FILE] [--include-defaults]
+    Render a complete multi-document harness YAML from an agent config.
+    Includes all referenced providers and gateways in one file.
+    Built-in OpenShell providers are labeled separately from custom ones.
+    --include-defaults adds the effective gateway even if not set in the agent config.
 
 harness teardown [--sandboxes] [--providers] [--k8s]
     Tear down resources. At least one flag required.
