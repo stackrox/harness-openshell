@@ -212,6 +212,47 @@ harness up --agent opencode
 
 Same providers and gateway -- just a different agent binary. See `profiles/agent-opencode.yaml`.
 
+## Multi-Document Harness YAML
+
+A harness YAML can bundle all definitions into a single file using `---` separators and a `kind` field (similar to Kubernetes manifests). This enables fully declarative, self-contained agent configurations:
+
+```yaml
+---
+kind: agent
+name: my-agent
+entrypoint: claude
+gateway: local
+providers:
+  - profile: github
+  - profile: vertex
+env:
+  ANTHROPIC_BASE_URL: https://inference.local
+---
+kind: provider
+name: github
+type: github
+credentials: [GITHUB_TOKEN]
+endpoints:
+  - { host: "api.github.com", port: 443 }
+---
+kind: gateway
+name: local
+type: local
+```
+
+```bash
+harness up -f harness.yaml    # everything in one file
+```
+
+Definitions in the harness file take priority over the `profiles/` tree. Single-document agent YAMLs (without `kind`) continue to work unchanged.
+
+Use `harness render` to export an existing agent config as a complete harness YAML:
+
+```bash
+harness render --include-defaults    # outputs agent + gateway + all providers
+harness render -o harness.yaml       # write to file
+```
+
 ## Local Setup
 
 ### Prerequisites
@@ -299,6 +340,12 @@ harness status
 
 harness stop [NAME] / harness start [NAME]
     Stop or start a sandbox without deleting it.
+
+harness render [--agent NAME] [--agent-profile|-f FILE] [--output|-o FILE] [--include-defaults]
+    Render a complete multi-document harness YAML from an agent config.
+    Includes all referenced providers and gateways in one file.
+    Built-in OpenShell providers are labeled separately from custom ones.
+    --include-defaults adds the effective gateway even if not set in the agent config.
 
 harness teardown [--sandboxes] [--providers] [--k8s]
     Tear down resources. At least one flag required.
