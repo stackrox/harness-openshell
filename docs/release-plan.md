@@ -99,7 +99,7 @@ GitHub Releases only (no Homebrew tap — private repo at Red Hat).
 
 **One-liner (requires `gh` auth):**
 ```bash
-gh release download --repo robbycochran/harness-openshell -p '*darwin_arm64*' -O- | tar xz
+gh release download --repo stackrox/harness-openshell -p '*darwin_arm64*' -O- | tar xz
 sudo mv harness /usr/local/bin/
 harness init
 ```

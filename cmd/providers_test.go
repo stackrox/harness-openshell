@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/robbycochran/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/agent"
 )
 
 func setupProvidersTest(t *testing.T) string {

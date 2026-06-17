@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/robbycochran/harness-openshell/internal/gateway"
-	"github.com/robbycochran/harness-openshell/internal/status"
+	"github.com/stackrox/harness-openshell/internal/gateway"
+	"github.com/stackrox/harness-openshell/internal/status"
 )
 
 // sandboxOpts holds the parameters that vary between callers of

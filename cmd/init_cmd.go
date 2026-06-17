@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robbycochran/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

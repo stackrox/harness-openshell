@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/robbycochran/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/agent"
 	"gopkg.in/yaml.v3"
 )
 

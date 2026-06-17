@@ -160,7 +160,7 @@ openshell term                       # interactive policy terminal
 brew tap nvidia/openshell && brew install openshell && brew services start openshell
 
 # Download the harness binary
-curl -L https://github.com/robbycochran/harness-openshell/releases/latest/download/harness_darwin_arm64 -o harness
+curl -L https://github.com/stackrox/harness-openshell/releases/latest/download/harness_darwin_arm64 -o harness
 chmod +x harness
 ```
 

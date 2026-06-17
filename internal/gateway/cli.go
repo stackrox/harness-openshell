@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robbycochran/harness-openshell/internal/status"
+	"github.com/stackrox/harness-openshell/internal/status"
 )
 
 var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)

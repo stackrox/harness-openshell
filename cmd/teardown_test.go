@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/robbycochran/harness-openshell/internal/gateway"
-	"github.com/robbycochran/harness-openshell/internal/k8s"
+	"github.com/stackrox/harness-openshell/internal/gateway"
+	"github.com/stackrox/harness-openshell/internal/k8s"
 )
 
 func TestTeardownK8s_NamespaceNotFound(t *testing.T) {

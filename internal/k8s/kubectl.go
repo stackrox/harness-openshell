@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/robbycochran/harness-openshell/internal/status"
+	"github.com/stackrox/harness-openshell/internal/status"
 	"gopkg.in/yaml.v3"
 )
 

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/robbycochran/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/agent"
 )
 
 func TestCheckOpenShell_Found(t *testing.T) {
