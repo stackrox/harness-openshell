@@ -142,7 +142,7 @@ func promptProviders(scanner *bufio.Scanner, out io.Writer) ([]agent.ProviderRef
 }
 
 func promptGateway(scanner *bufio.Scanner, out io.Writer) (string, error) {
-	fmt.Fprint(out, "Gateway target [local/kind/remote] (default: local): ")
+	fmt.Fprint(out, "Gateway target [local/kind/ocp] (default: local): ")
 	if !scanner.Scan() {
 		return "local", nil
 	}
@@ -151,10 +151,10 @@ func promptGateway(scanner *bufio.Scanner, out io.Writer) (string, error) {
 		return "local", nil
 	}
 	switch input {
-	case "local", "kind", "remote", "ocp":
+	case "local", "kind", "ocp":
 		return input, nil
 	default:
-		return "", fmt.Errorf("unknown gateway target: %q (use local, kind, or remote)", input)
+		return "", fmt.Errorf("unknown gateway target: %q (use local, kind, or ocp)", input)
 	}
 }
 
@@ -262,11 +262,25 @@ func parseSelection(input string, max int) []int {
 	return indices
 }
 
+// harnessProviderName maps OpenShell profile IDs to the harness provider
+// names that registerProviders expects. Most are the same; these differ.
+var harnessProviderName = map[string]string{
+	"google-vertex-ai": "vertex-local",
+	"google-workspace": "gws",
+}
+
+func providerNameFor(profileID string) string {
+	if name, ok := harnessProviderName[profileID]; ok {
+		return name
+	}
+	return profileID
+}
+
 func buildProviderRefs(available []availableProvider, indices []int) []agent.ProviderRef {
 	var refs []agent.ProviderRef
 	for _, i := range indices {
 		if i < len(available) {
-			refs = append(refs, agent.ProviderRef{Profile: available[i].ID})
+			refs = append(refs, agent.ProviderRef{Profile: providerNameFor(available[i].ID)})
 		}
 	}
 	return refs

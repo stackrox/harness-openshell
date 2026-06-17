@@ -203,6 +203,25 @@ func TestInitRun_InteractiveGatewayKind(t *testing.T) {
 	}
 }
 
+func TestInitRun_InteractiveGatewayOCP(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "harness.yaml")
+	var buf bytes.Buffer
+
+	input := "claude\n1\nocp\n"
+	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig)
+	if err != nil {
+		t.Fatalf("initRun: %v", err)
+	}
+
+	data, _ := os.ReadFile(outPath)
+	var cfg agent.AgentConfig
+	yaml.Unmarshal(data, &cfg)
+	if cfg.Gateway != "ocp" {
+		t.Errorf("Gateway = %q, want ocp", cfg.Gateway)
+	}
+}
+
 func TestInitRun_InvalidGateway(t *testing.T) {
 	dir := t.TempDir()
 	outPath := filepath.Join(dir, "harness.yaml")
@@ -212,6 +231,36 @@ func TestInitRun_InvalidGateway(t *testing.T) {
 	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig)
 	if err == nil {
 		t.Fatal("expected error for invalid gateway target")
+	}
+}
+
+func TestInitRun_RemoteIsInvalidGateway(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "harness.yaml")
+	var buf bytes.Buffer
+
+	input := "claude\n1\nremote\n"
+	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig)
+	if err == nil {
+		t.Fatal("expected error: 'remote' is not a valid gateway, use 'ocp'")
+	}
+}
+
+func TestProviderNameMapping(t *testing.T) {
+	tests := []struct {
+		profileID, want string
+	}{
+		{"github", "github"},
+		{"google-vertex-ai", "vertex-local"},
+		{"google-workspace", "gws"},
+		{"atlassian", "atlassian"},
+		{"pypi", "pypi"},
+	}
+	for _, tt := range tests {
+		got := providerNameFor(tt.profileID)
+		if got != tt.want {
+			t.Errorf("providerNameFor(%q) = %q, want %q", tt.profileID, got, tt.want)
+		}
 	}
 }
 

@@ -125,7 +125,7 @@ func checkTargetDeps(cfg *agent.AgentConfig, _, _ string) []CheckResult {
 		return checkLocalDeps()
 	case "kind":
 		return checkKindDeps()
-	case "ocp", "remote":
+	case "ocp":
 		return checkRemoteDeps()
 	default:
 		return checkLocalDeps()
