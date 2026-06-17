@@ -134,7 +134,11 @@ network_policies:
   npm:
     name: npm
     endpoints:
-      - { host: registry.npmjs.org, port: 443 }
+      - host: registry.npmjs.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        allow_encoded_slash: true
     binaries:
       - { path: /usr/bin/npm }
       - { path: /usr/bin/node }
