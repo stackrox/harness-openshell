@@ -47,8 +47,7 @@ func NewTeardownCmd(harnessDir, cli string) *cobra.Command {
 			}
 			if k8sFlag {
 				ns := k8s.DefaultNamespace()
-				// Load OCP gateway config for SCC/secret names; fall back to defaults
-				gwCfg, _ := resolveGatewayConfig(harnessDir, "ocp")
+				gwCfg := resolveFirstRemoteGateway(harnessDir)
 				teardownK8s(gw, gwCfg, k8s.New("", ns), k8s.New("", ""))
 			}
 

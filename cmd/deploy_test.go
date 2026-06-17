@@ -20,7 +20,7 @@ func setupDeployHarnessDir(t *testing.T) string {
 
 func setupOCPGatewayConfig(t *testing.T, dir string) string {
 	t.Helper()
-	gwDir := filepath.Join(dir, "gateways", "ocp")
+	gwDir := filepath.Join(dir, "gateways", "openshift")
 	os.MkdirAll(filepath.Join(gwDir, "helm"), 0o755)
 	os.MkdirAll(filepath.Join(gwDir, "addons"), 0o755)
 	os.WriteFile(filepath.Join(gwDir, "gateway.yaml"), []byte(`
@@ -53,7 +53,7 @@ secrets:
 
 func setupK8sGatewayConfig(t *testing.T, dir string) string {
 	t.Helper()
-	gwDir := filepath.Join(dir, "gateways", "kind")
+	gwDir := filepath.Join(dir, "gateways", "helm")
 	os.MkdirAll(gwDir, 0o755)
 	os.WriteFile(filepath.Join(gwDir, "gateway.yaml"), []byte(`
 gateway:

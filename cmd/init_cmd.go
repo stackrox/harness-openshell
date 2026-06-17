@@ -27,7 +27,7 @@ var defaultProviders = []availableProvider{
 	{ID: "google-workspace", DisplayName: "Google Workspace", Category: "knowledge"},
 }
 
-func NewInitCmd() *cobra.Command {
+func NewInitCmd(harnessDir string) *cobra.Command {
 	var (
 		outputPath     string
 		force          bool
@@ -42,7 +42,7 @@ gateway target. The generated config is yours to version, share, and customize.
 
 Use --non-interactive to write the embedded default config without prompts.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return initRun(os.Stdin, os.Stdout, outputPath, force, nonInteractive, DefaultAgentConfig)
+			return initRun(os.Stdin, os.Stdout, outputPath, force, nonInteractive, DefaultAgentConfig, harnessDir)
 		},
 	}
 
@@ -53,7 +53,7 @@ Use --non-interactive to write the embedded default config without prompts.`,
 	return cmd
 }
 
-func initRun(in io.Reader, out io.Writer, outputPath string, force, nonInteractive bool, defaultCfg []byte) error {
+func initRun(in io.Reader, out io.Writer, outputPath string, force, nonInteractive bool, defaultCfg []byte, harnessDir string) error {
 	if _, err := os.Stat(outputPath); err == nil && !force {
 		return fmt.Errorf("%s already exists (use --force to overwrite)", outputPath)
 	}
@@ -78,7 +78,7 @@ func initRun(in io.Reader, out io.Writer, outputPath string, force, nonInteracti
 		}
 		cfg.Providers = providers
 
-		target, err := promptGateway(scanner, out)
+		target, err := promptGateway(scanner, out, harnessDir)
 		if err != nil {
 			return err
 		}
@@ -141,21 +141,24 @@ func promptProviders(scanner *bufio.Scanner, out io.Writer) ([]agent.ProviderRef
 	return buildProviderRefs(available, indices), nil
 }
 
-func promptGateway(scanner *bufio.Scanner, out io.Writer) (string, error) {
-	fmt.Fprint(out, "Gateway target [local/kind/ocp] (default: local): ")
+func promptGateway(scanner *bufio.Scanner, out io.Writer, harnessDir string) (string, error) {
+	profiles := listGatewayProfiles(harnessDir)
+	defaultGW := "local-container"
+	choices := strings.Join(profiles, "/")
+	fmt.Fprintf(out, "Gateway target [%s] (default: %s): ", choices, defaultGW)
 	if !scanner.Scan() {
-		return "local", nil
+		return defaultGW, nil
 	}
 	input := strings.TrimSpace(strings.ToLower(scanner.Text()))
 	if input == "" {
-		return "local", nil
+		return defaultGW, nil
 	}
-	switch input {
-	case "local", "kind", "ocp":
-		return input, nil
-	default:
-		return "", fmt.Errorf("unknown gateway target: %q (use local, kind, or ocp)", input)
+	for _, p := range profiles {
+		if input == p {
+			return input, nil
+		}
 	}
+	return "", fmt.Errorf("unknown gateway target: %q (available: %s)", input, choices)
 }
 
 func discoverProviders() []availableProvider {

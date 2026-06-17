@@ -46,7 +46,7 @@
 
 ### Future fields
 - [ ] `description` -- one line of human-readable context per agent config
-- [ ] `repo` -- git URL to clone into the sandbox at start
+- [x] `repo` -- git URL cloned outside sandbox and uploaded (git creds never enter sandbox)
 
 ## Testing [DONE]
 

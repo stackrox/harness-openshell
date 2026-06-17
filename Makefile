@@ -67,7 +67,7 @@ test-suite-live: cli
 
 ## Local gateway integration (unit tests run separately via 'make test')
 test-local: cli
-	./test/test-flow.sh local
+	./test/test-flow.sh local-container
 
 ## Kind: self-contained cluster lifecycle
 ## Builds sandbox image locally and pre-loads into kind (no registry push needed).
@@ -81,7 +81,7 @@ test-kind: cli
 test-remote: cli dev-sandbox
 	@test -n "$${KUBECONFIG}" || { echo "ERROR: Set KUBECONFIG for OCP (e.g. export KUBECONFIG=infracluster/kubeconfig)"; exit 1; }
 	@echo ""
-	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh ocp
+	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh openshift
 
 ## All: unit + local + kind + remote
 test-all: test test-local test-kind test-remote

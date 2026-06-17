@@ -46,15 +46,15 @@ secrets:
 
 ## Targets
 
-### `local.yaml` -- Podman on your machine
+### `local-container.yaml` -- Podman on your machine
 
 The default. Requires openshell installed and running via `brew services start openshell` or equivalent. No Helm, no K8s.
 
-### `kind.yaml` -- local kind cluster
+### `helm.yaml` -- local kind cluster
 
 Deploys to a kind cluster. Uses NodePort access (no Ingress needed). TLS disabled for local dev simplicity. Requires `kind create cluster`.
 
-### `ocp.yaml` -- OpenShift cluster
+### `openshift.yaml` -- OpenShift cluster
 
 Deploys to an OpenShift cluster with Route-based access and mTLS. Requires `oc login` and cluster-admin for SCC grants.
 
@@ -62,15 +62,15 @@ Deploys to an OpenShift cluster with Route-based access and mTLS. Requires `oc l
 
 ```bash
 harness apply -f harness.yaml                    # uses local (default)
-harness apply -f harness.yaml --gateway ocp      # uses gateways/ocp.yaml
-harness apply -f harness.yaml --gateway kind      # uses gateways/kind.yaml
+harness apply -f harness.yaml --gateway openshift      # uses gateways/openshift.yaml
+harness apply -f harness.yaml --gateway helm      # uses gateways/helm.yaml
 ```
 
 Agent configs can also set a default gateway:
 
 ```yaml
 name: agent
-gateway: ocp
+gateway: openshift
 ```
 
 The `OPENSHELL_GATEWAY` env var works as a fallback.

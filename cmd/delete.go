@@ -67,7 +67,7 @@ Examples:
 			}
 			if all || k8sFlag {
 				ns := k8s.DefaultNamespace()
-				gwCfg, _ := resolveGatewayConfig(harnessDir, "ocp")
+				gwCfg := resolveFirstRemoteGateway(harnessDir)
 				teardownK8s(gw, gwCfg, k8s.New("", ns), k8s.New("", ""))
 			}
 

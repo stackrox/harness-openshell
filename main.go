@@ -16,14 +16,14 @@ var version = "dev"
 //go:embed profiles/agent-basic.yaml
 var defaultAgentConfig []byte
 
-//go:embed profiles/gateways/local.yaml
-var localGatewayProfile []byte
+//go:embed profiles/gateways/local-container.yaml
+var localContainerGatewayProfile []byte
 
-//go:embed profiles/gateways/kind.yaml
-var kindGatewayProfile []byte
+//go:embed profiles/gateways/helm.yaml
+var helmNodeportGatewayProfile []byte
 
-//go:embed profiles/gateways/ocp.yaml
-var ocpGatewayProfile []byte
+//go:embed profiles/gateways/openshift.yaml
+var helmOpenshiftRouteGatewayProfile []byte
 
 func main() {
 	harnessDir := detectHarnessDir()
@@ -54,9 +54,9 @@ func main() {
 	cmd.Version = version
 	cmd.DefaultAgentConfig = defaultAgentConfig
 	cmd.EmbeddedGatewayProfiles = map[string][]byte{
-		"local": localGatewayProfile,
-		"kind":  kindGatewayProfile,
-		"ocp":   ocpGatewayProfile,
+		"local-container":        localContainerGatewayProfile,
+		"helm":          helmNodeportGatewayProfile,
+		"openshift":   helmOpenshiftRouteGatewayProfile,
 	}
 	root.CompletionOptions.HiddenDefaultCmd = true
 
@@ -67,7 +67,7 @@ func main() {
 		cmd.NewDeleteCmd(harnessDir, cli),
 		cmd.NewDeployCmd(harnessDir, cli),
 		cmd.NewDoctorCmd(harnessDir, cli),
-		cmd.NewInitCmd(),
+		cmd.NewInitCmd(harnessDir),
 	)
 
 	// Deprecated aliases
@@ -86,6 +86,9 @@ func main() {
 }
 
 func detectHarnessDir() string {
+	if d := os.Getenv("HARNESS_PROFILE_DIR"); d != "" {
+		return d
+	}
 	if d := os.Getenv("HARNESS_OS_DIR"); d != "" {
 		return d
 	}
@@ -107,6 +110,12 @@ func detectHarnessDir() string {
 			}
 			dir = filepath.Dir(dir)
 		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		d := filepath.Join(home, ".config", "harness-openshell")
+		os.MkdirAll(filepath.Join(d, "profiles", "gateways"), 0o755)
+		os.MkdirAll(filepath.Join(d, "profiles", "providers"), 0o755)
+		return d
 	}
 	return ""
 }

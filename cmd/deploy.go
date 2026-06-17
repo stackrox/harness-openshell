@@ -21,7 +21,7 @@ func NewDeployCmd(harnessDir, cli string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deploy [gateway]",
 		Short: "Deploy or verify the gateway",
-		Long:  "Deploy a gateway by name (e.g., local, ocp, kind). Reads configuration from profiles/gateways/<name>.yaml.",
+		Long:  "Deploy a gateway by name (e.g., local-container, helm, openshift). Reads configuration from profiles/gateways/<name>.yaml.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			gatewayName, err := resolveGatewayName(args)
@@ -55,7 +55,7 @@ func resolveGatewayName(args []string) (string, error) {
 	if len(args) > 0 {
 		return args[0], nil
 	}
-	return "", fmt.Errorf("specify a gateway: harness deploy <local|ocp|kind>")
+	return "", fmt.Errorf("specify a gateway: harness deploy <gateway-name>")
 }
 
 // lookPath is exec.LookPath, overridable in tests to avoid a host

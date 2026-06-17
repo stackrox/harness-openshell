@@ -25,6 +25,7 @@ type PayloadEntry struct {
 type AgentConfig struct {
 	Name       string            `yaml:"name"`
 	Gateway    string            `yaml:"gateway,omitempty"`
+	Repo       string            `yaml:"repo,omitempty"`
 	Providers  []ProviderRef     `yaml:"providers"`
 	Env        map[string]string `yaml:"env,omitempty"`
 	Task       string            `yaml:"task,omitempty"`

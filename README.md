@@ -21,6 +21,41 @@ harness apply -f harness.yaml --task "review this codebase for security issues"
 harness apply -f harness.yaml --task @skills/cpp-pro/SKILL.md
 ```
 
+### Clone a repo into the sandbox
+
+The `repo` field clones a repository outside the sandbox and uploads it. Git credentials never enter the sandbox.
+
+```yaml
+name: reviewer
+repo: https://github.com/stackrox/collector
+entrypoint: claude
+task: "identify the highest-priority C++ remediation"
+```
+
+```bash
+harness apply -f reviewer.yaml --task "focus on RAII and move semantics"
+```
+
+### Getting results out
+
+The agent runs in an isolated sandbox. To extract results:
+
+```bash
+# Agent outputs to stdout (--task mode)
+harness apply -f harness.yaml --task "summarize the codebase" > results.md
+
+# Pull a specific file from the sandbox
+openshell sandbox exec <name> -- cat /sandbox/collector/report.md > report.md
+
+# Extract a diff
+openshell sandbox exec <name> -- git -C /sandbox/collector diff > changes.patch
+
+# Download files
+openshell sandbox exec <name> -- tar czf - /sandbox/collector/output/ > output.tar.gz
+```
+
+If the `github` provider is attached, the agent can push directly -- the proxy provides a scoped `GITHUB_TOKEN` without exposing raw credentials.
+
 ### Coding agent
 
 Launch an interactive coding session with Claude Code or OpenCode.
@@ -30,7 +65,7 @@ Launch an interactive coding session with Claude Code or OpenCode.
 harness apply -f harness.yaml --attach
 
 # On OpenShift
-harness apply -f harness.yaml --attach --gateway ocp
+harness apply -f harness.yaml --attach --gateway openshift
 
 # OpenCode instead of Claude
 harness apply -f harness.yaml --attach --entrypoint opencode
@@ -52,6 +87,7 @@ A single file defines what runs, what credentials it gets, and what files are up
 name: agent
 entrypoint: claude
 tty: true
+repo: https://github.com/stackrox/collector   # cloned outside sandbox, uploaded in
 
 providers:
   - profile: github
@@ -148,7 +184,7 @@ Or build from source: `make cli`
 | `harness apply --attach` | Interactive TTY mode |
 | `harness apply --dry-run` | Validate without deploying |
 | `harness apply -o yaml` | Output resolved config |
-| `harness deploy [local\|ocp\|kind]` | Deploy gateway only |
+| `harness deploy <gateway>` | Deploy gateway only |
 | `harness get agents\|providers\|gateways` | List resources |
 | `harness describe <name>` | Sandbox details |
 | `harness delete <name> [--all]` | Tear down |
@@ -172,6 +208,32 @@ Each provider discovers credentials from the host. Missing providers are skipped
 | `profiles/providers/` | Provider profiles (imported to gateway) |
 | `profiles/gateways/*.yaml` | Gateway profiles per target |
 | `profiles/images/sandbox-default/` | Sandbox image defaults (overridable via payloads) |
+
+## Testing
+
+Tested on macOS (arm64) with Podman. Linux support is expected but not yet validated.
+
+```bash
+make test             # vet + unit tests (5 packages)
+make lint             # golangci-lint
+make test-suite       # config parsing (23 tests, no gateway needed)
+make test-local       # full e2e on local Podman (22 tests)
+make test-kind        # self-contained kind cluster lifecycle
+make test-remote      # full e2e on OCP (needs KUBECONFIG)
+```
+
+`test-local` is the primary validation target. It deploys the gateway, registers all 4 providers, creates sandboxes, verifies exec/env/GWS token resolution/MCP config/Claude inference, tests missing-provider recovery, and tears down.
+
+`test-kind` creates its own kind cluster, builds and loads the sandbox image, runs the full flow, and deletes the cluster on exit. Use `KEEP=1` to keep the cluster for debugging.
+
+`test-remote` requires `KUBECONFIG` pointing at an OCP cluster. Use `--reuse-gateway` to skip deploy/teardown when iterating.
+
+Dev images must be pushed before integration tests will pass:
+
+```bash
+make dev-push         # build + push multi-arch sandbox image
+make test-local       # now sandbox create can pull the image
+```
 
 ## Documentation
 

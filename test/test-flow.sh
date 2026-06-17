@@ -5,11 +5,11 @@
 # Override with --ci or --no-providers.
 #
 # Usage:
-#   ./test-flow.sh local                 # full test with credentials
-#   ./test-flow.sh kind                  # full test on kind cluster
-#   ./test-flow.sh ocp                   # full test on OCP
-#   ./test-flow.sh ocp --reuse-gateway   # skip deploy/teardown
-#   ./test-flow.sh all                   # all gateways
+#   ./test-flow.sh local-container              # full test with credentials
+#   ./test-flow.sh helm                # full test on kind cluster
+#   ./test-flow.sh openshift         # full test on OCP
+#   ./test-flow.sh openshift --reuse-gateway   # skip deploy/teardown
+#   ./test-flow.sh all                          # all gateways
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -50,7 +50,7 @@ for arg in "$@"; do
 done
 
 if [[ -z "$TARGET" ]]; then
-  echo "Usage: $0 <local|kind|ocp|all> [--ci] [--reuse-gateway] [--debug]"
+  echo "Usage: $0 <local-container|helm|openshift|all> [--ci] [--reuse-gateway] [--debug]"
   exit 1
 fi
 
@@ -179,7 +179,7 @@ summary() {
 test_errors() {
   echo "=== test: error scenarios ==="
 
-  step_fail "nonexistent profile" harness apply --gateway local --agent nonexistent
+  step_fail "nonexistent profile" harness apply --gateway local-container --agent nonexistent
 
   if $REUSE_GATEWAY; then
     step "teardown (first)" harness delete --sandboxes --providers
@@ -197,15 +197,15 @@ test_errors() {
 test_local() {
   local mode="full"
   $NO_PROVIDERS && mode="$mode, no-providers"
-  echo "=== test-flow: local ($mode) ==="
+  echo "=== test-flow: local-container ($mode) ==="
 
   step "teardown" harness delete --sandboxes --providers
-  step "deploy" harness deploy local
+  step "deploy" harness deploy local-container
   step "gateway reachable" "$CLI" inference get
 
   # up auto-registers providers when missing
   local sandbox_name="test-agent"
-  step "sandbox create (up)" harness apply --gateway local --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
+  step "sandbox create (up)" harness apply --gateway local-container --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
   sandbox_verify "$sandbox_name"
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
@@ -218,7 +218,7 @@ test_local() {
     echo ""
     echo "=== test: missing providers ==="
     step "teardown providers" harness delete --providers
-    step "up with no providers" harness apply --gateway local --name test-noprov
+    step "up with no providers" harness apply --gateway local-container --name test-noprov
     step "cleanup" harness delete --sandboxes
   fi
 
@@ -251,7 +251,7 @@ test_gws() {
 test_kind() {
   local mode="full"
   $NO_PROVIDERS && mode="$mode, no-providers"
-  echo "=== test-flow: kind ($mode) ==="
+  echo "=== test-flow: helm ($mode) ==="
 
   if ! kubectl get nodes &>/dev/null; then
     echo "  ERROR: no kind cluster — run: kind create cluster --name openshell"
@@ -260,11 +260,11 @@ test_kind() {
   fi
 
   step "teardown" harness delete --sandboxes --providers --k8s
-  step "deploy" harness deploy kind
+  step "deploy" harness deploy helm
   step "gateway reachable" "$CLI" inference get
 
   local sandbox_name="test-kind"
-  step "sandbox create" harness apply --gateway kind --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
+  step "sandbox create" harness apply --gateway helm --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
   sandbox_verify "$sandbox_name"
 
   if ! $NO_PROVIDERS; then
@@ -282,7 +282,7 @@ test_kind() {
 test_ocp() {
   local mode="full"
   $REUSE_GATEWAY && mode="$mode, reuse-gateway"
-  echo "=== test-flow: ocp ($mode) ==="
+  echo "=== test-flow: openshift ($mode) ==="
 
   if $REUSE_GATEWAY; then
     OCP_GW=$("$CLI" gateway list 2>/dev/null | strip_ansi | awk '/-remote-/ {gsub(/^\*/, ""); print $1; exit}')
@@ -290,13 +290,13 @@ test_ocp() {
 
     step "teardown sandboxes+providers" harness delete --sandboxes --providers
     if ! "$CLI" inference get &>/dev/null; then
-      step "deploy" harness deploy ocp
+      step "deploy" harness deploy openshift
     else
       step "gateway reachable" "$CLI" inference get
     fi
   else
     step "teardown" harness delete --sandboxes --providers --k8s
-    step "deploy" harness deploy ocp
+    step "deploy" harness deploy openshift
   fi
 
   local sandbox_name
@@ -305,7 +305,7 @@ test_ocp() {
     step "sandbox create" harness apply -f test/ci-agent.yaml --name "$sandbox_name"
   else
     sandbox_name="agent"
-    step "sandbox create (up)" harness apply --gateway ocp --name "$sandbox_name"
+    step "sandbox create (up)" harness apply --gateway openshift --name "$sandbox_name"
   fi
 
   sandbox_verify "$sandbox_name"
@@ -323,13 +323,13 @@ test_ocp() {
 test_errors
 
 case "$TARGET" in
-  local|podman) test_local ;;
-  kind)   test_kind ;;
-  ocp)    test_ocp ;;
+  local-container|local|podman) test_local ;;
+  helm|kind)           test_kind ;;
+  openshift|ocp)     test_ocp ;;
   all)    test_local; echo ""; test_kind; echo ""; test_ocp ;;
   *)
     echo "Unknown target: $TARGET"
-    echo "Usage: $0 <local|kind|ocp|all> [--ci] [--reuse-gateway]"
+    echo "Usage: $0 <local-container|helm|openshift|all> [--ci] [--reuse-gateway]"
     exit 1
     ;;
 esac

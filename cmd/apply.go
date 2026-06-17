@@ -109,12 +109,12 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 					if agentCfg.Gateway != "" {
 						gwTarget = agentCfg.Gateway
 					} else {
-						gwTarget = "local"
+						gwTarget = "local-container"
 					}
 				}
 				gwCfg, _ = resolveGatewayConfigWithHarness(harnessDir, gwTarget, harness)
 			}
-			isRemote := gwTarget != "local"
+			isRemote := gwCfg != nil && !gwCfg.IsLocal()
 
 			if dryRun {
 				return dryRunApply(gw, agentCfg, gwTarget, isRemote)
@@ -138,7 +138,7 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 
 	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to harness/agent YAML file")
 	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from profiles/)")
-	cmd.Flags().StringVar(&gatewayName, "gateway", envOr("OPENSHELL_GATEWAY", ""), "Gateway profile name (local, kind, ocp)")
+	cmd.Flags().StringVar(&gatewayName, "gateway", envOr("OPENSHELL_GATEWAY", ""), "Gateway profile name")
 	cmd.Flags().StringVar(&gatewayProfile, "gateway-profile", "", "Path to gateway profile YAML")
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides agent config)")
 	cmd.Flags().StringVar(&task, "task", "", "Task to pass to the agent (inline text or @filepath)")
@@ -156,7 +156,7 @@ func renderOutput(harnessDir string, h *agent.Harness, format string) error {
 
 	gwName := h.Agent.Gateway
 	if gwName == "" {
-		gwName = "local"
+		gwName = "local-container"
 	}
 	if len(h.Gateways) == 0 {
 		if gwData := loadGatewayProfile(harnessDir, gwName); gwData != nil {

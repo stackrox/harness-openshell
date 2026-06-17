@@ -3,7 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/robbycochran/harness-openshell/internal/agent"
@@ -72,6 +75,17 @@ func upLocal(opts upLocalOpts) error {
 
 	registered := ensureProviders(opts.harnessDir, gw, agentCfg, opts.providerRefresh, opts.harness)
 
+	// Clone repo outside the sandbox so git credentials never enter it.
+	var repoUpload *gateway.Upload
+	if agentCfg.Repo != "" {
+		upload, cleanup, err := cloneRepo(agentCfg.Repo)
+		if err != nil {
+			return fmt.Errorf("cloning repo: %w", err)
+		}
+		defer cleanup()
+		repoUpload = &upload
+	}
+
 	payloadDir, err := os.MkdirTemp("", "harness-payload-")
 	if err != nil {
 		return fmt.Errorf("creating payload dir: %w", err)
@@ -92,6 +106,10 @@ func upLocal(opts upLocalOpts) error {
 		for _, u := range resolved {
 			extraUploads = append(extraUploads, gateway.Upload{Src: u.Src, Dst: u.Dst})
 		}
+	}
+
+	if repoUpload != nil {
+		extraUploads = append(extraUploads, *repoUpload)
 	}
 
 	status.Header("Sandbox")
@@ -142,4 +160,31 @@ func upLocal(opts upLocalOpts) error {
 	}
 
 	return nil
+}
+
+// cloneRepo clones a git repository to a temp directory and returns an Upload
+// that places it at /sandbox/<repo-name>. The clone happens outside the sandbox
+// so git credentials never enter it. Returns a cleanup function that removes
+// the temp directory.
+func cloneRepo(repo string) (gateway.Upload, func(), error) {
+	repoName := strings.TrimSuffix(path.Base(repo), ".git")
+	tmpDir, err := os.MkdirTemp("", "harness-repo-")
+	if err != nil {
+		return gateway.Upload{}, nil, fmt.Errorf("creating temp dir: %w", err)
+	}
+	cleanup := func() { os.RemoveAll(tmpDir) }
+
+	cloneDir := filepath.Join(tmpDir, repoName)
+	status.Infof("Repo:  %s", repo)
+
+	cmd := exec.Command("git", "clone", "--depth", "1", repo, cloneDir)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		cleanup()
+		return gateway.Upload{}, nil, fmt.Errorf("git clone %s: %w", repo, err)
+	}
+
+	status.OKf("Cloned %s", repoName)
+	return gateway.Upload{Src: cloneDir, Dst: "/sandbox"}, cleanup, nil
 }

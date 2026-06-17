@@ -5,9 +5,9 @@ Behavior specification for the OpenShell Harness CLI.
 ## Overview
 
 The harness deploys and manages AI agent sandboxes on three targets:
-- **Local** -- Podman containers via a local OpenShell gateway
-- **Kind** -- Kubernetes pods via a kind cluster
-- **Remote** -- Kubernetes pods via an OpenShift-hosted OpenShell gateway
+- **local-container** -- Podman containers via a local OpenShell gateway
+- **helm** -- Kubernetes pods via a kind cluster (NodePort access)
+- **openshift** -- Kubernetes pods via an OpenShift-hosted OpenShell gateway (Route access)
 
 Each sandbox is an isolated container running an agent entrypoint (Claude Code or OpenCode), with credential providers, network policies, and a rendered payload (run.sh, task.md).
 
@@ -40,6 +40,7 @@ Fields:
 - `image` -- container image for the sandbox (default: version-matched from ghcr.io, override with `HARNESS_OS_IMAGE` env)
 - `entrypoint` -- command to run (default: `claude`). Supports `claude`, `opencode`, `bash`, or any binary on PATH.
 - `tty` -- enable TTY (default: true)
+- `repo` -- git URL to clone outside the sandbox and upload to `/sandbox/<repo-name>`. Shallow clone (`--depth 1`). Git credentials never enter the sandbox.
 - `task` -- path to a task.md file, passed to entrypoint via `-p "$(cat task.md)"`
 - `providers` -- list of provider profile references
 - `providers[].profile` -- OpenShell provider profile name
@@ -69,7 +70,7 @@ type: github
 credentials: [GITHUB_TOKEN]
 ---
 kind: gateway
-name: local
+name: local-container
 type: local
 ```
 
@@ -84,7 +85,7 @@ Primary command. Resolves an agent config, deploys the gateway and providers, cr
 1. **Parse agent config** -- resolve `agent-<name>.yaml` from harness directory (default: `default`). `-f` overrides with a direct file path. Falls back to embedded `agent-basic.yaml` when `agent-default.yaml` is not found on disk.
 2. **Check output mode** -- if `-o yaml` or `-o json`, render the fully resolved config and exit. No gateway interaction needed.
 3. **Check version** -- warn if openshell CLI is below v0.0.59.
-4. **Resolve gateway** -- `--gateway` selects a profile by name; `--gateway-profile` loads from a file path. Default: `local`. `OPENSHELL_GATEWAY` env var is used as fallback.
+4. **Resolve gateway** -- `--gateway` selects a profile by name; `--gateway-profile` loads from a file path. Default: `local-container`. `OPENSHELL_GATEWAY` env var is used as fallback.
 5. **Dry-run check** -- if `--dry-run`, validate each step (gateway reachable, providers resolvable, env vars resolved, image available) and exit with pass/fail report.
 6. **Ensure gateway** -- deploy if needed (local: Podman, remote: Helm to K8s/OCP).
 7. **Ensure providers** -- auto-register missing providers. Three registration flows:
@@ -118,7 +119,7 @@ Show detailed status for a specific sandbox: phase, active gateway, and register
 
 Delete sandboxes by name, or use flags for bulk operations. `--all` deletes sandboxes, providers, and k8s resources. Reuses the same teardown functions as the old `teardown` command.
 
-### `harness deploy [local|ocp|kind]`
+### `harness deploy <gateway>`
 
 Deploy or verify the gateway for a target. Reads `profiles/gateways/<target>.yaml`.
 

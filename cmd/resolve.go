@@ -6,6 +6,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/robbycochran/harness-openshell/internal/agent"
 	"github.com/robbycochran/harness-openshell/internal/gateway"
@@ -142,4 +144,41 @@ func loadGatewayProfile(harnessDir, name string) []byte {
 		return d
 	}
 	return nil
+}
+
+func resolveFirstRemoteGateway(harnessDir string) *gateway.GatewayConfig {
+	for _, name := range listGatewayProfiles(harnessDir) {
+		cfg, err := resolveGatewayConfig(harnessDir, name)
+		if err == nil && !cfg.IsLocal() {
+			return cfg
+		}
+	}
+	return nil
+}
+
+func listGatewayProfiles(harnessDir string) []string {
+	seen := make(map[string]bool)
+	for name := range EmbeddedGatewayProfiles {
+		seen[name] = true
+	}
+	dir := filepath.Join(harnessDir, "profiles", "gateways")
+	entries, err := os.ReadDir(dir)
+	if err == nil {
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+				continue
+			}
+			if strings.ToLower(e.Name()) == "readme.md" {
+				continue
+			}
+			name := e.Name()[:len(e.Name())-5]
+			seen[name] = true
+		}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }

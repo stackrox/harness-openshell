@@ -41,7 +41,7 @@ func TestCheckOpenShell_NotFound(t *testing.T) {
 
 func TestCheckTargetDeps_Local(t *testing.T) {
 	cfg := testAgentConfig(t)
-	cfg.Gateway = "local"
+	cfg.Gateway = "local-container"
 	results := checkTargetDeps(cfg, "", "")
 	if len(results) == 0 {
 		t.Fatal("expected at least 1 result")
@@ -51,28 +51,9 @@ func TestCheckTargetDeps_Local(t *testing.T) {
 	}
 }
 
-func TestCheckTargetDeps_Kind(t *testing.T) {
-	cfg := testAgentConfig(t)
-	cfg.Gateway = "kind"
-	results := checkTargetDeps(cfg, "", "")
-	if len(results) < 2 {
-		t.Fatalf("expected at least 2 results for kind, got %d", len(results))
-	}
-	names := make(map[string]bool)
-	for _, r := range results {
-		names[r.Name] = true
-	}
-	if !names["kubectl"] {
-		t.Error("missing kubectl check for kind target")
-	}
-	if !names["kind"] {
-		t.Error("missing kind binary check for kind target")
-	}
-}
-
 func TestCheckTargetDeps_Remote(t *testing.T) {
 	cfg := testAgentConfig(t)
-	cfg.Gateway = "ocp"
+	cfg.Gateway = "openshift"
 	results := checkTargetDeps(cfg, "", "")
 	if len(results) < 1 {
 		t.Fatal("expected at least 1 result for remote")
@@ -95,8 +76,8 @@ func TestCheckTargetDeps_EmptyGateway_DefaultsToLocal(t *testing.T) {
 	if len(results) == 0 {
 		t.Fatal("expected at least 1 result")
 	}
-	if results[0].Name != "local" {
-		t.Errorf("Name = %q, want local (default)", results[0].Name)
+	if results[0].Name != "local-container" {
+		t.Errorf("Name = %q, want local-container (default)", results[0].Name)
 	}
 }
 
@@ -194,7 +175,7 @@ credentials:
 func TestDoctorOutputJSON(t *testing.T) {
 	results := []CheckResult{
 		{Group: "openshell", Name: "binary", Status: "pass", Message: "v0.0.63"},
-		{Group: "target", Name: "local", Status: "pass", Message: "podman running"},
+		{Group: "target", Name: "local-container", Status: "pass", Message: "podman running"},
 	}
 
 	err := printStructured(formatJSON, results)
