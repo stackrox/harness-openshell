@@ -1,8 +1,12 @@
 # OpenCode agent configuration.
 #
+# OpenCode uses ANTHROPIC_BASE_URL with inference.local/v1 (note the /v1 suffix).
+# Without /v1, OpenCode sends POST /messages instead of POST /v1/messages,
+# which doesn't match the inference route pattern.
+# See: https://github.com/NVIDIA/OpenShell/blob/main/docs/providers/google-vertex-ai.mdx
+#
 # Usage:
-#   harness up -f agents/opencode.yaml
-#   harness up --agent opencode
+#   harness apply --agent opencode
 
 name: opencode-agent
 entrypoint: opencode
@@ -17,6 +21,7 @@ providers:
       JIRA_USERNAME: ${JIRA_USERNAME}
   - profile: gws
 
+# OpenCode needs /v1 suffix on ANTHROPIC_BASE_URL (different from Claude Code).
 env:
-  OPENAI_BASE_URL: https://inference.local/v1
-  OPENAI_API_KEY: sk-ant-openshell-proxy-managed
+  ANTHROPIC_BASE_URL: https://inference.local/v1
+  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed

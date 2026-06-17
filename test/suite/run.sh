@@ -305,7 +305,7 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
         "$CLI" sandbox exec --name test-agent-int -- \
           bash -c 'result=$(echo "respond with ok" | claude --print 2>&1); test -n "$result"'
 
-      # OpenCode uses inference.local/v1 (OpenAI-compatible) via the proxy.
+      # OpenCode uses ANTHROPIC_BASE_URL=inference.local/v1 (note /v1 suffix)
       SANDBOXES_TO_CLEAN+=(test-opencode-int)
       run_test "agent: opencode inference via vertex" \
         bash -c '"$1" apply -f "$2" --name test-opencode-int >/dev/null 2>&1 && \
@@ -340,15 +340,14 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
       fi
     else
       skip_test "agent: claude inference via vertex" "sandbox not ready"
-      skip_test "agent: opencode inference via vertex" "sandbox not ready"
       skip_test "agent: github via gh cli" "sandbox not ready"
       skip_test "agent: claude uses jira mcp" "sandbox not ready"
       skip_test "agent: gws gmail via proxy token" "sandbox not ready"
-      skip_test "agent: opencode built-in profile" "sandbox not ready"
     fi
 
     # Test the built-in opencode profile (--agent opencode) with all providers.
     # Verifies the shipped profile works end-to-end with Vertex via inference.local/v1.
+    SANDBOXES_TO_CLEAN+=(test-oc-builtin)
     SANDBOXES_TO_CLEAN+=(test-oc-builtin)
     run_test "agent: opencode built-in profile" \
       bash -c '"$1" apply --agent opencode --name test-oc-builtin >/dev/null 2>&1 && \
@@ -360,11 +359,9 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
     "$HARNESS" delete --sandboxes --providers >/dev/null 2>&1 || true
   else
     skip_test "agent: claude inference via vertex" "ANTHROPIC_VERTEX_PROJECT_ID not set"
-    skip_test "agent: opencode inference via vertex" "ANTHROPIC_VERTEX_PROJECT_ID not set"
     skip_test "agent: github via gh cli" "ANTHROPIC_VERTEX_PROJECT_ID not set"
     skip_test "agent: claude uses jira mcp" "ANTHROPIC_VERTEX_PROJECT_ID not set"
     skip_test "agent: gws gmail via proxy token" "ANTHROPIC_VERTEX_PROJECT_ID not set"
-    skip_test "agent: opencode built-in profile" "ANTHROPIC_VERTEX_PROJECT_ID not set"
   fi
 
   echo ""
