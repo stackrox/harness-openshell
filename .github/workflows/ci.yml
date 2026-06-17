@@ -19,6 +19,16 @@ jobs:
       - run: go vet ./...
       - run: CGO_ENABLED=0 go test ./...
 
+  config-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: CGO_ENABLED=0 go build -o harness .
+      - run: ./test/suite/run.sh
+
   lint:
     runs-on: ubuntu-latest
     steps:
