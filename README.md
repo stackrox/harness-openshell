@@ -170,12 +170,17 @@ harness get gateways [-o table|json|yaml]
 harness describe <name>
     Detailed status for a specific sandbox (phase, gateway, providers).
 
+harness delete <name> [<name>...]
+    Delete specific sandboxes by name.
+
+harness delete --all
+    Delete all sandboxes, providers, and k8s resources.
+
+harness delete --providers / --k8s
+    Delete providers or k8s resources selectively.
+
 harness stop [NAME] / harness start [NAME]
     Stop or start a sandbox without deleting it.
-
-harness teardown [--sandboxes] [--providers] [--k8s]
-    Tear down resources. At least one flag required.
-    (Deprecated: will be replaced by 'harness delete')
 ```
 
 For sandbox connect/logs, use openshell directly:

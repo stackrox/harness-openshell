@@ -64,6 +64,7 @@ func main() {
 		cmd.NewApplyCmd(harnessDir, cli),
 		cmd.NewGetCmd(harnessDir, cli),
 		cmd.NewDescribeCmd(harnessDir, cli),
+		cmd.NewDeleteCmd(harnessDir, cli),
 		cmd.NewDeployCmd(harnessDir, cli),
 		cmd.NewStopCmd(harnessDir, cli),
 		cmd.NewStartCmd(harnessDir, cli),
@@ -72,7 +73,7 @@ func main() {
 	// Deprecated aliases
 	teardownCmd := cmd.NewTeardownCmd(harnessDir, cli)
 	teardownCmd.Hidden = true
-	teardownCmd.Deprecated = "will be replaced by 'harness delete' in a future release"
+	teardownCmd.Deprecated = "use 'harness delete' instead"
 	statusCmd := cmd.NewStatusCmd(harnessDir, cli)
 	statusCmd.Hidden = true
 	statusCmd.Deprecated = "use 'harness get agents' instead"

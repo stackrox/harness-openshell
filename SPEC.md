@@ -114,6 +114,10 @@ These are convenience wrappers. For full details, use `openshell sandbox list`, 
 
 Show detailed status for a specific sandbox: phase, active gateway, and registered providers.
 
+### `harness delete [NAME...] [--all] [--providers] [--k8s]`
+
+Delete sandboxes by name, or use flags for bulk operations. `--all` deletes sandboxes, providers, and k8s resources. Reuses the same teardown functions as the old `teardown` command.
+
 ### `harness deploy [local|ocp|kind]`
 
 Deploy or verify the gateway for a target. Reads `profiles/gateways/<target>.yaml`.
@@ -128,7 +132,7 @@ These commands still work but will be removed in a future release:
 
 | Old command | Replacement | Notes |
 |-------------|-------------|-------|
-| `harness teardown` | `harness delete` (planned) | Flags: `--sandboxes`, `--providers`, `--k8s` |
+| `harness teardown` | `harness delete` | Same flags: `--sandboxes`, `--providers`, `--k8s` |
 | `harness status` | `harness get agents` | |
 
 ## Config Files

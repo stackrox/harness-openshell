@@ -182,11 +182,11 @@ test_errors() {
   step_fail "nonexistent profile" harness apply --gateway local --agent nonexistent
 
   if $REUSE_GATEWAY; then
-    step "teardown (first)" harness teardown --sandboxes --providers
-    step "teardown (second)" harness teardown --sandboxes --providers
+    step "teardown (first)" harness delete --sandboxes --providers
+    step "teardown (second)" harness delete --sandboxes --providers
   else
-    step "teardown (first)" harness teardown --sandboxes --providers --k8s
-    step "teardown (second)" harness teardown --sandboxes --providers --k8s
+    step "teardown (first)" harness delete --sandboxes --providers --k8s
+    step "teardown (second)" harness delete --sandboxes --providers --k8s
   fi
 
   echo ""
@@ -199,7 +199,7 @@ test_local() {
   $NO_PROVIDERS && mode="$mode, no-providers"
   echo "=== test-flow: local ($mode) ==="
 
-  step "teardown" harness teardown --sandboxes --providers
+  step "teardown" harness delete --sandboxes --providers
   step "deploy" harness deploy local
   step "gateway reachable" "$CLI" inference get
 
@@ -217,12 +217,12 @@ test_local() {
   if ! $NO_PROVIDERS; then
     echo ""
     echo "=== test: missing providers ==="
-    step "teardown providers" harness teardown --providers
+    step "teardown providers" harness delete --providers
     step "up with no providers" harness apply --gateway local --name test-noprov
-    step "cleanup" harness teardown --sandboxes
+    step "cleanup" harness delete --sandboxes
   fi
 
-  step "teardown (clean)" harness teardown --sandboxes --providers
+  step "teardown (clean)" harness delete --sandboxes --providers
 }
 
 # ── GWS lifecycle test ───────────────────────────────────────────────
@@ -259,7 +259,7 @@ test_kind() {
     return
   fi
 
-  step "teardown" harness teardown --sandboxes --providers --k8s
+  step "teardown" harness delete --sandboxes --providers --k8s
   step "deploy" harness deploy kind
   step "gateway reachable" "$CLI" inference get
 
@@ -273,7 +273,7 @@ test_kind() {
 
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
-  step "teardown (clean)" harness teardown --sandboxes --providers --k8s
+  step "teardown (clean)" harness delete --sandboxes --providers --k8s
   echo ""
 }
 
@@ -288,14 +288,14 @@ test_ocp() {
     OCP_GW=$("$CLI" gateway list 2>/dev/null | strip_ansi | awk '/-remote-/ {gsub(/^\*/, ""); print $1; exit}')
     [[ -n "$OCP_GW" ]] && "$CLI" gateway select "$OCP_GW" 2>/dev/null || true
 
-    step "teardown sandboxes+providers" harness teardown --sandboxes --providers
+    step "teardown sandboxes+providers" harness delete --sandboxes --providers
     if ! "$CLI" inference get &>/dev/null; then
       step "deploy" harness deploy ocp
     else
       step "gateway reachable" "$CLI" inference get
     fi
   else
-    step "teardown" harness teardown --sandboxes --providers --k8s
+    step "teardown" harness delete --sandboxes --providers --k8s
     step "deploy" harness deploy ocp
   fi
 
@@ -312,9 +312,9 @@ test_ocp() {
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
   if $REUSE_GATEWAY; then
-    step "teardown (sandboxes+providers)" harness teardown --sandboxes --providers
+    step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
   else
-    step "teardown (clean)" harness teardown --sandboxes --providers --k8s
+    step "teardown (clean)" harness delete --sandboxes --providers --k8s
   fi
 }
 
