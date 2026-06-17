@@ -82,6 +82,12 @@ func upLocal(opts upLocalOpts) error {
 		return fmt.Errorf("rendering payload: %w", err)
 	}
 
+	if opts.harness != nil && len(opts.harness.Configs) > 0 {
+		if err := agent.RenderConfigs(opts.harness.Configs, payloadDir); err != nil {
+			return fmt.Errorf("rendering configs: %w", err)
+		}
+	}
+
 	status.Header("Sandbox")
 	var sandboxCmd []string
 	if noTTY {

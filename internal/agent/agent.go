@@ -82,6 +82,7 @@ type Harness struct {
 	Agent     *AgentConfig
 	Gateways  map[string][]byte // name -> raw gateway YAML
 	Providers map[string][]byte // name -> raw provider profile YAML
+	Configs   map[string][]byte // name -> file content (e.g. claude.json, CLAUDE.md)
 	Policy    []byte            // raw policy YAML
 }
 
@@ -89,6 +90,13 @@ type Harness struct {
 type kindHeader struct {
 	Kind string `yaml:"kind"`
 	Name string `yaml:"name"`
+}
+
+// configDoc holds a kind: config document with file content.
+type configDoc struct {
+	Kind    string `yaml:"kind"`
+	Name    string `yaml:"name"`
+	Content string `yaml:"content"`
 }
 
 func ParseHarnessFile(path string) (*Harness, error) {
@@ -103,6 +111,7 @@ func ParseHarness(data []byte) (*Harness, error) {
 	h := &Harness{
 		Gateways:  make(map[string][]byte),
 		Providers: make(map[string][]byte),
+		Configs:   make(map[string][]byte),
 	}
 
 	dec := yaml.NewDecoder(bytes.NewReader(data))
@@ -149,6 +158,19 @@ func ParseHarness(data []byte) (*Harness, error) {
 				return nil, fmt.Errorf("document %d: kind: gateway requires a name field", docIndex)
 			}
 			h.Gateways[header.Name] = raw
+
+		case "config":
+			var doc configDoc
+			if err := yaml.Unmarshal(raw, &doc); err != nil {
+				return nil, fmt.Errorf("document %d: parsing config: %w", docIndex, err)
+			}
+			if doc.Name == "" {
+				return nil, fmt.Errorf("document %d: kind: config requires a name field", docIndex)
+			}
+			if doc.Content == "" {
+				return nil, fmt.Errorf("document %d: kind: config requires a content field", docIndex)
+			}
+			h.Configs[doc.Name] = []byte(doc.Content)
 
 		case "policy":
 			if h.Policy != nil {
@@ -198,6 +220,13 @@ func RenderHarness(h *Harness, builtinProviders map[string][]byte) ([]byte, erro
 	for name, data := range h.Providers {
 		buf.WriteString("---\n# custom\nkind: provider\nname: " + name + "\n")
 		buf.Write(data)
+	}
+
+	for name, content := range h.Configs {
+		buf.WriteString("---\nkind: config\nname: " + name + "\ncontent: |\n")
+		for _, line := range strings.Split(string(content), "\n") {
+			buf.WriteString("  " + line + "\n")
+		}
 	}
 
 	if h.Policy != nil {
@@ -306,5 +335,22 @@ func RenderPayload(cfg *AgentConfig, baseDir, destDir string) error {
 		}
 	}
 
+	return nil
+}
+
+// RenderConfigs writes harness config files (kind: config) to the payload directory.
+func RenderConfigs(configs map[string][]byte, destDir string) error {
+	for name, content := range configs {
+		dst := filepath.Join(destDir, name)
+		dir := filepath.Dir(dst)
+		if dir != destDir {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return fmt.Errorf("creating dir for config %s: %w", name, err)
+			}
+		}
+		if err := os.WriteFile(dst, content, 0o644); err != nil {
+			return fmt.Errorf("writing config %s: %w", name, err)
+		}
+	}
 	return nil
 }

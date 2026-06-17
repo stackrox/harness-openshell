@@ -548,6 +548,101 @@ func TestRenderHarness(t *testing.T) {
 	}
 }
 
+func TestParseHarness_WithConfigs(t *testing.T) {
+	data := []byte(`---
+kind: agent
+name: test
+providers: []
+---
+kind: config
+name: claude.json
+content: |
+  {"mcpServers": {}}
+---
+kind: config
+name: CLAUDE.md
+content: |
+  # Test
+  Hello world.
+`)
+	h, err := ParseHarness(data)
+	if err != nil {
+		t.Fatalf("ParseHarness: %v", err)
+	}
+	if len(h.Configs) != 2 {
+		t.Fatalf("Configs = %d, want 2", len(h.Configs))
+	}
+	if _, ok := h.Configs["claude.json"]; !ok {
+		t.Error("missing config 'claude.json'")
+	}
+	if !strings.Contains(string(h.Configs["CLAUDE.md"]), "Hello world") {
+		t.Errorf("CLAUDE.md content = %q", h.Configs["CLAUDE.md"])
+	}
+}
+
+func TestParseHarness_ConfigRequiresName(t *testing.T) {
+	data := []byte(`---
+kind: agent
+name: test
+providers: []
+---
+kind: config
+content: |
+  some content
+`)
+	_, err := ParseHarness(data)
+	if err == nil {
+		t.Fatal("expected error for config without name")
+	}
+	if !strings.Contains(err.Error(), "requires a name") {
+		t.Errorf("error = %q", err)
+	}
+}
+
+func TestParseHarness_ConfigRequiresContent(t *testing.T) {
+	data := []byte(`---
+kind: agent
+name: test
+providers: []
+---
+kind: config
+name: empty.txt
+`)
+	_, err := ParseHarness(data)
+	if err == nil {
+		t.Fatal("expected error for config without content")
+	}
+	if !strings.Contains(err.Error(), "requires a content") {
+		t.Errorf("error = %q", err)
+	}
+}
+
+func TestRenderConfigs(t *testing.T) {
+	destDir := filepath.Join(t.TempDir(), "payload")
+	os.MkdirAll(destDir, 0o755)
+
+	configs := map[string][]byte{
+		"claude.json":  []byte(`{"test": true}`),
+		"CLAUDE.md":    []byte("# Hello\n"),
+		"settings.json": []byte(`{"perms": {}}`),
+	}
+
+	if err := RenderConfigs(configs, destDir); err != nil {
+		t.Fatalf("RenderConfigs: %v", err)
+	}
+
+	for name, expected := range configs {
+		data, err := os.ReadFile(filepath.Join(destDir, name))
+		if err != nil {
+			t.Errorf("missing config file %s: %v", name, err)
+			continue
+		}
+		if string(data) != string(expected) {
+			t.Errorf("%s: got %q, want %q", name, data, expected)
+		}
+	}
+}
+
 func TestRenderPayload_IncludePathTraversal(t *testing.T) {
 	baseDir := t.TempDir()
 	cfg := &AgentConfig{
