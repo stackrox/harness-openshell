@@ -17,8 +17,8 @@ harness apply -f harness.yaml       # launch a sandbox
 Launch an interactive coding session with Claude Code or OpenCode.
 
 ```bash
-harness apply -f harness.yaml --attach                       # local Podman
-harness apply -f harness.yaml --attach --gateway openshift    # on OpenShift
+harness apply --attach                                        # local Podman with built-in harness
+harness apply -f harness.yaml --attach --gateway openshift    # Agent config in harness.yaml on OpenShift
 harness apply -f harness.yaml --attach --entrypoint opencode  # OpenCode
 ```
 
@@ -50,11 +50,11 @@ To get results out: `--task` mode outputs to stdout, `openshell sandbox exec` pu
 
 ## Why this exists
 
-[OpenShell](https://github.com/NVIDIA/OpenShell) is a foundation layer -- sandboxed containers with deny-by-default L7 network policy, credential proxy, Landlock filesystem isolation, and inference routing. It is designed as a strict, secure base that other tooling builds workflows on top of.
+[OpenShell](https://github.com/NVIDIA/OpenShell) is a sandbox managment layer with deny-by-default L7 network policy, credential proxy, filesystem isolation, and inference routing. It is designed as a strict, secure base that supports other workflows. 
 
-The harness is one such workflow layer. One YAML file defines the agent, providers, payloads, and policy. One command deploys it -- locally via Podman or remotely on Kubernetes.
+One YAML file defines the agent, providers, payloads, and policy and one command deploys it via Podman or remotely on Kubernetes.
 
-OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that -- and covers the local Podman development path that no operator will own.
+OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that with a develper mindset from local machine to cluster.
 
 ## The Agent YAML
 
