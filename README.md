@@ -157,16 +157,25 @@ harness apply [-f FILE] [--agent NAME] [--gateway NAME] [--attach] [--dry-run] [
 harness deploy [local|ocp|kind]
     Deploy or verify the gateway for a target.
 
+harness get agents [-o table|json|yaml]
+    List running sandboxes. Wraps openshell sandbox list with
+    consistent structured output. Aliases: sandboxes, sandbox.
+
+harness get providers [-o table|json|yaml]
+    List registered providers. Credentials never included in output.
+
+harness get gateways [-o table|json|yaml]
+    List gateways. Aliases: gateway, gw.
+
+harness describe <name>
+    Detailed status for a specific sandbox (phase, gateway, providers).
+
 harness stop [NAME] / harness start [NAME]
     Stop or start a sandbox without deleting it.
 
 harness teardown [--sandboxes] [--providers] [--k8s]
     Tear down resources. At least one flag required.
     (Deprecated: will be replaced by 'harness delete')
-
-harness status
-    Show sandbox status.
-    (Deprecated: will be replaced by 'harness get agents')
 ```
 
 For sandbox connect/logs, use openshell directly:
