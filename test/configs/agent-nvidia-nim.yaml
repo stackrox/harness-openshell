@@ -1,0 +1,7 @@
+# NVIDIA NIM agent -- tests API key bearer auth via provider profile.
+# Tests: custom provider profile registration, NVIDIA inference.
+# Requires: NVIDIA_API_KEY env var.
+name: test-nvidia-nim
+entrypoint: bash
+providers:
+  - profile: nvidia-nim

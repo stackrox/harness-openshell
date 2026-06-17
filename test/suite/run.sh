@@ -380,99 +380,95 @@ echo ""
 
 # ── Free API provider tests (requires keys) ──────────────────────
 
-echo "=== Free API providers ==="
+echo "=== Free API providers (via provider profiles) ==="
+
+# These tests use proper provider profiles (test/configs/providers/*.yaml)
+# that define endpoint policy and credential handling. The gateway manages
+# API keys via the proxy -- sandboxes never see real keys.
+#
+# Provider profiles are imported from test/configs/providers/ before
+# registration, so they need to be imported to the gateway first.
+PROVIDER_DIR="$SCRIPT_DIR/test/configs/providers"
 
 if [[ -n "${GROQ_API_KEY:-}" ]]; then
   run_test "free-api: groq dry-run" \
-    bash -c 'cat > /tmp/test-groq.yaml << EOF
-name: test-groq
-entrypoint: bash
-providers: []
-env:
-  GROQ_API_KEY: \${GROQ_API_KEY}
-  GROQ_BASE_URL: https://api.groq.com/openai/v1
-EOF
-"$1" apply --dry-run -f /tmp/test-groq.yaml' _ "$HARNESS"
+    "$HARNESS" apply --dry-run -f "$CONFIGS/agent-groq.yaml"
 
-  # Live task: call Groq API from sandbox (needs policy update for api.groq.com)
   if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
-    run_test "free-api: groq completion from sandbox" \
-      bash -c '"$1" apply -f /tmp/test-groq.yaml --name test-groq-live 2>/dev/null && \
-        "$4" policy update test-groq-live --add-endpoint "api.groq.com:443:read-write:rest:enforce" 2>/dev/null && \
-        sleep 3 && \
-        "$2" sandbox exec --name test-groq-live -- bash -c '\''
-          curl -sf https://api.groq.com/openai/v1/chat/completions \
-            -H "Authorization: Bearer $GROQ_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "{\"model\":\"llama-3.3-70b-versatile\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with only the word yes\"}],\"max_tokens\":5}" \
-            | grep -q '"content"''\'' && \
-        "$3" delete test-groq-live >/dev/null 2>&1' _ "$HARNESS" "$CLI" "$HARNESS" "$CLI"
+    # Import the Groq provider profile and register
+    "$CLI" provider profile import "$PROVIDER_DIR" >/dev/null 2>&1 || true
+
+    run_test "free-api: groq register + apply" \
+      "$HARNESS" apply -f "$CONFIGS/agent-groq.yaml" --name test-groq-live
+
+    # The provider profile defines api.groq.com as an allowed endpoint.
+    # The proxy resolves GROQ_API_KEY as a bearer token.
+    run_test "free-api: groq completion via proxy" \
+      "$CLI" sandbox exec --name test-groq-live -- \
+        bash -c 'curl -sf https://api.groq.com/openai/v1/chat/completions \
+          -H "Authorization: Bearer $GROQ_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d "{\"model\":\"llama-3.3-70b-versatile\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with only the word yes\"}],\"max_tokens\":5}" \
+          | grep -q "\"content\""'
+
+    "$HARNESS" delete test-groq-live >/dev/null 2>&1 || true
   fi
 else
   skip_test "free-api: groq dry-run" "GROQ_API_KEY not set"
-  $LIVE && skip_test "free-api: groq completion from sandbox" "GROQ_API_KEY not set"
+  $LIVE && skip_test "free-api: groq register + apply" "GROQ_API_KEY not set"
+  $LIVE && skip_test "free-api: groq completion via proxy" "GROQ_API_KEY not set"
 fi
 
 if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
   run_test "free-api: openrouter dry-run" \
-    bash -c 'cat > /tmp/test-openrouter.yaml << EOF
-name: test-openrouter
-entrypoint: bash
-providers: []
-env:
-  OPENROUTER_API_KEY: \${OPENROUTER_API_KEY}
-  OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
-EOF
-"$1" apply --dry-run -f /tmp/test-openrouter.yaml' _ "$HARNESS"
+    "$HARNESS" apply --dry-run -f "$CONFIGS/agent-openrouter.yaml"
 
-  # Live task: call OpenRouter API from sandbox
   if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
-    run_test "free-api: openrouter completion from sandbox" \
-      bash -c '"$1" apply -f /tmp/test-openrouter.yaml --name test-or-live 2>/dev/null && \
-        "$4" policy update test-or-live --add-endpoint "openrouter.ai:443:read-write:rest:enforce" 2>/dev/null && \
-        sleep 3 && \
-        "$2" sandbox exec --name test-or-live -- bash -c '\''
-          curl -sf https://openrouter.ai/api/v1/chat/completions \
-            -H "Authorization: Bearer $OPENROUTER_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "{\"model\":\"meta-llama/llama-3.3-70b-instruct:free\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with only the word yes\"}],\"max_tokens\":5}" \
-            | grep -q '"content"''\'' && \
-        "$3" delete test-or-live >/dev/null 2>&1' _ "$HARNESS" "$CLI" "$HARNESS" "$CLI"
+    "$CLI" provider profile import "$PROVIDER_DIR" >/dev/null 2>&1 || true
+
+    run_test "free-api: openrouter register + apply" \
+      "$HARNESS" apply -f "$CONFIGS/agent-openrouter.yaml" --name test-or-live
+
+    run_test "free-api: openrouter completion via proxy" \
+      "$CLI" sandbox exec --name test-or-live -- \
+        bash -c 'curl -sf https://openrouter.ai/api/v1/chat/completions \
+          -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d "{\"model\":\"meta-llama/llama-3.3-70b-instruct:free\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with only the word yes\"}],\"max_tokens\":5}" \
+          | grep -q "\"content\""'
+
+    "$HARNESS" delete test-or-live >/dev/null 2>&1 || true
   fi
 else
   skip_test "free-api: openrouter dry-run" "OPENROUTER_API_KEY not set"
-  $LIVE && skip_test "free-api: openrouter completion from sandbox" "OPENROUTER_API_KEY not set"
+  $LIVE && skip_test "free-api: openrouter register + apply" "OPENROUTER_API_KEY not set"
+  $LIVE && skip_test "free-api: openrouter completion via proxy" "OPENROUTER_API_KEY not set"
 fi
 
 if [[ -n "${NVIDIA_API_KEY:-}" ]]; then
   run_test "free-api: nvidia nim dry-run" \
-    bash -c 'cat > /tmp/test-nvidia.yaml << EOF
-name: test-nvidia
-entrypoint: bash
-providers:
-  - profile: nvidia
-env:
-  NVIDIA_API_KEY: \${NVIDIA_API_KEY}
-EOF
-"$1" apply --dry-run -f /tmp/test-nvidia.yaml' _ "$HARNESS"
+    "$HARNESS" apply --dry-run -f "$CONFIGS/agent-nvidia-nim.yaml"
 
-  # Live task: call NVIDIA NIM API from sandbox
   if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
-    run_test "free-api: nvidia nim completion from sandbox" \
-      bash -c '"$1" apply -f /tmp/test-nvidia.yaml --name test-nim-live 2>/dev/null && \
-        "$4" policy update test-nim-live --add-endpoint "integrate.api.nvidia.com:443:read-write:rest:enforce" 2>/dev/null && \
-        sleep 3 && \
-        "$2" sandbox exec --name test-nim-live -- bash -c '\''
-          curl -sf https://integrate.api.nvidia.com/v1/chat/completions \
-            -H "Authorization: Bearer $NVIDIA_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "{\"model\":\"meta/llama-3.3-70b-instruct\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with only the word yes\"}],\"max_tokens\":5}" \
-            | grep -q '"content"''\'' && \
-        "$3" delete test-nim-live >/dev/null 2>&1' _ "$HARNESS" "$CLI" "$HARNESS" "$CLI"
+    "$CLI" provider profile import "$PROVIDER_DIR" >/dev/null 2>&1 || true
+
+    run_test "free-api: nvidia nim register + apply" \
+      "$HARNESS" apply -f "$CONFIGS/agent-nvidia-nim.yaml" --name test-nim-live
+
+    run_test "free-api: nvidia nim completion via proxy" \
+      "$CLI" sandbox exec --name test-nim-live -- \
+        bash -c 'curl -sf https://integrate.api.nvidia.com/v1/chat/completions \
+          -H "Authorization: Bearer $NVIDIA_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d "{\"model\":\"meta/llama-3.3-70b-instruct\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with only the word yes\"}],\"max_tokens\":5}" \
+          | grep -q "\"content\""'
+
+    "$HARNESS" delete test-nim-live >/dev/null 2>&1 || true
   fi
 else
   skip_test "free-api: nvidia nim dry-run" "NVIDIA_API_KEY not set"
-  $LIVE && skip_test "free-api: nvidia nim completion from sandbox" "NVIDIA_API_KEY not set"
+  $LIVE && skip_test "free-api: nvidia nim register + apply" "NVIDIA_API_KEY not set"
+  $LIVE && skip_test "free-api: nvidia nim completion via proxy" "NVIDIA_API_KEY not set"
 fi
 
 echo ""

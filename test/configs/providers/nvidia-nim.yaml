@@ -1,0 +1,26 @@
+# NVIDIA NIM provider profile for test suite.
+# Free API: https://build.nvidia.com
+# Credential style: Bearer token via NVIDIA_API_KEY env var.
+
+id: nvidia-nim
+display_name: NVIDIA NIM
+description: NVIDIA NIM inference API (OpenAI-compatible)
+category: inference
+credentials:
+  - name: api_key
+    description: NVIDIA NIM API key
+    env_vars: [NVIDIA_API_KEY]
+    required: true
+    auth_style: bearer
+discovery:
+  credentials: [api_key]
+endpoints:
+  - host: integrate.api.nvidia.com
+    port: 443
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+binaries:
+  - /usr/bin/curl
+  - /sandbox/.venv/bin/python
+  - /sandbox/.venv/bin/python3
