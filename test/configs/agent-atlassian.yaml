@@ -6,5 +6,5 @@ entrypoint: bash
 providers:
   - profile: atlassian
     env:
-      JIRA_URL: ${JIRA_URL}
-      JIRA_USERNAME: ${JIRA_USERNAME}
+      JIRA_URL:
+      JIRA_USERNAME:

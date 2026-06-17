@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/robbycochran/harness-openshell/internal/gateway"
-	"github.com/robbycochran/harness-openshell/internal/k8s"
-	"github.com/robbycochran/harness-openshell/internal/status"
+	"github.com/stackrox/harness-openshell/internal/gateway"
+	"github.com/stackrox/harness-openshell/internal/k8s"
+	"github.com/stackrox/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
 )
 

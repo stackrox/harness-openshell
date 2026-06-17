@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/robbycochran/harness-openshell/internal/gateway"
-	"github.com/robbycochran/harness-openshell/internal/k8s"
+	"github.com/stackrox/harness-openshell/internal/gateway"
+	"github.com/stackrox/harness-openshell/internal/k8s"
 )
 
 func setupDeployHarnessDir(t *testing.T) string {

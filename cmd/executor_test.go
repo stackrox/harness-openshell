@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/robbycochran/harness-openshell/internal/gateway"
+	"github.com/stackrox/harness-openshell/internal/gateway"
 )
 
 func TestUpLocal_NoGateway(t *testing.T) {

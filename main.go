@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/robbycochran/harness-openshell/cmd"
-	"github.com/robbycochran/harness-openshell/internal/status"
+	"github.com/stackrox/harness-openshell/cmd"
+	"github.com/stackrox/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
 )
 

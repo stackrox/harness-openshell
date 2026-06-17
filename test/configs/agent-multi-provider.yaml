@@ -6,7 +6,7 @@ providers:
   - profile: github
   - profile: atlassian
     env:
-      JIRA_URL: ${JIRA_URL}
-      JIRA_USERNAME: ${JIRA_USERNAME}
+      JIRA_URL:
+      JIRA_USERNAME:
 env:
   TEST_MARKER: "multi-provider-test"

@@ -23,7 +23,8 @@ providers:                      # credential providers to register
   - profile: google-vertex-ai
   - profile: atlassian
     env:                        # non-secret env vars for this provider
-      JIRA_URL: ${JIRA_URL}     # ${VAR} reads from host environment
+      JIRA_URL:                  # empty = read from host env
+      JIRA_USERNAME:
 
 env:                            # additional env vars injected into sandbox
   ANTHROPIC_BASE_URL: https://inference.local

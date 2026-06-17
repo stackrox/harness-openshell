@@ -3,7 +3,7 @@ package cmd
 import (
 	"testing"
 
-	"github.com/robbycochran/harness-openshell/internal/gateway"
+	"github.com/stackrox/harness-openshell/internal/gateway"
 )
 
 type statusMockGW struct {

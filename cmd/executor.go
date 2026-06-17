@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/robbycochran/harness-openshell/internal/agent"
-	"github.com/robbycochran/harness-openshell/internal/gateway"
-	"github.com/robbycochran/harness-openshell/internal/k8s"
-	"github.com/robbycochran/harness-openshell/internal/status"
+	"github.com/stackrox/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/gateway"
+	"github.com/stackrox/harness-openshell/internal/k8s"
+	"github.com/stackrox/harness-openshell/internal/status"
 )
 
 var Version = "dev"

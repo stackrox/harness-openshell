@@ -1,4 +1,4 @@
-module github.com/robbycochran/harness-openshell
+module github.com/stackrox/harness-openshell
 
 go 1.22.4
 
