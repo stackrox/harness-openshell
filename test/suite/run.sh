@@ -190,11 +190,14 @@ echo ""
 if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
   echo "=== Live sandbox lifecycle ==="
 
+  # Use ci-agent.yaml for lifecycle tests -- it specifies the community base
+  # image which is available on CI without a prior image build.
+  CI_AGENT="$SCRIPT_DIR/test/ci-agent.yaml"
   SANDBOXES_TO_CLEAN+=(test-lifecycle test-env-check)
 
   run_test "live: create + describe" \
     bash -c '"$1" apply -f "$2" --name test-lifecycle && \
-      for i in $(seq 1 10); do "$1" describe test-lifecycle >/dev/null 2>&1 && exit 0; sleep 0.5; done; exit 1' _ "$HARNESS" "$CONFIGS/agent-minimal.yaml"
+      for i in $(seq 1 10); do "$1" describe test-lifecycle >/dev/null 2>&1 && exit 0; sleep 0.5; done; exit 1' _ "$HARNESS" "$CI_AGENT"
 
   run_test "live: get agents shows sandbox" \
     bash -c '"$1" get agents | grep test-lifecycle' _ "$HARNESS"
@@ -205,7 +208,7 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
   run_test "live: env injection + verification" \
     bash -c '"$1" apply -f "$2" --name test-env-check && \
       for i in $(seq 1 10); do "$1" describe test-env-check >/dev/null 2>&1 && break; sleep 0.5; done && \
-      "$3" sandbox exec --name test-env-check -- bash -c "test \"\$STATIC_VAR\" = \"hello-world\""' _ "$HARNESS" "$CONFIGS/agent-custom-env.yaml" "$CLI"
+      "$3" sandbox exec --name test-env-check -- bash -c "test \"\$STATIC_VAR\" = \"hello-world\""' _ "$HARNESS" "$CONFIGS/agent-env-ci.yaml" "$CLI"
 
   run_test "live: delete + verify gone" \
     bash -c '"$1" delete test-lifecycle && \

@@ -1,0 +1,7 @@
+# Env injection test -- CI compatible (community base image).
+name: test-env-ci
+image: ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+entrypoint: bash
+providers: []
+env:
+  STATIC_VAR: "hello-world"
