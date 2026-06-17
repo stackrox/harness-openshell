@@ -92,6 +92,10 @@ func (c *CLI) CheckMinVersion(minVersion string) error {
 	return nil
 }
 
+func (c *CLI) PolicySet(name, policyFile string) error {
+	return c.passthrough("policy", "set", name, "--policy", policyFile, "--wait")
+}
+
 func (c *CLI) InferenceGet() error {
 	return c.silent("inference", "get")
 }

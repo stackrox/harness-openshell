@@ -50,3 +50,4 @@ func TestRunStatus_NoGateway(t *testing.T) {
 		t.Fatalf("runStatus: %v", err)
 	}
 }
+func (m *statusMockGW) PolicySet(string, string) error { return nil }

@@ -144,3 +144,4 @@ type mockGWWithSandboxes struct {
 func (m *mockGWWithSandboxes) SandboxList() ([]string, error) {
 	return m.sandboxes, nil
 }
+func (m *mockGWWithSandboxes) PolicySet(string, string) error { return nil }

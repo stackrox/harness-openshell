@@ -102,7 +102,7 @@ func upLocal(opts upLocalOpts) error {
 		sandboxCmd = []string{"bash", "/sandbox/.config/openshell/run.sh"}
 	}
 
-	return createSandbox(sandboxOpts{
+	err = createSandbox(sandboxOpts{
 		harnessDir: opts.harnessDir,
 		gw:         gw,
 		name:       sandboxName,
@@ -115,4 +115,31 @@ func upLocal(opts upLocalOpts) error {
 		uploads:    extraUploads,
 		env:        agentCfg.BuildEnvMap(),
 	})
+	if err != nil {
+		return err
+	}
+
+	// Apply custom policy after sandbox creation (kind: policy in harness YAML).
+	// /etc/openshell/policy.yaml is read-only in the image, so policy changes
+	// must go through the openshell CLI which hot-reloads the policy.
+	if opts.harness != nil && opts.harness.Policy != nil {
+		policyFile, writeErr := os.CreateTemp("", "harness-policy-*.yaml")
+		if writeErr != nil {
+			return fmt.Errorf("creating policy temp file: %w", writeErr)
+		}
+		defer os.Remove(policyFile.Name())
+		if _, writeErr := policyFile.Write(opts.harness.Policy); writeErr != nil {
+			policyFile.Close()
+			return fmt.Errorf("writing policy: %w", writeErr)
+		}
+		policyFile.Close()
+
+		status.Info("Applying custom policy...")
+		if err := gw.PolicySet(sandboxName, policyFile.Name()); err != nil {
+			return fmt.Errorf("applying policy: %w", err)
+		}
+		status.OK("Policy applied")
+	}
+
+	return nil
 }

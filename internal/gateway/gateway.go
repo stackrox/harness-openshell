@@ -20,6 +20,9 @@ type Gateway interface {
 	SandboxStop(name string) error
 	SandboxStart(name string) error
 
+	// Policy
+	PolicySet(name, policyFile string) error
+
 	// Inference
 	InferenceGet() error
 	InferenceSet(provider, model string) error
