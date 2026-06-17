@@ -1,10 +1,10 @@
-# OpenCode with Vertex AI -- direct access (not inference.local).
-# inference.local only supports Anthropic format; OpenCode uses OpenAI format.
+# OpenCode with Vertex AI via inference.local/v1.
+# OpenCode uses ANTHROPIC_BASE_URL (not OPENAI_BASE_URL) with /v1 suffix.
 # Requires: gcloud auth application-default login, ANTHROPIC_VERTEX_PROJECT_ID.
 name: test-opencode
 entrypoint: opencode
 providers:
   - profile: vertex-local
 env:
-  GOOGLE_CLOUD_PROJECT: ${ANTHROPIC_VERTEX_PROJECT_ID}
-  VERTEX_LOCATION: global
+  ANTHROPIC_BASE_URL: https://inference.local/v1
+  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed

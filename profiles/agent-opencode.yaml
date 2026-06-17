@@ -1,19 +1,9 @@
 # OpenCode agent configuration.
 #
-# LIMITATION: OpenCode inference via Vertex AI is not currently supported
-# in OpenShell sandboxes. Two blockers:
-#   1. inference.local only supports Anthropic format (/v1/messages).
-#      OpenCode uses OpenAI format (/v1/chat/completions).
-#   2. Direct Vertex AI access requires ADC credentials on disk.
-#      OpenShell's proxy-managed credential model doesn't expose raw
-#      ADC files inside the sandbox.
-#
-# OpenCode CAN use the sandbox for MCP tools (Jira, GWS), GitHub,
-# and other providers -- just not for inference via Vertex AI.
-#
-# Workarounds:
-#   - Use an OpenAI API key provider (e.g., groq, openrouter) instead
-#   - Wait for OpenShell to add OpenAI format support to inference.local
+# OpenCode uses ANTHROPIC_BASE_URL with inference.local/v1 (note the /v1 suffix).
+# Without /v1, OpenCode sends POST /messages instead of POST /v1/messages,
+# which doesn't match the inference route pattern.
+# See: https://github.com/NVIDIA/OpenShell/blob/main/docs/providers/google-vertex-ai.mdx
 #
 # Usage:
 #   harness apply --agent opencode
@@ -24,8 +14,14 @@ tty: true
 
 providers:
   - profile: github
+  - profile: vertex-local
   - profile: atlassian
     env:
       JIRA_URL: ${JIRA_URL}
       JIRA_USERNAME: ${JIRA_USERNAME}
   - profile: gws
+
+# OpenCode needs /v1 suffix on ANTHROPIC_BASE_URL (different from Claude Code).
+env:
+  ANTHROPIC_BASE_URL: https://inference.local/v1
+  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
