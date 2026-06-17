@@ -75,6 +75,10 @@ func upLocal(opts upLocalOpts) error {
 
 	registered := ensureProviders(opts.harnessDir, gw, agentCfg, opts.providerRefresh, opts.harness)
 
+	if needsInference(agentCfg.EffectiveEntrypoint()) && !hasInferenceProvider(agentCfg.Providers) {
+		status.Warn("No inference provider configured — the agent will not be able to authenticate. Add google-vertex-ai to providers.")
+	}
+
 	// Clone repo outside the sandbox so git credentials never enter it.
 	var repoUpload *gateway.Upload
 	if agentCfg.Repo != "" {
@@ -187,4 +191,25 @@ func cloneRepo(repo string) (gateway.Upload, func(), error) {
 
 	status.OKf("Cloned %s", repoName)
 	return gateway.Upload{Src: cloneDir, Dst: "/sandbox"}, cleanup, nil
+}
+
+var inferenceProviders = map[string]bool{
+	"google-vertex-ai": true,
+}
+
+func needsInference(entrypoint string) bool {
+	switch entrypoint {
+	case "claude", "opencode":
+		return true
+	}
+	return false
+}
+
+func hasInferenceProvider(providers []agent.ProviderRef) bool {
+	for _, p := range providers {
+		if inferenceProviders[p.Profile] {
+			return true
+		}
+	}
+	return false
 }

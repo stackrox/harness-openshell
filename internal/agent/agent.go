@@ -24,6 +24,7 @@ type PayloadEntry struct {
 
 type AgentConfig struct {
 	Name       string            `yaml:"name"`
+	BaseAgent  string            `yaml:"base_agent,omitempty"`
 	Gateway    string            `yaml:"gateway,omitempty"`
 	Repo       string            `yaml:"repo,omitempty"`
 	Providers  []ProviderRef     `yaml:"providers"`
@@ -35,6 +36,74 @@ type AgentConfig struct {
 	Image      string            `yaml:"image,omitempty"`
 	Include    []string          `yaml:"include,omitempty"`
 	Payloads   []PayloadEntry    `yaml:"payloads,omitempty"`
+}
+
+// MergeOver applies overlay fields on top of a base config. Non-empty
+// overlay fields win. Providers and env are additive (overlay appends
+// to base). The overlay's name always wins.
+func (base *AgentConfig) MergeOver(overlay *AgentConfig) *AgentConfig {
+	merged := *base
+	merged.Name = overlay.Name
+	if overlay.Gateway != "" {
+		merged.Gateway = overlay.Gateway
+	}
+	if overlay.Repo != "" {
+		merged.Repo = overlay.Repo
+	}
+	if overlay.Entrypoint != "" {
+		merged.Entrypoint = overlay.Entrypoint
+	}
+	if overlay.Task != "" {
+		merged.Task = overlay.Task
+	}
+	if overlay.TTY != nil {
+		merged.TTY = overlay.TTY
+	}
+	if overlay.Policy != "" {
+		merged.Policy = overlay.Policy
+	}
+	if overlay.Image != "" {
+		merged.Image = overlay.Image
+	}
+
+	// Providers: base + overlay (deduplicated by profile name)
+	if len(overlay.Providers) > 0 {
+		seen := make(map[string]bool)
+		var providers []ProviderRef
+		for _, p := range overlay.Providers {
+			seen[p.Profile] = true
+			providers = append(providers, p)
+		}
+		for _, p := range base.Providers {
+			if !seen[p.Profile] {
+				providers = append(providers, p)
+			}
+		}
+		merged.Providers = providers
+	}
+
+	// Env: base + overlay (overlay wins on conflicts)
+	if len(overlay.Env) > 0 {
+		env := make(map[string]string)
+		for k, v := range base.Env {
+			env[k] = v
+		}
+		for k, v := range overlay.Env {
+			env[k] = v
+		}
+		merged.Env = env
+	}
+
+	// Payloads and includes: append
+	if len(overlay.Payloads) > 0 {
+		merged.Payloads = append(merged.Payloads, overlay.Payloads...)
+	}
+	if len(overlay.Include) > 0 {
+		merged.Include = append(merged.Include, overlay.Include...)
+	}
+
+	merged.BaseAgent = ""
+	return &merged
 }
 
 func (c *AgentConfig) NoTTY() bool {

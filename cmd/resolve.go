@@ -48,6 +48,12 @@ func resolveHarness(harnessDir, agentName, agentFile string) (*agent.Harness, er
 	path := resolveAgentPath(harnessDir, agentName, agentFile)
 	h, err := agent.ParseHarnessFile(path)
 	if err == nil {
+		if h.Agent.BaseAgent != "" {
+			h, err = resolveBaseAgent(harnessDir, h)
+			if err != nil {
+				return nil, err
+			}
+		}
 		return h, nil
 	}
 	if agentFile != "" || agentName != "default" || len(DefaultAgentConfig) == 0 {
@@ -57,6 +63,36 @@ func resolveHarness(harnessDir, agentName, agentFile string) (*agent.Harness, er
 		return nil, err
 	}
 	return agent.ParseHarness(DefaultAgentConfig)
+}
+
+func resolveBaseAgent(harnessDir string, overlay *agent.Harness) (*agent.Harness, error) {
+	baseName := overlay.Agent.BaseAgent
+	basePath := resolveAgentPath(harnessDir, baseName, "")
+	baseH, err := agent.ParseHarnessFile(basePath)
+	if err != nil {
+		if len(DefaultAgentConfig) > 0 && baseName == "default" {
+			baseH, err = agent.ParseHarness(DefaultAgentConfig)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("resolving base_agent %q: %w", baseName, err)
+		}
+	}
+	overlay.Agent = baseH.Agent.MergeOver(overlay.Agent)
+	// Merge base harness-level payloads, providers, gateways, policy
+	for name, data := range baseH.Providers {
+		if _, exists := overlay.Providers[name]; !exists {
+			overlay.Providers[name] = data
+		}
+	}
+	for name, data := range baseH.Gateways {
+		if _, exists := overlay.Gateways[name]; !exists {
+			overlay.Gateways[name] = data
+		}
+	}
+	if overlay.Policy == nil {
+		overlay.Policy = baseH.Policy
+	}
+	return overlay, nil
 }
 
 func resolveGatewayConfigWithHarness(harnessDir, name string, h *agent.Harness) (*gateway.GatewayConfig, error) {

@@ -37,6 +37,7 @@ env:
 
 Fields:
 - `name` (required) -- sandbox name, used for `openshell sandbox connect`
+- `base_agent` -- name of a base agent config to inherit from (e.g., `default` resolves `agent-default.yaml`). Providers, env, and payloads are merged additively; scalar fields (entrypoint, gateway, repo, task, image, policy) from the overlay win when non-empty.
 - `image` -- container image for the sandbox (default: version-matched from ghcr.io, override with `HARNESS_OS_IMAGE` env)
 - `entrypoint` -- command to run (default: `claude`). Supports `claude`, `opencode`, `bash`, or any binary on PATH.
 - `tty` -- enable TTY (default: true)

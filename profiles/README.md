@@ -8,6 +8,7 @@ Define what runs in the sandbox. One agent config = one sandbox.
 
 ```yaml
 name: agent                     # sandbox name
+base_agent: default             # inherit from agent-default.yaml (providers, env, payloads)
 entrypoint: claude              # claude, opencode, bash, or any binary on PATH
 tty: true                       # enable TTY (default: true)
 repo: https://github.com/org/repo  # cloned outside sandbox, uploaded to /sandbox/<repo>

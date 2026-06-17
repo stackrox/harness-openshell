@@ -25,15 +25,19 @@ harness apply -f harness.yaml --task @skills/cpp-pro/SKILL.md
 
 The `repo` field clones a repository outside the sandbox and uploads it. Git credentials never enter the sandbox.
 
+Use `base_agent` to inherit providers, env, and payloads from an existing config — you only specify what's different:
+
 ```yaml
 name: reviewer
+base_agent: default
 repo: https://github.com/stackrox/collector
-entrypoint: claude
 task: "identify the highest-priority C++ remediation"
 ```
 
+This inherits everything from `agent-default.yaml` (providers, inference routing, payloads) and adds the repo and task. Without `base_agent`, you'd need to specify the inference provider and env vars yourself.
+
 ```bash
-harness apply -f reviewer.yaml --task "focus on RAII and move semantics"
+harness apply -f reviewer.yaml
 ```
 
 ### Getting results out
@@ -226,14 +230,9 @@ make test-remote      # full e2e on OCP (needs KUBECONFIG)
 
 `test-kind` creates its own kind cluster, builds and loads the sandbox image, runs the full flow, and deletes the cluster on exit. Use `KEEP=1` to keep the cluster for debugging.
 
-`test-remote` requires `KUBECONFIG` pointing at an OCP cluster. Use `--reuse-gateway` to skip deploy/teardown when iterating.
+`test-remote` requires `KUBECONFIG` pointing at an OCP cluster and pushes the image automatically. Use `--reuse-gateway` to skip deploy/teardown when iterating.
 
-Dev images must be pushed before integration tests will pass:
-
-```bash
-make dev-push         # build + push multi-arch sandbox image
-make test-local       # now sandbox create can pull the image
-```
+Each integration target builds (and pushes, for remote) the sandbox image automatically.
 
 ## Documentation
 
