@@ -302,9 +302,13 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
         "$CLI" sandbox exec --name test-agent-int -- \
           bash -c 'result=$(echo "respond with ok" | claude --print 2>&1); test -n "$result"'
 
+      # OpenCode uses inference.local/v1 (OpenAI-compatible) via the proxy.
+      SANDBOXES_TO_CLEAN+=(test-opencode-int)
       run_test "agent: opencode inference via vertex" \
-        "$CLI" sandbox exec --name test-agent-int -- \
-          bash -c 'result=$(echo "respond with ok" | opencode --print 2>&1); test -n "$result"'
+        bash -c '"$1" apply -f "$2" --name test-opencode-int >/dev/null 2>&1 && \
+          for i in $(seq 1 10); do "$1" describe test-opencode-int >/dev/null 2>&1 && break; sleep 0.5; done && \
+          result=$("$3" sandbox exec --name test-opencode-int -- bash -c "opencode run \"respond with ok\" 2>&1") && \
+          test -n "$result"' _ "$HARNESS" "$CONFIGS/agent-opencode-vertex.yaml" "$CLI"
 
       if [[ -n "${GITHUB_TOKEN:-}" ]]; then
         run_test "agent: github via gh cli" \
