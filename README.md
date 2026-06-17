@@ -2,42 +2,7 @@
 
 > **Experimental.** Built on [OpenShell](https://github.com/NVIDIA/OpenShell), which is itself alpha software. Expect breaking changes in both.
 
-One-shot sandboxed agent runs. Point a skill at a repo, get results.
-
-```bash
-# Run a C++ review skill against a repo
-harness apply -f cpp-review.yaml --task "highest priority remediation"
-```
-
-```yaml
-# cpp-review.yaml
-kind: agent
-name: cpp-review
-entrypoint: claude
-task: @skills/cpp-pro/SKILL.md
-
-providers:
-  - profile: github
-  - profile: google-vertex-ai
-
-payloads:
-  - sandbox_path: /sandbox/.claude/CLAUDE.md
-    content: |
-      You are a C++ expert. Clone github.com/stackrox/collector
-      and apply the cpp-pro skill to identify the highest-priority
-      remediation. Focus on modern C++ (17/20), RAII, move semantics,
-      and concurrency safety.
-```
-
-The harness wires up the sandbox, credentials, and network policy. The agent runs the task and exits.
-
-## Why this exists
-
-[OpenShell](https://github.com/NVIDIA/OpenShell) is a foundation layer -- sandboxed containers with deny-by-default L7 network policy, credential proxy, Landlock filesystem isolation, and inference routing. It is designed as a strict, secure base that other tooling builds workflows on.
-
-The harness is a workflow layer on top. It bridges the gap between "I have a skill and a target repo" and "the agent is running in a sandbox with the right credentials and network access." One YAML file defines the agent, providers, payloads, and policy. One command deploys it.
-
-OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that -- and covers the local Podman development path that no operator will own.
+Declarative workflow layer for OpenShell AI agent sandboxes.
 
 ## Quick Start
 
@@ -47,30 +12,37 @@ harness doctor                      # check your environment
 harness apply -f harness.yaml       # launch a sandbox
 ```
 
-`init` asks three questions and writes a `harness.yaml`. `doctor` validates your environment. `apply` deploys the sandbox.
-
 ### One-shot tasks
 
+Run a task headlessly -- the agent executes in a sandbox and outputs results.
+
 ```bash
-# Inline task
 harness apply -f harness.yaml --task "review this codebase for security issues"
-
-# Task from a file (skill, playbook, checklist)
 harness apply -f harness.yaml --task @skills/cpp-pro/SKILL.md
-
-# Interactive mode
-harness apply -f harness.yaml --attach
 ```
 
-### Multi-target
+### Coding agent
+
+Launch an interactive coding session with Claude Code or OpenCode.
 
 ```bash
-harness apply -f harness.yaml                    # local Podman
-harness apply -f harness.yaml --gateway ocp      # OpenShift
-harness apply -f harness.yaml --gateway kind      # kind cluster
+# Local (Podman)
+harness apply -f harness.yaml --attach
+
+# On OpenShift
+harness apply -f harness.yaml --attach --gateway ocp
+
+# OpenCode instead of Claude
+harness apply -f harness.yaml --attach --entrypoint opencode
 ```
 
-Same config, different targets.
+## Why this exists
+
+[OpenShell](https://github.com/NVIDIA/OpenShell) is a foundation layer -- sandboxed containers with deny-by-default L7 network policy, credential proxy, Landlock filesystem isolation, and inference routing. It is designed as a strict, secure base that other tooling builds workflows on top of.
+
+The harness is one such workflow layer. One YAML file defines the agent, providers, payloads, and policy. One command deploys it -- locally via Podman or remotely on Kubernetes.
+
+OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that -- and covers the local Podman development path that no operator will own.
 
 ## The Agent YAML
 
