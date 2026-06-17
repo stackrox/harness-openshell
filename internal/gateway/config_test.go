@@ -27,8 +27,8 @@ gateway:
   name: my-ocp
 
 providers:
-  enabled: [github, vertex-local]
-  custom: [gws]
+  enabled: [github, google-vertex-ai]
+  custom: [google-workspace]
 
 chart:
   oci: oci://example.com/chart
@@ -71,8 +71,8 @@ secrets:
 	if len(cfg.Providers.Enabled) != 2 {
 		t.Errorf("providers.enabled = %v, want 2 entries", cfg.Providers.Enabled)
 	}
-	if len(cfg.Providers.Custom) != 1 || cfg.Providers.Custom[0] != "gws" {
-		t.Errorf("providers.custom = %v, want [gws]", cfg.Providers.Custom)
+	if len(cfg.Providers.Custom) != 1 || cfg.Providers.Custom[0] != "google-workspace" {
+		t.Errorf("providers.custom = %v, want [google-workspace]", cfg.Providers.Custom)
 	}
 	if cfg.Chart.OCI != "oci://example.com/chart" {
 		t.Errorf("chart.oci = %q, want oci://example.com/chart", cfg.Chart.OCI)

@@ -13,12 +13,12 @@ tty: true
 
 providers:
   - profile: github
-  - profile: vertex-local
+  - profile: google-vertex-ai
   - profile: atlassian
     env:
       JIRA_URL: ${JIRA_URL}
       JIRA_USERNAME: ${JIRA_USERNAME}
-  - profile: gws
+  - profile: google-workspace
 
 env:
   ANTHROPIC_BASE_URL: https://inference.local/v1

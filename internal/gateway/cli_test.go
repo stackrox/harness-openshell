@@ -21,7 +21,7 @@ func TestProviderList_ParsesTable(t *testing.T) {
 	bin := writeStub(t, `#!/bin/bash
 printf "NAME\tTYPE\tSTATUS\n"
 printf "github\tgithub\tactive\n"
-printf "vertex-local\tgoogle-vertex-ai\tactive\n"
+printf "google-vertex-ai\tgoogle-vertex-ai\tactive\n"
 printf "atlassian\tatlassian\tactive\n"
 `)
 	gw := New(bin)
@@ -32,7 +32,7 @@ printf "atlassian\tatlassian\tactive\n"
 	if len(names) != 3 {
 		t.Fatalf("got %d providers, want 3: %v", len(names), names)
 	}
-	if names[0] != "github" || names[1] != "vertex-local" || names[2] != "atlassian" {
+	if names[0] != "github" || names[1] != "google-vertex-ai" || names[2] != "atlassian" {
 		t.Errorf("names = %v", names)
 	}
 }
@@ -137,7 +137,7 @@ echo "$@" > `+argsFile+`
 	gw.SandboxCreate(SandboxCreateOpts{
 		Name:      "my-agent",
 		From:      "quay.io/test:latest",
-		Providers: []string{"github", "vertex-local"},
+		Providers: []string{"github", "google-vertex-ai"},
 		TTY:       true,
 		Keep:      false,
 		Uploads: []Upload{{Src: "/tmp/openshell", Dst: "/sandbox/.config"}},
@@ -151,7 +151,7 @@ echo "$@" > `+argsFile+`
 		"--tty",
 		"--from quay.io/test:latest",
 		"--provider github",
-		"--provider vertex-local",
+		"--provider google-vertex-ai",
 		"--no-keep",
 		"--upload /tmp/openshell:/sandbox/.config",
 		"--no-git-ignore",
@@ -466,7 +466,7 @@ func TestProviderCreate_Args(t *testing.T) {
 printf '%s\n' "$*" > `+argsFile+`
 `)
 	gw := New(bin)
-	gw.ProviderCreate("vertex-local", "google-vertex-ai", ProviderCreateOpts{
+	gw.ProviderCreate("google-vertex-ai", "google-vertex-ai", ProviderCreateOpts{
 		FromADC:     true,
 		Credentials: []string{"TOKEN=abc"},
 		Configs:     []string{"PROJECT=my-proj", "REGION=us-east5"},
@@ -474,7 +474,7 @@ printf '%s\n' "$*" > `+argsFile+`
 	data, _ := os.ReadFile(argsFile)
 	args := strings.TrimSpace(string(data))
 	for _, want := range []string{
-		"--name vertex-local",
+		"--name google-vertex-ai",
 		"--type google-vertex-ai",
 		"--from-gcloud-adc",
 		"--credential TOKEN=abc",
@@ -494,12 +494,12 @@ func TestInferenceSet_Args(t *testing.T) {
 printf '%s\n' "$*" > `+argsFile+`
 `)
 	gw := New(bin)
-	gw.InferenceSet("vertex-local", "claude-sonnet-4-6")
+	gw.InferenceSet("google-vertex-ai", "claude-sonnet-4-6")
 	data, _ := os.ReadFile(argsFile)
 	args := strings.TrimSpace(string(data))
 	for _, want := range []string{
 		"inference set",
-		"--provider vertex-local",
+		"--provider google-vertex-ai",
 		"--model claude-sonnet-4-6",
 		"--no-verify",
 	} {

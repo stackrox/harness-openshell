@@ -2,18 +2,18 @@
 
 ## Next up
 
-### `harness init`
-- [ ] Generate a default `harness.yaml` in the current directory
-- [ ] Detect available credentials and suggest providers
-- [ ] Print next steps ("run `harness apply -f harness.yaml`")
-- [ ] Highest-impact missing feature for standalone distribution
+### `harness init` [DONE]
+- [x] Generate a harness.yaml with interactive prompts (entrypoint, providers, gateway)
+- [x] Discover providers from `openshell provider list-profiles`
+- [x] Print next steps ("run `harness doctor` then `harness apply`")
+- [x] `--non-interactive`, `--force`, `--output` flags
 
-### `harness doctor`
-- [ ] Check openshell installed and >= 0.0.59
-- [ ] Check podman/docker running
-- [ ] Check gateway reachable
-- [ ] Check credentials available (GITHUB_TOKEN, ADC, JIRA, GWS)
-- [ ] Actionable error messages ("install with: brew tap nvidia/openshell...")
+### `harness doctor` [DONE]
+- [x] Check openshell installed and version
+- [x] Check target-specific deps (podman/docker, kubectl, kind, kubeconfig)
+- [x] Check provider credentials via `openshell provider profile export`
+- [x] Online phase: check provider registration if gateway reachable
+- [x] `-o table|json|yaml` output
 
 ### registerProviders should filter by agent's provider list
 - `registerProviders()` in `cmd/providers.go` registers all providers regardless
@@ -62,11 +62,19 @@
 - Prerequisite: proto files stabilize (OpenShell is alpha)
 
 ### Upstream issues to track
-- #1719 -- K8s Operator design (affects provider CRDs)
+- #1719 -- K8s Operator design (providers as CRDs, gateway narrows to data-plane)
 - #1851 -- Plugin system (affects binary naming)
-- #1886 -- Declarative provider config in gateway.toml
+- #1886 -- Declarative provider config in gateway.toml (core team rejected; redirected to #1719)
+- #1520 -- Sandbox specs / apply -f (stale, no maintainer engagement)
+- #1814 -- Named sandbox templates (no comments, blocked on #863)
 - #1922 -- Portable sandbox log collection
 - #1933 -- Centralized audit/event log
+
+Upstream direction signal (as of 2026-06): the gateway stays a strict foundation
+layer. Provider lifecycle and sandbox declaration are moving toward the operator/CRD
+model for K8s. johntmyers mentioned hooks/middleware for API calls coming soon.
+The harness's provider registration and multi-document YAML have no upstream
+replacement on the current roadmap.
 
 ## Observability & Tracing
 
@@ -76,4 +84,4 @@ OTel backend. Integration deferred until `init`/`doctor` ship.
 ## Release
 
 - [x] CHANGELOG.md + LICENSE (Apache 2.0)
-- [ ] `harness init` for standalone binary distribution
+- [x] `harness init` for standalone binary distribution

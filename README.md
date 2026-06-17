@@ -1,35 +1,125 @@
 # harness
 
-Declarative configuration harness for [OpenShell](https://github.com/NVIDIA/OpenShell) AI agent sandboxes.
+> **Experimental.** Built on [OpenShell](https://github.com/NVIDIA/OpenShell), which is itself alpha software. Expect breaking changes in both.
+
+Declarative workflow layer for OpenShell AI agent sandboxes.
+
+## Quick Start
 
 ```bash
-harness apply -f agent.yaml
+harness init                        # generate a config
+harness doctor                      # check your environment
+harness apply -f harness.yaml       # launch a sandbox
 ```
 
-## OpenShell provides the runtime
+### One-shot tasks
 
-[OpenShell](https://github.com/NVIDIA/OpenShell) runs AI agents in sandboxed containers with deny-by-default L7 network policy, credential proxy at the network boundary, Landlock filesystem isolation, and inference routing. The harness does not replace any of this.
+Run a task headlessly -- the agent executes in a sandbox and outputs results.
 
-## The harness adds declarative configuration
+```bash
+harness apply -f harness.yaml --task "review this codebase for security issues"
+harness apply -f harness.yaml --task @skills/cpp-pro/SKILL.md
+```
 
-- **One-file agent definition** -- agent, providers, gateway, policy, and sandbox files in a single YAML
-- **Multi-document YAML** -- `kind: agent/provider/gateway/payload/policy` composed in one file
-- **Payload files** -- upload configs to sandbox paths without rebuilding the image
-- **Headless task mode** -- `--task "do something"` runs the agent and outputs to stdout
-- **Multi-target deploy** -- same YAML works on local Podman, kind, and OpenShell
-- **Dry-run validation** -- `--dry-run` checks everything before deploying
-- **Config inspection** -- `-o yaml` outputs the fully resolved config
+### Coding agent
 
-## Use OpenShell directly for runtime operations
+Launch an interactive coding session with Claude Code or OpenCode.
 
+```bash
+# Local (Podman)
+harness apply -f harness.yaml --attach
+
+# On OpenShift
+harness apply -f harness.yaml --attach --gateway ocp
+
+# OpenCode instead of Claude
+harness apply -f harness.yaml --attach --entrypoint opencode
+```
+
+## Why this exists
+
+[OpenShell](https://github.com/NVIDIA/OpenShell) is a foundation layer -- sandboxed containers with deny-by-default L7 network policy, credential proxy, Landlock filesystem isolation, and inference routing. It is designed as a strict, secure base that other tooling builds workflows on top of.
+
+The harness is one such workflow layer. One YAML file defines the agent, providers, payloads, and policy. One command deploys it -- locally via Podman or remotely on Kubernetes.
+
+OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that -- and covers the local Podman development path that no operator will own.
+
+## The Agent YAML
+
+A single file defines what runs, what credentials it gets, and what files are uploaded to the sandbox.
+
+```yaml
+name: agent
+entrypoint: claude
+tty: true
+
+providers:
+  - profile: github
+  - profile: google-vertex-ai
+  - profile: atlassian
+    env:
+      JIRA_URL: ${JIRA_URL}
+      JIRA_USERNAME: ${JIRA_USERNAME}
+
+env:
+  ANTHROPIC_BASE_URL: https://inference.local
+
+payloads:
+  - sandbox_path: /sandbox/.claude/CLAUDE.md
+    local_path: profiles/images/sandbox-default/CLAUDE.md
+  - sandbox_path: /sandbox/.mcp.json
+    local_path: profiles/images/sandbox-default/mcp.json
+```
+
+### Multi-document YAML
+
+Bundle agent, providers, payloads, and policy in one file:
+
+```yaml
+---
+kind: agent
+name: cpp-reviewer
+entrypoint: claude
+providers:
+  - profile: github
+---
+kind: provider
+name: github
+type: github
+credentials: [GITHUB_TOKEN]
+---
+kind: payload
+sandbox_path: /sandbox/.claude/CLAUDE.md
+content: |
+  You are a C++ security review agent.
+---
+kind: policy
+network_policies:
+  github:
+    endpoints:
+      - { host: "api.github.com", port: 443 }
+```
+
+## How It Works
+
+```
+harness apply -f config.yaml
+    |
+    +-> Deploy gateway (Podman container or K8s StatefulSet)
+    +-> Register providers (credentials from host env)
+    +-> Upload payloads (CLAUDE.md, MCP config, skills)
+    +-> Create sandbox (isolated container, deny-by-default network)
+    +-> Run task (agent executes, outputs results)
+```
+
+OpenShell provides the runtime isolation. The harness provides the workflow.
+
+For runtime operations, use openshell directly:
 ```bash
 openshell sandbox connect <name>     # interactive shell
 openshell sandbox exec <name> -- ... # run commands
 openshell sandbox logs <name>        # view logs
-openshell policy get <name>          # inspect policy
 ```
-
-The harness handles setup. OpenShell handles the runtime.
 
 ## Install
 
@@ -44,186 +134,49 @@ chmod +x harness
 
 Or build from source: `make cli`
 
-## Quick Start
-
-```bash
-# Set credentials (missing ones are skipped gracefully)
-export GITHUB_TOKEN=ghp_...
-
-# Deploy a sandbox with the default agent config
-harness apply -f profiles/agent-default.yaml
-
-# Run a task headlessly (agent outputs to stdout)
-harness apply -f profiles/agent-default.yaml --task "review this codebase for security issues"
-
-# Run a task from a file
-harness apply -f profiles/agent-default.yaml --task @tasks/review.md
-
-# Interactive mode
-harness apply -f profiles/agent-default.yaml --attach
-
-# Validate without deploying
-harness apply -f profiles/agent-default.yaml --dry-run
-
-# See the fully resolved config
-harness apply -f profiles/agent-default.yaml -o yaml
-
-# Override the entrypoint
-harness apply -f profiles/agent-default.yaml --entrypoint opencode
-```
-
-## The Agent YAML
-
-```yaml
-# profiles/agent-default.yaml
-name: agent
-entrypoint: claude
-tty: true
-
-providers:
-  - profile: github
-  - profile: vertex-local
-  - profile: atlassian
-    env:
-      JIRA_URL: ${JIRA_URL}
-      JIRA_USERNAME: ${JIRA_USERNAME}
-  - profile: gws
-
-env:
-  ANTHROPIC_BASE_URL: https://inference.local
-  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
-
-payloads:
-  - sandbox_path: /sandbox/.claude/CLAUDE.md
-    local_path: profiles/images/sandbox-default/CLAUDE.md
-  - sandbox_path: /sandbox/.claude.json
-    local_path: profiles/images/sandbox-default/claude.json
-  - sandbox_path: /sandbox/.mcp.json
-    local_path: profiles/images/sandbox-default/mcp.json
-```
-
-### Multi-Document Harness YAML
-
-Bundle everything in one file:
-
-```yaml
----
-kind: agent
-name: my-agent
-entrypoint: claude
-providers:
-  - profile: github
----
-kind: provider
-name: github
-type: github
-credentials: [GITHUB_TOKEN]
----
-kind: payload
-sandbox_path: /sandbox/.claude/CLAUDE.md
-content: |
-  You are a security review agent.
----
-kind: policy
-network_policies:
-  github:
-    endpoints:
-      - { host: "api.github.com", port: 443 }
-```
-
-```bash
-harness apply -f harness.yaml
-```
-
-## Targets
-
-```bash
-harness apply -f profiles/agent-default.yaml                     # local Podman
-harness apply -f profiles/agent-default.yaml --gateway ocp        # deploy to OpenShift
-harness apply -f profiles/agent-opencode.yaml                     # OpenCode agent
-harness deploy ocp                                                # deploy gateway only
-```
-
-## How It Works
-
-```
-harness CLI --> openshell CLI --> Gateway (Podman or K8s)
-                                   |-- Provider credentials
-                                   |-- L7 network policy
-                                   |-- inference.local proxy
-                                   +-- Sandbox container
-                                        |-- claude / opencode
-                                        |-- gh, mcp-atlassian, gws
-                                        +-- placeholder tokens
-```
-
-The harness orchestrates three OpenShell components:
-
-- **Gateway** -- credential proxy and L7 network policy engine. Runs as Podman container (local) or K8s StatefulSet (remote).
-- **Providers** -- credential registrations. Provider profiles in `profiles/providers/` are imported to the gateway. Missing credentials are skipped.
-- **Sandbox** -- isolated container running the agent entrypoint. Credentials are proxy-managed placeholder tokens. Network egress is deny-by-default at L7.
-
-See the [OpenShell docs](https://github.com/NVIDIA/OpenShell) for the full security model.
-
 ## Reference
 
 ### Commands
 
-```
-harness apply -f FILE [--task TEXT|@FILE] [--entrypoint NAME] [--gateway NAME] [--attach] [--dry-run] [-o yaml|json]
-    Deploy a sandboxed agent from a config file.
-    -f is required -- always specify which config to apply.
-    --task runs the agent headlessly with a task (inline text or @filepath).
-    --entrypoint overrides the agent entrypoint (claude, opencode, bash).
-    --attach enables interactive TTY mode.
-    --dry-run validates without deploying.
-    -o yaml outputs the fully resolved config.
+| Command | What it does |
+|---------|--------------|
+| `harness init` | Generate a harness.yaml (interactive or `--non-interactive`) |
+| `harness doctor` | Validate environment (offline + online checks) |
+| `harness apply -f FILE` | Deploy a sandbox from config |
+| `harness apply --task TEXT` | One-shot headless run |
+| `harness apply --task @FILE` | One-shot from a skill/playbook file |
+| `harness apply --attach` | Interactive TTY mode |
+| `harness apply --dry-run` | Validate without deploying |
+| `harness apply -o yaml` | Output resolved config |
+| `harness deploy [local\|ocp\|kind]` | Deploy gateway only |
+| `harness get agents\|providers\|gateways` | List resources |
+| `harness describe <name>` | Sandbox details |
+| `harness delete <name> [--all]` | Tear down |
 
-harness deploy [local|ocp|kind]
-    Deploy or verify the gateway for a target.
+### Credentials
 
-harness get agents|providers|gateways [-o table|json|yaml]
-    List resources with consistent structured output.
+Each provider discovers credentials from the host. Missing providers are skipped.
 
-harness describe <name> [-o table|json|yaml]
-    Detailed status for a specific sandbox.
-
-harness delete <name> [--all] [--providers] [--k8s]
-    Delete sandboxes or other resources.
-```
-
-For runtime operations, use openshell directly:
-```
-openshell sandbox connect [NAME]
-openshell sandbox logs [NAME] [--tail]
-openshell sandbox exec [NAME] -- ...
-```
+| Provider | Required |
+|----------|----------|
+| `github` | `GITHUB_TOKEN` env var |
+| `google-vertex-ai` | `gcloud auth application-default login` + `ANTHROPIC_VERTEX_PROJECT_ID` |
+| `atlassian` | `JIRA_API_TOKEN` + `JIRA_URL` + `JIRA_USERNAME` |
+| `google-workspace` | `gws auth login` ([gws CLI](https://github.com/googleworkspace/cli)) |
 
 ### Config Files
 
 | File | Purpose |
 |------|---------|
-| `profiles/agent-*.yaml` | Agent config: image, entrypoint, providers, env, payloads, task |
-| `profiles/providers/` | OpenShell provider profiles (imported to gateway on registration) |
-| `profiles/gateways/*.yaml` | Gateway profiles: `local.yaml`, `kind.yaml`, `ocp.yaml` |
+| `profiles/agent-*.yaml` | Agent configs |
+| `profiles/providers/` | Provider profiles (imported to gateway) |
+| `profiles/gateways/*.yaml` | Gateway profiles per target |
 | `profiles/images/sandbox-default/` | Sandbox image defaults (overridable via payloads) |
 
-### Credentials
-
-Each provider requires credentials on the host. Missing providers are skipped.
-
-| Provider | Required |
-|----------|----------|
-| `github` | `GITHUB_TOKEN` env var |
-| `vertex-local` | `gcloud auth application-default login` + `ANTHROPIC_VERTEX_PROJECT_ID` + `CLOUD_ML_REGION` |
-| `atlassian` | `JIRA_API_TOKEN` + `JIRA_URL` + `JIRA_USERNAME` |
-| `gws` | `gws auth login` (OAuth via [gws CLI](https://github.com/googleworkspace/cli)) |
-
-## Documentation Map
+## Documentation
 
 | Document | What it is |
 |----------|------------|
-| [SPEC.md](SPEC.md) | Authoritative behavior spec for the CLI |
-| [AGENTS.md](AGENTS.md) | Contributor guide: coding principles, upstream conventions, validation |
-| [TODO.md](TODO.md) | Roadmap and known gaps |
-| [docs/archive/](docs/archive/README.md) | Historical design docs |
+| [SPEC.md](SPEC.md) | Behavior spec for the CLI |
+| [AGENTS.md](AGENTS.md) | Contributor guide |
+| [TODO.md](TODO.md) | Roadmap and upstream tracking |

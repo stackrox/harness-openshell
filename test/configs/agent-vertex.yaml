@@ -4,7 +4,7 @@
 name: test-vertex
 entrypoint: bash
 providers:
-  - profile: vertex-local
+  - profile: google-vertex-ai
 env:
   ANTHROPIC_BASE_URL: https://inference.local
   ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed

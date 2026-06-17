@@ -9,7 +9,7 @@ version: 1
 #
 # Active providers:
 #   github        (builtin)          → api.github.com, github.com (read-only)
-#   vertex-local  (google-vertex-ai) → Vertex AI + Google OAuth (inference.local routing)
+#   google-vertex-ai                 → Vertex AI + Google OAuth (inference.local routing)
 #   atlassian     (custom profile)   → *.atlassian.net, *.atlassian.com (Basic auth resolved by proxy)
 #
 # Endpoints in this file (not covered by any provider profile):

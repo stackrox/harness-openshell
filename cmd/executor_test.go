@@ -139,8 +139,8 @@ func TestUpLocal_SandboxCreateOpts(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := setupTestAgent(t)
 	gw := &mockGW{
-		providerList: []string{"github", "vertex-local"},
-		providers:    map[string]bool{"github": true, "vertex-local": true},
+		providerList: []string{"github", "google-vertex-ai"},
+		providers:    map[string]bool{"github": true, "google-vertex-ai": true},
 	}
 
 	err := upLocal(upLocalOpts{

@@ -9,7 +9,7 @@ entrypoint: claude
 tty: true
 
 providers:
-  - profile: vertex-local
+  - profile: google-vertex-ai
 
 env:
   ANTHROPIC_BASE_URL: https://inference.local

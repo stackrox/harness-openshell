@@ -18,13 +18,13 @@ func (s *stubProviderChecker) ProviderGet(name string) error {
 
 func TestValidateProviders(t *testing.T) {
 	gw := &stubProviderChecker{providers: map[string]bool{
-		"github":       true,
-		"vertex-local": true,
+		"github":           true,
+		"google-vertex-ai": true,
 	}}
 
-	registered, missing := ValidateProviders([]string{"github", "vertex-local", "atlassian"}, gw)
-	if len(registered) != 2 || registered[0] != "github" || registered[1] != "vertex-local" {
-		t.Errorf("registered = %v, want [github vertex-local]", registered)
+	registered, missing := ValidateProviders([]string{"github", "google-vertex-ai", "atlassian"}, gw)
+	if len(registered) != 2 || registered[0] != "github" || registered[1] != "google-vertex-ai" {
+		t.Errorf("registered = %v, want [github google-vertex-ai]", registered)
 	}
 	if len(missing) != 1 || missing[0] != "atlassian" {
 		t.Errorf("missing = %v, want [atlassian]", missing)

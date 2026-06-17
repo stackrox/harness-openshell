@@ -56,7 +56,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, provid
 			return err
 		}
 	}
-	if _, ok := wanted["vertex-local"]; ok {
+	if _, ok := wanted["google-vertex-ai"]; ok {
 		home, _ := os.UserHomeDir()
 		adcPath := envOr("GOOGLE_APPLICATION_CREDENTIALS",
 			filepath.Join(home, ".config", "gcloud", "application_default_credentials.json"))
@@ -67,7 +67,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, provid
 			configs = append(configs, "VERTEX_AI_PROJECT_ID="+project)
 		}
 		configs = append(configs, "VERTEX_AI_REGION="+region)
-		if err := registerADC("vertex-local", "google-vertex-ai", model, gw, configs); err != nil {
+		if err := registerADC("google-vertex-ai", "google-vertex-ai", model, gw, configs); err != nil {
 			return err
 		}
 	}
@@ -76,7 +76,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, provid
 			return err
 		}
 	}
-	if _, ok := wanted["gws"]; ok {
+	if _, ok := wanted["google-workspace"]; ok {
 		if err := registerGWS(harnessDir, gw); err != nil {
 			return err
 		}
@@ -156,8 +156,8 @@ func registerADC(name, profileType, model string, gw gateway.Gateway, configs []
 }
 
 func registerGWS(harnessDir string, gw gateway.Gateway) error {
-	if gw.ProviderGet("gws") == nil {
-		status.Info("gws: exists (use --provider-refresh to recreate)")
+	if gw.ProviderGet("google-workspace") == nil {
+		status.Info("google-workspace: exists (use --provider-refresh to recreate)")
 		return nil
 	}
 
@@ -188,10 +188,10 @@ func registerGWS(harnessDir string, gw gateway.Gateway) error {
 	}
 
 	// Create provider with a placeholder — the gateway will refresh it immediately.
-	if err := gw.ProviderCreate("gws", "google-workspace", gateway.ProviderCreateOpts{
+	if err := gw.ProviderCreate("google-workspace", "google-workspace", gateway.ProviderCreateOpts{
 		Credentials: []string{"GOOGLE_WORKSPACE_CLI_TOKEN=pending"},
 	}); err != nil {
-		return fmt.Errorf("creating gws provider: %w", err)
+		return fmt.Errorf("creating google-workspace provider: %w", err)
 	}
 
 	// Read scopes from the provider profile so they're defined in one place.
@@ -209,21 +209,21 @@ func registerGWS(harnessDir string, gw gateway.Gateway) error {
 	if profileScopes != "" {
 		material = append(material, "scopes="+profileScopes)
 	}
-	if err := gw.ProviderRefreshConfigure("gws", gateway.ProviderRefreshOpts{
+	if err := gw.ProviderRefreshConfigure("google-workspace", gateway.ProviderRefreshOpts{
 		CredentialKey:      "GOOGLE_WORKSPACE_CLI_TOKEN",
 		Strategy:           "oauth2-refresh-token",
 		Material:           material,
 		SecretMaterialKeys: []string{"client_secret", "refresh_token"},
 	}); err != nil {
-		return fmt.Errorf("configuring gws refresh: %w", err)
+		return fmt.Errorf("configuring google-workspace refresh: %w", err)
 	}
 
 	// Force an immediate refresh so the token is valid before the first sandbox.
-	if err := gw.ProviderRefreshRotate("gws", "GOOGLE_WORKSPACE_CLI_TOKEN"); err != nil {
-		status.Infof("gws: refresh rotate failed (token will refresh automatically): %v", err)
+	if err := gw.ProviderRefreshRotate("google-workspace", "GOOGLE_WORKSPACE_CLI_TOKEN"); err != nil {
+		status.Infof("google-workspace: refresh rotate failed (token will refresh automatically): %v", err)
 	}
 
-	status.OK("gws: registered (gateway-managed token refresh)")
+	status.OK("google-workspace: registered (gateway-managed token refresh)")
 	return nil
 }
 

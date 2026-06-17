@@ -66,6 +66,8 @@ func main() {
 		cmd.NewDescribeCmd(harnessDir, cli),
 		cmd.NewDeleteCmd(harnessDir, cli),
 		cmd.NewDeployCmd(harnessDir, cli),
+		cmd.NewDoctorCmd(harnessDir, cli),
+		cmd.NewInitCmd(),
 	)
 
 	// Deprecated aliases

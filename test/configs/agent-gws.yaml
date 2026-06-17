@@ -4,4 +4,4 @@
 name: test-gws
 entrypoint: bash
 providers:
-  - profile: gws
+  - profile: google-workspace

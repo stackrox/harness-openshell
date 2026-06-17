@@ -4,7 +4,7 @@
 name: test-opencode
 entrypoint: opencode
 providers:
-  - profile: vertex-local
+  - profile: google-vertex-ai
 env:
   ANTHROPIC_BASE_URL: https://inference.local/v1
   ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed

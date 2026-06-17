@@ -77,7 +77,7 @@ image: quay.io/test:latest
 entrypoint: claude
 providers:
   - profile: github
-  - profile: vertex-local
+  - profile: google-vertex-ai
   - profile: atlassian
 env:
   FOO: bar

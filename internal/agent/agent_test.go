@@ -101,14 +101,14 @@ func TestProviderNames(t *testing.T) {
 		Providers: []ProviderRef{
 			{Profile: "github"},
 			{Profile: "atlassian"},
-			{Profile: "gws"},
+			{Profile: "google-workspace"},
 		},
 	}
 	names := cfg.ProviderNames()
 	if len(names) != 3 {
 		t.Fatalf("len = %d, want 3", len(names))
 	}
-	if names[0] != "github" || names[1] != "atlassian" || names[2] != "gws" {
+	if names[0] != "github" || names[1] != "atlassian" || names[2] != "google-workspace" {
 		t.Errorf("names = %v", names)
 	}
 }
