@@ -1,0 +1,6 @@
+# GitHub-only agent -- single provider, from-existing credential style.
+# Tests: provider registration with GITHUB_TOKEN env var.
+name: test-github
+entrypoint: bash
+providers:
+  - profile: github

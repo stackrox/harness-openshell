@@ -1,0 +1,15 @@
+---
+# Harness with inline policy.
+# Tests: kind: policy parsing, policy document stored in harness.
+kind: agent
+name: test-policy
+entrypoint: bash
+providers: []
+---
+kind: policy
+network_policies:
+  test_egress:
+    name: test-egress
+    endpoints:
+      - host: "httpbin.org"
+        port: 443

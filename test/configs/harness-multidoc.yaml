@@ -1,0 +1,22 @@
+---
+# Multi-document harness YAML test.
+# Tests: kind dispatch, inline provider, inline gateway, local-first resolution.
+kind: agent
+name: test-multidoc
+entrypoint: bash
+providers:
+  - profile: test-inline
+env:
+  TEST_MARKER: "multidoc-test"
+---
+kind: provider
+name: test-inline
+type: github
+credentials: [GITHUB_TOKEN]
+endpoints:
+  - host: "api.github.com"
+    port: 443
+---
+kind: gateway
+name: local
+type: local

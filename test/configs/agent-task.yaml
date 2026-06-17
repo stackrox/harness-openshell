@@ -1,0 +1,6 @@
+# Task agent -- tests task file rendering and -p flag.
+# Tests: task.md rendered with envsubst, passed to entrypoint.
+name: test-task
+entrypoint: bash
+providers: []
+task: test/configs/task.md
