@@ -2,18 +2,18 @@
 
 ## Next up
 
-### `harness init`
-- [ ] Generate a default `harness.yaml` in the current directory
-- [ ] Detect available credentials and suggest providers
-- [ ] Print next steps ("run `harness apply -f harness.yaml`")
-- [ ] Highest-impact missing feature for standalone distribution
+### `harness init` [DONE]
+- [x] Generate a harness.yaml with interactive prompts (entrypoint, providers, gateway)
+- [x] Discover providers from `openshell provider list-profiles`
+- [x] Print next steps ("run `harness doctor` then `harness apply`")
+- [x] `--non-interactive`, `--force`, `--output` flags
 
-### `harness doctor`
-- [ ] Check openshell installed and >= 0.0.59
-- [ ] Check podman/docker running
-- [ ] Check gateway reachable
-- [ ] Check credentials available (GITHUB_TOKEN, ADC, JIRA, GWS)
-- [ ] Actionable error messages ("install with: brew tap nvidia/openshell...")
+### `harness doctor` [DONE]
+- [x] Check openshell installed and version
+- [x] Check target-specific deps (podman/docker, kubectl, kind, kubeconfig)
+- [x] Check provider credentials via `openshell provider profile export`
+- [x] Online phase: check provider registration if gateway reachable
+- [x] `-o table|json|yaml` output
 
 ### registerProviders should filter by agent's provider list
 - `registerProviders()` in `cmd/providers.go` registers all providers regardless
@@ -76,4 +76,4 @@ OTel backend. Integration deferred until `init`/`doctor` ship.
 ## Release
 
 - [x] CHANGELOG.md + LICENSE (Apache 2.0)
-- [ ] `harness init` for standalone binary distribution
+- [x] `harness init` for standalone binary distribution
