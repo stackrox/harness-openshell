@@ -23,7 +23,7 @@ harness apply -f harness.yaml --task @skills/cpp-pro/SKILL.md
 
 ### Clone a repo into the sandbox
 
-The `repo` field clones a repository outside the sandbox and uploads it. Git credentials never enter the sandbox.
+The `repo` field clones a repository outside the sandbox and uploads it. Git credentials never enter the sandbox unless needed.
 
 Use `base_agent` to inherit providers, env, and payloads from an existing config — you only specify what's different:
 

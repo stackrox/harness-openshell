@@ -41,7 +41,7 @@ Fields:
 - `image` -- container image for the sandbox (default: version-matched from ghcr.io, override with `HARNESS_OS_IMAGE` env)
 - `entrypoint` -- command to run (default: `claude`). Supports `claude`, `opencode`, `bash`, or any binary on PATH.
 - `tty` -- enable TTY (default: true)
-- `repo` -- git URL to clone outside the sandbox and upload to `/sandbox/<repo-name>`. Shallow clone (`--depth 1`). Git credentials never enter the sandbox.
+- `repo` -- git URL to clone outside the sandbox and upload to `/sandbox/<repo-name>`. Shallow clone (`--depth 1`). Git credentials never enter the sandbox unless needed.
 - `task` -- path to a task.md file, passed to entrypoint via `-p "$(cat task.md)"`
 - `providers` -- list of provider profile references
 - `providers[].profile` -- OpenShell provider profile name
