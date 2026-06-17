@@ -12,7 +12,7 @@
 ##   make dev-push          # build + push sandbox image (multi-arch)
 ## Release images are built and pushed by .github/workflows/images.yml.
 
-REGISTRY      ?= ghcr.io/robbycochran/harness-openshell
+REGISTRY      ?= quay.io/rcochran/openshell
 CONTAINER_CLI ?= podman
 PLATFORM      := linux/amd64
 VERSION       := $(shell git describe --tags --always 2>/dev/null || echo dev)

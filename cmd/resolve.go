@@ -105,7 +105,7 @@ func resolveGatewayConfigWithHarness(harnessDir, name string, h *agent.Harness) 
 }
 
 func versionedImage(name string) string {
-	base := "ghcr.io/robbycochran/harness-openshell"
+	base := "quay.io/rcochran/openshell"
 	if Version == "" || Version == "dev" {
 		return base + ":" + name
 	}

@@ -151,7 +151,7 @@ These commands still work but will be removed in a future release:
 
 ## Image Tags
 
-All images are published to `ghcr.io/robbycochran/harness-openshell`. CI never publishes floating tags (`:latest`, `:sandbox`); the bare `:sandbox` fallback below exists only for local `go build` binaries without version ldflags.
+All images are published to `quay.io/rcochran/openshell`. CI never publishes floating tags (`:latest`, `:sandbox`); the bare `:sandbox` fallback below exists only for local `go build` binaries without version ldflags.
 
 | Trigger | Sandbox |
 |---------|---------|

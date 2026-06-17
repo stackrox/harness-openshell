@@ -27,7 +27,7 @@ if [[ -z "${HARNESS_OS_IMAGE:-}" ]]; then
         --jq '[.[].metadata.container.tags[] | select(startswith("sandbox-v"))] | first // empty' 2>/dev/null || true)
 
     if [[ -n "$LATEST_TAG" ]]; then
-        export HARNESS_OS_IMAGE="ghcr.io/robbycochran/harness-openshell:${LATEST_TAG}"
+        export HARNESS_OS_IMAGE="quay.io/rcochran/openshell:${LATEST_TAG}"
     else
         echo "WARNING: could not find CI image, using version-based default" >&2
     fi

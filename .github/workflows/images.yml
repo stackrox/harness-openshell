@@ -11,8 +11,8 @@ permissions:
   packages: write
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_BASE: ghcr.io/${{ github.repository }}
+  REGISTRY: quay.io
+  IMAGE_BASE: quay.io/rcochran/openshell
 
 jobs:
   sandbox:
@@ -26,8 +26,8 @@ jobs:
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.REGISTRY_QUAY_USER }}
+          password: ${{ secrets.REGISTRY_QUAY_PASSWORD }}
       - name: Compute version tag
         id: version
         run: echo "version=$(git describe --tags --always 2>/dev/null || echo dev)" >> "$GITHUB_OUTPUT"
@@ -38,8 +38,6 @@ jobs:
           tags: |
             type=semver,pattern=sandbox-v{{version}}
             type=raw,value=sandbox-${{ steps.version.outputs.version }},enable=${{ github.ref_type != 'tag' }}
-      # Fork PRs can't write to the registry; same-repo PRs push so the
-      # integration (kind) job can pull the image without a local preload.
       - uses: docker/build-push-action@v6
         with:
           context: profiles/images/sandbox-default
