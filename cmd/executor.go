@@ -166,41 +166,116 @@ func upLocal(opts upLocalOpts) error {
 	return nil
 }
 
-// cloneRepo clones a git repository to a temp directory and returns an Upload
-// that places it at /sandbox/<repo-name>. The clone happens outside the sandbox
-// so git credentials never enter it. Returns a cleanup function that removes
-// the temp directory.
+// cloneRepo clones or updates a cached git repository and returns an Upload
+// that places it at /sandbox/<repo-name>. Repos are cached in
+// ~/.cache/harness-openshell/repos/<repo-name>/ so subsequent runs only fetch
+// deltas. The clone happens outside the sandbox so git credentials never enter
+// it. Returns a cleanup function (no-op since the cache is persistent).
 func cloneRepo(repo, ref string) (gateway.Upload, func(), error) {
 	repoName := strings.TrimSuffix(path.Base(repo), ".git")
-	tmpDir, err := os.MkdirTemp("", "harness-repo-")
-	if err != nil {
-		return gateway.Upload{}, nil, fmt.Errorf("creating temp dir: %w", err)
-	}
-	cleanup := func() { os.RemoveAll(tmpDir) }
 
-	cloneDir := filepath.Join(tmpDir, repoName)
 	if ref != "" {
 		status.Infof("Repo:  %s (ref: %s)", repo, ref)
 	} else {
 		status.Infof("Repo:  %s", repo)
 	}
 
-	args := []string{"clone", "--depth", "1", "--recurse-submodules", "--shallow-submodules"}
+	cacheDir, err := repoCacheDir(repoName)
+	if err != nil {
+		return gateway.Upload{}, nil, err
+	}
+
+	if isGitRepo(cacheDir) {
+		if err := fetchRepo(cacheDir, ref); err != nil {
+			return gateway.Upload{}, nil, err
+		}
+		status.OKf("Updated %s (cached)", repoName)
+	} else {
+		if err := freshClone(repo, ref, cacheDir); err != nil {
+			return gateway.Upload{}, nil, fmt.Errorf("git clone %s: %w", repo, err)
+		}
+		status.OKf("Cloned %s", repoName)
+	}
+
+	return gateway.Upload{Src: cacheDir, Dst: "/sandbox"}, func() {}, nil
+}
+
+func repoCacheDir(repoName string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("determining home dir: %w", err)
+	}
+	dir := filepath.Join(home, ".cache", "harness-openshell", "repos", repoName)
+	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+		return "", fmt.Errorf("creating cache dir: %w", err)
+	}
+	return dir, nil
+}
+
+func isGitRepo(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".git"))
+	return err == nil
+}
+
+func freshClone(repo, ref, dest string) error {
+	args := []string{"clone", "--depth", "1"}
 	if ref != "" {
 		args = append(args, "--branch", ref)
 	}
-	args = append(args, repo, cloneDir)
-
+	args = append(args, repo, dest)
 	cmd := exec.Command("git", args...)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		cleanup()
-		return gateway.Upload{}, nil, fmt.Errorf("git clone %s: %w", repo, err)
+		return err
+	}
+	return initSubmodules(dest)
+}
+
+func fetchRepo(dir, ref string) error {
+	fetchArgs := []string{"-C", dir, "fetch", "--depth", "1", "origin"}
+	if ref != "" {
+		fetchArgs = append(fetchArgs, ref)
+	}
+	cmd := exec.Command("git", fetchArgs...)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git fetch: %w", err)
 	}
 
-	status.OKf("Cloned %s", repoName)
-	return gateway.Upload{Src: cloneDir, Dst: "/sandbox"}, cleanup, nil
+	target := "FETCH_HEAD"
+	if ref == "" {
+		target = "origin/HEAD"
+	}
+	cmd = exec.Command("git", "-C", dir, "checkout", target, "--force")
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git checkout %s: %w", target, err)
+	}
+
+	if err := initSubmodules(dir); err != nil {
+		return err
+	}
+
+	// Clean untracked files from previous runs
+	cmd = exec.Command("git", "-C", dir, "clean", "-fdx")
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	cmd.Run()
+
+	return nil
+}
+
+func initSubmodules(dir string) error {
+	cmd := exec.Command("git", "-C", dir, "submodule", "update", "--init", "--depth", "1")
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git submodule update: %w", err)
+	}
+	return nil
 }
 
 var inferenceProviders = map[string]bool{

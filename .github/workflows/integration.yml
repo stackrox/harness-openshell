@@ -29,7 +29,9 @@ jobs:
           openshell gateway list
 
       - name: Run local integration
-        run: make test-local
+        run: |
+          CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=ci' -o harness .
+          HARNESS_OS_IMAGE=profiles/images/sandbox-default ./test/test-flow.sh local-container
         env:
           TEST_LOG_FILE: /tmp/test-logs/test-flow-local.log
 
@@ -81,6 +83,7 @@ jobs:
       - name: Run kind integration
         run: make test-kind
         env:
+          CONTAINER_CLI: docker
           TEST_LOG_FILE: /tmp/test-logs/test-flow-kind.log
 
       - name: Export logs
