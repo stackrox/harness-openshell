@@ -73,14 +73,6 @@ func resolveHarness(harnessDir, agentName, agentFile string) (*agent.Harness, er
 	return agent.ParseHarness(DefaultAgentConfig)
 }
 
-func resolveAgentConfig(harnessDir, agentName, agentFile string) (*agent.AgentConfig, error) {
-	h, err := resolveHarness(harnessDir, agentName, agentFile)
-	if err != nil {
-		return nil, err
-	}
-	return h.Agent, nil
-}
-
 func resolveGatewayConfigWithHarness(harnessDir, name string, h *agent.Harness) (*gateway.GatewayConfig, error) {
 	if h != nil {
 		if data, ok := h.Gateways[name]; ok {
@@ -134,4 +126,36 @@ func resolveGatewayConfigFromFile(path string) (*gateway.GatewayConfig, error) {
 	}
 	cfg.Dir = filepath.Dir(path)
 	return cfg, nil
+}
+
+func loadProviderProfiles(harnessDir string) map[string][]byte {
+	profiles := make(map[string][]byte)
+	dir := filepath.Join(harnessDir, "profiles", "providers")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return profiles
+	}
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
+			continue
+		}
+		name := e.Name()[:len(e.Name())-5]
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err == nil {
+			profiles[name] = data
+		}
+	}
+	return profiles
+}
+
+func loadGatewayProfile(harnessDir, name string) []byte {
+	path := filepath.Join(harnessDir, "profiles", "gateways", name+".yaml")
+	data, err := os.ReadFile(path)
+	if err == nil {
+		return data
+	}
+	if d, ok := EmbeddedGatewayProfiles[name]; ok {
+		return d
+	}
+	return nil
 }

@@ -24,3 +24,5 @@ plans/
 openshell-arch/
 strategy-dashboard.html
 dashboard.html
+mlflow.db
+plan_file_ga.md

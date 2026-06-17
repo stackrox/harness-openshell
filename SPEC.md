@@ -51,43 +51,69 @@ Fields:
 
 Provider profiles live in `profiles/providers/`. These are imported to the gateway during provider registration.
 
+### Multi-document harness YAML
+
+Agent configs support multi-document YAML (`---` separated) where provider, gateway, and policy definitions are co-located in one file:
+
+```yaml
+---
+kind: agent
+name: my-agent
+entrypoint: claude
+providers:
+  - profile: github
+---
+kind: provider
+name: github
+type: github
+credentials: [GITHUB_TOKEN]
+---
+kind: gateway
+name: local
+type: local
+```
+
+Documents are dispatched by `kind` field. No `kind` field = agent (backwards compatible). Definitions in the harness file take priority over the `profiles/` tree.
+
 ## CLI
 
-### `harness up [--gateway NAME] [--gateway-profile FILE] [--agent NAME] [--agent-profile|-f FILE] [--name SANDBOX] [--no-tty] [--provider-refresh]`
+### `harness apply [-f FILE] [--agent NAME] [--gateway NAME] [--gateway-profile FILE] [--name SANDBOX] [--attach] [--provider-refresh] [--dry-run] [-o yaml|json]`
 
-Full flow: deploy gateway, register providers, render agent config, create sandbox.
+Primary command. Resolves an agent config, deploys the gateway and providers, creates a sandbox.
 
-1. **Parse agent config** -- resolve `agent-<name>.yaml` from harness directory (default: `default`). `--agent-profile` (`-f`) overrides with a direct file path. Falls back to embedded `agent-basic.yaml` when `agent-default.yaml` is not found on disk.
-2. **Check version** -- warn if openshell CLI is below v0.0.59.
-3. **Ensure gateway** -- deploy if needed (local: Podman, remote: Helm to K8s/OCP). `--gateway` selects a profile by name; `--gateway-profile` loads from a file path. Gateway target can come from agent config's `gateway` field.
-4. **Ensure providers** -- auto-register missing providers. Three registration flows:
+1. **Parse agent config** -- resolve `agent-<name>.yaml` from harness directory (default: `default`). `-f` overrides with a direct file path. Falls back to embedded `agent-basic.yaml` when `agent-default.yaml` is not found on disk.
+2. **Check output mode** -- if `-o yaml` or `-o json`, render the fully resolved config and exit. No gateway interaction needed.
+3. **Check version** -- warn if openshell CLI is below v0.0.59.
+4. **Resolve gateway** -- `--gateway` selects a profile by name; `--gateway-profile` loads from a file path. Default: `local`. `OPENSHELL_GATEWAY` env var is used as fallback.
+5. **Dry-run check** -- if `--dry-run`, validate each step (gateway reachable, providers resolvable, env vars resolved, image available) and exit with pass/fail report.
+6. **Ensure gateway** -- deploy if needed (local: Podman, remote: Helm to K8s/OCP).
+7. **Ensure providers** -- auto-register missing providers. Three registration flows:
    - **Standard** (`--from-existing`): GitHub, Atlassian -- OpenShell discovers credentials from local env.
    - **ADC** (`--from-gcloud-adc`): Vertex AI -- reads ADC file, configures inference routing.
-   - **Custom**: GWS -- multi-step OAuth refresh flow (harness workaround until OpenShell adds native support).
-5. **Render payload** -- `run.sh` (entrypoint wrapper with PATH setup, entrypoint validation, `-p` task), `task.md` (if set).
-6. **Create sandbox** -- `openshell sandbox create` with `--env` (env vars), `--upload` (payload), and startup command. Retry up to 5 times.
+   - **Custom**: GWS -- multi-step OAuth refresh flow.
+8. **Render payload** -- `run.sh` (entrypoint wrapper with PATH setup, entrypoint validation, `-p` task), `task.md` (if set).
+9. **Create sandbox** -- `openshell sandbox create` with `--env` (env vars), `--upload` (payload), and startup command. Retry up to 5 times.
 
-`--provider-refresh` deletes and recreates all providers (replaces the old `harness providers --force`).
+Default is non-interactive (headless). Use `--attach` for TTY mode.
 
-### `harness create [--agent NAME] [--agent-profile|-f FILE] [--name SANDBOX]`
-
-Create a sandbox without deploying the gateway. Always non-interactive (no TTY). Assumes gateway is running. Auto-registers missing providers.
+`--provider-refresh` deletes and recreates all providers.
 
 ### `harness deploy [local|ocp|kind]`
 
 Deploy or verify the gateway for a target. Reads `profiles/gateways/<target>.yaml`.
 
-### `harness status`
-
-Show sandbox status. Read-only.
-
 ### `harness stop [NAME]` / `harness start [NAME]`
 
 Stop or start a sandbox without deleting it.
 
-### `harness teardown [--sandboxes] [--providers] [--k8s]`
+### Deprecated Aliases
 
-Tear down resources. At least one flag required.
+These commands still work but will be removed in a future release:
+
+| Old command | Replacement | Notes |
+|-------------|-------------|-------|
+| `harness teardown` | `harness delete` (planned) | Flags: `--sandboxes`, `--providers`, `--k8s` |
+| `harness status` | `harness get agents` (planned) | |
 
 ## Config Files
 
@@ -115,9 +141,9 @@ All images are published to `ghcr.io/robbycochran/harness-openshell`. CI never p
 
 The CLI resolves images from its embedded version (set via `-ldflags` at build time):
 
-- `v0.1.2` → `:sandbox-v0.1.2` (tagged release)
-- `v0.1.2-5-gabc1234` → `:sandbox-v0.1.2-5-gabc1234` (dev build, matches `make dev-sandbox`)
-- `dev` → `:sandbox` (bare `go build` without ldflags)
+- `v0.1.2` -> `:sandbox-v0.1.2` (tagged release)
+- `v0.1.2-5-gabc1234` -> `:sandbox-v0.1.2-5-gabc1234` (dev build, matches `make dev-sandbox`)
+- `dev` -> `:sandbox` (bare `go build` without ldflags)
 
 `HARNESS_OS_IMAGE` env var overrides the version-based resolution.
 
@@ -129,10 +155,10 @@ Harness-specific variables use the `HARNESS_OS_` prefix. OpenShell runtime varia
 |----------|---------|
 | `HARNESS_OS_DIR` | Override harness directory detection |
 | `HARNESS_OS_IMAGE` | Override sandbox image (dev/CI builds) |
-| `HARNESS_OS_GATEWAY` | Override gateway name in gateway config |
 | `HARNESS_OS_PULL_SECRET` | Image pull secret name passed to Helm install |
 | `HARNESS_OS_SANDBOX_PULL_SECRET` | Sandbox image pull secret name passed to Helm install |
 | `OPENSHELL_CLI` | Override openshell binary path |
+| `OPENSHELL_GATEWAY` | Override gateway name (used by apply, plugin-compatible) |
 | `OPENSHELL_NAMESPACE` | Override K8s namespace (default: `openshell`) |
 | `OPENSHELL_MODEL` | Inference model for provider registration (default: `claude-sonnet-4-6`) |
 | `OPENSHELL_CHART_VERSION` | Override Helm chart version (beats `gateway.yaml`) |

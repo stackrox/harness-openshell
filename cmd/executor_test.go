@@ -135,37 +135,6 @@ func TestUpLocal_SandboxCreateRetry(t *testing.T) {
 	}
 }
 
-func TestActiveGatewayInfo_NoGateway(t *testing.T) {
-	gw := &mockGW{}
-
-	_, err := activeGatewayInfo(gw)
-	if err == nil {
-		t.Fatal("expected error when no gateway is active")
-	}
-	if !strings.Contains(err.Error(), "no active gateway") {
-		t.Errorf("error = %q, want 'no active gateway'", err)
-	}
-}
-
-func TestActiveGatewayInfo_LocalGateway(t *testing.T) {
-	gw := &mockGW{
-		gatewayListResult: []gateway.GatewayInfo{
-			{Name: "local", Endpoint: "127.0.0.1:17670", Active: true},
-		},
-	}
-
-	info, err := activeGatewayInfo(gw)
-	if err != nil {
-		t.Fatalf("activeGatewayInfo: %v", err)
-	}
-	if info.Name != "local" {
-		t.Errorf("Name = %q, want local", info.Name)
-	}
-	if !strings.Contains(info.Endpoint, "127.0.0.1") {
-		t.Errorf("Endpoint = %q, want 127.0.0.1", info.Endpoint)
-	}
-}
-
 func TestUpLocal_SandboxCreateOpts(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := setupTestAgent(t)
@@ -224,7 +193,7 @@ func TestUpLocal_EnsureLocal_DeploysGateway(t *testing.T) {
 	}
 }
 
-func TestResolveAgentConfig_EmbeddedFallback(t *testing.T) {
+func TestResolveHarness_EmbeddedFallback(t *testing.T) {
 	dir := t.TempDir()
 	DefaultAgentConfig = []byte(`name: embedded-default
 entrypoint: claude
@@ -233,16 +202,16 @@ providers:
 `)
 	t.Cleanup(func() { DefaultAgentConfig = nil })
 
-	cfg, err := resolveAgentConfig(dir, "default", "")
+	h, err := resolveHarness(dir, "default", "")
 	if err != nil {
-		t.Fatalf("resolveAgentConfig: %v", err)
+		t.Fatalf("resolveHarness: %v", err)
 	}
-	if cfg.Name != "embedded-default" {
-		t.Errorf("Name = %q, want embedded-default", cfg.Name)
+	if h.Agent.Name != "embedded-default" {
+		t.Errorf("Name = %q, want embedded-default", h.Agent.Name)
 	}
 }
 
-func TestResolveAgentConfig_DiskOverridesEmbedded(t *testing.T) {
+func TestResolveHarness_DiskOverridesEmbedded(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "agent-default.yaml"), []byte(`name: disk-agent
 entrypoint: claude
@@ -257,16 +226,16 @@ providers:
 `)
 	t.Cleanup(func() { DefaultAgentConfig = nil })
 
-	cfg, err := resolveAgentConfig(dir, "default", "")
+	h, err := resolveHarness(dir, "default", "")
 	if err != nil {
-		t.Fatalf("resolveAgentConfig: %v", err)
+		t.Fatalf("resolveHarness: %v", err)
 	}
-	if cfg.Name != "disk-agent" {
-		t.Errorf("Name = %q, want disk-agent (disk should override embedded)", cfg.Name)
+	if h.Agent.Name != "disk-agent" {
+		t.Errorf("Name = %q, want disk-agent (disk should override embedded)", h.Agent.Name)
 	}
 }
 
-func TestResolveAgentConfig_ExplicitFileNoFallback(t *testing.T) {
+func TestResolveHarness_ExplicitFileNoFallback(t *testing.T) {
 	dir := t.TempDir()
 	DefaultAgentConfig = []byte(`name: embedded-default
 entrypoint: claude
@@ -275,13 +244,13 @@ providers:
 `)
 	t.Cleanup(func() { DefaultAgentConfig = nil })
 
-	_, err := resolveAgentConfig(dir, "default", "/nonexistent/agent.yaml")
+	_, err := resolveHarness(dir, "default", "/nonexistent/agent.yaml")
 	if err == nil {
 		t.Fatal("expected error for explicit nonexistent --file, should not fall back to embedded")
 	}
 }
 
-func TestResolveAgentConfig_NonDefaultNameNoFallback(t *testing.T) {
+func TestResolveHarness_NonDefaultNameNoFallback(t *testing.T) {
 	dir := t.TempDir()
 	DefaultAgentConfig = []byte(`name: embedded-default
 entrypoint: claude
@@ -290,7 +259,7 @@ providers:
 `)
 	t.Cleanup(func() { DefaultAgentConfig = nil })
 
-	_, err := resolveAgentConfig(dir, "research", "")
+	_, err := resolveHarness(dir, "research", "")
 	if err == nil {
 		t.Fatal("expected error for --agent research when file doesn't exist, should not fall back to embedded")
 	}
