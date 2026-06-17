@@ -6,23 +6,88 @@ reviews:
   poem: false
   review_status: true
   collapse_walkthrough: false
+  knowledge_base:
+    learnings:
+      scope: auto
+    issues:
+      scope: auto
+    jira:
+      project_keys: []
+    linear:
+      team_keys: []
   path_instructions:
     - path: "**/*.go"
       instructions: |
-        This is a Go CLI that wraps the OpenShell CLI. Focus on:
+        This is a Go CLI ("harness") that wraps the OpenShell CLI to deploy
+        AI agent sandboxes. The harness orchestrates gateway deployment,
+        provider registration, payload upload, and sandbox creation.
+
+        Key architecture:
+        - cmd/executor.go: main apply flow (upLocal)
+        - cmd/providers.go: provider registration (registerStandard, registerADC, registerGWS)
+        - cmd/resolve.go: config resolution, base_agent merging, gateway auto-discovery
+        - internal/agent/agent.go: AgentConfig parsing, MergeOver, BuildEnvMap, RenderPayload
+        - internal/gateway/: Gateway interface + CLI implementation (shells out to openshell)
+
+        Review focus:
         - Correct error handling (wrap with context, don't swallow)
         - CLI argument construction (exec.Command, not shell)
         - Credential handling (never log secrets, never pass via CLI args if avoidable)
         - Gateway interface usage (code should go through the Gateway interface, not call openshell directly)
-    - path: "profiles/**/*.yaml"
+        - base_agent merge semantics (overlay wins for scalars, additive for providers/env)
+        - repo clone (happens outside sandbox, git creds never enter unless needed)
+    - path: "SPEC.md"
       instructions: |
-        These are OpenShell provider profiles and gateway configs.
-        Check that credential env_vars match what the Go code expects.
+        This is the authoritative behavior spec for the harness CLI.
+        All field names, command behavior, and config semantics must
+        match the Go implementation. Flag changes in code that aren't
+        reflected here, or spec claims that don't match the code.
+    - path: "AGENTS.md"
+      instructions: |
+        Contributor guide. Check that coding conventions, test
+        instructions, and upstream references are current.
+    - path: "profiles/agent-*.yaml"
+      instructions: |
+        Agent config files. These define what runs in a sandbox.
+        Key fields: name, base_agent, entrypoint, repo, repo_ref,
+        providers (with profile refs and env overrides), env, payloads,
+        task, gateway, policy, image. Empty env values read from host
+        environment. Check consistency with SPEC.md field definitions.
+    - path: "profiles/providers/**"
+      instructions: |
+        OpenShell provider profile YAMLs imported to the gateway.
+        These define credential discovery (env_vars), auth style
+        (bearer/basic), refresh strategies (oauth2-refresh-token),
+        L7 network policy endpoints, and binary allowlists.
+        Check that credential env_vars match what cmd/providers.go expects.
         Check that endpoint hosts and ports are correct for the service.
+    - path: "profiles/gateways/**"
+      instructions: |
+        Gateway deployment profiles. Current targets:
+        - local-container.yaml (Podman, type: local)
+        - helm.yaml (kind cluster, type: remote, service: nodeport)
+        - openshift.yaml (OCP, type: remote, service: route)
+        New gateways are auto-discovered by scanning this directory.
+    - path: "profiles/images/sandbox-default/**"
+      instructions: |
+        Sandbox image files: Dockerfile, CLAUDE.md (agent instructions),
+        claude.json/settings.json (Claude Code config), mcp.json (MCP
+        server config for Jira/Confluence), opencode.json, policy.yaml
+        (L7 network policy with per-provider endpoint rules).
+        These are the defaults — overridable via payloads in agent configs.
     - path: "test/**"
       instructions: |
-        Integration test scripts. Check that gateway names match
-        the current naming (local-container, helm, openshift).
+        Integration test scripts. Gateway names must match current
+        naming (local-container, helm, openshift). test-flow.sh is
+        the primary e2e test. kind-lifecycle.sh creates its own cluster.
         Check that test assertions match current CLI output format.
+    - path: ".github/workflows/**"
+      instructions: |
+        CI workflows. images.yml pushes to quay.io/rcochran/openshell
+        using REGISTRY_QUAY_USER/REGISTRY_QUAY_PASSWORD secrets.
+        integration.yml runs test-local (Dockerfile path for image),
+        test-kind (Docker build + kind load), and config suite.
+        The local job uses HARNESS_OS_IMAGE=profiles/images/sandbox-default
+        so openshell builds from Dockerfile directly.
 chat:
   auto_reply: true
