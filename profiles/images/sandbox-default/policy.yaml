@@ -47,10 +47,12 @@ network_policies:
       - { host: platform.claude.com, port: 443 }
       - { host: sentry.io, port: 443 }
       - { host: opencode.ai, port: 443 }
+      - { host: models.dev, port: 443 }
+      - { host: registry.npmjs.org, port: 443 }
     binaries:
       - { path: /usr/local/bin/claude }
-      - { path: /usr/local/bin/opencode }
       - { path: /usr/bin/node }
+      - { path: /usr/lib/node_modules/opencode-ai/bin/opencode.exe }
 
   # Git Smart HTTP transport — allows clone and fetch.
   # Push (git-receive-pack) is blocked by default. To enable push for
@@ -123,6 +125,7 @@ network_policies:
     binaries:
       - { path: /usr/bin/npm }
       - { path: /usr/bin/node }
+      - { path: /usr/lib/node_modules/opencode-ai/bin/opencode.exe }
 
   # VS Code remote
   vscode:

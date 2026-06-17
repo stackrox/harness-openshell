@@ -1,0 +1,10 @@
+# Vertex AI only agent -- tests ADC credential style.
+# Tests: from-gcloud-adc registration, inference routing setup.
+# Requires: gcloud auth application-default login, ANTHROPIC_VERTEX_PROJECT_ID.
+name: test-vertex
+entrypoint: bash
+providers:
+  - profile: vertex-local
+env:
+  ANTHROPIC_BASE_URL: https://inference.local
+  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed

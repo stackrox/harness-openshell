@@ -77,7 +77,26 @@ Check if CI is green for the current branch:
 gh run list --branch $(git branch --show-current) --limit 3
 ```
 
-### 9. Docs consistency
+### 9. Config test suite
+
+```bash
+make test-suite
+```
+
+Runs 27+ config parsing, output format, env resolution, and CLI flag tests.
+No gateway needed for most tests. Skip if `harness` binary not built.
+
+### 10. Config test suite (live)
+
+Requires: `openshell` running locally.
+
+```bash
+make test-suite-live
+```
+
+Adds live sandbox create/exec/delete tests. Skip if gateway not running.
+
+### 11. Docs consistency
 
 Check that README.md and SPEC.md accurately reference the commands
 registered in main.go. Every primary command in main.go should appear
@@ -120,5 +139,7 @@ Validation Results
   OCP:            PASS (10/10)
   Kind:           SKIP (kind not installed)
   CI:             GREEN (3/3 workflows)
+  Config suite:   PASS (27/27, 3 skipped)
+  Config live:    PASS (35/35, 3 skipped)
   Docs:           PASS (all commands documented, no stale refs)
 ```

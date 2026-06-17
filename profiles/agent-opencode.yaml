@@ -18,5 +18,5 @@ providers:
   - profile: gws
 
 env:
-  ANTHROPIC_BASE_URL: https://inference.local
-  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
+  OPENAI_BASE_URL: https://inference.local/v1
+  OPENAI_API_KEY: sk-ant-openshell-proxy-managed

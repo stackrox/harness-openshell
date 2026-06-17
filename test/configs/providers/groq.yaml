@@ -1,0 +1,29 @@
+# Groq provider profile for test suite.
+# Free API: https://console.groq.com/keys
+# Credential style: Bearer token via GROQ_API_KEY env var.
+
+id: groq
+display_name: Groq
+description: Groq inference API (OpenAI-compatible)
+category: inference
+credentials:
+  - name: api_key
+    description: Groq API key
+    env_vars: [GROQ_API_KEY]
+    required: true
+    auth_style: bearer
+discovery:
+  credentials: [api_key]
+endpoints:
+  - host: api.groq.com
+    port: 443
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+binaries:
+  - /usr/local/bin/claude
+  - /usr/local/bin/opencode
+  - /usr/bin/curl
+  - /usr/bin/node
+  - /sandbox/.venv/bin/python
+  - /sandbox/.venv/bin/python3

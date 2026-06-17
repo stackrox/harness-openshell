@@ -1,0 +1,12 @@
+# Multi-provider agent -- tests provider composition.
+# Tests: multiple providers registered, env var injection, provider-specific env.
+name: test-multi
+entrypoint: bash
+providers:
+  - profile: github
+  - profile: atlassian
+    env:
+      JIRA_URL: ${JIRA_URL}
+      JIRA_USERNAME: ${JIRA_USERNAME}
+env:
+  TEST_MARKER: "multi-provider-test"

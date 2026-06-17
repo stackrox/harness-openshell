@@ -33,6 +33,9 @@ jobs:
         env:
           TEST_LOG_FILE: /tmp/test-logs/test-flow-local.log
 
+      - name: Run config test suite (with live tests)
+        run: make test-suite-live
+
       - name: Export logs
         if: always()
         run: |

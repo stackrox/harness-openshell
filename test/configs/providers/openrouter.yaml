@@ -1,0 +1,29 @@
+# OpenRouter provider profile for test suite.
+# Free API: https://openrouter.ai/keys
+# Credential style: Bearer token via OPENROUTER_API_KEY env var.
+
+id: openrouter
+display_name: OpenRouter
+description: OpenRouter multi-model inference API (OpenAI-compatible)
+category: inference
+credentials:
+  - name: api_key
+    description: OpenRouter API key
+    env_vars: [OPENROUTER_API_KEY]
+    required: true
+    auth_style: bearer
+discovery:
+  credentials: [api_key]
+endpoints:
+  - host: openrouter.ai
+    port: 443
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+binaries:
+  - /usr/local/bin/claude
+  - /usr/local/bin/opencode
+  - /usr/bin/curl
+  - /usr/bin/node
+  - /sandbox/.venv/bin/python
+  - /sandbox/.venv/bin/python3

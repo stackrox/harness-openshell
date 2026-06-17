@@ -1,9 +1,10 @@
 {
   "mcp": {
     "atlassian": {
-      "type": "stdio",
+      "type": "local",
       "command": "/sandbox/.venv/bin/mcp-atlassian",
       "args": [],
+      "enabled": true,
       "env": {
         "READ_ONLY_MODE": "true"
       }

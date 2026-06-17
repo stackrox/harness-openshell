@@ -1,0 +1,17 @@
+# All providers agent -- tests full provider composition.
+# Tests: all four provider types registered together, env merging.
+# Requires: GITHUB_TOKEN, JIRA_API_TOKEN, JIRA_URL, JIRA_USERNAME,
+#           gcloud ADC, gws auth login.
+name: test-all-providers
+entrypoint: bash
+providers:
+  - profile: github
+  - profile: vertex-local
+  - profile: atlassian
+    env:
+      JIRA_URL: ${JIRA_URL}
+      JIRA_USERNAME: ${JIRA_USERNAME}
+  - profile: gws
+env:
+  ANTHROPIC_BASE_URL: https://inference.local
+  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed

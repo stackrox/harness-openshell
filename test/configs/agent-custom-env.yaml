@@ -1,0 +1,9 @@
+# Custom env agent -- tests env var injection and expansion.
+# Tests: top-level env, provider env, host env expansion via ${VAR}.
+name: test-env
+entrypoint: bash
+providers: []
+env:
+  STATIC_VAR: "hello-world"
+  FROM_HOST: ${USER}
+  EMPTY_VAR: ""

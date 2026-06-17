@@ -1,0 +1,7 @@
+# GWS-only agent -- tests OAuth refresh credential style.
+# Tests: gateway-managed OAuth token refresh, proxy credential rewrite.
+# Requires: gws auth login (OAuth via gws CLI).
+name: test-gws
+entrypoint: bash
+providers:
+  - profile: gws

@@ -1,0 +1,10 @@
+# Atlassian-only agent -- tests basic auth credential style.
+# Tests: JIRA_API_TOKEN credential, JIRA_URL/JIRA_USERNAME config env.
+# Requires: JIRA_API_TOKEN, JIRA_URL, JIRA_USERNAME env vars.
+name: test-atlassian
+entrypoint: bash
+providers:
+  - profile: atlassian
+    env:
+      JIRA_URL: ${JIRA_URL}
+      JIRA_USERNAME: ${JIRA_USERNAME}

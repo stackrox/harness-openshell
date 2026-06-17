@@ -57,6 +57,14 @@ lint:
 test: vet
 	CGO_ENABLED=0 go test ./...
 
+## Config test suite (no gateway needed for most tests)
+test-suite: cli
+	./test/suite/run.sh
+
+## Config test suite with live sandbox tests
+test-suite-live: cli
+	./test/suite/run.sh --live
+
 ## Local gateway integration (unit tests run separately via 'make test')
 test-local: cli
 	./test/test-flow.sh local
