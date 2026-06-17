@@ -27,6 +27,7 @@ type AgentConfig struct {
 	BaseAgent  string            `yaml:"base_agent,omitempty"`
 	Gateway    string            `yaml:"gateway,omitempty"`
 	Repo       string            `yaml:"repo,omitempty"`
+	RepoRef    string            `yaml:"repo_ref,omitempty"`
 	Providers  []ProviderRef     `yaml:"providers"`
 	Env        map[string]string `yaml:"env,omitempty"`
 	Task       string            `yaml:"task,omitempty"`
@@ -49,6 +50,9 @@ func (base *AgentConfig) MergeOver(overlay *AgentConfig) *AgentConfig {
 	}
 	if overlay.Repo != "" {
 		merged.Repo = overlay.Repo
+	}
+	if overlay.RepoRef != "" {
+		merged.RepoRef = overlay.RepoRef
 	}
 	if overlay.Entrypoint != "" {
 		merged.Entrypoint = overlay.Entrypoint

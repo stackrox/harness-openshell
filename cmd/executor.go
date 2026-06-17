@@ -82,7 +82,7 @@ func upLocal(opts upLocalOpts) error {
 	// Clone repo outside the sandbox so git credentials never enter it.
 	var repoUpload *gateway.Upload
 	if agentCfg.Repo != "" {
-		upload, cleanup, err := cloneRepo(agentCfg.Repo)
+		upload, cleanup, err := cloneRepo(agentCfg.Repo, agentCfg.RepoRef)
 		if err != nil {
 			return fmt.Errorf("cloning repo: %w", err)
 		}
@@ -170,7 +170,7 @@ func upLocal(opts upLocalOpts) error {
 // that places it at /sandbox/<repo-name>. The clone happens outside the sandbox
 // so git credentials never enter it. Returns a cleanup function that removes
 // the temp directory.
-func cloneRepo(repo string) (gateway.Upload, func(), error) {
+func cloneRepo(repo, ref string) (gateway.Upload, func(), error) {
 	repoName := strings.TrimSuffix(path.Base(repo), ".git")
 	tmpDir, err := os.MkdirTemp("", "harness-repo-")
 	if err != nil {
@@ -179,9 +179,19 @@ func cloneRepo(repo string) (gateway.Upload, func(), error) {
 	cleanup := func() { os.RemoveAll(tmpDir) }
 
 	cloneDir := filepath.Join(tmpDir, repoName)
-	status.Infof("Repo:  %s", repo)
+	if ref != "" {
+		status.Infof("Repo:  %s (ref: %s)", repo, ref)
+	} else {
+		status.Infof("Repo:  %s", repo)
+	}
 
-	cmd := exec.Command("git", "clone", "--depth", "1", repo, cloneDir)
+	args := []string{"clone", "--depth", "1", "--recurse-submodules", "--shallow-submodules"}
+	if ref != "" {
+		args = append(args, "--branch", ref)
+	}
+	args = append(args, repo, cloneDir)
+
+	cmd := exec.Command("git", args...)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
