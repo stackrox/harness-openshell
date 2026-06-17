@@ -220,19 +220,13 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
   run_test "live: exec in sandbox" \
     "$CLI" sandbox exec --name test-suite-min -- echo "alive"
 
-  # Env injection requires openshell >= 0.0.59 (--env flag on sandbox create)
-  if "$CLI" sandbox create --help 2>&1 | grep -q -- '--env'; then
-    run_test "live: env var injected" \
-      bash -c '"$1" apply -f "$2" --name test-suite-env 2>&1' _ "$HARNESS" "$CONFIGS/agent-custom-env.yaml"
+  run_test "live: env var injected" \
+    bash -c '"$1" apply -f "$2" --name test-suite-env 2>&1' _ "$HARNESS" "$CONFIGS/agent-custom-env.yaml"
 
-    sleep 2
+  sleep 2
 
-    run_test "live: static env in sandbox" \
-      "$CLI" sandbox exec --name test-suite-env -- bash -c 'test "$STATIC_VAR" = "hello-world"'
-  else
-    skip_test "live: env var injected" "openshell < 0.0.59 (no --env flag)"
-    skip_test "live: static env in sandbox" "openshell < 0.0.59 (no --env flag)"
-  fi
+  run_test "live: static env in sandbox" \
+    "$CLI" sandbox exec --name test-suite-env -- bash -c 'test "$STATIC_VAR" = "hello-world"'
 
   # Cleanup
   run_test "live: delete specific sandbox" \
