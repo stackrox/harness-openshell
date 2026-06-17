@@ -98,6 +98,22 @@ Default is non-interactive (headless). Use `--attach` for TTY mode.
 
 `--provider-refresh` deletes and recreates all providers.
 
+### `harness get <resource> [-o table|json|yaml]`
+
+List resources. Wraps `openshell` list commands with consistent structured output across resource types. `-o table` is the default. Credential values are never included in structured output.
+
+| Subcommand | Aliases | What it lists |
+|------------|---------|--------------|
+| `get agents` | `sandboxes`, `sandbox` | Running sandboxes (name, phase) |
+| `get providers` | `provider` | Registered providers (name only, no credentials) |
+| `get gateways` | `gateway`, `gw` | Gateways (name, endpoint, active) |
+
+These are convenience wrappers. For full details, use `openshell sandbox list`, `openshell provider list`, etc. directly.
+
+### `harness describe <name>`
+
+Show detailed status for a specific sandbox: phase, active gateway, and registered providers.
+
 ### `harness deploy [local|ocp|kind]`
 
 Deploy or verify the gateway for a target. Reads `profiles/gateways/<target>.yaml`.
@@ -113,7 +129,7 @@ These commands still work but will be removed in a future release:
 | Old command | Replacement | Notes |
 |-------------|-------------|-------|
 | `harness teardown` | `harness delete` (planned) | Flags: `--sandboxes`, `--providers`, `--k8s` |
-| `harness status` | `harness get agents` (planned) | |
+| `harness status` | `harness get agents` | |
 
 ## Config Files
 

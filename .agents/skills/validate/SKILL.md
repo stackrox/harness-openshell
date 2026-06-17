@@ -5,7 +5,7 @@ description: Run the full test matrix for harness-openshell. Use when asked to "
 
 # Validate
 
-Run the full test matrix. Skip steps that require unavailable infrastructure.
+Run the full test and documentation matrix. Skip steps that require unavailable infrastructure.
 
 ## Steps
 
@@ -77,13 +77,41 @@ Check if CI is green for the current branch:
 gh run list --branch $(git branch --show-current) --limit 3
 ```
 
+### 9. Docs consistency
+
+Check that README.md and SPEC.md accurately reference the commands
+registered in main.go. Every primary command in main.go should appear
+in both README.md and SPEC.md. No stale command references should exist.
+
+```bash
+# Commands registered in main.go (primary, not deprecated)
+grep 'cmd.New.*Cmd' main.go | grep -v Hidden | grep -v Deprecated
+
+# Check README references all primary commands
+for cmd in apply get describe deploy stop start; do
+  grep -q "harness $cmd" README.md && echo "README: $cmd OK" || echo "README: $cmd MISSING"
+done
+
+# Check SPEC references all primary commands
+for cmd in apply get describe deploy stop start; do
+  grep -q "harness $cmd" SPEC.md && echo "SPEC: $cmd OK" || echo "SPEC: $cmd MISSING"
+done
+
+# Check for stale references to removed commands
+for cmd in "harness up" "harness create" "harness render"; do
+  grep -c "$cmd" README.md SPEC.md 2>/dev/null
+done
+```
+
+Report any docs/code mismatches.
+
 ## Output
 
 Report a summary table:
 
 ```
 Validation Results
-──────────────────
+------------------
   Build:          PASS
   Unit tests:     PASS (6 packages)
   Vet:            PASS
@@ -92,4 +120,5 @@ Validation Results
   OCP:            PASS (10/10)
   Kind:           SKIP (kind not installed)
   CI:             GREEN (3/3 workflows)
+  Docs:           PASS (all commands documented, no stale refs)
 ```
