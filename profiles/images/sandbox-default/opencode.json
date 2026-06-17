@@ -1,11 +1,11 @@
 {
+  "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "atlassian": {
       "type": "local",
-      "command": "/sandbox/.venv/bin/mcp-atlassian",
-      "args": [],
+      "command": ["/sandbox/.venv/bin/mcp-atlassian"],
       "enabled": true,
-      "env": {
+      "environment": {
         "READ_ONLY_MODE": "true"
       }
     }
