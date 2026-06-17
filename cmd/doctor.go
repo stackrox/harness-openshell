@@ -134,18 +134,20 @@ func checkTargetDeps(cfg *agent.AgentConfig, _, _ string) []CheckResult {
 
 func checkLocalDeps() []CheckResult {
 	if _, err := exec.LookPath("podman"); err == nil {
-		if err := exec.Command("podman", "info", "--format", "{{.Host.Os}}").Run(); err == nil {
-			return []CheckResult{{Group: "target", Name: "local", Status: "pass", Message: "podman running"}}
+		if err := exec.Command("podman", "info").Run(); err == nil {
+			ver := ""
+			if out, e := exec.Command("podman", "version", "--format", "{{.Client.Version}}").Output(); e == nil {
+				ver = " " + strings.TrimSpace(string(out))
+			}
+			return []CheckResult{{Group: "target", Name: "local", Status: "pass", Message: "podman" + ver + " running"}}
 		}
-		return []CheckResult{{Group: "target", Name: "local", Status: "warn", Message: "podman installed but not responding"}}
 	}
 	if _, err := exec.LookPath("docker"); err == nil {
 		if err := exec.Command("docker", "info").Run(); err == nil {
 			return []CheckResult{{Group: "target", Name: "local", Status: "pass", Message: "docker running"}}
 		}
-		return []CheckResult{{Group: "target", Name: "local", Status: "warn", Message: "docker installed but not responding"}}
 	}
-	return []CheckResult{{Group: "target", Name: "local", Status: "fail", Message: "no container runtime (podman or docker) found"}}
+	return []CheckResult{{Group: "target", Name: "local", Status: "fail", Message: "no container runtime (podman or docker) responding"}}
 }
 
 func checkKindDeps() []CheckResult {
