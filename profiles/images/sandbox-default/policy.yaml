@@ -37,7 +37,7 @@ process:
   run_as_group: sandbox
 
 network_policies:
-  # Agent telemetry (inference goes through inference.local,
+  # Agent telemetry (inference goes through inference.local for Claude,
   # but telemetry/updates still hit upstream directly)
   agent_telemetry:
     name: agent-telemetry
@@ -53,6 +53,19 @@ network_policies:
       - { path: /usr/local/bin/claude }
       - { path: /usr/bin/node }
       - { path: /usr/lib/node_modules/opencode-ai/bin/opencode.exe }
+
+  # OpenCode inference (direct Vertex AI, not inference.local).
+  # inference.local only supports Anthropic format (/v1/messages).
+  # OpenCode uses OpenAI format (/v1/chat/completions) so it needs
+  # direct access to Vertex AI.
+  opencode_inference:
+    name: opencode-inference
+    endpoints:
+      - { host: "*.googleapis.com", port: 443 }
+      - { host: "*.cloud.google.com", port: 443 }
+    binaries:
+      - { path: /usr/lib/node_modules/opencode-ai/bin/opencode.exe }
+      - { path: /usr/bin/node }
 
   # Git Smart HTTP transport — allows clone and fetch.
   # Push (git-receive-pack) is blocked by default. To enable push for

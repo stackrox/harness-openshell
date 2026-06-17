@@ -1,8 +1,15 @@
 # OpenCode agent configuration.
 #
+# NOTE: OpenCode uses the OpenAI chat completions format, but OpenShell's
+# inference.local only supports the Anthropic messages format. OpenCode
+# cannot use inference.local for LLM calls. It needs direct access to
+# Vertex AI or another OpenAI-compatible endpoint.
+#
+# Until OpenShell adds OpenAI format support to inference.local, configure
+# OpenCode with a direct Vertex AI endpoint or use a separate API key.
+#
 # Usage:
-#   harness up -f agents/opencode.yaml
-#   harness up --agent opencode
+#   harness apply --agent opencode
 
 name: opencode-agent
 entrypoint: opencode
@@ -17,6 +24,8 @@ providers:
       JIRA_USERNAME: ${JIRA_USERNAME}
   - profile: gws
 
+# OpenCode needs GOOGLE_CLOUD_PROJECT + ADC for Vertex AI directly.
+# inference.local does NOT support OpenAI format (/v1/chat/completions).
 env:
-  OPENAI_BASE_URL: https://inference.local/v1
-  OPENAI_API_KEY: sk-ant-openshell-proxy-managed
+  GOOGLE_CLOUD_PROJECT: ${ANTHROPIC_VERTEX_PROJECT_ID}
+  VERTEX_LOCATION: global
