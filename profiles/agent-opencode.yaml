@@ -1,12 +1,19 @@
 # OpenCode agent configuration.
 #
-# NOTE: OpenCode uses the OpenAI chat completions format, but OpenShell's
-# inference.local only supports the Anthropic messages format. OpenCode
-# cannot use inference.local for LLM calls. It needs direct access to
-# Vertex AI or another OpenAI-compatible endpoint.
+# LIMITATION: OpenCode inference via Vertex AI is not currently supported
+# in OpenShell sandboxes. Two blockers:
+#   1. inference.local only supports Anthropic format (/v1/messages).
+#      OpenCode uses OpenAI format (/v1/chat/completions).
+#   2. Direct Vertex AI access requires ADC credentials on disk.
+#      OpenShell's proxy-managed credential model doesn't expose raw
+#      ADC files inside the sandbox.
 #
-# Until OpenShell adds OpenAI format support to inference.local, configure
-# OpenCode with a direct Vertex AI endpoint or use a separate API key.
+# OpenCode CAN use the sandbox for MCP tools (Jira, GWS), GitHub,
+# and other providers -- just not for inference via Vertex AI.
+#
+# Workarounds:
+#   - Use an OpenAI API key provider (e.g., groq, openrouter) instead
+#   - Wait for OpenShell to add OpenAI format support to inference.local
 #
 # Usage:
 #   harness apply --agent opencode
@@ -17,15 +24,8 @@ tty: true
 
 providers:
   - profile: github
-  - profile: vertex-local
   - profile: atlassian
     env:
       JIRA_URL: ${JIRA_URL}
       JIRA_USERNAME: ${JIRA_USERNAME}
   - profile: gws
-
-# OpenCode needs GOOGLE_CLOUD_PROJECT + ADC for Vertex AI directly.
-# inference.local does NOT support OpenAI format (/v1/chat/completions).
-env:
-  GOOGLE_CLOUD_PROJECT: ${ANTHROPIC_VERTEX_PROJECT_ID}
-  VERTEX_LOCATION: global
