@@ -752,3 +752,84 @@ func TestRenderPayload_IncludePathTraversal(t *testing.T) {
 		t.Errorf("error = %q, want 'escapes base directory'", err)
 	}
 }
+
+func TestMergeOver(t *testing.T) {
+	base := &AgentConfig{
+		Name:       "base",
+		Entrypoint: "claude",
+		Gateway:    "local-container",
+		Providers: []ProviderRef{
+			{Profile: "github"},
+			{Profile: "google-vertex-ai"},
+		},
+		Env: map[string]string{
+			"ANTHROPIC_BASE_URL": "https://inference.local",
+			"ANTHROPIC_API_KEY":  "sk-ant-openshell-proxy-managed",
+		},
+		Payloads: []PayloadEntry{
+			{SandboxPath: "/sandbox/.claude/CLAUDE.md", Content: "base instructions"},
+		},
+	}
+
+	overlay := &AgentConfig{
+		Name: "reviewer",
+		Repo: "https://github.com/stackrox/collector",
+		Task: "identify the highest-priority C++ remediation",
+		Providers: []ProviderRef{
+			{Profile: "atlassian", Env: map[string]string{"JIRA_URL": "https://issues.redhat.com"}},
+		},
+		Env: map[string]string{
+			"CUSTOM_VAR": "value",
+		},
+	}
+
+	merged := base.MergeOver(overlay)
+
+	if merged.Name != "reviewer" {
+		t.Errorf("Name = %q, want reviewer", merged.Name)
+	}
+	if merged.Entrypoint != "claude" {
+		t.Errorf("Entrypoint = %q, want claude (from base)", merged.Entrypoint)
+	}
+	if merged.Gateway != "local-container" {
+		t.Errorf("Gateway = %q, want local-container (from base)", merged.Gateway)
+	}
+	if merged.Repo != "https://github.com/stackrox/collector" {
+		t.Errorf("Repo = %q, want stackrox/collector", merged.Repo)
+	}
+	if merged.Task != "identify the highest-priority C++ remediation" {
+		t.Errorf("Task = %q, want overlay task", merged.Task)
+	}
+
+	// Providers: overlay (atlassian) + base (github, vertex) — deduplicated
+	if len(merged.Providers) != 3 {
+		t.Fatalf("Providers count = %d, want 3", len(merged.Providers))
+	}
+	providerNames := make(map[string]bool)
+	for _, p := range merged.Providers {
+		providerNames[p.Profile] = true
+	}
+	for _, want := range []string{"atlassian", "github", "google-vertex-ai"} {
+		if !providerNames[want] {
+			t.Errorf("missing provider %q", want)
+		}
+	}
+
+	// Env: base + overlay merged
+	if merged.Env["ANTHROPIC_BASE_URL"] != "https://inference.local" {
+		t.Error("missing base env ANTHROPIC_BASE_URL")
+	}
+	if merged.Env["CUSTOM_VAR"] != "value" {
+		t.Error("missing overlay env CUSTOM_VAR")
+	}
+
+	// Payloads: base preserved
+	if len(merged.Payloads) != 1 {
+		t.Errorf("Payloads count = %d, want 1 (from base)", len(merged.Payloads))
+	}
+
+	// BaseAgent field cleared
+	if merged.BaseAgent != "" {
+		t.Errorf("BaseAgent = %q, want empty (cleared after merge)", merged.BaseAgent)
+	}
+}

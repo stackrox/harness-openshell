@@ -66,8 +66,10 @@ test-suite-live: cli
 	./test/suite/run.sh --live
 
 ## Local gateway integration (unit tests run separately via 'make test')
+## Builds sandbox image locally — no registry push needed for Podman.
 test-local: cli
-	./test/test-flow.sh local-container
+	$(CONTAINER_CLI) build -t $(IMAGE) profiles/images/sandbox-default/
+	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh local-container
 
 ## Kind: self-contained cluster lifecycle
 ## Builds sandbox image locally and pre-loads into kind (no registry push needed).
@@ -77,8 +79,8 @@ test-kind: cli
 	@echo ""
 	HARNESS_OS_IMAGE=$(IMAGE) CONTAINER_CLI=$(CONTAINER_CLI) ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
 
-## Remote (OCP): requires KUBECONFIG set
-test-remote: cli dev-sandbox
+## Remote (OCP): requires KUBECONFIG set. Pushes image since the cluster pulls from registry.
+test-remote: cli dev-push
 	@test -n "$${KUBECONFIG}" || { echo "ERROR: Set KUBECONFIG for OCP (e.g. export KUBECONFIG=infracluster/kubeconfig)"; exit 1; }
 	@echo ""
 	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh openshift
