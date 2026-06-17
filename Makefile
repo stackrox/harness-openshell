@@ -66,9 +66,8 @@ test-suite-live: cli
 	./test/suite/run.sh --live
 
 ## Local gateway integration (unit tests run separately via 'make test')
-## Set HARNESS_OS_IMAGE to override the sandbox image. On local dev,
-## build first with: make dev-sandbox
-test-local: cli
+## Builds and pushes the sandbox image so the gateway can pull it.
+test-local: cli dev-push
 	./test/test-flow.sh local-container
 
 ## Kind: self-contained cluster lifecycle

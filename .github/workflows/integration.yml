@@ -13,8 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -31,9 +29,10 @@ jobs:
           openshell gateway list
 
       - name: Run local integration
-        run: make test-local
+        run: |
+          CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=ci' -o harness .
+          HARNESS_OS_IMAGE=profiles/images/sandbox-default ./test/test-flow.sh local-container
         env:
-          HARNESS_OS_IMAGE: profiles/images/sandbox-default
           TEST_LOG_FILE: /tmp/test-logs/test-flow-local.log
 
       - name: Run config test suite (with live tests)
