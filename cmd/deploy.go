@@ -16,11 +16,7 @@ import (
 )
 
 func NewDeployCmd(harnessDir, cli string) *cobra.Command {
-	var (
-		local      bool
-		remote     bool
-		kubeconfig string
-	)
+	var kubeconfig string
 
 	cmd := &cobra.Command{
 		Use:   "deploy [gateway]",
@@ -28,7 +24,7 @@ func NewDeployCmd(harnessDir, cli string) *cobra.Command {
 		Long:  "Deploy a gateway by name (e.g., local, ocp, kind). Reads configuration from profiles/gateways/<name>.yaml.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			gatewayName, err := resolveGatewayName(args, local, remote)
+			gatewayName, err := resolveGatewayName(args)
 			if err != nil {
 				return err
 			}
@@ -50,24 +46,14 @@ func NewDeployCmd(harnessDir, cli string) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&local, "local", false, "Alias for 'harness deploy local'")
-	cmd.Flags().BoolVar(&remote, "remote", false, "Alias for 'harness deploy ocp'")
 	cmd.Flags().StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig (remote only)")
-	cmd.Flags().MarkHidden("local")
-	cmd.Flags().MarkHidden("remote")
 
 	return cmd
 }
 
-func resolveGatewayName(args []string, local, remote bool) (string, error) {
+func resolveGatewayName(args []string) (string, error) {
 	if len(args) > 0 {
 		return args[0], nil
-	}
-	if local {
-		return "local", nil
-	}
-	if remote {
-		return "ocp", nil
 	}
 	return "", fmt.Errorf("specify a gateway: harness deploy <local|ocp|kind>")
 }

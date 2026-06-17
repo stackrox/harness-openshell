@@ -180,7 +180,7 @@ harness get providers [-o table|json|yaml]
 harness get gateways [-o table|json|yaml]
     List gateways. Aliases: gateway, gw.
 
-harness describe <name>
+harness describe <name> [-o table|json|yaml]
     Detailed status for a specific sandbox (phase, gateway, providers).
 
 harness delete <name> [<name>...]
@@ -192,8 +192,6 @@ harness delete --all
 harness delete --providers / --k8s
     Delete providers or k8s resources selectively.
 
-harness stop [NAME] / harness start [NAME]
-    Stop or start a sandbox without deleting it.
 ```
 
 For sandbox connect/logs, use openshell directly:

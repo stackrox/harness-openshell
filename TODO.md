@@ -119,8 +119,7 @@ as strongest OTel backend for full signal coverage.
 - [ ] `harness runs list/show` queries traces from the backend
 - [ ] Headless mode (`harness run --task '...'`) records automatically
 
-## Deferred (post-0.1)
+## Deferred
 
-- [ ] Multi-agent workflow support (fleet.yaml / workflow.yaml)
-- [ ] `harness policy suggest` (DenialEvent stream -> policy proposals)
-- [ ] Fleet management (multi-gateway kubectl-context style)
+- [ ] `harness init` -- generate default harness.yaml, print next steps (highest-impact missing feature)
+- [ ] Pre-flight checks in apply (openshell exists, podman running, credentials present)
