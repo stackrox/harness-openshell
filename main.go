@@ -60,16 +60,31 @@ func main() {
 	}
 	root.CompletionOptions.HiddenDefaultCmd = true
 
+	// Primary commands
 	root.AddCommand(
-		cmd.NewUpCmd(harnessDir, cli),
-		cmd.NewCreateCmd(harnessDir, cli),
+		cmd.NewApplyCmd(harnessDir, cli),
 		cmd.NewDeployCmd(harnessDir, cli),
-		cmd.NewTeardownCmd(harnessDir, cli),
-		cmd.NewStatusCmd(harnessDir, cli),
 		cmd.NewStopCmd(harnessDir, cli),
 		cmd.NewStartCmd(harnessDir, cli),
-		cmd.NewRenderCmd(harnessDir, cli),
 	)
+
+	// Deprecated aliases (hidden, print warning)
+	upCmd := cmd.NewUpCmd(harnessDir, cli)
+	upCmd.Hidden = true
+	upCmd.Deprecated = "use 'harness apply --attach' instead"
+	createCmd := cmd.NewCreateCmd(harnessDir, cli)
+	createCmd.Hidden = true
+	createCmd.Deprecated = "use 'harness apply' instead"
+	teardownCmd := cmd.NewTeardownCmd(harnessDir, cli)
+	teardownCmd.Hidden = true
+	teardownCmd.Deprecated = "use 'harness delete' instead"
+	statusCmd := cmd.NewStatusCmd(harnessDir, cli)
+	statusCmd.Hidden = true
+	statusCmd.Deprecated = "use 'harness get agents' instead"
+	renderCmd := cmd.NewRenderCmd(harnessDir, cli)
+	renderCmd.Hidden = true
+	renderCmd.Deprecated = "use 'harness apply -o yaml' instead"
+	root.AddCommand(upCmd, createCmd, teardownCmd, statusCmd, renderCmd)
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

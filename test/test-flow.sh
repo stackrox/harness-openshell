@@ -34,12 +34,12 @@ AGENT_FLAG="--agent"
 if [[ "${CI:-}" == "true" ]]; then
   NO_PROVIDERS=true
   PROFILE="test/ci-agent.yaml"
-  AGENT_FLAG="--agent-profile"
+  AGENT_FLAG="--file"
 fi
 
 for arg in "$@"; do
   case "$arg" in
-    --ci)             NO_PROVIDERS=true; PROFILE="test/ci-agent.yaml"; AGENT_FLAG="--agent-profile" ;;
+    --ci)             NO_PROVIDERS=true; PROFILE="test/ci-agent.yaml"; AGENT_FLAG="--file" ;;
     --reuse-gateway)  REUSE_GATEWAY=true ;;
     --no-providers)   NO_PROVIDERS=true ;;
     --debug)          DEBUG=true ;;
@@ -179,7 +179,7 @@ summary() {
 test_errors() {
   echo "=== test: error scenarios ==="
 
-  step_fail "nonexistent profile" harness up --gateway local --agent nonexistent --no-tty
+  step_fail "nonexistent profile" harness apply --gateway local --agent nonexistent
 
   if $REUSE_GATEWAY; then
     step "teardown (first)" harness teardown --sandboxes --providers
@@ -205,12 +205,12 @@ test_local() {
 
   # up auto-registers providers when missing
   local sandbox_name="test-agent"
-  step "sandbox create (up)" harness up --gateway local --name "$sandbox_name" $AGENT_FLAG "$PROFILE" --no-tty
+  step "sandbox create (up)" harness apply --gateway local --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
   sandbox_verify "$sandbox_name"
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
   local create_name="test-create"
-  step "sandbox create (create)" harness create --name "$create_name" --agent-profile test/ci-agent.yaml
+  step "sandbox create (create)" harness apply --name "$create_name" --file test/ci-agent.yaml
   step "sandbox verify (create)" "$CLI" sandbox exec --name "$create_name" -- echo "hello"
   step "sandbox delete (create)" "$CLI" sandbox delete "$create_name"
 
@@ -218,7 +218,7 @@ test_local() {
     echo ""
     echo "=== test: missing providers ==="
     step "teardown providers" harness teardown --providers
-    step "up with no providers" harness up --gateway local --name test-noprov --no-tty
+    step "up with no providers" harness apply --gateway local --name test-noprov
     step "cleanup" harness teardown --sandboxes
   fi
 
@@ -264,7 +264,7 @@ test_kind() {
   step "gateway reachable" "$CLI" inference get
 
   local sandbox_name="test-kind"
-  step "sandbox create" harness up --gateway kind --name "$sandbox_name" $AGENT_FLAG "$PROFILE" --no-tty
+  step "sandbox create" harness apply --gateway kind --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
   sandbox_verify "$sandbox_name"
 
   if ! $NO_PROVIDERS; then
@@ -302,10 +302,10 @@ test_ocp() {
   local sandbox_name
   if $NO_PROVIDERS; then
     sandbox_name="test-ocp"
-    step "sandbox create" harness create --agent-profile=test/ci-agent.yaml --name "$sandbox_name"
+    step "sandbox create" harness apply -f test/ci-agent.yaml --name "$sandbox_name"
   else
     sandbox_name="agent"
-    step "sandbox create (up)" harness up --gateway ocp --name "$sandbox_name" --no-tty
+    step "sandbox create (up)" harness apply --gateway ocp --name "$sandbox_name"
   fi
 
   sandbox_verify "$sandbox_name"
