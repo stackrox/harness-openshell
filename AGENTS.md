@@ -62,6 +62,56 @@ For multi-step tasks, state a brief plan:
 
 3. **Upstream alignment** — OpenShell is alpha and developing quickly. Don't fight the framework. Use native patterns (providers v2, profiles, inference.local, policy composition) and adapt when upstream changes.
 
+## Upstream Conventions
+
+Follow these conventions from the OpenShell ecosystem. Do not invent alternatives.
+
+### Output format: `-o table|json|yaml`
+Every list/get command must support `-o` with three formats. `table` is the default
+for human consumption, `json` and `yaml` for machine consumption. Define a shared
+`OutputFormat` type used by all commands. Match the convention from OpenShell
+issues #1745 and #1750.
+
+### Credential exclusion from structured output
+Never serialize credential values into `-o json` or `-o yaml` output. Expose key
+names only. This is a security invariant, not a nice-to-have. See OpenShell
+PR #1830 `provider_to_json()` for the pattern.
+
+### Flag resolution order
+Explicit flag > `OPENSHELL_*` env var > config file > default. This matches the
+plugin host contract from issue #1851. The env vars `OPENSHELL_GATEWAY`,
+`OPENSHELL_GATEWAY_ENDPOINT`, and verbosity flags propagate from the plugin host.
+
+### Policy schema
+`kind: policy` documents must use the upstream OpenShell policy YAML schema
+verbatim (from the `openshell-policy` crate). Do not invent a harness-specific
+policy format. A policy written for the harness should be byte-compatible with
+what `openshell-image-builder` generates.
+
+### Provider abstraction
+`kind: provider` is an abstraction layer, not a thin wrapper around
+`openshell provider create`. The backend may change to gateway.toml entries
+(#1886) or K8s CRDs (#1719) as upstream settles. Implement the imperative
+CLI backend today. Do not hard-code the execution strategy.
+
+### Plugin compatibility
+The binary may eventually be discoverable as an OpenShell plugin via
+`openshell-<name>` PATH-based discovery (#1851). Design for standalone first.
+Plugin compatibility (binary naming, env var consumption) is additive. Do not
+depend on plugin host behavior that is not yet accepted upstream.
+
+### Do not cache or forward auth tokens
+Issue #1851 explicitly prohibits token forwarding to plugins. The harness must
+resolve credentials fresh via `openshell-bootstrap` or configured auth. Never
+store, cache, or relay gateway auth tokens.
+
+### Delegate image building
+Do not replicate Dev Container Feature fetching or complex image composition.
+The `openshell-image-builder` handles agent installation, settings bake-in,
+policy composition, and OCI artifact fetching. If the harness needs advanced
+image support, generate config the image-builder consumes rather than
+reimplementing in Go.
+
 ## The harness should shrink, not grow
 
 This harness exists to bridge gaps in OpenShell's current capabilities. As OpenShell matures, custom code should be replaced by upstream features. Every workaround should reference the upstream issue that would eliminate it.

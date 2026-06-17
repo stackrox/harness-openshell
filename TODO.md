@@ -30,76 +30,101 @@
 - [ ] Document non-secret provider env vars (what `providers[].env` captures
       and why it exists alongside secret credentials)
 
-## CLI
+## CLI — kubectl-style refactor
 
-- [ ] Flows that support agent.yaml (`create`, `up`) should also support
-      `--provider-profile` and provider config overrides
+Sequenced implementation plan. Each phase builds on the previous.
+
+### Phase 1: `apply` command (replaces `up` and `create`)
+- [ ] `cmd/apply.go` — unified deploy command, delegates to existing `upLocal()`
+- [ ] `-f` flag as primary interface (replaces `--agent-profile`)
+- [ ] `--attach` flag (default false) for interactive TTY (flips old `up` default)
+- [ ] `--dry-run` — resolve everything, report pass/fail per step, don't deploy
+- [ ] `-o yaml` — output fully resolved harness YAML with source annotations
+- [ ] `-o json` — machine-readable resolved config
+- [ ] Env var fallbacks: `OPENSHELL_GATEWAY`, `OPENSHELL_GATEWAY_ENDPOINT` (#1851)
+- [ ] Bare `harness apply` uses default agent config (same as old `harness up`)
+- [ ] Mark `up` and `create` as hidden deprecated aliases via cobra `Deprecated` field
+
+### Phase 2: `get` and `describe` commands (replaces `status`)
+- [ ] `cmd/get.go` — parent command with subcommands:
+  - `harness get agents` (aliases: `sandboxes`) — list running sandboxes
+  - `harness get providers` — list registered providers
+  - `harness get gateways` — list gateways
+- [ ] Shared `OutputFormat` type: `table|json|yaml` via `-o` flag on all `get` subcommands
+- [ ] Credential exclusion: `-o json/yaml` never includes secret values (#1830 pattern)
+- [ ] `cmd/describe.go` — `harness describe <name>` for detailed sandbox status
+- [ ] Mark `status` as hidden deprecated alias
+
+### Phase 3: `delete` command (replaces `teardown`)
+- [ ] `cmd/delete.go` — targeted + bulk deletion:
+  - `harness delete <name>` — delete specific sandbox
+  - `harness delete --all` — full teardown (sandboxes + providers + k8s)
+  - `harness delete --providers` — providers only
+  - `harness delete --k8s` — k8s resources only
+- [ ] Reuses existing `teardownSandboxes()`, `teardownProviders()`, `teardownK8s()`
+- [ ] Mark `teardown` as hidden deprecated alias
+
+### Phase 4: Integration + docs
+- [ ] Update `test/test-flow.sh` to use new verbs
+- [ ] Update SPEC.md command reference
+- [ ] Update README.md command reference
+- [ ] `render` becomes hidden alias for `apply -o yaml`
+- [ ] `deploy` stays as-is (infrastructure action)
+- [ ] `start`/`stop` stay as-is (lifecycle actions)
 
 ## Agent Config
 
-### Self-contained agent YAML (multi-document, k8s-style)
-- [ ] Support multi-document YAML (`---` separated) where all objects live in one file
-- Agent still references everything by name (`profile: github`), but provider/gateway/policy
-  definitions can be co-located in the same file instead of separate files in profiles/
-- Parser reads all documents via `yaml.Decoder` loop, indexes by `kind`+`name`, resolves
-  references against local set first, falls back to profiles/ tree
-- Composes naturally: split the file up and drop objects into `profiles/` to share across agents
-- Example:
-  ```yaml
-  ---
-  kind: agent
-  name: my-agent
-  entrypoint: claude
-  gateway: local
-  providers:
-    - profile: github
-    - profile: vertex
-  env:
-    ANTHROPIC_BASE_URL: https://inference.local
-  ---
-  kind: provider
-  name: github
-  type: github
-  credentials: [GITHUB_TOKEN]
-  endpoints:
-    - { host: "api.github.com", port: 443 }
-  ---
-  kind: provider
-  name: vertex
-  type: google-vertex-ai
-  credentials: [GOOGLE_APPLICATION_CREDENTIALS]
-  ---
-  kind: gateway
-  name: local
-  type: local
-  insecure: true
-  ---
-  kind: policy
-  network_policies:
-    github:
-      endpoints:
-        - { host: "api.github.com", port: 443 }
-  ```
-- Goal: `harness up -f agent.yaml` with one file. Zero to working sandboxed agent.
-- Existing single-document agent YAMLs (no `kind` field) continue to work unchanged
+### Multi-document harness YAML [DONE]
+- [x] `kind: agent/provider/gateway/policy` dispatch via `yaml.Decoder` loop
+- [x] `Harness` type with `ParseHarness`/`ParseHarnessFile`
+- [x] `RenderHarness` with built-in vs custom provider labeling
+- [x] Resolution: harness-local definitions > profiles/ tree > embedded defaults
+- [x] Backwards compat: single-doc agent YAMLs without `kind` still work
 
-### `harness render` as live config snapshot
-- [ ] `harness render` queries the running gateway for effective state, not just YAML files
-- Outputs what is actually configured: registered providers, active gateway, inference
-  config, sandbox policy, env structure
-- Credentials replaced with `${VAR}` placeholders -- the snapshot is shareable
-- Replay with different creds: `GITHUB_TOKEN=theirs harness up -f snapshot.yaml`
-- Like `kubectl get -o yaml` -- captures the running shape, not the source config
-- Round-trip: `harness render > snapshot.yaml && harness up -f snapshot.yaml` should
-  reproduce the same agent setup (with different credentials from env)
-- [ ] `harness render preview -f harness.yaml` -- dry-run that resolves all references
-  (providers, gateway, env vars) and shows the fully resolved config without deploying.
-  Like `terraform plan` or `helm template`. Shows what `harness up` would do.
+### Config reconciliation (`apply -o yaml`)
+- [ ] Resolves agent YAML against profiles/, defaults, and running gateway
+- [ ] Shows where each value came from (default, profile, harness file, env var)
+- [ ] Credentials rendered as `${VAR}` placeholders — shareable, replayable
+- [ ] Round-trip: `apply -o yaml > snapshot.yaml && apply -f snapshot.yaml`
+- [ ] `--dry-run` without `-o` reports pass/fail (gateway available? providers
+      resolvable? image exists? env vars resolved?)
+
+### `kind: config` — embed sandbox files in harness YAML (future)
+- [ ] `kind: config` documents for `claude.json`, `CLAUDE.md`, `mcp.json`, etc.
+- [ ] Rendered to payload directory instead of baking into sandbox image
+- [ ] Keeps sandbox image minimal — all agent-specific config in the harness YAML
+
+### Provider abstraction layer
+- [ ] `kind: provider` targets `openshell provider create` today (imperative)
+- [ ] Abstraction supports future backends: gateway.toml (#1886), K8s CRDs (#1719)
+- [ ] Do not hard-code execution strategy — upstream is undecided
 
 ### Future fields
-- [ ] `description` -- one line of human-readable context per agent config
-- [ ] `repo` -- git URL to clone into the sandbox at start
-- [ ] `secrets` -- non-provider secrets to inject
+- [ ] `description` — one line of human-readable context per agent config
+- [ ] `repo` — git URL to clone into the sandbox at start
+- [ ] `secrets` — non-provider secrets to inject
+
+## Upstream alignment
+
+### Plugin compatibility (#1851)
+- [ ] Binary naming: plan for `openshell-harness` (PATH-based plugin discovery)
+- [ ] Dual invocation: standalone `openshell-harness` and plugin `openshell harness`
+- [ ] Env var fallbacks for gateway/endpoint/verbosity when running as plugin
+- [ ] Auth via `openshell-bootstrap` APIs (no token forwarding)
+- [ ] Status: #1851 is `question` label, not accepted. Design standalone first.
+
+### Image building delegation
+- [ ] Evaluate delegating to `openshell-image-builder` for advanced image composition
+- [ ] Harness generates config (`.kaiden/workspace.json` + `config.toml`), builder consumes
+- [ ] Layered policy composition: base + agent-specific + user overlay
+- [ ] Programmatic Containerfile generation from config (stop maintaining static Dockerfiles)
+
+### Upstream issues to track
+- #1719 — K8s Operator design (affects provider CRDs, declarative config)
+- #1851 — Plugin system (affects binary naming, env var contract)
+- #1886 — Declarative provider config in gateway.toml (affects `kind: provider`)
+- #1922 — Portable sandbox log collection (affects observability)
+- #1933 — Centralized audit/event log (affects run recorder)
 
 ## Testing
 
