@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLUSTER_NAME="openshell-test"
 KIND_KUBECONFIG=""
 KEEP_CLUSTER=false
-TEST_ARGS=("kind")
+TEST_ARGS=("helm-nodeport")
 
 for arg in "$@"; do
   case "$arg" in
