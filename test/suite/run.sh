@@ -257,7 +257,10 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
   # Clean slate
   "$HARNESS" delete --sandboxes --providers >/dev/null 2>&1 || true
 
-  # Each provider: register, create sandbox, verify in openshell, test functionality, cleanup.
+  # Provider registration tests: verify each provider registers with the gateway.
+  # Single-provider configs test registration and openshell cross-validation.
+  # Functionality tests (curl, MCP, inference) use the all-providers config
+  # which has the full sandbox policy.
 
   # GitHub (from-existing credential style)
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
@@ -267,17 +270,10 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
     run_test "provider: github in openshell" \
       bash -c '"$1" provider list 2>/dev/null | grep -q github' _ "$CLI"
 
-    # GitHub provider uses from-existing: GITHUB_TOKEN is injected as env var.
-    # The proxy allows the CONNECT but the sandbox must pass the token itself.
-    run_test "func: github api from sandbox" \
-      "$CLI" sandbox exec --name test-gh -- \
-        bash -c 'curl -sf -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user -o /dev/null'
-
     "$HARNESS" delete test-gh >/dev/null 2>&1 || true
   else
     skip_test "provider: github register + apply" "GITHUB_TOKEN not set"
     skip_test "provider: github in openshell" "GITHUB_TOKEN not set"
-    skip_test "func: github api from sandbox" "GITHUB_TOKEN not set"
   fi
 
   # Atlassian (basic auth credential style)
@@ -288,18 +284,10 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
     run_test "provider: atlassian in openshell" \
       bash -c '"$1" provider list 2>/dev/null | grep -q atlassian' _ "$CLI"
 
-    # Atlassian provider uses basic auth: proxy rewrites the Authorization header.
-    # The sandbox has JIRA_API_TOKEN as a proxy-resolved credential and
-    # JIRA_URL/JIRA_USERNAME as env vars.
-    run_test "func: jira api from sandbox" \
-      "$CLI" sandbox exec --name test-atl -- \
-        bash -c 'curl -sf -u "$JIRA_USERNAME:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/2/myself" -o /dev/null'
-
     "$HARNESS" delete test-atl >/dev/null 2>&1 || true
   else
     skip_test "provider: atlassian register + apply" "JIRA_API_TOKEN not set"
     skip_test "provider: atlassian in openshell" "JIRA_API_TOKEN not set"
-    skip_test "func: jira api from sandbox" "JIRA credentials not set"
   fi
 
   # Vertex AI (ADC credential style)
@@ -313,16 +301,11 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
     run_test "provider: inference route set" \
       bash -c '"$1" inference get 2>/dev/null' _ "$CLI"
 
-    run_test "func: inference route from sandbox" \
-      "$CLI" sandbox exec --name test-vtx -- \
-        bash -c 'curl -sf https://inference.local/v1/models 2>/dev/null | head -1 | grep -q .'
-
     "$HARNESS" delete test-vtx >/dev/null 2>&1 || true
   else
     skip_test "provider: vertex register + apply" "ANTHROPIC_VERTEX_PROJECT_ID not set"
     skip_test "provider: vertex in openshell" "ANTHROPIC_VERTEX_PROJECT_ID not set"
     skip_test "provider: inference route set" "ANTHROPIC_VERTEX_PROJECT_ID not set"
-    skip_test "func: inference route from sandbox" "ANTHROPIC_VERTEX_PROJECT_ID not set"
   fi
 
   # GWS (OAuth refresh credential style)
@@ -333,18 +316,15 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
     run_test "provider: gws in openshell" \
       bash -c '"$1" provider list 2>/dev/null | grep -q gws' _ "$CLI"
 
-    run_test "func: gmail api from sandbox" \
-      "$CLI" sandbox exec --name test-gws -- \
-        bash -c 'for i in 1 2 3; do curl -sf https://gmail.googleapis.com/gmail/v1/users/me/profile -H "Authorization: Bearer $GOOGLE_WORKSPACE_CLI_TOKEN" -o /dev/null && exit 0; sleep 2; done; exit 1'
-
     "$HARNESS" delete test-gws >/dev/null 2>&1 || true
   else
     skip_test "provider: gws register + apply" "gws not authenticated"
     skip_test "provider: gws in openshell" "gws not authenticated"
-    skip_test "func: gmail api from sandbox" "gws not authenticated"
   fi
 
-  # All providers together
+  # All providers: composition + functionality validation
+  # Uses the full default agent config which has all provider endpoints
+  # in the sandbox policy. This is where we test that APIs actually work.
   if [[ -n "${GITHUB_TOKEN:-}" ]] && [[ -n "${JIRA_API_TOKEN:-}" ]] && [[ -n "${ANTHROPIC_VERTEX_PROJECT_ID:-}" ]]; then
     "$HARNESS" delete --sandboxes --providers >/dev/null 2>&1 || true
 
@@ -361,12 +341,37 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
       bash -c 'h=$("$1" get providers -o json 2>/dev/null) && \
         echo "$h" | python3 -c "import sys,json; d=json.load(sys.stdin); assert len(d) >= 3, f\"expected >= 3 providers, got {len(d)}\""' _ "$HARNESS"
 
+    # Functionality: test real API calls from inside the all-providers sandbox
+    run_test "func: github api from sandbox" \
+      "$CLI" sandbox exec --name test-all -- \
+        bash -c 'curl -sf -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user -o /dev/null'
+
+    run_test "func: jira api from sandbox" \
+      "$CLI" sandbox exec --name test-all -- \
+        bash -c 'curl -sf -u "$JIRA_USERNAME:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/2/myself" -o /dev/null'
+
+    run_test "func: inference route from sandbox" \
+      "$CLI" sandbox exec --name test-all -- \
+        bash -c 'curl -sf https://inference.local/v1/models 2>/dev/null | head -1 | grep -q .'
+
+    if command -v gws >/dev/null 2>&1 && gws auth export --unmasked >/dev/null 2>&1; then
+      run_test "func: gmail api from sandbox" \
+        "$CLI" sandbox exec --name test-all -- \
+          bash -c 'for i in 1 2 3; do curl -sf https://gmail.googleapis.com/gmail/v1/users/me/profile -H "Authorization: Bearer $GOOGLE_WORKSPACE_CLI_TOKEN" -o /dev/null && exit 0; sleep 2; done; exit 1'
+    else
+      skip_test "func: gmail api from sandbox" "gws not authenticated"
+    fi
+
     "$HARNESS" delete test-all >/dev/null 2>&1 || true
     "$HARNESS" delete --providers >/dev/null 2>&1 || true
   else
     skip_test "provider: all providers live apply" "missing credentials"
     skip_test "provider: all providers cross-validate" "missing credentials"
     skip_test "provider: harness get matches openshell" "missing credentials"
+    skip_test "func: github api from sandbox" "missing credentials"
+    skip_test "func: jira api from sandbox" "missing credentials"
+    skip_test "func: inference route from sandbox" "missing credentials"
+    skip_test "func: gmail api from sandbox" "missing credentials"
   fi
 else
   if ! $LIVE; then
