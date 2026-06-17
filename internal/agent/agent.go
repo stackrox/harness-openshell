@@ -16,6 +16,12 @@ type ProviderRef struct {
 	Env     map[string]string `yaml:"env,omitempty"`
 }
 
+type PayloadEntry struct {
+	Path    string `yaml:"path"`
+	Content string `yaml:"content,omitempty"`
+	File    string `yaml:"file,omitempty"`
+}
+
 type AgentConfig struct {
 	Name       string            `yaml:"name"`
 	Gateway    string            `yaml:"gateway,omitempty"`
@@ -27,6 +33,7 @@ type AgentConfig struct {
 	Policy     string            `yaml:"policy,omitempty"`
 	Image      string            `yaml:"image,omitempty"`
 	Include    []string          `yaml:"include,omitempty"`
+	Payloads   []PayloadEntry    `yaml:"payloads,omitempty"`
 }
 
 func (c *AgentConfig) NoTTY() bool {
@@ -82,7 +89,7 @@ type Harness struct {
 	Agent     *AgentConfig
 	Gateways  map[string][]byte // name -> raw gateway YAML
 	Providers map[string][]byte // name -> raw provider profile YAML
-	Configs   map[string][]byte // name -> file content (e.g. claude.json, CLAUDE.md)
+	Payloads  []PayloadEntry    // files to upload to sandbox
 	Policy    []byte            // raw policy YAML
 }
 
@@ -92,11 +99,12 @@ type kindHeader struct {
 	Name string `yaml:"name"`
 }
 
-// configDoc holds a kind: config document with file content.
-type configDoc struct {
+// payloadDoc holds a kind: payload document.
+type payloadDoc struct {
 	Kind    string `yaml:"kind"`
-	Name    string `yaml:"name"`
-	Content string `yaml:"content"`
+	Path    string `yaml:"path"`
+	Content string `yaml:"content,omitempty"`
+	File    string `yaml:"file,omitempty"`
 }
 
 func ParseHarnessFile(path string) (*Harness, error) {
@@ -111,7 +119,6 @@ func ParseHarness(data []byte) (*Harness, error) {
 	h := &Harness{
 		Gateways:  make(map[string][]byte),
 		Providers: make(map[string][]byte),
-		Configs:   make(map[string][]byte),
 	}
 
 	dec := yaml.NewDecoder(bytes.NewReader(data))
@@ -159,18 +166,25 @@ func ParseHarness(data []byte) (*Harness, error) {
 			}
 			h.Gateways[header.Name] = raw
 
-		case "config":
-			var doc configDoc
+		case "payload", "config":
+			var doc payloadDoc
 			if err := yaml.Unmarshal(raw, &doc); err != nil {
-				return nil, fmt.Errorf("document %d: parsing config: %w", docIndex, err)
+				return nil, fmt.Errorf("document %d: parsing payload: %w", docIndex, err)
 			}
-			if doc.Name == "" {
-				return nil, fmt.Errorf("document %d: kind: config requires a name field", docIndex)
+			if doc.Path == "" {
+				return nil, fmt.Errorf("document %d: kind: payload requires a path field", docIndex)
 			}
-			if doc.Content == "" {
-				return nil, fmt.Errorf("document %d: kind: config requires a content field", docIndex)
+			if doc.Content == "" && doc.File == "" {
+				return nil, fmt.Errorf("document %d: kind: payload requires content or file field", docIndex)
 			}
-			h.Configs[doc.Name] = []byte(doc.Content)
+			if doc.Content != "" && doc.File != "" {
+				return nil, fmt.Errorf("document %d: kind: payload cannot have both content and file", docIndex)
+			}
+			h.Payloads = append(h.Payloads, PayloadEntry{
+				Path:    doc.Path,
+				Content: doc.Content,
+				File:    doc.File,
+			})
 
 		case "policy":
 			if h.Policy != nil {
@@ -187,6 +201,8 @@ func ParseHarness(data []byte) (*Harness, error) {
 	if h.Agent == nil {
 		return nil, fmt.Errorf("no agent document found")
 	}
+	// Merge agent-level payloads into harness payloads
+	h.Payloads = append(h.Payloads, h.Agent.Payloads...)
 	return h, nil
 }
 
@@ -222,10 +238,15 @@ func RenderHarness(h *Harness, builtinProviders map[string][]byte) ([]byte, erro
 		buf.Write(data)
 	}
 
-	for name, content := range h.Configs {
-		buf.WriteString("---\nkind: config\nname: " + name + "\ncontent: |\n")
-		for _, line := range strings.Split(string(content), "\n") {
-			buf.WriteString("  " + line + "\n")
+	for _, p := range h.Payloads {
+		buf.WriteString("---\nkind: payload\npath: " + p.Path + "\n")
+		if p.File != "" {
+			buf.WriteString("file: " + p.File + "\n")
+		} else if p.Content != "" {
+			buf.WriteString("content: |\n")
+			for _, line := range strings.Split(p.Content, "\n") {
+				buf.WriteString("  " + line + "\n")
+			}
 		}
 	}
 
@@ -338,19 +359,42 @@ func RenderPayload(cfg *AgentConfig, baseDir, destDir string) error {
 	return nil
 }
 
-// RenderConfigs writes harness config files (kind: config) to the payload directory.
-func RenderConfigs(configs map[string][]byte, destDir string) error {
-	for name, content := range configs {
-		dst := filepath.Join(destDir, name)
-		dir := filepath.Dir(dst)
-		if dir != destDir {
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return fmt.Errorf("creating dir for config %s: %w", name, err)
+// ResolvePayloads resolves payload entries into source/destination pairs for upload.
+// Content payloads are written to temp files. File payloads are resolved relative to baseDir.
+func ResolvePayloads(payloads []PayloadEntry, baseDir, tmpDir string) ([]struct{ Src, Dst string }, error) {
+	var uploads []struct{ Src, Dst string }
+	for _, p := range payloads {
+		if !strings.HasPrefix(p.Path, "/sandbox/") {
+			return nil, fmt.Errorf("payload path %q must start with /sandbox/", p.Path)
+		}
+		var src string
+		if p.Content != "" {
+			f, err := os.CreateTemp(tmpDir, "payload-*")
+			if err != nil {
+				return nil, fmt.Errorf("creating temp file for payload %s: %w", p.Path, err)
 			}
+			if _, err := f.WriteString(p.Content); err != nil {
+				f.Close()
+				return nil, fmt.Errorf("writing payload %s: %w", p.Path, err)
+			}
+			f.Close()
+			src = f.Name()
+		} else if p.File != "" {
+			resolved := p.File
+			if !filepath.IsAbs(resolved) {
+				resolved = filepath.Join(baseDir, resolved)
+			}
+			clean := filepath.Clean(resolved)
+			rel, err := filepath.Rel(filepath.Clean(baseDir), clean)
+			if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return nil, fmt.Errorf("payload file %q escapes base directory", p.File)
+			}
+			if _, err := os.Stat(clean); err != nil {
+				return nil, fmt.Errorf("payload file %s: %w", p.File, err)
+			}
+			src = clean
 		}
-		if err := os.WriteFile(dst, content, 0o644); err != nil {
-			return fmt.Errorf("writing config %s: %w", name, err)
-		}
+		uploads = append(uploads, struct{ Src, Dst string }{Src: src, Dst: p.Path})
 	}
-	return nil
+	return uploads, nil
 }

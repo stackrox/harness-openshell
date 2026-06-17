@@ -140,8 +140,7 @@ echo "$@" > `+argsFile+`
 		Providers: []string{"github", "vertex-local"},
 		TTY:       true,
 		Keep:      false,
-		UploadSrc: "/tmp/openshell",
-		UploadDst: "/sandbox/.config",
+		Uploads: []Upload{{Src: "/tmp/openshell", Dst: "/sandbox/.config"}},
 		Command:   []string{"bash", "-c", "exec claude"},
 	})
 	data, _ := os.ReadFile(argsFile)

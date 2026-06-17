@@ -79,14 +79,18 @@ type SandboxInfo struct {
 	Phase string
 }
 
+type Upload struct {
+	Src string
+	Dst string
+}
+
 type SandboxCreateOpts struct {
 	Name      string
 	From      string
 	Providers []string
 	TTY       bool
 	Keep      bool
-	UploadSrc string
-	UploadDst string
+	Uploads   []Upload
 	Command   []string
 	Env       map[string]string
 }

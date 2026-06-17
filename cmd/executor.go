@@ -82,9 +82,15 @@ func upLocal(opts upLocalOpts) error {
 		return fmt.Errorf("rendering payload: %w", err)
 	}
 
-	if opts.harness != nil && len(opts.harness.Configs) > 0 {
-		if err := agent.RenderConfigs(opts.harness.Configs, payloadDir); err != nil {
-			return fmt.Errorf("rendering configs: %w", err)
+	// Resolve payload entries into upload pairs
+	var extraUploads []gateway.Upload
+	if opts.harness != nil && len(opts.harness.Payloads) > 0 {
+		resolved, err := agent.ResolvePayloads(opts.harness.Payloads, opts.harnessDir, payloadDir)
+		if err != nil {
+			return fmt.Errorf("resolving payloads: %w", err)
+		}
+		for _, u := range resolved {
+			extraUploads = append(extraUploads, gateway.Upload{Src: u.Src, Dst: u.Dst})
 		}
 	}
 
@@ -106,6 +112,7 @@ func upLocal(opts upLocalOpts) error {
 		retrySleep: opts.retrySleep,
 		sandboxCmd: sandboxCmd,
 		payloadDir: payloadDir,
+		uploads:    extraUploads,
 		env:        agentCfg.BuildEnvMap(),
 	})
 }
