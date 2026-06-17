@@ -66,10 +66,10 @@ test-suite-live: cli
 	./test/suite/run.sh --live
 
 ## Local gateway integration (unit tests run separately via 'make test')
-## Builds sandbox image locally — no registry push needed for Podman.
+## Set HARNESS_OS_IMAGE to override the sandbox image. On local dev,
+## build first with: make dev-sandbox
 test-local: cli
-	$(CONTAINER_CLI) build -t $(IMAGE) profiles/images/sandbox-default/
-	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh local-container
+	./test/test-flow.sh local-container
 
 ## Kind: self-contained cluster lifecycle
 ## Builds sandbox image locally and pre-loads into kind (no registry push needed).

@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -31,6 +33,7 @@ jobs:
       - name: Run local integration
         run: make test-local
         env:
+          HARNESS_OS_IMAGE: profiles/images/sandbox-default
           TEST_LOG_FILE: /tmp/test-logs/test-flow-local.log
 
       - name: Run config test suite (with live tests)
@@ -81,6 +84,7 @@ jobs:
       - name: Run kind integration
         run: make test-kind
         env:
+          CONTAINER_CLI: docker
           TEST_LOG_FILE: /tmp/test-logs/test-flow-kind.log
 
       - name: Export logs
