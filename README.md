@@ -127,12 +127,16 @@ harness apply -f config.yaml
 
 OpenShell provides the runtime isolation. The harness provides the workflow.
 
-For runtime operations, use openshell directly:
+For runtime operations and policy management, use openshell directly:
 ```bash
 openshell sandbox connect <name>     # interactive shell
 openshell sandbox exec <name> -- ... # run commands
 openshell sandbox logs <name>        # view logs
+openshell policy get <name>          # inspect active policy
+openshell term                       # interactive policy terminal
 ```
+
+`openshell term` provides a live view of policy decisions -- which requests are allowed, denied, or pending review. This is how you audit and tune the deny-by-default L7 network policy while an agent is running.
 
 ## Install
 
