@@ -122,9 +122,7 @@ Delete sandboxes by name, or use flags for bulk operations. `--all` deletes sand
 
 Deploy or verify the gateway for a target. Reads `profiles/gateways/<target>.yaml`.
 
-### `harness stop [NAME]` / `harness start [NAME]`
 
-Stop or start a sandbox without deleting it.
 
 ### Deprecated Aliases
 

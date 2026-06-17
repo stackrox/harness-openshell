@@ -1,28 +1,26 @@
-# Credentials — never commit
+
+__pycache__/
+.certs/
+.claude/
+.gateway-env
 *-token.txt
 *.json.key
-acs-ai-sa.json
-secrets.yaml
-kubeconfig
-quay-pull-secret.yaml
-
-# Local state
 *.log
 *.tmp
-__pycache__/
-.gateway-env
-.certs/
-
 # Build artifacts
+# Credentials — never commit
+# Local state
+# Planning artifacts (local only)
+acs-ai-sa.json
+dashboard.html
 harness
 harness-openshell
 infracluster/
-.claude/
-
-# Planning artifacts (local only)
-plans/
-openshell-arch/
-strategy-dashboard.html
-dashboard.html
+kubeconfig
 mlflow.db
+openshell-arch/
 plan_file_ga.md
+plans/
+quay-pull-secret.yaml
+secrets.yaml
+strategy-dashboard.html

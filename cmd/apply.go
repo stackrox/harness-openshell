@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/robbycochran/harness-openshell/internal/agent"
@@ -19,6 +20,8 @@ func NewApplyCmd(harnessDir, cli string) *cobra.Command {
 		gatewayName     string
 		gatewayProfile  string
 		sandboxName     string
+		task            string
+		entrypoint      string
 		attach          bool
 		providerRefresh bool
 		dryRun          bool
@@ -46,7 +49,38 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 			agentCfg := harness.Agent
 			agentPath := resolveAgentPath(harnessDir, agentName, file)
 
-			// Print config path (skip for structured output -- goes to stderr)
+			// CLI overrides
+			if entrypoint != "" {
+				agentCfg.Entrypoint = entrypoint
+			}
+			if task != "" && !attach {
+				// Headless task: set TTY=false so BuildRunSh generates --print
+				f := false
+				agentCfg.TTY = &f
+			}
+			if task != "" {
+				if strings.HasPrefix(task, "@") {
+					path := task[1:]
+					if path == "" {
+						return fmt.Errorf("--task @: missing file path after @")
+					}
+					agentCfg.Task = path
+				} else {
+					tmpTask, err := os.CreateTemp("", "harness-task-*.md")
+					if err != nil {
+						return fmt.Errorf("creating task file: %w", err)
+					}
+					defer os.Remove(tmpTask.Name())
+					if _, err := tmpTask.WriteString(task); err != nil {
+						tmpTask.Close()
+						return fmt.Errorf("writing task: %w", err)
+					}
+					tmpTask.Close()
+					agentCfg.Task = tmpTask.Name()
+				}
+			}
+
+			// Print config path (skip for structured output)
 			if output == "" {
 				status.Infof("Config: %s", agentPath)
 			}
@@ -107,6 +141,8 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 	cmd.Flags().StringVar(&gatewayName, "gateway", envOr("OPENSHELL_GATEWAY", ""), "Gateway profile name (local, kind, ocp)")
 	cmd.Flags().StringVar(&gatewayProfile, "gateway-profile", "", "Path to gateway profile YAML")
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides agent config)")
+	cmd.Flags().StringVar(&task, "task", "", "Task to pass to the agent (inline text or @filepath)")
+	cmd.Flags().StringVar(&entrypoint, "entrypoint", "", "Override agent entrypoint (claude, opencode, bash)")
 	cmd.Flags().BoolVar(&attach, "attach", false, "Attach TTY after creation (interactive mode)")
 	cmd.Flags().BoolVar(&providerRefresh, "provider-refresh", false, "Delete and recreate all providers")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Validate configuration without deploying")

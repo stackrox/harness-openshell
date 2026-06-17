@@ -297,7 +297,18 @@ func (c *AgentConfig) BuildRunSh() string {
 	b.WriteString("fi\n\n")
 	b.WriteString("# Execute entrypoint\n")
 	if c.Task != "" {
-		fmt.Fprintf(&b, "exec %s -p \"$(cat \"$PAYLOAD_DIR/task.md\")\"\n", entrypoint)
+		b.WriteString("TASK=\"$(cat \"$PAYLOAD_DIR/task.md\")\"\n")
+		if c.NoTTY() {
+			// Headless: use --print (claude) or run (opencode) for stdout output
+			switch epBin {
+			case "opencode":
+				fmt.Fprintf(&b, "exec %s run \"$TASK\"\n", entrypoint)
+			default:
+				fmt.Fprintf(&b, "exec %s --print \"$TASK\"\n", entrypoint)
+			}
+		} else {
+			fmt.Fprintf(&b, "exec %s -p \"$TASK\"\n", entrypoint)
+		}
 	} else {
 		fmt.Fprintf(&b, "exec %s\n", entrypoint)
 	}
@@ -360,8 +371,14 @@ func RenderPayload(cfg *AgentConfig, baseDir, destDir string) error {
 
 // ResolvePayloads resolves payload entries into source/destination pairs for upload.
 // Content payloads are written to temp files. File payloads are resolved relative to baseDir.
-func ResolvePayloads(payloads []PayloadEntry, baseDir, tmpDir string) ([]struct{ Src, Dst string }, error) {
-	var uploads []struct{ Src, Dst string }
+// ResolvedUpload is a source/destination pair for sandbox file upload.
+type ResolvedUpload struct {
+	Src string
+	Dst string
+}
+
+func ResolvePayloads(payloads []PayloadEntry, baseDir, tmpDir string) ([]ResolvedUpload, error) {
+	var uploads []ResolvedUpload
 	for _, p := range payloads {
 		if !strings.HasPrefix(p.SandboxPath, "/sandbox/") && !strings.HasPrefix(p.SandboxPath, "/etc/openshell/") {
 			return nil, fmt.Errorf("payload sandbox_path %q must start with /sandbox/ or /etc/openshell/", p.SandboxPath)
@@ -393,7 +410,7 @@ func ResolvePayloads(payloads []PayloadEntry, baseDir, tmpDir string) ([]struct{
 			}
 			src = clean
 		}
-		uploads = append(uploads, struct{ Src, Dst string }{Src: src, Dst: p.SandboxPath})
+		uploads = append(uploads, ResolvedUpload{Src: src, Dst: p.SandboxPath})
 	}
 	return uploads, nil
 }

@@ -92,6 +92,10 @@ func (c *CLI) CheckMinVersion(minVersion string) error {
 	return nil
 }
 
+func (c *CLI) PolicySet(name, policyFile string) error {
+	return c.passthrough("policy", "set", name, "--policy", policyFile, "--wait")
+}
+
 func (c *CLI) InferenceGet() error {
 	return c.silent("inference", "get")
 }
@@ -250,8 +254,11 @@ func (c *CLI) SandboxCreate(opts SandboxCreateOpts) error {
 	if !opts.Keep {
 		args = append(args, "--no-keep")
 	}
-	for _, u := range opts.Uploads {
-		args = append(args, "--upload", u.Src+":"+u.Dst, "--no-git-ignore")
+	if len(opts.Uploads) > 0 {
+		for _, u := range opts.Uploads {
+			args = append(args, "--upload", u.Src+":"+u.Dst)
+		}
+		args = append(args, "--no-git-ignore")
 	}
 	if len(opts.Env) > 0 {
 		keys := make([]string, 0, len(opts.Env))
@@ -289,14 +296,6 @@ func (c *CLI) SandboxStatus() ([]SandboxInfo, error) {
 		}
 	}
 	return infos, nil
-}
-
-func (c *CLI) SandboxStop(name string) error {
-	return c.silent("sandbox", "stop", name)
-}
-
-func (c *CLI) SandboxStart(name string) error {
-	return c.silent("sandbox", "start", name)
 }
 
 func (c *CLI) SandboxDelete(name string) error {

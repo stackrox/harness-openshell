@@ -281,7 +281,7 @@ func TestBuildRunSh(t *testing.T) {
 	if !strings.Contains(runSh, `command -v "claude"`) {
 		t.Error("missing entrypoint validation")
 	}
-	if !strings.Contains(runSh, `exec claude -p "$(cat "$PAYLOAD_DIR/task.md")"`) {
+	if !strings.Contains(runSh, `exec claude -p "$TASK"`) {
 		t.Errorf("missing task exec with -p in:\n%s", runSh)
 	}
 }

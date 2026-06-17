@@ -15,7 +15,8 @@ harness apply -f agent.yaml
 - **One-file agent definition** -- agent, providers, gateway, policy, and sandbox files in a single YAML
 - **Multi-document YAML** -- `kind: agent/provider/gateway/payload/policy` composed in one file
 - **Payload files** -- upload configs to sandbox paths without rebuilding the image
-- **Multi-target deploy** -- same YAML works on local Podman, kind, and OpenShift
+- **Headless task mode** -- `--task "do something"` runs the agent and outputs to stdout
+- **Multi-target deploy** -- same YAML works on local Podman, kind, and OpenShell
 - **Dry-run validation** -- `--dry-run` checks everything before deploying
 - **Config inspection** -- `-o yaml` outputs the fully resolved config
 
@@ -49,20 +50,27 @@ Or build from source: `make cli`
 # Set credentials (missing ones are skipped gracefully)
 export GITHUB_TOKEN=ghp_...
 
-# Deploy a sandbox
-./harness apply
+# Deploy a sandbox with the default agent config
+harness apply -f profiles/agent-default.yaml
+
+# Run a task headlessly (agent outputs to stdout)
+harness apply -f profiles/agent-default.yaml --task "review this codebase for security issues"
+
+# Run a task from a file
+harness apply -f profiles/agent-default.yaml --task @tasks/review.md
 
 # Interactive mode
-./harness apply --attach
+harness apply -f profiles/agent-default.yaml --attach
 
 # Validate without deploying
-./harness apply --dry-run
+harness apply -f profiles/agent-default.yaml --dry-run
 
 # See the fully resolved config
-./harness apply -o yaml
-```
+harness apply -f profiles/agent-default.yaml -o yaml
 
-The built-in config registers providers for GitHub, Jira, Vertex AI, and Google Workspace. Providers with missing credentials are skipped with an info message.
+# Override the entrypoint
+harness apply -f profiles/agent-default.yaml --entrypoint opencode
+```
 
 ## The Agent YAML
 
@@ -84,6 +92,14 @@ providers:
 env:
   ANTHROPIC_BASE_URL: https://inference.local
   ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
+
+payloads:
+  - sandbox_path: /sandbox/.claude/CLAUDE.md
+    local_path: profiles/images/sandbox-default/CLAUDE.md
+  - sandbox_path: /sandbox/.claude.json
+    local_path: profiles/images/sandbox-default/claude.json
+  - sandbox_path: /sandbox/.mcp.json
+    local_path: profiles/images/sandbox-default/mcp.json
 ```
 
 ### Multi-Document Harness YAML
@@ -95,7 +111,6 @@ Bundle everything in one file:
 kind: agent
 name: my-agent
 entrypoint: claude
-gateway: local
 providers:
   - profile: github
 ---
@@ -103,12 +118,17 @@ kind: provider
 name: github
 type: github
 credentials: [GITHUB_TOKEN]
-endpoints:
-  - { host: "api.github.com", port: 443 }
 ---
-kind: gateway
-name: local
-type: local
+kind: payload
+sandbox_path: /sandbox/.claude/CLAUDE.md
+content: |
+  You are a security review agent.
+---
+kind: policy
+network_policies:
+  github:
+    endpoints:
+      - { host: "api.github.com", port: 443 }
 ```
 
 ```bash
@@ -118,20 +138,11 @@ harness apply -f harness.yaml
 ## Targets
 
 ```bash
-harness apply                        # local Podman (default)
-harness apply --gateway ocp          # deploy to OpenShift
-harness deploy ocp                   # deploy gateway only
+harness apply -f profiles/agent-default.yaml                     # local Podman
+harness apply -f profiles/agent-default.yaml --gateway ocp        # deploy to OpenShift
+harness apply -f profiles/agent-opencode.yaml                     # OpenCode agent
+harness deploy ocp                                                # deploy gateway only
 ```
-
-The `gateway:` field in the agent YAML or `--gateway` flag selects the target. Gateway profiles live in `profiles/gateways/`.
-
-### OpenCode
-
-```bash
-harness apply --agent opencode
-```
-
-Same providers and gateway, different agent binary. See `profiles/agent-opencode.yaml`.
 
 ## How It Works
 
@@ -159,10 +170,11 @@ See the [OpenShell docs](https://github.com/NVIDIA/OpenShell) for the full secur
 ### Commands
 
 ```
-harness apply [-f FILE] [--agent NAME] [--gateway NAME] [--attach] [--dry-run] [-o yaml|json]
-    Deploy a sandboxed agent. Primary command.
-    -f loads a harness/agent YAML file directly.
-    --agent selects from profiles/ by name (default: "default").
+harness apply -f FILE [--task TEXT|@FILE] [--entrypoint NAME] [--gateway NAME] [--attach] [--dry-run] [-o yaml|json]
+    Deploy a sandboxed agent from a config file.
+    -f is required -- always specify which config to apply.
+    --task runs the agent headlessly with a task (inline text or @filepath).
+    --entrypoint overrides the agent entrypoint (claude, opencode, bash).
     --attach enables interactive TTY mode.
     --dry-run validates without deploying.
     -o yaml outputs the fully resolved config.
@@ -170,46 +182,31 @@ harness apply [-f FILE] [--agent NAME] [--gateway NAME] [--attach] [--dry-run] [
 harness deploy [local|ocp|kind]
     Deploy or verify the gateway for a target.
 
-harness get agents [-o table|json|yaml]
-    List running sandboxes. Wraps openshell sandbox list with
-    consistent structured output. Aliases: sandboxes, sandbox.
+harness get agents|providers|gateways [-o table|json|yaml]
+    List resources with consistent structured output.
 
-harness get providers [-o table|json|yaml]
-    List registered providers. Credentials never included in output.
+harness describe <name> [-o table|json|yaml]
+    Detailed status for a specific sandbox.
 
-harness get gateways [-o table|json|yaml]
-    List gateways. Aliases: gateway, gw.
-
-harness describe <name>
-    Detailed status for a specific sandbox (phase, gateway, providers).
-
-harness delete <name> [<name>...]
-    Delete specific sandboxes by name.
-
-harness delete --all
-    Delete all sandboxes, providers, and k8s resources.
-
-harness delete --providers / --k8s
-    Delete providers or k8s resources selectively.
-
-harness stop [NAME] / harness start [NAME]
-    Stop or start a sandbox without deleting it.
+harness delete <name> [--all] [--providers] [--k8s]
+    Delete sandboxes or other resources.
 ```
 
-For sandbox connect/logs, use openshell directly:
+For runtime operations, use openshell directly:
 ```
 openshell sandbox connect [NAME]
 openshell sandbox logs [NAME] [--tail]
+openshell sandbox exec [NAME] -- ...
 ```
 
 ### Config Files
 
 | File | Purpose |
 |------|---------|
-| `profiles/agent-*.yaml` | Agent config: image, entrypoint, providers, env, optional task file |
+| `profiles/agent-*.yaml` | Agent config: image, entrypoint, providers, env, payloads, task |
 | `profiles/providers/` | OpenShell provider profiles (imported to gateway on registration) |
 | `profiles/gateways/*.yaml` | Gateway profiles: `local.yaml`, `kind.yaml`, `ocp.yaml` |
-| `profiles/images/sandbox-default/` | Sandbox image: Dockerfile, policy, MCP configs, Claude settings |
+| `profiles/images/sandbox-default/` | Sandbox image defaults (overridable via payloads) |
 
 ### Credentials
 

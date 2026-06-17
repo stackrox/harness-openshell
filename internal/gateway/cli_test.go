@@ -263,26 +263,6 @@ printf "NAME\tPHASE\n"
 	}
 }
 
-func TestSandboxStop_Silent(t *testing.T) {
-	bin := writeStub(t, `#!/bin/bash
-exit 0
-`)
-	gw := New(bin)
-	if err := gw.SandboxStop("test"); err != nil {
-		t.Errorf("SandboxStop = %v", err)
-	}
-}
-
-func TestSandboxStart_Silent(t *testing.T) {
-	bin := writeStub(t, `#!/bin/bash
-exit 0
-`)
-	gw := New(bin)
-	if err := gw.SandboxStart("test"); err != nil {
-		t.Errorf("SandboxStart = %v", err)
-	}
-}
-
 func TestSandboxList_Empty(t *testing.T) {
 	bin := writeStub(t, `#!/bin/bash
 printf "NAME\tPHASE\n"

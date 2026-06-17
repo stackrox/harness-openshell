@@ -29,5 +29,3 @@ payloads:
     local_path: profiles/images/sandbox-default/opencode.json
   - sandbox_path: /sandbox/.mcp.json
     local_path: profiles/images/sandbox-default/mcp.json
-  - sandbox_path: /etc/openshell/policy.yaml
-    local_path: profiles/images/sandbox-default/policy.yaml
