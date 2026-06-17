@@ -473,6 +473,81 @@ fi
 
 echo ""
 
+# ── Agent integration tests (claude/opencode using real providers) ─
+
+echo "=== Agent integration ==="
+
+if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
+
+  # Vertex AI through OpenCode: can opencode reach inference.local?
+  if [[ -n "${ANTHROPIC_VERTEX_PROJECT_ID:-}" ]]; then
+    run_test "agent: opencode inference via vertex" \
+      bash -c '"$1" apply -f "$2" --name test-oc-vtx 2>/dev/null && \
+        "$3" sandbox exec --name test-oc-vtx -- \
+          bash -c "echo \"respond with ok\" | opencode --print 2>&1 | head -5 | grep -qi ok" && \
+        "$1" delete test-oc-vtx >/dev/null 2>&1' _ "$HARNESS" "$CONFIGS/agent-vertex.yaml" "$CLI"
+  else
+    skip_test "agent: opencode inference via vertex" "ANTHROPIC_VERTEX_PROJECT_ID not set"
+  fi
+
+  # Claude Code through Vertex AI: can claude reach inference.local?
+  if [[ -n "${ANTHROPIC_VERTEX_PROJECT_ID:-}" ]]; then
+    run_test "agent: claude inference via vertex" \
+      bash -c '"$1" apply --name test-cc-vtx 2>/dev/null && \
+        "$3" sandbox exec --name test-cc-vtx -- \
+          bash -c "echo \"respond with ok\" | claude --print 2>&1 | head -5 | grep -qi ok" && \
+        "$1" delete test-cc-vtx >/dev/null 2>&1' _ "$HARNESS" "$CLI"
+  else
+    skip_test "agent: claude inference via vertex" "ANTHROPIC_VERTEX_PROJECT_ID not set"
+  fi
+
+  # Atlassian MCP through Claude: can claude use jira via mcp-atlassian?
+  if [[ -n "${JIRA_API_TOKEN:-}" ]] && [[ -n "${JIRA_URL:-}" ]]; then
+    run_test "agent: claude atlassian mcp" \
+      bash -c '"$1" apply -f "$2" --name test-cc-atl 2>/dev/null && \
+        "$3" sandbox exec --name test-cc-atl -- \
+          bash -c "echo \"use the jira mcp tool to get my user profile, respond with my email\" | claude --print 2>&1 | grep -qi @" && \
+        "$1" delete test-cc-atl >/dev/null 2>&1' _ "$HARNESS" "$CONFIGS/agent-atlassian.yaml" "$CLI"
+  else
+    skip_test "agent: claude atlassian mcp" "JIRA credentials not set"
+  fi
+
+  # GWS CLI through Claude: can claude use gws to read calendar?
+  if command -v gws >/dev/null 2>&1 && gws auth export --unmasked >/dev/null 2>&1; then
+    run_test "agent: claude gws calendar" \
+      bash -c '"$1" apply -f "$2" --name test-cc-gws 2>/dev/null && \
+        "$3" sandbox exec --name test-cc-gws -- \
+          bash -c "echo \"use gws to list my next calendar event, respond with the title\" | claude --print 2>&1 | head -10 | grep -q ." && \
+        "$1" delete test-cc-gws >/dev/null 2>&1' _ "$HARNESS" "$CONFIGS/agent-gws.yaml" "$CLI"
+  else
+    skip_test "agent: claude gws calendar" "gws not authenticated"
+  fi
+
+  # Free API: Groq through Claude (tests API key inference provider)
+  if [[ -n "${GROQ_API_KEY:-}" ]]; then
+    run_test "agent: groq inference from sandbox" \
+      bash -c '"$1" apply -f "$2" --name test-cc-groq 2>/dev/null && \
+        "$3" sandbox exec --name test-cc-groq -- \
+          bash -c "curl -sf https://api.groq.com/openai/v1/chat/completions \
+            -H \"Authorization: Bearer \$GROQ_API_KEY\" \
+            -H \"Content-Type: application/json\" \
+            -d \"{\\\"model\\\":\\\"llama-3.3-70b-versatile\\\",\\\"messages\\\":[{\\\"role\\\":\\\"user\\\",\\\"content\\\":\\\"say ok\\\"}],\\\"max_tokens\\\":5}\" \
+            | grep -q content" && \
+        "$1" delete test-cc-groq >/dev/null 2>&1' _ "$HARNESS" "$CONFIGS/agent-groq.yaml" "$CLI"
+  else
+    skip_test "agent: groq inference from sandbox" "GROQ_API_KEY not set"
+  fi
+
+else
+  if ! $LIVE; then
+    echo "  (skipped: use --live)"
+  else
+    echo "  (skipped: no gateway)"
+  fi
+fi
+
+echo ""
+
 # ── Summary ──────────────────────────────────────────────────────
 
 TOTAL=$(( PASS + FAIL ))
