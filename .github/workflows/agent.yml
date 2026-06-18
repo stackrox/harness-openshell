@@ -1,0 +1,147 @@
+name: Agent
+
+on:
+  schedule:
+    - cron: "23 9 * * 1-5"  # weekdays ~9:23am UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write  # for Workload Identity Federation (future)
+
+jobs:
+  improve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check open agent PRs
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count=$(gh pr list --label agent --state open --json number --jq 'length')
+          echo "open_prs=$count"
+          if [ "$count" -ge 2 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping: $count agent PRs already open"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Authenticate to GCP
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          echo '${{ secrets.GCP_ADC_JSON }}' > /tmp/adc.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/adc.json" >> "$GITHUB_ENV"
+        # TODO: switch to Workload Identity Federation when ITPC registers stackrox org
+        # uses: google-github-actions/auth@v2
+        # with:
+        #   workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+        #   service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: actions/setup-go@v5
+        if: steps.guard.outputs.skip != 'true'
+        with:
+          go-version-file: go.mod
+
+      - name: Install openshell
+        if: steps.guard.outputs.skip != 'true'
+        run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
+
+      - name: Wait for gateway
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          for i in $(seq 1 30); do
+            openshell inference get &>/dev/null && break
+            sleep 1
+          done
+
+      - name: Build harness
+        if: steps.guard.outputs.skip != 'true'
+        run: CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=ci' -o harness .
+
+      - name: Run agent
+        if: steps.guard.outputs.skip != 'true'
+        id: agent
+        env:
+          ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          CLOUD_ML_REGION: us-east5
+        run: |
+          SANDBOX_NAME="agent-improve-$(date +%s)"
+          HARNESS_OS_IMAGE=profiles/images/sandbox-default \
+            ./harness apply -f .github/agent.yaml \
+              --name "$SANDBOX_NAME" \
+              --task @.github/agent-task.md
+
+          # Extract the diff from the sandbox
+          openshell sandbox exec --name "$SANDBOX_NAME" -- \
+            git -C /sandbox/harness-openshell diff > /tmp/agent.patch 2>/dev/null || true
+
+          # Extract the summary (last non-empty line of sandbox output)
+          openshell sandbox exec --name "$SANDBOX_NAME" -- \
+            git -C /sandbox/harness-openshell log --oneline -1 2>/dev/null \
+            | tail -1 > /tmp/agent-summary.txt || true
+
+          openshell sandbox delete "$SANDBOX_NAME" || true
+
+          if [ -s /tmp/agent.patch ]; then
+            echo "has_diff=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_diff=false" >> "$GITHUB_OUTPUT"
+            echo "Agent produced no diff"
+          fi
+
+      - name: Create PR
+        if: steps.guard.outputs.skip != 'true' && steps.agent.outputs.has_diff == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="agent/improve-$(date +%Y%m%d-%H%M)"
+          SUMMARY=$(cat /tmp/agent-summary.txt 2>/dev/null || echo "Agent improvement")
+
+          git checkout -b "$BRANCH"
+          git apply /tmp/agent.patch
+          git add -A
+
+          git config user.name "harness-agent[bot]"
+          git config user.email "harness-agent[bot]@users.noreply.github.com"
+          git commit -m "fix: $SUMMARY"
+
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "fix: $SUMMARY" \
+            --label agent \
+            --body "$(cat <<EOF
+          ## Agent Improvement
+
+          This PR was created automatically by the harness self-improvement agent.
+
+          **Task:** Review the codebase and identify one concrete improvement.
+
+          **Change:** $SUMMARY
+
+          **Diff produced by:** \`harness apply -f .github/agent.yaml --task @.github/agent-task.md\`
+
+          ---
+          Review and merge if the change is correct. Close if not useful.
+          EOF
+          )"
+
+      - name: Export logs
+        if: always() && steps.guard.outputs.skip != 'true'
+        run: |
+          mkdir -p /tmp/agent-logs
+          cp /tmp/agent.patch /tmp/agent-logs/ 2>/dev/null || true
+          cp /tmp/agent-summary.txt /tmp/agent-logs/ 2>/dev/null || true
+          journalctl --user -u openshell-gateway --no-pager > /tmp/agent-logs/gateway.log 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.guard.outputs.skip != 'true'
+        with:
+          name: agent-logs
+          path: /tmp/agent-logs/
