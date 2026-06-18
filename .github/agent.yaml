@@ -1,0 +1,4 @@
+name: agent-improve
+base_agent: default
+repo: https://github.com/stackrox/harness-openshell
+task: .github/agent-task.md
