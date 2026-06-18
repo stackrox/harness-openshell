@@ -50,9 +50,13 @@ To get results out: `--task` mode outputs to stdout, `openshell sandbox exec` pu
 
 ## Why this exists
 
-[OpenShell](https://github.com/NVIDIA/OpenShell) is a sandbox management layer with deny-by-default L7 network policy, credential proxy, filesystem isolation, and inference routing. It is designed as a strict, secure base that supports other workflows. 
+[OpenShell](https://github.com/NVIDIA/OpenShell) provides a strict, secure sandbox runtime — deny-by-default L7 network policy, credential proxying, Landlock filesystem isolation, and inference routing. What it doesn't provide is the developer workflow layer on top: the config that wires up providers, the deployment abstraction that works the same locally and on a cluster, or the CI harness that catches breakage before developers hit it.
 
-One YAML file defines the agent, providers, payloads, and policy and one command deploys it via Podman or remotely on Kubernetes.
+Without a shared harness layer, every team building on OpenShell independently solves the same problems — writing shell scripts to register providers, hand-rolling container images, maintaining separate deployment procedures per environment. The configs diverge, the security posture varies, and nobody catches regressions until something breaks in production.
+
+**The core design constraint**: if the developer harness isn't running and live-tested in CI, the developer experience can't be maintained. OpenShell, agent CLIs, and provider APIs all change frequently — often multiple times per week. A harness that works today and isn't continuously validated will silently break. harness-openshell runs the full lifecycle (deploy gateway → register providers → create sandbox → run task → tear down) in CI on every change, across three deployment targets: local Podman, Kind, and OpenShift.
+
+**The path from local to automated**: a developer runs `harness apply --attach` for interactive work. When the workflow is ready for CI, they change `--attach` to `--task @skill.md` and `gateway: local-container` to `gateway: openshift`. Everything else stays the same. No rewriting, no separate deployment tooling. The harness YAML is the artifact — sharable, versionable, forkable.
 
 OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that with a developer mindset from local machine to cluster.
 
