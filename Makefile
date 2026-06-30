@@ -20,19 +20,25 @@ LDFLAGS       := -s -w -X main.version=$(VERSION)
 
 IMAGE  := $(REGISTRY):sandbox-$(VERSION)
 
-.PHONY: all cli \
+.PHONY: all cli orchestrator \
         vet lint test test-local test-kind test-remote test-all \
         dev-sandbox dev-push tag clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
 
-## Build CLI + sandbox image for local dev
-all: cli dev-sandbox
+## Build CLI + orchestrator + sandbox image for local dev
+all: cli orchestrator dev-sandbox
 
 ## Build the harness CLI binary
 cli:
 	CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)' -o harness .
 	@echo "Built: ./harness ($(VERSION))"
+
+## Build the in-sandbox orchestrator binary (linux/amd64)
+orchestrator:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '$(LDFLAGS)' \
+		-o bin/harness-orchestrator ./cmd/orchestrator
+	@echo "Built: bin/harness-orchestrator (linux/amd64, $(VERSION))"
 
 ## ── Lint targets ─────────────────────────────────────────────────────
 
@@ -90,8 +96,11 @@ test-all: test test-local test-kind test-remote
 ## ── Dev image builds ─────────────────────────────────────────────────
 
 ## Build dev sandbox image locally (native arch only)
-dev-sandbox:
+## Copies the orchestrator binary into the Docker context if available.
+dev-sandbox: orchestrator
+	cp bin/harness-orchestrator profiles/images/sandbox-default/harness-orchestrator 2>/dev/null || true
 	$(CONTAINER_CLI) build -t $(IMAGE) profiles/images/sandbox-default/
+	rm -f profiles/images/sandbox-default/harness-orchestrator
 	@echo "Built: $(IMAGE)"
 
 ## Build and push dev sandbox image (multi-arch)
@@ -111,7 +120,7 @@ tag:
 
 ## Clean built binaries
 clean:
-	rm -f harness
+	rm -f harness bin/harness-orchestrator
 	@echo "Cleaned binaries"
 
 ## Show available targets

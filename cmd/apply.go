@@ -22,6 +22,8 @@ func NewApplyCmd(harnessDir, cli string) *cobra.Command {
 		sandboxName     string
 		task            string
 		entrypoint      string
+		mode            string
+		watch           bool
 		attach          bool
 		providerRefresh bool
 		dryRun          bool
@@ -50,6 +52,12 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 			agentPath := resolveAgentPath(harnessDir, agentName, file)
 
 			// CLI overrides
+			if watch {
+				mode = "watch"
+			}
+			if mode != "" {
+				agentCfg.Mode = mode
+			}
 			if entrypoint != "" {
 				agentCfg.Entrypoint = entrypoint
 			}
@@ -143,6 +151,8 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides agent config)")
 	cmd.Flags().StringVar(&task, "task", "", "Task to pass to the agent (inline text or @filepath)")
 	cmd.Flags().StringVar(&entrypoint, "entrypoint", "", "Override agent entrypoint (claude, opencode, bash)")
+	cmd.Flags().StringVar(&mode, "mode", "", "Orchestrator mode: once or watch")
+	cmd.Flags().BoolVar(&watch, "watch", false, "Shorthand for --mode=watch")
 	cmd.Flags().BoolVar(&attach, "attach", false, "Attach TTY after creation (interactive mode)")
 	cmd.Flags().BoolVar(&providerRefresh, "provider-refresh", false, "Delete and recreate all providers")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Validate configuration without deploying")

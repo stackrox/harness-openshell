@@ -37,6 +37,15 @@ type AgentConfig struct {
 	Image      string            `yaml:"image,omitempty"`
 	Include    []string          `yaml:"include,omitempty"`
 	Payloads   []PayloadEntry    `yaml:"payloads,omitempty"`
+
+	// Orchestrator fields — projected into orchestrator.yaml for in-sandbox use.
+	Mode         string   `yaml:"mode,omitempty"`
+	Sentinel     *bool    `yaml:"sentinel,omitempty"`
+	PollInterval int      `yaml:"poll_interval,omitempty"`
+	MaxFailures  int      `yaml:"max_failures,omitempty"`
+	Heartbeat    int      `yaml:"heartbeat,omitempty"`
+	OnComplete   []string `yaml:"on_complete,omitempty"`
+	OnPropose    []string `yaml:"on_propose,omitempty"`
 }
 
 // MergeOver applies overlay fields on top of a base config. Non-empty
@@ -104,6 +113,29 @@ func (base *AgentConfig) MergeOver(overlay *AgentConfig) *AgentConfig {
 	}
 	if len(overlay.Include) > 0 {
 		merged.Include = append(merged.Include, overlay.Include...)
+	}
+
+	// Orchestrator fields
+	if overlay.Mode != "" {
+		merged.Mode = overlay.Mode
+	}
+	if overlay.Sentinel != nil {
+		merged.Sentinel = overlay.Sentinel
+	}
+	if overlay.PollInterval > 0 {
+		merged.PollInterval = overlay.PollInterval
+	}
+	if overlay.MaxFailures > 0 {
+		merged.MaxFailures = overlay.MaxFailures
+	}
+	if overlay.Heartbeat > 0 {
+		merged.Heartbeat = overlay.Heartbeat
+	}
+	if len(overlay.OnComplete) > 0 {
+		merged.OnComplete = overlay.OnComplete
+	}
+	if len(overlay.OnPropose) > 0 {
+		merged.OnPropose = overlay.OnPropose
 	}
 
 	merged.BaseAgent = ""
@@ -389,6 +421,40 @@ func (c *AgentConfig) BuildRunSh() string {
 	return b.String()
 }
 
+// BuildOrchestratorConfig projects the host-side AgentConfig into the
+// in-sandbox orchestrator config, emitting only non-default fields.
+func (c *AgentConfig) BuildOrchestratorConfig() map[string]any {
+	cfg := map[string]any{
+		"entrypoint": c.EffectiveEntrypoint(),
+		"tty":        !c.NoTTY(),
+	}
+	if c.Mode != "" {
+		cfg["mode"] = c.Mode
+	}
+	if c.Task != "" {
+		cfg["task"] = "task.md"
+	}
+	if c.Sentinel != nil {
+		cfg["sentinel"] = *c.Sentinel
+	}
+	if c.PollInterval > 0 {
+		cfg["poll_interval"] = c.PollInterval
+	}
+	if c.MaxFailures > 0 {
+		cfg["max_failures"] = c.MaxFailures
+	}
+	if c.Heartbeat > 0 {
+		cfg["heartbeat"] = c.Heartbeat
+	}
+	if len(c.OnComplete) > 0 {
+		cfg["on_complete"] = c.OnComplete
+	}
+	if len(c.OnPropose) > 0 {
+		cfg["on_propose"] = c.OnPropose
+	}
+	return cfg
+}
+
 func RenderPayload(cfg *AgentConfig, baseDir, destDir string) error {
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("creating payload dir: %w", err)
@@ -401,6 +467,15 @@ func RenderPayload(cfg *AgentConfig, baseDir, destDir string) error {
 	runSh := cfg.BuildRunSh()
 	if err := os.WriteFile(filepath.Join(destDir, "run.sh"), []byte(runSh), 0o755); err != nil {
 		return fmt.Errorf("writing run.sh: %w", err)
+	}
+
+	orchCfg := cfg.BuildOrchestratorConfig()
+	orchData, err := yaml.Marshal(orchCfg)
+	if err != nil {
+		return fmt.Errorf("marshaling orchestrator config: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(destDir, "orchestrator.yaml"), orchData, 0o644); err != nil {
+		return fmt.Errorf("writing orchestrator.yaml: %w", err)
 	}
 
 	if cfg.Task != "" {

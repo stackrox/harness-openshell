@@ -121,7 +121,10 @@ func upLocal(opts upLocalOpts) error {
 	if noTTY && agentCfg.Task == "" {
 		sandboxCmd = []string{"true"}
 	} else {
-		sandboxCmd = []string{"bash", "/sandbox/.config/openshell/run.sh"}
+		sandboxCmd = []string{
+			"sh", "-c",
+			`if command -v harness-orchestrator >/dev/null 2>&1; then exec harness-orchestrator --config /sandbox/.config/openshell/orchestrator.yaml; else exec bash /sandbox/.config/openshell/run.sh; fi`,
+		}
 	}
 
 	err = createSandbox(sandboxOpts{

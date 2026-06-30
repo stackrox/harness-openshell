@@ -73,6 +73,11 @@ COPY claude.json /sandbox/.claude.json
 COPY mcp.json /sandbox/.mcp.json
 COPY opencode.json /sandbox/opencode.json
 
+# In-sandbox orchestrator binary (manages agent lifecycle, watch mode, sentinel parsing)
+# Built by: make orchestrator
+# Falls back to run.sh if not present in the image.
+COPY harness-orchestrator /usr/local/bin/harness-orchestrator
+
 # Harness config directory (populated at runtime via upload)
 RUN mkdir -p /sandbox/.config/openshell && chown sandbox:sandbox /sandbox/.config/openshell
 
