@@ -100,10 +100,21 @@ func upLocal(opts upLocalOpts) error {
 		return fmt.Errorf("rendering payload: %w", err)
 	}
 
-	// Resolve payload entries into upload pairs
+	// Resolve payload entries into upload pairs. Inline content payloads are
+	// written to temp files that are uploaded individually by their own
+	// sandbox_path, so their source paths must survive until SandboxCreate.
+	// They MUST NOT live inside payloadDir: createSandbox renames payloadDir
+	// into a staging directory, which would invalidate any path pointing inside
+	// it and fail every upload with "local path does not exist" (issue #84).
 	var extraUploads []gateway.Upload
 	if opts.harness != nil && len(opts.harness.Payloads) > 0 {
-		resolved, err := agent.ResolvePayloads(opts.harness.Payloads, opts.harnessDir, payloadDir)
+		contentDir, err := os.MkdirTemp("", "harness-payload-content-")
+		if err != nil {
+			return fmt.Errorf("creating payload content dir: %w", err)
+		}
+		defer os.RemoveAll(contentDir)
+
+		resolved, err := agent.ResolvePayloads(opts.harness.Payloads, opts.harnessDir, contentDir)
 		if err != nil {
 			return fmt.Errorf("resolving payloads: %w", err)
 		}

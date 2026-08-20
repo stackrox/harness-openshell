@@ -28,6 +28,7 @@ type mockGW struct {
 	deletedNames      []string
 	gatewayListResult []gateway.GatewayInfo
 	onGatewayRemove   func(string)
+	onSandboxCreate   func(gateway.SandboxCreateOpts) error
 }
 
 func (m *mockGW) InferenceGet() error { return m.inferenceErr }
@@ -41,6 +42,11 @@ func (m *mockGW) ProviderList() ([]string, error) { return m.providerList, m.pro
 func (m *mockGW) SandboxCreate(opts gateway.SandboxCreateOpts) error {
 	m.createCalls++
 	m.createOpts = append(m.createOpts, opts)
+	if m.onSandboxCreate != nil {
+		if err := m.onSandboxCreate(opts); err != nil {
+			return err
+		}
+	}
 	if m.createErr != nil && m.createCalls == 1 {
 		return m.createErr
 	}
