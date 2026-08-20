@@ -91,7 +91,7 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 			}
 
 			gw := gateway.New(cli)
-			if err := gw.CheckMinVersion("0.0.59"); err != nil {
+			if err := gw.CheckMinVersion("0.0.85"); err != nil {
 				status.Warn(fmt.Sprintf("OpenShell version: %v", err))
 			}
 

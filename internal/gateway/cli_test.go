@@ -531,6 +531,24 @@ printf '%s\n' "$*" > `+argsFile+`
 	}
 }
 
+func TestGatewayAdd_Insecure(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	bin := writeStub(t, `#!/bin/bash
+printf '%s\n' "$*" > `+argsFile+`
+`)
+	gw := New(bin)
+	gw.GatewayAdd("https://gw.example.com:443", "my-ocp", false, true)
+	data, _ := os.ReadFile(argsFile)
+	args := strings.TrimSpace(string(data))
+	if !strings.Contains(args, "--gateway-insecure") {
+		t.Errorf("expected --gateway-insecure in: %s", args)
+	}
+	if strings.Contains(args, " --insecure") {
+		t.Errorf("stale --insecure flag present in: %s", args)
+	}
+}
+
 func TestGatewayRemove(t *testing.T) {
 	bin := writeStub(t, `#!/bin/bash
 exit 0

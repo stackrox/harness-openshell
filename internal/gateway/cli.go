@@ -225,7 +225,9 @@ func (c *CLI) GatewayAdd(endpoint, name string, local, insecure bool) error {
 		args = append(args, "--local")
 	}
 	if insecure {
-		args = append(args, "--insecure")
+		// The per-command --insecure flag was removed; openshell now exposes
+		// this as the global --gateway-insecure flag (verified against v0.0.85).
+		args = append(args, "--gateway-insecure")
 	}
 	return c.silent(args...)
 }
