@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/stackrox/harness-openshell/internal/gateway"
 )
 
@@ -262,5 +263,52 @@ providers:
 	_, err := resolveHarness(dir, "research", "")
 	if err == nil {
 		t.Fatal("expected error for --agent research when file doesn't exist, should not fall back to embedded")
+	}
+}
+
+// TestUpLocal_InlineContentPayloadPathSurvivesRename is a regression test for
+// issue #84: inline content payloads were written into payloadDir, which
+// createSandbox renames into a staging directory. The rename invalidated the
+// stored upload paths, so every SandboxCreate failed with "local path does not
+// exist". The fix stages inline content in a separate temp dir that survives
+// the rename — so every upload Src must still resolve at create time.
+func TestUpLocal_InlineContentPayloadPathSurvivesRename(t *testing.T) {
+	dir := setupTestAgent(t)
+
+	var uploadsChecked bool
+	gw := &mockGW{
+		providers: map[string]bool{"github": true, "google-vertex-ai": true, "atlassian": true},
+		onSandboxCreate: func(opts gateway.SandboxCreateOpts) error {
+			for _, u := range opts.Uploads {
+				if _, err := os.Stat(u.Src); err != nil {
+					return fmt.Errorf("upload Src %q not accessible at create time: %w", u.Src, err)
+				}
+			}
+			uploadsChecked = true
+			return nil
+		},
+	}
+
+	harness := &agent.Harness{
+		Payloads: []agent.PayloadEntry{
+			{SandboxPath: "/sandbox/opencode.json", Content: `{"model": "test"}`},
+		},
+	}
+
+	err := upLocal(upLocalOpts{
+		harnessDir: dir,
+		gw:         gw,
+		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
+		noTTY:      true,
+		harness:    harness,
+	})
+	if err != nil {
+		t.Fatalf("upLocal: %v", err)
+	}
+	if !uploadsChecked {
+		t.Fatal("SandboxCreate was not called; upload paths were never validated")
+	}
+	if gw.createCalls != 1 {
+		t.Fatalf("expected exactly 1 SandboxCreate call, got %d", gw.createCalls)
 	}
 }
