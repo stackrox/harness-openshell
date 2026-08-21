@@ -42,7 +42,7 @@ func TestProvidersRoundTrip(t *testing.T) {
 		t.Fatalf("Providers() returned unexpected error: %v", err)
 	}
 	if len(providers) != 1 {
-		t.Errorf("expected 1 provider, got %d", len(providers))
+		t.Fatalf("expected 1 provider, got %d", len(providers))
 	}
 	if providers[0].Name != "p1" {
 		t.Errorf("expected Name=%q, got %q", "p1", providers[0].Name)
