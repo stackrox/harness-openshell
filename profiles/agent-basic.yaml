@@ -15,3 +15,8 @@ env:
   ANTHROPIC_BASE_URL: https://inference.local
   ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
   CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
+  # Pin the model so Claude Code shapes its request for Haiku. Without this it
+  # assumes its default model and sends output_config.effort, which the Vertex
+  # Haiku endpoint rejects with "400 output_config.effort: Extra inputs are not
+  # permitted". Must match the model the gateway inference route serves.
+  ANTHROPIC_MODEL: claude-haiku-4-5-20251001
