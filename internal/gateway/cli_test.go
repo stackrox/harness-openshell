@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -407,8 +408,14 @@ func TestCheckMinVersion_Below(t *testing.T) {
 echo "openshell v0.0.57"
 `)
 	gw := New(bin)
-	if err := gw.CheckMinVersion("0.0.59"); err == nil {
-		t.Error("expected error for version below minimum")
+	err := gw.CheckMinVersion("0.0.59")
+	if err == nil {
+		t.Fatal("expected error for version below minimum")
+	}
+	// A definitively-old CLI must report ErrVersionBelowMinimum so callers can
+	// treat it as a hard failure rather than a warning.
+	if !errors.Is(err, ErrVersionBelowMinimum) {
+		t.Errorf("error = %v, want wrapping ErrVersionBelowMinimum", err)
 	}
 }
 
@@ -434,8 +441,14 @@ echo "openshell v0.0.60"
 
 func TestCheckMinVersion_NoCLI(t *testing.T) {
 	gw := New("/nonexistent/openshell")
-	if err := gw.CheckMinVersion("0.0.59"); err == nil {
-		t.Error("expected error when CLI not found")
+	err := gw.CheckMinVersion("0.0.59")
+	if err == nil {
+		t.Fatal("expected error when CLI not found")
+	}
+	// An unreadable version is NOT a below-minimum failure: callers should warn
+	// and proceed, not hard-fail, so it must not wrap ErrVersionBelowMinimum.
+	if errors.Is(err, ErrVersionBelowMinimum) {
+		t.Errorf("error = %v, should not wrap ErrVersionBelowMinimum", err)
 	}
 }
 

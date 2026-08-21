@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,12 @@ import (
 
 	"github.com/stackrox/harness-openshell/internal/status"
 )
+
+// ErrVersionBelowMinimum is returned (wrapped) by CheckMinVersion when the
+// installed openshell CLI is definitively older than the required minimum.
+// Callers can distinguish this from a version we simply couldn't read
+// (empty/unparseable output) via errors.Is and treat it as a hard failure.
+var ErrVersionBelowMinimum = errors.New("openshell version below minimum")
 
 var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
@@ -87,7 +94,7 @@ func (c *CLI) CheckMinVersion(minVersion string) error {
 		return fmt.Errorf("invalid minimum version %q", minVersion)
 	}
 	if iMaj < mMaj || (iMaj == mMaj && iMin < mMin) || (iMaj == mMaj && iMin == mMin && iPatch < mPatch) {
-		return fmt.Errorf("openshell %s is below minimum %s (upgrade: openshell update)", installed, minVersion)
+		return fmt.Errorf("openshell %s is below minimum %s (upgrade: openshell update): %w", installed, minVersion, ErrVersionBelowMinimum)
 	}
 	return nil
 }

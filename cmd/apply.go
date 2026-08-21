@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -92,6 +93,13 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 
 			gw := gateway.New(cli)
 			if err := gw.CheckMinVersion("0.0.85"); err != nil {
+				// A CLI that is definitively too old will fail deployment later
+				// with far less context, so refuse up front. If we merely could
+				// not read/parse the version, warn and proceed — the CLI may
+				// still be usable and we don't want to block on a format change.
+				if errors.Is(err, gateway.ErrVersionBelowMinimum) {
+					return fmt.Errorf("incompatible openshell CLI: %w", err)
+				}
 				status.Warn(fmt.Sprintf("OpenShell version: %v", err))
 			}
 
