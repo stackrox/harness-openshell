@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	v1 "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1"
 	gateway "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/gateway"
@@ -100,6 +101,10 @@ func dial(ctx context.Context, p connPlan) (v1.ClientInterface, error) {
 	}
 }
 
+// oidcGrantTimeout bounds each client-credentials grant so a stalled OIDC token
+// endpoint cannot block a dial or a background refresh indefinitely.
+const oidcGrantTimeout = 30 * time.Second
+
 // tokenSourceFunc adapts a plain function to oauth2.TokenSource so a fresh
 // client-credentials grant can be run on demand.
 type tokenSourceFunc func() (*oauth2.Token, error)
@@ -124,23 +129,30 @@ func clientCredentials(ctx context.Context, p connPlan) (*oauth2.Token, error) {
 // up front (fast-fail as ErrUnauthenticated), and oauth2.ReuseTokenSource serves
 // that token until it expires, then re-runs the grant. This is deliberately not
 // oauth2.StaticTokenSource, which pins a single token and would break auth the
-// moment it expires (v1.RefreshableToken re-calls its source on expiry). The
-// refresh runs on a WithoutCancel context so it outlives this dial call while
-// keeping any context values.
+// moment it expires (v1.RefreshableToken re-calls its source on expiry).
+//
+// Refreshes must outlive this dial call, so the source detaches from the
+// caller's cancellation with context.WithoutCancel. Because that also strips the
+// deadline, every grant — eager and refresh — gets its own bounded
+// oidcGrantTimeout so a stalled token endpoint can never block indefinitely.
 //
 // UNVERIFIED (no OIDC gateway; see specs findings): this path is exercised only
 // for branch selection and compilation. TODO(PR8): audience/scopes unverified —
 // needs an OIDC gateway. On any failure it returns a wrapped sentinel, never
 // panics, and never places the client secret into an error message.
 func dialSAOIDC(ctx context.Context, p connPlan) (v1.ClientInterface, error) {
-	tok, err := clientCredentials(ctx, p)
+	eagerCtx, cancel := context.WithTimeout(ctx, oidcGrantTimeout)
+	defer cancel()
+	tok, err := clientCredentials(eagerCtx, p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: oidc client-credentials login for %q", openshell.ErrUnauthenticated, p.name)
 	}
 
-	refreshCtx := context.WithoutCancel(ctx)
+	refreshBase := context.WithoutCancel(ctx)
 	source := oauth2.ReuseTokenSource(tok, tokenSourceFunc(func() (*oauth2.Token, error) {
-		return clientCredentials(refreshCtx, p)
+		grantCtx, cancel := context.WithTimeout(refreshBase, oidcGrantTimeout)
+		defer cancel()
+		return clientCredentials(grantCtx, p)
 	}))
 
 	provider, err := v1.RefreshableToken(source)
