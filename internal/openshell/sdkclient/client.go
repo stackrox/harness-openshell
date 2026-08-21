@@ -2,19 +2,19 @@
 // OpenShell Go SDK. It translates between the harness-owned internal/openshell
 // vocabulary and the SDK, keeping every SDK type behind the firewall.
 //
-// Slice S1 scope: construct a client for an mTLS gateway (the auth mode all our
-// managed gateways use) and report Health. The full auth-mode resolver
-// (planConnection) lands in S2; provider mapping and error translation in S3.
+// Construction routes through planConnection (auth.go), the pure resolver that
+// decides the dial branch and derives mTLS cert paths. Only the mTLS branch is
+// wired to a live dial today; the remaining branches, provider mapping, and
+// error translation land in S3.
 package sdkclient
 
 import (
 	"context"
 	"fmt"
-	"path/filepath"
+	"os"
 
 	v1 "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1"
 	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/gateway"
-	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
 
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
@@ -39,11 +39,10 @@ type client struct {
 
 // New constructs an openshell.Client for the given target.
 //
-// S1 handles only mTLS gateways: it loads the CLI-managed gateway config, points
-// TLS at the CLI-managed client certificate under <cfg.Dir>/mtls, and dials via
-// the gateway.NewClient escape hatch (an explicit WithAuth skips the SDK's
-// "mtls not supported" resolver; WithTLS supplies the client cert). Other auth
-// modes return ErrConfig until S2 generalizes construction.
+// It loads the CLI-managed gateway config and delegates the dial decision to
+// planConnection. Only the mTLS branch is dialed today (the auth mode all our
+// managed gateways use); the other branches return ErrConfig until S3 wires
+// their dial paths.
 func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 	cfg, err := gateway.LoadConfig(t.Gateway)
 	if err != nil {
@@ -55,20 +54,20 @@ func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 		ws = defaultWorkspace
 	}
 
-	if cfg.AuthMode != gateway.AuthModeMTLS {
-		return nil, fmt.Errorf("%w: auth mode %q not yet supported (S1 handles mtls only)", openshell.ErrConfig, cfg.AuthMode)
-	}
-
-	mtlsDir := filepath.Join(cfg.Dir, "mtls")
-	tls := &types.TLSConfig{
-		CertFile: filepath.Join(mtlsDir, "tls.crt"),
-		KeyFile:  filepath.Join(mtlsDir, "tls.key"),
-		CAFile:   filepath.Join(mtlsDir, "ca.crt"),
-	}
-
-	raw, err := gateway.NewClient(t.Gateway, gateway.WithAuth(v1.NoAuth()), gateway.WithTLS(tls))
+	plan, err := planConnection(cfg, os.Getenv)
 	if err != nil {
-		return nil, fmt.Errorf("%w: dial gateway %q: %v", openshell.ErrConfig, t.Gateway, err)
+		return nil, err
+	}
+
+	// S2 wires only the mTLS branch (the auth mode all our managed gateways
+	// use). The remaining branches gain their dial paths in S3.
+	if plan.branch != branchMTLS {
+		return nil, fmt.Errorf("%w: auth mode %q not yet supported (mtls only until S3)", openshell.ErrConfig, plan.mode)
+	}
+
+	raw, err := gateway.NewClient(plan.name, gateway.WithAuth(v1.NoAuth()), gateway.WithTLS(plan.tls))
+	if err != nil {
+		return nil, fmt.Errorf("%w: dial gateway %q: %v", openshell.ErrConfig, plan.name, err)
 	}
 
 	return &client{raw: raw, workspace: ws}, nil
