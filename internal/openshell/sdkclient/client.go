@@ -100,23 +100,50 @@ func dial(ctx context.Context, p connPlan) (v1.ClientInterface, error) {
 	}
 }
 
+// tokenSourceFunc adapts a plain function to oauth2.TokenSource so a fresh
+// client-credentials grant can be run on demand.
+type tokenSourceFunc func() (*oauth2.Token, error)
+
+func (f tokenSourceFunc) Token() (*oauth2.Token, error) { return f() }
+
+// clientCredentials runs the OIDC client-credentials grant for plan p, reading
+// the secret fresh from the environment each call (so rotation is picked up and
+// the secret is never stored on the plan). oidc.ClientCredentials guarantees the
+// secret never appears in its error (SDK FR-014).
+func clientCredentials(ctx context.Context, p connPlan) (*oauth2.Token, error) {
+	return oidc.ClientCredentials(ctx,
+		oidc.WithIssuer(p.oidcIssuer),
+		oidc.WithClientID(p.oidcClientID),
+		oidc.WithClientSecret(os.Getenv("OPENSHELL_OIDC_CLIENT_SECRET")),
+	)
+}
+
 // dialSAOIDC builds a service-account (client-credentials) OIDC client.
+//
+// The token source genuinely refreshes: an eager grant validates the credentials
+// up front (fast-fail as ErrUnauthenticated), and oauth2.ReuseTokenSource serves
+// that token until it expires, then re-runs the grant. This is deliberately not
+// oauth2.StaticTokenSource, which pins a single token and would break auth the
+// moment it expires (v1.RefreshableToken re-calls its source on expiry). The
+// refresh runs on a WithoutCancel context so it outlives this dial call while
+// keeping any context values.
 //
 // UNVERIFIED (no OIDC gateway; see specs findings): this path is exercised only
 // for branch selection and compilation. TODO(PR8): audience/scopes unverified —
 // needs an OIDC gateway. On any failure it returns a wrapped sentinel, never
 // panics, and never places the client secret into an error message.
 func dialSAOIDC(ctx context.Context, p connPlan) (v1.ClientInterface, error) {
-	secret := os.Getenv("OPENSHELL_OIDC_CLIENT_SECRET")
-	tok, err := oidc.ClientCredentials(ctx,
-		oidc.WithIssuer(p.oidcIssuer),
-		oidc.WithClientID(p.oidcClientID),
-		oidc.WithClientSecret(secret),
-	)
+	tok, err := clientCredentials(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("%w: oidc client-credentials login for %q", openshell.ErrUnauthenticated, p.name)
 	}
-	provider, err := v1.RefreshableToken(oauth2.StaticTokenSource(tok))
+
+	refreshCtx := context.WithoutCancel(ctx)
+	source := oauth2.ReuseTokenSource(tok, tokenSourceFunc(func() (*oauth2.Token, error) {
+		return clientCredentials(refreshCtx, p)
+	}))
+
+	provider, err := v1.RefreshableToken(source)
 	if err != nil {
 		return nil, fmt.Errorf("%w: build refreshable token: %v", openshell.ErrConfig, err)
 	}
