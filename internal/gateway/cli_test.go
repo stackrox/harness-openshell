@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -407,8 +408,14 @@ func TestCheckMinVersion_Below(t *testing.T) {
 echo "openshell v0.0.57"
 `)
 	gw := New(bin)
-	if err := gw.CheckMinVersion("0.0.59"); err == nil {
-		t.Error("expected error for version below minimum")
+	err := gw.CheckMinVersion("0.0.59")
+	if err == nil {
+		t.Fatal("expected error for version below minimum")
+	}
+	// A definitively-old CLI must report ErrVersionBelowMinimum so callers can
+	// treat it as a hard failure rather than a warning.
+	if !errors.Is(err, ErrVersionBelowMinimum) {
+		t.Errorf("error = %v, want wrapping ErrVersionBelowMinimum", err)
 	}
 }
 
@@ -434,8 +441,14 @@ echo "openshell v0.0.60"
 
 func TestCheckMinVersion_NoCLI(t *testing.T) {
 	gw := New("/nonexistent/openshell")
-	if err := gw.CheckMinVersion("0.0.59"); err == nil {
-		t.Error("expected error when CLI not found")
+	err := gw.CheckMinVersion("0.0.59")
+	if err == nil {
+		t.Fatal("expected error when CLI not found")
+	}
+	// An unreadable version is NOT a below-minimum failure: callers should warn
+	// and proceed, not hard-fail, so it must not wrap ErrVersionBelowMinimum.
+	if errors.Is(err, ErrVersionBelowMinimum) {
+		t.Errorf("error = %v, should not wrap ErrVersionBelowMinimum", err)
 	}
 }
 
@@ -528,6 +541,24 @@ printf '%s\n' "$*" > `+argsFile+`
 		if !strings.Contains(args, want) {
 			t.Errorf("missing %q in: %s", want, args)
 		}
+	}
+}
+
+func TestGatewayAdd_Insecure(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	bin := writeStub(t, `#!/bin/bash
+printf '%s\n' "$*" > `+argsFile+`
+`)
+	gw := New(bin)
+	gw.GatewayAdd("https://gw.example.com:443", "my-ocp", false, true)
+	data, _ := os.ReadFile(argsFile)
+	args := strings.TrimSpace(string(data))
+	if !strings.Contains(args, "--gateway-insecure") {
+		t.Errorf("expected --gateway-insecure in: %s", args)
+	}
+	if strings.Contains(args, " --insecure") {
+		t.Errorf("stale --insecure flag present in: %s", args)
 	}
 }
 

@@ -151,7 +151,13 @@ func (c *GatewayConfig) applyDefaults() {
 		c.Chart.OCI = "oci://ghcr.io/nvidia/openshell/helm-chart"
 	}
 	if c.Chart.CRD.URL == "" {
-		c.Chart.CRD.URL = "https://github.com/kubernetes-sigs/agent-sandbox/releases/latest/download/manifest.yaml"
+		// Pin to the agent-sandbox release OpenShell itself pins (see the
+		// upstream e2e/with-kube-gateway.sh + helm-k3s-local.sh, which use
+		// AGENT_SANDBOX_VERSION=v0.5.0). v0.5.0's manifest.yaml carries both the
+		// v1beta1 and v1alpha1 Sandbox APIs plus the controller. Do NOT track
+		// releases/latest: latest moved to v0.5.6, which renamed the manifest.yaml
+		// asset to sandbox.yaml and would 404 here.
+		c.Chart.CRD.URL = "https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v0.5.0/manifest.yaml"
 	}
 }
 
