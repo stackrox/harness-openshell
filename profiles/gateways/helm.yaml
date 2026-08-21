@@ -17,7 +17,11 @@ gateway:
   mode: direct
 
 chart:
-  version: "0.0.59"
+  # Keep in lockstep with the openshell CLI version (see openshift.yaml and the
+  # OPENSHELL_VERSION pin in .github/workflows/integration.yml). The chart
+  # version determines the supervisor image tag; if it lags the CLI, sandbox
+  # create fails with "supervisor session not found" during the ssh/tar upload.
+  version: "0.0.85"
 
 helm:
   values:
