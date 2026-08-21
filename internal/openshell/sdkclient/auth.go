@@ -25,11 +25,13 @@ const (
 
 // connPlan holds the connection setup parameters resolved from auth mode and environment.
 type connPlan struct {
-	name    string
-	address string
-	mode    gw.AuthMode
-	branch  connBranch
-	tls     *types.TLSConfig // set ONLY for branchMTLS; nil otherwise
+	name         string
+	address      string
+	mode         gw.AuthMode
+	branch       connBranch
+	tls          *types.TLSConfig // set ONLY for branchMTLS; nil otherwise
+	oidcIssuer   string           // set for oidc modes; non-secret
+	oidcClientID string           // set for oidc modes; non-secret
 }
 
 // planConnection determines which auth branch and TLS configuration to use.
@@ -57,6 +59,8 @@ func planConnection(cfg *gw.Config, env EnvLookup) (connPlan, error) {
 		plan.tls = nil
 
 	case gw.AuthModeOIDC:
+		plan.oidcIssuer = cfg.OIDCIssuer
+		plan.oidcClientID = cfg.OIDCClientID
 		secret := env("OPENSHELL_OIDC_CLIENT_SECRET")
 		if secret == "" {
 			plan.branch = branchDefault
