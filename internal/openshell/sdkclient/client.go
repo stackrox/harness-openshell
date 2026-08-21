@@ -2,10 +2,9 @@
 // OpenShell Go SDK. It translates between the harness-owned internal/openshell
 // vocabulary and the SDK, keeping every SDK type behind the firewall.
 //
-// Construction routes through planConnection (auth.go), the pure resolver that
-// decides the dial branch and derives mTLS cert paths. Only the mTLS branch is
-// wired to a live dial today; the remaining branches, provider mapping, and
-// error translation land in S3.
+// S3 has landed: translate (errors.go) and provider mapping (provider.go) are
+// in place, and dial covers all branches (mTLS verified against a live gateway;
+// default and SA-OIDC selected and compiled but unverified).
 package sdkclient
 
 import (
@@ -14,7 +13,9 @@ import (
 	"os"
 
 	v1 "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1"
-	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/gateway"
+	gateway "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/gateway"
+	oidc "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/oidc"
+	"golang.org/x/oauth2"
 
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
@@ -37,12 +38,11 @@ type client struct {
 	workspace string
 }
 
-// New constructs an openshell.Client for the given target.
-//
-// It loads the CLI-managed gateway config and delegates the dial decision to
-// planConnection. Only the mTLS branch is dialed today (the auth mode all our
-// managed gateways use); the other branches return ErrConfig until S3 wires
-// their dial paths.
+// New constructs an openshell.Client for the given target: it loads the
+// CLI-managed gateway config, resolves the dial plan via planConnection, and
+// executes it via dial. Only the mTLS branch is verified against a live
+// gateway; the default and SA-OIDC branches compile and are selected but the
+// SA-OIDC path is UNVERIFIED (no OIDC gateway available).
 func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 	cfg, err := gateway.LoadConfig(t.Gateway)
 	if err != nil {
@@ -59,33 +59,94 @@ func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 		return nil, err
 	}
 
-	// S2 wires only the mTLS branch (the auth mode all our managed gateways
-	// use). The remaining branches gain their dial paths in S3.
-	if plan.branch != branchMTLS {
-		return nil, fmt.Errorf("%w: auth mode %q not yet supported (mtls only until S3)", openshell.ErrConfig, plan.mode)
-	}
-
-	raw, err := gateway.NewClient(plan.name, gateway.WithAuth(v1.NoAuth()), gateway.WithTLS(plan.tls))
+	raw, err := dial(ctx, plan)
 	if err != nil {
-		return nil, fmt.Errorf("%w: dial gateway %q: %v", openshell.ErrConfig, plan.name, err)
+		return nil, err
 	}
 
-	return &client{raw: raw, workspace: ws}, nil
+	return NewFromClient(raw, ws), nil
 }
 
-// Health reports gateway health. Error translation to openshell sentinels lands
-// in S3; S1 surfaces the raw SDK error.
+// NewFromClient wraps an existing SDK client (or the SDK fake) bound to a
+// workspace. It is the injection seam used by white-box tests and, in S4, by
+// internal/testutil. Empty workspace defaults to defaultWorkspace.
+func NewFromClient(raw v1.ClientInterface, workspace string) openshell.Client {
+	if workspace == "" {
+		workspace = defaultWorkspace
+	}
+	return &client{raw: raw, workspace: workspace}
+}
+
+// dial executes a connPlan, returning a live SDK client. mTLS is the only
+// branch verified against a real gateway.
+func dial(ctx context.Context, p connPlan) (v1.ClientInterface, error) {
+	switch p.branch {
+	case branchMTLS:
+		raw, err := gateway.NewClient(p.name, gateway.WithAuth(v1.NoAuth()), gateway.WithTLS(p.tls))
+		if err != nil {
+			return nil, fmt.Errorf("%w: dial gateway %q: %v", openshell.ErrConfig, p.name, err)
+		}
+		return raw, nil
+	case branchDefault:
+		raw, err := gateway.NewClient(p.name)
+		if err != nil {
+			return nil, fmt.Errorf("%w: dial gateway %q: %v", openshell.ErrConfig, p.name, err)
+		}
+		return raw, nil
+	case branchSAOIDC:
+		return dialSAOIDC(ctx, p)
+	default:
+		return nil, fmt.Errorf("%w: unsupported connection branch", openshell.ErrConfig)
+	}
+}
+
+// dialSAOIDC builds a service-account (client-credentials) OIDC client.
+//
+// UNVERIFIED (no OIDC gateway; see specs findings): this path is exercised only
+// for branch selection and compilation. TODO(PR8): audience/scopes unverified —
+// needs an OIDC gateway. On any failure it returns a wrapped sentinel, never
+// panics, and never places the client secret into an error message.
+func dialSAOIDC(ctx context.Context, p connPlan) (v1.ClientInterface, error) {
+	secret := os.Getenv("OPENSHELL_OIDC_CLIENT_SECRET")
+	tok, err := oidc.ClientCredentials(ctx,
+		oidc.WithIssuer(p.oidcIssuer),
+		oidc.WithClientID(p.oidcClientID),
+		oidc.WithClientSecret(secret),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: oidc client-credentials login for %q", openshell.ErrUnauthenticated, p.name)
+	}
+	provider, err := v1.RefreshableToken(oauth2.StaticTokenSource(tok))
+	if err != nil {
+		return nil, fmt.Errorf("%w: build refreshable token: %v", openshell.ErrConfig, err)
+	}
+	raw, err := gateway.NewClient(p.name, gateway.WithAuth(provider))
+	if err != nil {
+		return nil, fmt.Errorf("%w: dial gateway %q: %v", openshell.ErrConfig, p.name, err)
+	}
+	return raw, nil
+}
+
+// Health reports gateway health.
 func (c *client) Health(ctx context.Context) (openshell.Health, error) {
 	h, err := c.raw.Health().Check(ctx)
 	if err != nil {
-		return openshell.Health{}, err
+		return openshell.Health{}, translate(err)
 	}
 	return openshell.Health{Healthy: h.Healthy, Version: h.Version}, nil
 }
 
-// Providers is not implemented until S3.
+// Providers lists the providers registered in the bound workspace.
 func (c *client) Providers(ctx context.Context) ([]openshell.Provider, error) {
-	return nil, fmt.Errorf("providers: not implemented until slice S3")
+	raw, err := c.raw.Providers().List(ctx, c.workspace)
+	if err != nil {
+		return nil, translate(err)
+	}
+	out := make([]openshell.Provider, 0, len(raw))
+	for _, p := range raw {
+		out = append(out, fromSDKProvider(p))
+	}
+	return out, nil
 }
 
 // Close releases the underlying SDK client.
