@@ -2,9 +2,9 @@
 // OpenShell Go SDK. It translates between the harness-owned internal/openshell
 // vocabulary and the SDK, keeping every SDK type behind the firewall.
 //
-// S3 has landed: translate (errors.go) and provider mapping (provider.go) are
-// in place, and dial covers all branches (mTLS verified against a live gateway;
-// default and SA-OIDC selected and compiled but unverified).
+// It dials via mTLS, an unauthenticated default, and service-account OIDC. The
+// mTLS path is verified against a live gateway; the SA-OIDC path is untested
+// end-to-end (no OIDC gateway is available in this environment).
 package sdkclient
 
 import (
@@ -42,8 +42,8 @@ type client struct {
 // New constructs an openshell.Client for the given target: it loads the
 // CLI-managed gateway config, resolves the dial plan via planConnection, and
 // executes it via dial. Only the mTLS branch is verified against a live
-// gateway; the default and SA-OIDC branches compile and are selected but the
-// SA-OIDC path is UNVERIFIED (no OIDC gateway available).
+// gateway; the SA-OIDC branch is untested end-to-end (no OIDC gateway
+// available).
 func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 	cfg, err := gateway.LoadConfig(t.Gateway)
 	if err != nil {
@@ -69,7 +69,7 @@ func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 }
 
 // NewFromClient wraps an existing SDK client (or the SDK fake) bound to a
-// workspace. It is the injection seam used by white-box tests and, in S4, by
+// workspace. It is the injection seam used by white-box tests and by
 // internal/testutil. Empty workspace defaults to defaultWorkspace.
 func NewFromClient(raw v1.ClientInterface, workspace string) openshell.Client {
 	if workspace == "" {
@@ -136,10 +136,10 @@ func clientCredentials(ctx context.Context, p connPlan) (*oauth2.Token, error) {
 // deadline, every grant — eager and refresh — gets its own bounded
 // oidcGrantTimeout so a stalled token endpoint can never block indefinitely.
 //
-// UNVERIFIED (no OIDC gateway; see specs findings): this path is exercised only
-// for branch selection and compilation. TODO(PR8): audience/scopes unverified —
-// needs an OIDC gateway. On any failure it returns a wrapped sentinel, never
-// panics, and never places the client secret into an error message.
+// Untested end-to-end: no OIDC gateway is available in this environment, so
+// this path is exercised only for branch selection and compilation, and its
+// audience/scopes are unverified. On any failure it returns a wrapped sentinel,
+// never panics, and never places the client secret into an error message.
 func dialSAOIDC(ctx context.Context, p connPlan) (v1.ClientInterface, error) {
 	eagerCtx, cancel := context.WithTimeout(ctx, oidcGrantTimeout)
 	defer cancel()

@@ -10,8 +10,8 @@ import (
 	"github.com/stackrox/harness-openshell/internal/openshell/sdkclient"
 )
 
-// TestHealthE2E is the S1 kill-gate: it proves an mTLS Health().Check succeeds
-// from within the harness module (not a /tmp spike) against a real gateway.
+// TestHealthE2E proves an mTLS Health().Check succeeds from within the harness
+// module against a real gateway.
 //
 // It is skipped unless HARNESS_E2E_GATEWAY names a registered openshell gateway
 // (the local mTLS dev gateway is "openshell"). Optional HARNESS_E2E_WORKSPACE
@@ -21,7 +21,7 @@ import (
 func TestHealthE2E(t *testing.T) {
 	gw := os.Getenv("HARNESS_E2E_GATEWAY")
 	if gw == "" {
-		t.Skip("set HARNESS_E2E_GATEWAY to a registered mTLS gateway to run the S1 kill-gate")
+		t.Skip("set HARNESS_E2E_GATEWAY to a registered mTLS gateway to run this end-to-end check")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
