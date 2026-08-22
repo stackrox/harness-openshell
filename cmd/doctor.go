@@ -68,7 +68,12 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 			for _, p := range h.Agent.Providers {
 				providerProfiles = append(providerProfiles, p.Profile)
 			}
-			results = append(results, runOnlineChecks(cmd.Context(), newClient, gatewayName, workspace, providerProfiles)...)
+			// Flag resolution order (AGENTS.md): explicit flag > OPENSHELL_* env
+			// var > default. Empty flag defaults let the env fallback apply; an
+			// unset gateway (flag and env both empty) skips Phase 2.
+			gw := resolveOnlineFlag(gatewayName, "OPENSHELL_GATEWAY", "")
+			ws := resolveOnlineFlag(workspace, "OPENSHELL_WORKSPACE", defaultDoctorWorkspace)
+			results = append(results, runOnlineChecks(cmd.Context(), newClient, gw, ws, providerProfiles)...)
 
 			if format != formatTable {
 				return printStructured(format, results)
@@ -88,8 +93,8 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 	cmd.Flags().StringVarP(&agentFile, "file", "f", "", "Path to harness YAML")
 	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format (table, json, yaml)")
-	cmd.Flags().StringVar(&gatewayName, "gateway", "", "OpenShell registration name for online checks (Phase 2). Empty skips online checks.")
-	cmd.Flags().StringVar(&workspace, "workspace", "default", "Workspace for provider registration checks")
+	cmd.Flags().StringVar(&gatewayName, "gateway", "", "OpenShell registration name for online checks (Phase 2). Defaults to $OPENSHELL_GATEWAY; empty skips online checks.")
+	cmd.Flags().StringVar(&workspace, "workspace", "", "Workspace for provider registration checks (default \"default\"; overridable via $OPENSHELL_WORKSPACE)")
 
 	return cmd
 }
@@ -336,6 +341,25 @@ func loadProfileFromDisk(name, harnessDir string) *providerProfile {
 		return &p
 	}
 	return nil
+}
+
+// defaultDoctorWorkspace is the workspace used when neither --workspace nor
+// $OPENSHELL_WORKSPACE is set. sdkclient also defaults "" -> "default"; this
+// keeps the resolved value explicit for logging and table output.
+const defaultDoctorWorkspace = "default"
+
+// resolveOnlineFlag applies the repo's standard flag-resolution order
+// (AGENTS.md: explicit flag > OPENSHELL_* env var > default) for doctor's
+// online flags. An empty flag value is treated as "unset" so the env var can
+// take effect.
+func resolveOnlineFlag(flagVal, envKey, def string) string {
+	if flagVal != "" {
+		return flagVal
+	}
+	if v := os.Getenv(envKey); v != "" {
+		return v
+	}
+	return def
 }
 
 // runOnlineChecks performs Phase 2 (online) checks via the SDK. It is

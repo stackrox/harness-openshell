@@ -316,3 +316,24 @@ func TestRunOnlineChecks_HealthyViaFactory(t *testing.T) {
 		t.Fatalf("expected 1 pass result, got %+v", results)
 	}
 }
+
+func TestResolveOnlineFlag(t *testing.T) {
+	const envKey = "OPENSHELL_TEST_RESOLVE"
+
+	// Explicit flag wins over env var and default.
+	t.Setenv(envKey, "from-env")
+	if got := resolveOnlineFlag("from-flag", envKey, "from-default"); got != "from-flag" {
+		t.Errorf("flag precedence: got %q, want from-flag", got)
+	}
+
+	// Empty flag falls back to the env var over the default.
+	if got := resolveOnlineFlag("", envKey, "from-default"); got != "from-env" {
+		t.Errorf("env precedence: got %q, want from-env", got)
+	}
+
+	// Empty flag and unset env fall back to the default.
+	t.Setenv(envKey, "")
+	if got := resolveOnlineFlag("", envKey, "from-default"); got != "from-default" {
+		t.Errorf("default fallback: got %q, want from-default", got)
+	}
+}
