@@ -66,7 +66,8 @@ func planConnection(cfg *gw.Config, env EnvLookup) (connPlan, error) {
 			plan.branch = branchDefault
 			plan.tls = nil
 		} else {
-			// TODO(PR8): audience/scopes unverified — needs OIDC gateway
+			// Service-account client-credentials. The live dial is untested —
+			// no OIDC gateway is available to verify audience/scopes against.
 			plan.branch = branchSAOIDC
 			plan.tls = nil
 		}
