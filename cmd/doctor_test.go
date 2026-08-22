@@ -1,11 +1,16 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
+	fake "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/fake"
+	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
 	"github.com/stackrox/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/openshell"
+	"github.com/stackrox/harness-openshell/internal/testutil"
 )
 
 func TestCheckOpenShell_Found(t *testing.T) {
@@ -249,5 +254,65 @@ func writeProviderProfile(t *testing.T, harnessDir, name, content string) {
 	}
 	if err := os.WriteFile(filepath.Join(dir, name+".yaml"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCheckOnlineSDK_Healthy(t *testing.T) {
+	c := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "1.0.0"}))
+	results := checkOnlineSDK(context.Background(), c, nil)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Group != "gateway" || results[0].Name != "status" || results[0].Status != "pass" {
+		t.Errorf("unexpected status result: %+v", results[0])
+	}
+}
+
+func TestCheckOnlineSDK_ProviderRegistered(t *testing.T) {
+	c, raw := testutil.NewFakeClient("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	raw.AddProvider("default", &types.Provider{Name: "github", Type: "git"})
+	results := checkOnlineSDK(context.Background(), c, []string{"github"})
+	// results[0] is gateway/status pass; results[1] is the provider row.
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d: %+v", len(results), results)
+	}
+	if results[1].Name != "github" || results[1].Status != "pass" || results[1].Message != "registered" {
+		t.Errorf("expected github registered pass, got %+v", results[1])
+	}
+}
+
+func TestCheckOnlineSDK_ProviderNotRegistered(t *testing.T) {
+	c := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	results := checkOnlineSDK(context.Background(), c, []string{"github"})
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d: %+v", len(results), results)
+	}
+	if results[1].Name != "github" || results[1].Status != "warn" {
+		t.Errorf("expected github not-registered warn, got %+v", results[1])
+	}
+}
+
+func TestRunOnlineChecks_NoGateway(t *testing.T) {
+	// No --gateway: single non-fatal warn, factory never called.
+	called := false
+	f := func(ctx context.Context, tgt openshell.Target) (openshell.Client, error) {
+		called = true
+		return nil, nil
+	}
+	results := runOnlineChecks(context.Background(), f, "", "default", nil)
+	if len(results) != 1 || results[0].Status != "warn" {
+		t.Fatalf("expected 1 warn result, got %+v", results)
+	}
+	if called {
+		t.Error("factory should not be called when --gateway is empty")
+	}
+}
+
+func TestRunOnlineChecks_HealthyViaFactory(t *testing.T) {
+	c := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "1.0.0"}))
+	f := testutil.FakeFactory(c)
+	results := runOnlineChecks(context.Background(), f, "some-gateway", "default", nil)
+	if len(results) != 1 || results[0].Status != "pass" {
+		t.Fatalf("expected 1 pass result, got %+v", results)
 	}
 }

@@ -1,15 +1,17 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"github.com/stackrox/harness-openshell/internal/agent"
-	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/spf13/cobra"
+	"github.com/stackrox/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/openshell"
 	"gopkg.in/yaml.v3"
 )
 
@@ -22,11 +24,13 @@ type CheckResult struct {
 
 type CheckFunc func(cfg *agent.AgentConfig, cli, harnessDir string) []CheckResult
 
-func NewDoctorCmd(harnessDir, cli string) *cobra.Command {
+func NewDoctorCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Command {
 	var (
-		agentFile string
-		agentName string
-		output    string
+		agentFile   string
+		agentName   string
+		output      string
+		gatewayName string
+		workspace   string
 	)
 
 	cmd := &cobra.Command{
@@ -60,7 +64,11 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 				results = append(results, fn(h.Agent, cli, harnessDir)...)
 			}
 
-			results = append(results, checkOnline(h.Agent, cli)...)
+			providerProfiles := make([]string, 0, len(h.Agent.Providers))
+			for _, p := range h.Agent.Providers {
+				providerProfiles = append(providerProfiles, p.Profile)
+			}
+			results = append(results, runOnlineChecks(cmd.Context(), newClient, gatewayName, workspace, providerProfiles)...)
 
 			if format != formatTable {
 				return printStructured(format, results)
@@ -80,6 +88,8 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 	cmd.Flags().StringVarP(&agentFile, "file", "f", "", "Path to harness YAML")
 	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format (table, json, yaml)")
+	cmd.Flags().StringVar(&gatewayName, "gateway", "", "OpenShell registration name for online checks (Phase 2). Empty skips online checks.")
+	cmd.Flags().StringVar(&workspace, "workspace", "default", "Workspace for provider registration checks")
 
 	return cmd
 }
@@ -179,8 +189,8 @@ func checkRemoteDeps() []CheckResult {
 }
 
 type providerProfile struct {
-	ID          string              `yaml:"id"`
-	DisplayName string              `yaml:"display_name"`
+	ID          string               `yaml:"id"`
+	DisplayName string               `yaml:"display_name"`
 	Credentials []providerCredential `yaml:"credentials"`
 }
 
@@ -328,47 +338,107 @@ func loadProfileFromDisk(name, harnessDir string) *providerProfile {
 	return nil
 }
 
-func checkOnline(cfg *agent.AgentConfig, cli string) []CheckResult {
-	gw := gateway.New(cli)
-	if gw.ActiveGateway() == "" {
+// runOnlineChecks performs Phase 2 (online) checks via the SDK. It is
+// non-fatal by construction: a missing --gateway or any client-construction
+// failure yields a single warn (Phase 2 skipped), never a fail, preserving
+// doctor's long-standing "online failures don't break the build" contract.
+func runOnlineChecks(ctx context.Context, newClient openshell.Factory, gatewayName, workspace string, providers []string) []CheckResult {
+	if gatewayName == "" {
 		return []CheckResult{{
 			Group:   "gateway",
 			Name:    "status",
 			Status:  "warn",
-			Message: "no active gateway (Phase 2 checks skipped)",
+			Message: "Phase 2 (online) checks skipped: no --gateway specified",
 		}}
 	}
 
-	_, err := gw.ProviderList()
+	client, err := newClient(ctx, openshell.Target{Gateway: gatewayName, Workspace: workspace})
 	if err != nil {
+		return []CheckResult{{
+			Group:   "gateway",
+			Name:    "status",
+			Status:  "warn",
+			Message: fmt.Sprintf("Phase 2 (online) checks skipped: %v", err),
+		}}
+	}
+	defer client.Close()
+
+	return checkOnlineSDK(ctx, client, providers)
+}
+
+// checkOnlineSDK reads gateway health and provider registration through the
+// SDK client. Health maps: healthy -> pass; ErrUnauthenticated -> fail (the
+// one actionable online failure); ErrUnavailable and any other error -> warn
+// (non-fatal). Provider rows are only produced when the gateway is healthy.
+func checkOnlineSDK(ctx context.Context, client openshell.Client, providers []string) []CheckResult {
+	h, err := client.Health(ctx)
+	switch {
+	case err == nil && h.Healthy:
+		// fall through to provider checks below
+	case errors.Is(err, openshell.ErrUnauthenticated):
+		return []CheckResult{{
+			Group:   "gateway",
+			Name:    "status",
+			Status:  "fail",
+			Message: "authentication failed — check gateway credentials",
+		}}
+	case errors.Is(err, openshell.ErrUnavailable):
 		return []CheckResult{{
 			Group:   "gateway",
 			Name:    "status",
 			Status:  "warn",
 			Message: "gateway not reachable (Phase 2 checks skipped)",
 		}}
+	case err != nil:
+		return []CheckResult{{
+			Group:   "gateway",
+			Name:    "status",
+			Status:  "warn",
+			Message: fmt.Sprintf("gateway health check failed: %v (Phase 2 checks skipped)", err),
+		}}
+	default: // err == nil but not healthy
+		return []CheckResult{{
+			Group:   "gateway",
+			Name:    "status",
+			Status:  "warn",
+			Message: "gateway reports unhealthy (Phase 2 checks skipped)",
+		}}
 	}
 
-	var results []CheckResult
-	results = append(results, CheckResult{
+	results := []CheckResult{{
 		Group:   "gateway",
 		Name:    "status",
 		Status:  "pass",
 		Message: "connected",
-	})
+	}}
 
-	for _, p := range cfg.Providers {
-		if gw.ProviderGet(p.Profile) == nil {
+	provs, err := client.Providers(ctx)
+	if err != nil {
+		results = append(results, CheckResult{
+			Group:   "gateway",
+			Name:    "providers",
+			Status:  "warn",
+			Message: fmt.Sprintf("could not list providers: %v", err),
+		})
+		return results
+	}
+
+	registered := make(map[string]bool, len(provs))
+	for _, p := range provs {
+		registered[p.Name] = true
+	}
+	for _, name := range providers {
+		if registered[name] {
 			results = append(results, CheckResult{
 				Group:   "gateway",
-				Name:    p.Profile,
+				Name:    name,
 				Status:  "pass",
 				Message: "registered",
 			})
 		} else {
 			results = append(results, CheckResult{
 				Group:   "gateway",
-				Name:    p.Profile,
+				Name:    name,
 				Status:  "warn",
 				Message: "not registered (will be registered on apply)",
 			})

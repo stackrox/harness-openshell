@@ -6,9 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/stackrox/harness-openshell/cmd"
-	"github.com/stackrox/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
+	"github.com/stackrox/harness-openshell/cmd"
+	"github.com/stackrox/harness-openshell/internal/openshell/sdkclient"
+	"github.com/stackrox/harness-openshell/internal/status"
 )
 
 var version = "dev"
@@ -54,9 +55,9 @@ func main() {
 	cmd.Version = version
 	cmd.DefaultAgentConfig = defaultAgentConfig
 	cmd.EmbeddedGatewayProfiles = map[string][]byte{
-		"local-container":        localContainerGatewayProfile,
-		"helm":          helmNodeportGatewayProfile,
-		"openshift":   helmOpenshiftRouteGatewayProfile,
+		"local-container": localContainerGatewayProfile,
+		"helm":            helmNodeportGatewayProfile,
+		"openshift":       helmOpenshiftRouteGatewayProfile,
 	}
 	root.CompletionOptions.HiddenDefaultCmd = true
 
@@ -66,7 +67,7 @@ func main() {
 		cmd.NewDescribeCmd(harnessDir, cli),
 		cmd.NewDeleteCmd(harnessDir, cli),
 		cmd.NewDeployCmd(harnessDir, cli),
-		cmd.NewDoctorCmd(harnessDir, cli),
+		cmd.NewDoctorCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewInitCmd(harnessDir),
 	)
 
