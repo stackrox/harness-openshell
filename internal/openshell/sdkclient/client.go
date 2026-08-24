@@ -50,11 +50,6 @@ func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 		return nil, fmt.Errorf("%w: load gateway %q: %v", openshell.ErrConfig, t.Gateway, err)
 	}
 
-	ws := t.Workspace
-	if ws == "" {
-		ws = defaultWorkspace
-	}
-
 	plan, err := planConnection(cfg, os.Getenv)
 	if err != nil {
 		return nil, err
@@ -65,7 +60,9 @@ func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 		return nil, err
 	}
 
-	return NewFromClient(raw, ws), nil
+	// NewFromClient is the single owner of the "" -> defaultWorkspace default;
+	// pass t.Workspace straight through.
+	return NewFromClient(raw, t.Workspace), nil
 }
 
 // NewFromClient wraps an existing SDK client (or the SDK fake) bound to a

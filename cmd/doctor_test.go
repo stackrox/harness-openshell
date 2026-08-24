@@ -236,6 +236,62 @@ credentials:
 	}
 }
 
+// TestDoctorCmd_TargetFlagWiring exercises the full flag-pointer path through
+// cobra: registerTargetFlags populates the *string pointers on Parse, and the
+// RunE closure feeds them to openshell.ResolveTarget. It guards the plumbing at
+// doctor.go's flag registration and dereference that the direct runOnlineChecks
+// tests never touch. Offline checks may fail against the test env; we assert
+// only which gateway the Factory was constructed for.
+func TestDoctorCmd_TargetFlagWiring(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		env         string // value for $OPENSHELL_GATEWAY ("" = unset)
+		wantGateway string
+	}{
+		{name: "flag", args: []string{"--gateway", "from-flag"}, wantGateway: "from-flag"},
+		{name: "env fallback", args: nil, env: "from-env", wantGateway: "from-env"},
+		{name: "flag wins over env", args: []string{"--gateway", "from-flag"}, env: "from-env", wantGateway: "from-flag"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// doctor's offline phase resolves a harness config; provide an
+			// embedded default so RunE reaches the online path we are testing.
+			DefaultAgentConfig = []byte("name: wiring-test\nentrypoint: claude\n")
+			t.Cleanup(func() { DefaultAgentConfig = nil })
+
+			if tt.env != "" {
+				t.Setenv(openshell.EnvGateway, tt.env)
+			}
+			c := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+			var gotGateway string
+			factoryCalled := false
+			recording := func(_ context.Context, tgt openshell.Target) (openshell.Client, error) {
+				factoryCalled = true
+				gotGateway = tgt.Gateway
+				return c, nil
+			}
+
+			cmd := NewDoctorCmd(t.TempDir(), "nonexistent-cli", recording)
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+			cmd.SetArgs(append(tt.args, "--output", "json"))
+			// Offline checks may report failures in the test environment; RunE
+			// then returns a non-nil error after the online path has run. We only
+			// care that the Factory saw the resolved gateway.
+			_ = cmd.Execute()
+
+			if !factoryCalled {
+				t.Fatal("Factory was never called; online path did not run")
+			}
+			if gotGateway != tt.wantGateway {
+				t.Errorf("Factory got gateway %q, want %q", gotGateway, tt.wantGateway)
+			}
+		})
+	}
+}
+
 // --- helpers ---
 
 func testAgentConfig(t *testing.T) *agent.AgentConfig {
@@ -299,7 +355,7 @@ func TestRunOnlineChecks_NoGateway(t *testing.T) {
 		called = true
 		return nil, nil
 	}
-	results := runOnlineChecks(context.Background(), f, "", "default", nil)
+	results := runOnlineChecks(context.Background(), f, openshell.Target{}, nil)
 	if len(results) != 1 || results[0].Status != "warn" {
 		t.Fatalf("expected 1 warn result, got %+v", results)
 	}
@@ -311,29 +367,36 @@ func TestRunOnlineChecks_NoGateway(t *testing.T) {
 func TestRunOnlineChecks_HealthyViaFactory(t *testing.T) {
 	c := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "1.0.0"}))
 	f := testutil.FakeFactory(c)
-	results := runOnlineChecks(context.Background(), f, "some-gateway", "default", nil)
+	results := runOnlineChecks(context.Background(), f, openshell.Target{Gateway: "some-gateway", Workspace: "default"}, nil)
 	if len(results) != 1 || results[0].Status != "pass" {
 		t.Fatalf("expected 1 pass result, got %+v", results)
 	}
 }
 
-func TestResolveOnlineFlag(t *testing.T) {
-	const envKey = "OPENSHELL_TEST_RESOLVE"
+// TestRunOnlineChecks_GatewayIsolation is the plan's acceptance test: naming one
+// gateway never constructs or queries another. A recording Factory captures every
+// Target.Gateway it is asked to build; doctor's online path is run with gateway A
+// and the recorder must show exactly one construction, for A only — B is never
+// touched.
+func TestRunOnlineChecks_GatewayIsolation(t *testing.T) {
+	fakeA := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	fakeB := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	clients := map[string]openshell.Client{"A": fakeA, "B": fakeB}
 
-	// Explicit flag wins over env var and default.
-	t.Setenv(envKey, "from-env")
-	if got := resolveOnlineFlag("from-flag", envKey, "from-default"); got != "from-flag" {
-		t.Errorf("flag precedence: got %q, want from-flag", got)
+	var constructed []string
+	recording := func(_ context.Context, tgt openshell.Target) (openshell.Client, error) {
+		constructed = append(constructed, tgt.Gateway)
+		c, ok := clients[tgt.Gateway]
+		if !ok {
+			t.Fatalf("factory asked for unknown gateway %q", tgt.Gateway)
+		}
+		return c, nil
 	}
 
-	// Empty flag falls back to the env var over the default.
-	if got := resolveOnlineFlag("", envKey, "from-default"); got != "from-env" {
-		t.Errorf("env precedence: got %q, want from-env", got)
-	}
+	runOnlineChecks(context.Background(), recording,
+		openshell.Target{Gateway: "A", Workspace: "default"}, nil)
 
-	// Empty flag and unset env fall back to the default.
-	t.Setenv(envKey, "")
-	if got := resolveOnlineFlag("", envKey, "from-default"); got != "from-default" {
-		t.Errorf("default fallback: got %q, want from-default", got)
+	if len(constructed) != 1 || constructed[0] != "A" {
+		t.Fatalf("expected exactly one construction for gateway A, got %v", constructed)
 	}
 }

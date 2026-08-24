@@ -26,12 +26,12 @@ type CheckFunc func(cfg *agent.AgentConfig, cli, harnessDir string) []CheckResul
 
 func NewDoctorCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Command {
 	var (
-		agentFile   string
-		agentName   string
-		output      string
-		gatewayName string
-		workspace   string
+		agentFile string
+		agentName string
+		output    string
 	)
+	// Assigned by registerTargetFlags below; RunE reads them at execution time.
+	var gatewayName, workspace *string
 
 	cmd := &cobra.Command{
 		Use:   "doctor",
@@ -68,12 +68,11 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 			for _, p := range h.Agent.Providers {
 				providerProfiles = append(providerProfiles, p.Profile)
 			}
-			// Flag resolution order (AGENTS.md): explicit flag > OPENSHELL_* env
-			// var > default. Empty flag defaults let the env fallback apply; an
-			// unset gateway (flag and env both empty) skips Phase 2.
-			gw := resolveOnlineFlag(gatewayName, "OPENSHELL_GATEWAY", "")
-			ws := resolveOnlineFlag(workspace, "OPENSHELL_WORKSPACE", defaultDoctorWorkspace)
-			results = append(results, runOnlineChecks(cmd.Context(), newClient, gw, ws, providerProfiles)...)
+			// Flag/env precedence (flag > env > empty) is owned by
+			// openshell.ResolveTarget; an unset gateway (flag and env both empty)
+			// skips Phase 2.
+			target := openshell.ResolveTarget(*gatewayName, *workspace, os.Getenv)
+			results = append(results, runOnlineChecks(cmd.Context(), newClient, target, providerProfiles)...)
 
 			if format != formatTable {
 				return printStructured(format, results)
@@ -93,8 +92,7 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 	cmd.Flags().StringVarP(&agentFile, "file", "f", "", "Path to harness YAML")
 	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format (table, json, yaml)")
-	cmd.Flags().StringVar(&gatewayName, "gateway", "", "OpenShell registration name for online checks (Phase 2). Defaults to $OPENSHELL_GATEWAY; empty skips online checks.")
-	cmd.Flags().StringVar(&workspace, "workspace", "", "Workspace for provider registration checks (default \"default\"; overridable via $OPENSHELL_WORKSPACE)")
+	gatewayName, workspace = registerTargetFlags(cmd)
 
 	return cmd
 }
@@ -343,31 +341,12 @@ func loadProfileFromDisk(name, harnessDir string) *providerProfile {
 	return nil
 }
 
-// defaultDoctorWorkspace is the workspace used when neither --workspace nor
-// $OPENSHELL_WORKSPACE is set. sdkclient also defaults "" -> "default"; this
-// keeps the resolved value explicit for logging and table output.
-const defaultDoctorWorkspace = "default"
-
-// resolveOnlineFlag applies the repo's standard flag-resolution order
-// (AGENTS.md: explicit flag > OPENSHELL_* env var > default) for doctor's
-// online flags. An empty flag value is treated as "unset" so the env var can
-// take effect.
-func resolveOnlineFlag(flagVal, envKey, def string) string {
-	if flagVal != "" {
-		return flagVal
-	}
-	if v := os.Getenv(envKey); v != "" {
-		return v
-	}
-	return def
-}
-
 // runOnlineChecks performs Phase 2 (online) checks via the SDK. It is
 // non-fatal by construction: a missing --gateway or any client-construction
 // failure yields a single warn (Phase 2 skipped), never a fail, preserving
 // doctor's long-standing "online failures don't break the build" contract.
-func runOnlineChecks(ctx context.Context, newClient openshell.Factory, gatewayName, workspace string, providers []string) []CheckResult {
-	if gatewayName == "" {
+func runOnlineChecks(ctx context.Context, newClient openshell.Factory, target openshell.Target, providers []string) []CheckResult {
+	if target.Gateway == "" {
 		return []CheckResult{{
 			Group:   "gateway",
 			Name:    "status",
@@ -376,7 +355,7 @@ func runOnlineChecks(ctx context.Context, newClient openshell.Factory, gatewayNa
 		}}
 	}
 
-	client, err := newClient(ctx, openshell.Target{Gateway: gatewayName, Workspace: workspace})
+	client, err := newClient(ctx, target)
 	if err != nil {
 		return []CheckResult{{
 			Group:   "gateway",
