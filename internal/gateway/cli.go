@@ -25,7 +25,7 @@ var ErrVersionBelowMinimum = errors.New("openshell version below minimum")
 // (the single source of truth that CI and `make openshell` also read);
 // TestMinOpenShellVersionMatchesPin fails if the two drift. Re-baseline both
 // together.
-const MinOpenShellVersion = "0.0.85"
+const MinOpenShellVersion = "0.0.110"
 
 var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 

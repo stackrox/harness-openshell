@@ -53,7 +53,7 @@ func TestTableSections_RepresentativePlan(t *testing.T) {
 		Reachable: true,
 		Health: openshell.Health{
 			Healthy: true,
-			Version: "0.0.85",
+			Version: "0.0.110",
 		},
 		Providers: []openshell.Provider{
 			{Name: "github", Type: "github"},
@@ -119,7 +119,7 @@ func TestPlan_JSONMarshal(t *testing.T) {
 	}
 	current := CurrentState{
 		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.85"},
+		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 	}
 
 	plan := Build(desired, current)
@@ -154,7 +154,7 @@ func TestPlan_YAMLMarshal(t *testing.T) {
 	}
 	current := CurrentState{
 		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.85"},
+		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 	}
 
 	plan := Build(desired, current)
@@ -199,7 +199,7 @@ func TestPlan_NoSecretValuesInJSON(t *testing.T) {
 	}
 	current := CurrentState{
 		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.85"},
+		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 		Providers: []openshell.Provider{},
 	}
 
@@ -239,7 +239,7 @@ func TestPlan_NoSecretValuesInYAML(t *testing.T) {
 	}
 	current := CurrentState{
 		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.85"},
+		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 		Providers: []openshell.Provider{},
 	}
 
@@ -279,7 +279,7 @@ func TestPlan_NoSecretValuesInTableSections(t *testing.T) {
 	}
 	current := CurrentState{
 		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.85"},
+		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 		Providers: []openshell.Provider{},
 	}
 
