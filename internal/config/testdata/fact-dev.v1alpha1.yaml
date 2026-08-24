@@ -1,0 +1,50 @@
+apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: fact-dev
+spec:
+  target:
+    gateway: rc-dev
+    workspace: default
+  providers:
+    - name: my-gcp
+      type: google-vertex-ai
+      management: managed
+      credentials:
+        source: gcloud-adc
+      config:
+        VERTEX_AI_PROJECT_ID: my-project
+        VERTEX_AI_REGION: global
+    - name: github-fact
+      management: referenced
+  inference:
+    route: default
+    provider: my-gcp
+    model: claude-haiku-4-5
+    timeout: 60s
+    verify: true
+  sandbox:
+    image: quay.io/rcochran/openshell:sandbox-current
+    providers:
+      - github-fact
+    policy:
+      file: .harness/policies/fact-development.yaml
+    env:
+      RUST_BACKTRACE: "1"
+    keep: false
+    tty: false
+  agent:
+    type: claude
+    model: claude-haiku-4-5
+    args: [--bare]
+  source:
+    repo: https://github.com/stackrox/fact
+    ref: main
+    destination: /sandbox/fact
+    submodules: shallow
+  payloads:
+    - source: .agents/skills/fact
+      destination: /sandbox/.agents/skills/fact
+    - content: |
+        You are working in the FACT repository.
+      destination: /sandbox/CLAUDE.md
