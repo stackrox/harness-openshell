@@ -128,6 +128,25 @@ func TestProviders(t *testing.T) {
 	}
 }
 
+// TestNewFromClientDefaultsWorkspace pins the single-owner workspace default:
+// an empty workspace binds the client to "default". A provider registered under
+// "default" is visible through a client constructed with "" — proving the
+// default lives here and nowhere else (New passes t.Workspace straight through).
+func TestNewFromClientDefaultsWorkspace(t *testing.T) {
+	ctx := context.Background()
+	fc := fake.NewClient()
+	fc.AddProvider("default", &types.Provider{Name: "p1", Type: "openai"})
+
+	c := NewFromClient(fc, "")
+	providers, err := c.Providers(ctx)
+	if err != nil {
+		t.Fatalf("Providers() returned unexpected error: %v", err)
+	}
+	if len(providers) != 1 || providers[0].Name != "p1" {
+		t.Errorf("empty workspace should bind to %q; got providers %+v", defaultWorkspace, providers)
+	}
+}
+
 func TestProvidersErrorTranslated(t *testing.T) {
 	ctx := context.Background()
 	fc := fake.NewClient()
