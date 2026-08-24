@@ -210,11 +210,11 @@ func TestPlan_NoSecretValuesInJSON(t *testing.T) {
 	}
 
 	jsonStr := string(data)
-	// The actual secret value should never appear
-	// (the source is "environment:OPENSHELL_SECRET", not a value)
-	// The JSON should only contain the describe output ("environment OPENSHELL_SECRET")
-	if strings.Contains(jsonStr, "OPENSHELL_SECRET_ACTUAL_VALUE") {
-		t.Error("secret value leaked into JSON output")
+	// The plan renders Describe() ("environment OPENSHELL_SECRET"), never the
+	// raw SecretRef.Source ("environment:OPENSHELL_SECRET"). The raw form's
+	// absence proves the detail went through Describe rather than a struct dump.
+	if strings.Contains(jsonStr, "environment:OPENSHELL_SECRET") {
+		t.Error("raw SecretRef.Source leaked into JSON output")
 	}
 	if !strings.Contains(jsonStr, "environment OPENSHELL_SECRET") {
 		t.Error("expected credential source description in JSON output")
@@ -250,7 +250,12 @@ func TestPlan_NoSecretValuesInYAML(t *testing.T) {
 	}
 
 	yamlStr := string(data)
-	// The description should be present but never actual values
+	// The plan renders Describe() ("gcloud ADC"), never the raw
+	// SecretRef.Source ("gcloud-adc"); the raw form's absence proves the detail
+	// went through Describe rather than a struct dump.
+	if strings.Contains(yamlStr, "gcloud-adc") {
+		t.Error("raw SecretRef.Source leaked into YAML output")
+	}
 	if !strings.Contains(yamlStr, "gcloud ADC") {
 		t.Error("expected credential source description in YAML output")
 	}

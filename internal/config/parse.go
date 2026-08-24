@@ -8,37 +8,42 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const apiVersionV1alpha1 = "harness.openshell.dev/v1alpha1"
+
 // Parse decodes a v1alpha1 Harness document from raw YAML bytes.
 //
-// It uses strict YAML decoding (unknown fields are errors) and validates:
-//   - apiVersion must equal "harness.openshell.dev/v1alpha1" (or omitted with migration hint)
+// It validates:
+//   - apiVersion must equal "harness.openshell.dev/v1alpha1"; a missing or wrong
+//     apiVersion (including any legacy v1 config) yields a "harness migrate" hint
+//   - unknown fields within a v1alpha1 document are errors (this rejects
+//     spec.context, the dead terminology whose replacement is spec.target)
 //   - kind must equal "Harness"
 //   - metadata.name must be non-empty
-//
-// The parser rejects spec.context as dead terminology (the desired key is spec.target).
 func Parse(data []byte) (*Harness, error) {
+	// Detect apiVersion with a lenient pass first. Strict decoding would reject a
+	// legacy config on its unknown top-level keys before the version check runs,
+	// hiding the migration hint behind a cryptic unknown-field error.
+	var probe struct {
+		APIVersion string `yaml:"apiVersion"`
+	}
+	if err := yaml.Unmarshal(data, &probe); err != nil {
+		return nil, fmt.Errorf("parsing YAML: %w", err)
+	}
+	if probe.APIVersion != apiVersionV1alpha1 {
+		return nil, fmt.Errorf("unsupported or missing apiVersion %q; expected %s (run 'harness migrate' to convert a legacy config)", probe.APIVersion, apiVersionV1alpha1)
+	}
+
+	// Strict decode: unknown fields within a v1alpha1 document are errors.
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
-
 	var h Harness
 	if err := dec.Decode(&h); err != nil {
 		return nil, fmt.Errorf("parsing YAML: %w", err)
 	}
 
-	// Validate apiVersion
-	if h.APIVersion == "" {
-		return nil, fmt.Errorf("unsupported or missing apiVersion %q; expected harness.openshell.dev/v1alpha1 (run 'harness migrate' to convert a legacy config)", h.APIVersion)
-	}
-	if h.APIVersion != "harness.openshell.dev/v1alpha1" {
-		return nil, fmt.Errorf("unsupported apiVersion %q; expected harness.openshell.dev/v1alpha1 (run 'harness migrate' to convert a legacy config)", h.APIVersion)
-	}
-
-	// Validate kind
 	if h.Kind != "Harness" {
 		return nil, fmt.Errorf("invalid kind %q; expected Harness", h.Kind)
 	}
-
-	// Validate metadata.name
 	if h.Metadata.Name == "" {
 		return nil, fmt.Errorf("metadata.name is required")
 	}

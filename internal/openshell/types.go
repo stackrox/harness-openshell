@@ -20,7 +20,7 @@ type Health struct {
 
 // Provider is the minimal harness view of a registered provider.
 //
-// Deliberately minimal; later PRs widen it only as consumers need more fields
+// Deliberately minimal; widened only as consumers need more fields
 // (least-exposure firewall).
 type Provider struct {
 	Name string

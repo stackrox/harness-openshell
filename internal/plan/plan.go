@@ -98,7 +98,10 @@ func buildTargetGroup(desired *config.Harness, current CurrentState) Group {
 
 	if current.Reachable {
 		action = ActionValidate
-		detail = "gateway " + gatewayName + " v" + current.Health.Version
+		detail = "gateway " + gatewayName
+		if current.Health.Version != "" {
+			detail += " v" + current.Health.Version
+		}
 	} else {
 		action = ActionLoginRequired
 		detail = "gateway unreachable or unauthenticated"

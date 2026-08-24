@@ -1,11 +1,12 @@
 // Package legacy converts v1 (legacy) harness configs into the canonical
 // harness.openshell.dev/v1alpha1 schema. It is the sole old→new bridge: it reads
-// the legacy format via internal/agent and never the reverse, so PR7 can retire
-// the legacy parser without untangling a cycle.
+// the legacy format via internal/agent and never the reverse, so the legacy
+// parser can later be retired without untangling an import cycle.
 package legacy
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/stackrox/harness-openshell/internal/config"
@@ -58,10 +59,12 @@ func Migrate(legacy *agent.Harness) (*config.Harness, []Warning, error) {
 		}
 	}
 
-	// Sandbox fields carried losslessly from the legacy agent.
+	// Sandbox fields carried losslessly from the legacy agent. Env is copied so
+	// the result never aliases the parsed legacy struct's map.
 	h.Spec.Sandbox.Image = a.Image
 	if len(a.Env) > 0 {
-		h.Spec.Sandbox.Env = a.Env
+		h.Spec.Sandbox.Env = make(map[string]string, len(a.Env))
+		maps.Copy(h.Spec.Sandbox.Env, a.Env)
 	}
 	if a.TTY != nil {
 		h.Spec.Sandbox.TTY = *a.TTY

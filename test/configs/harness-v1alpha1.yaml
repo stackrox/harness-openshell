@@ -1,0 +1,29 @@
+# v1alpha1 config for the read-only `harness plan` suite cases.
+# No env vars and no target.gateway, so `harness plan` renders fully offline
+# (it skips gateway contact and diffs against empty current state).
+apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: suite-v1alpha1
+spec:
+  providers:
+    - name: my-gcp
+      type: google-vertex-ai
+      management: managed
+      credentials:
+        source: gcloud-adc
+    - name: github-fact
+      management: referenced
+  inference:
+    provider: my-gcp
+    model: claude-haiku-4-5
+  sandbox:
+    image: quay.io/example/openshell:sandbox
+    providers:
+      - github-fact
+  agent:
+    type: claude
+    args: [--bare]
+  source:
+    repo: https://github.com/example/repo
+    ref: main

@@ -11,7 +11,6 @@ import (
 
 // TestMigrateCmd_Basic validates the end-to-end migrate command with basic legacy config.
 func TestMigrateCmd_Basic(t *testing.T) {
-	// Create a temporary legacy YAML file
 	tmpDir := t.TempDir()
 	legacyPath := filepath.Join(tmpDir, "legacy.yaml")
 	legacyData := `name: basic-test

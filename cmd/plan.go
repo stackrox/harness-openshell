@@ -27,8 +27,8 @@ func NewPlanCmd(harnessDir string, newClient openshell.Factory) *cobra.Command {
 		Short: "Read-only reconciliation plan",
 		Long: `Generate a reconciliation plan showing the actions harness would take.
 
-This is a read-only plan. The legacy apply --dry-run command is unchanged;
-the alias from apply --dry-run to this planner is deferred to a later change.`,
+This is a read-only plan and mutates nothing. The legacy apply --dry-run
+command is a separate path and is unchanged.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format, err := parseOutputFormat(output)
 			if err != nil {

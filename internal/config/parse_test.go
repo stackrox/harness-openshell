@@ -91,14 +91,16 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestLegacyConfigError(t *testing.T) {
-	// Simulate legacy config with no apiVersion but with spec.target
-	// (to avoid unknown field rejection first)
+	// A real legacy v1 config carries top-level keys unknown to the v1alpha1
+	// schema (name, gateway, entrypoint, ...). It must still surface the
+	// migration hint, not a cryptic unknown-field error.
 	legacy := `
-metadata:
-  name: test-agent
-spec:
-  target:
-    gateway: x
+name: test-agent
+gateway: rc-dev
+entrypoint: claude
+repo: https://github.com/example/repo
+providers:
+  - profile: github
 `
 	_, err := Parse([]byte(legacy))
 	if err == nil {
@@ -124,7 +126,6 @@ spec:
 	if err == nil {
 		t.Fatal("expected error for spec.context")
 	}
-	// The KnownFields(true) on the decoder should reject this as an unknown field
 	if !bytes.Contains([]byte(err.Error()), []byte("context")) {
 		t.Errorf("error should mention 'context', got: %v", err)
 	}

@@ -376,6 +376,44 @@ else
   echo ""
 fi
 
+# ── 8. v1alpha1 config + plan/migrate (offline) ─────────────────
+
+echo "=== v1alpha1 config + plan/migrate ==="
+
+V1A="$CONFIGS/harness-v1alpha1.yaml"
+
+run_test "plan: renders v1alpha1 config" \
+  "$HARNESS" plan -f "$V1A"
+
+run_test "plan: table has all four sections" \
+  bash -c 'out=$("$1" plan -f "$2"); for s in TARGET PROVIDERS INFERENCE RUN; do echo "$out" | grep -q "$s" || exit 1; done' _ "$HARNESS" "$V1A"
+
+run_test "plan: -o json is valid" \
+  bash -c '"$1" plan -o json -f "$2" | python3 -m json.tool >/dev/null' _ "$HARNESS" "$V1A"
+
+run_test "plan: -o yaml includes a section" \
+  bash -c '"$1" plan -o yaml -f "$2" | grep -q "section: providers"' _ "$HARNESS" "$V1A"
+
+run_test "plan: managed provider shows create, referenced shows adoption-required" \
+  bash -c 'out=$("$1" plan -f "$2"); echo "$out" | grep -q "create" && echo "$out" | grep -q "adoption-required"' _ "$HARNESS" "$V1A"
+
+run_test "plan: credential source shown, never a value" \
+  bash -c '"$1" plan -f "$2" | grep -q "gcloud ADC"' _ "$HARNESS" "$V1A"
+
+run_test_fail "plan: legacy config rejected" \
+  "$HARNESS" plan -f "$CONFIGS/agent-minimal.yaml"
+
+run_test "plan: legacy rejection names migrate" \
+  bash -c '"$1" plan -f "$2" 2>&1 | grep -q "harness migrate"' _ "$HARNESS" "$CONFIGS/agent-minimal.yaml"
+
+run_test "migrate: legacy -> v1alpha1 emits apiVersion" \
+  bash -c '"$1" migrate -f "$2" 2>/dev/null | grep -q "harness.openshell.dev/v1alpha1"' _ "$HARNESS" "$CONFIGS/agent-minimal.yaml"
+
+run_test "migrate: output is plannable" \
+  bash -c 'tmp=$(mktemp); "$1" migrate -f "$2" -o "$tmp" 2>/dev/null && "$1" plan -f "$tmp" >/dev/null; rc=$?; rm -f "$tmp"; exit $rc' _ "$HARNESS" "$CONFIGS/agent-minimal.yaml"
+
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────
 
 TOTAL=$(( PASS + FAIL ))

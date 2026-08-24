@@ -207,14 +207,11 @@ func dryRunApply(gw gateway.Gateway, agentCfg *agent.AgentConfig, gwTarget strin
 	status.Header("Dry Run")
 	allPass := true
 
-	// 1. Agent config
 	status.OKf("agent: %s (entrypoint: %s)", agentCfg.Name, agentCfg.EffectiveEntrypoint())
 
-	// 2. Image
 	image := resolveSandboxImage(agentCfg.Image)
 	status.OKf("image: %s", image)
 
-	// 3. Gateway
 	if isRemote {
 		if gw.InferenceGet() != nil {
 			status.Failf("gateway: %s (not reachable)", gwTarget)
@@ -226,7 +223,6 @@ func dryRunApply(gw gateway.Gateway, agentCfg *agent.AgentConfig, gwTarget strin
 		status.OKf("gateway: %s (local)", gwTarget)
 	}
 
-	// 4. Providers
 	for _, p := range agentCfg.Providers {
 		if gw.ProviderGet(p.Profile) == nil {
 			status.OKf("provider: %s (registered)", p.Profile)
@@ -235,7 +231,6 @@ func dryRunApply(gw gateway.Gateway, agentCfg *agent.AgentConfig, gwTarget strin
 		}
 	}
 
-	// 5. Env vars
 	env := agentCfg.BuildEnvMap()
 	resolved := 0
 	missing := 0
@@ -254,7 +249,6 @@ func dryRunApply(gw gateway.Gateway, agentCfg *agent.AgentConfig, gwTarget strin
 		status.Warnf("env: %d vars empty", missing)
 	}
 
-	// 6. Task file
 	if agentCfg.Task != "" {
 		if _, err := os.Stat(agentCfg.Task); err != nil {
 			status.Failf("task: %s (not found)", agentCfg.Task)
