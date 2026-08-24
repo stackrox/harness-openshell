@@ -16,7 +16,7 @@ import (
 func TestReadCurrentState_HealthyGateway(t *testing.T) {
 	ctx := context.Background()
 	client := testutil.NewFake("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.85"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
 	)
 	desired := &config.Harness{}
 
@@ -31,8 +31,8 @@ func TestReadCurrentState_HealthyGateway(t *testing.T) {
 	if !state.Health.Healthy {
 		t.Error("expected Health.Healthy=true")
 	}
-	if state.Health.Version != "0.0.85" {
-		t.Errorf("expected version 0.0.85, got %s", state.Health.Version)
+	if state.Health.Version != "0.0.110" {
+		t.Errorf("expected version 0.0.110, got %s", state.Health.Version)
 	}
 	if state.Inference.Capable {
 		t.Error("expected Inference.Capable=false")
@@ -42,7 +42,7 @@ func TestReadCurrentState_HealthyGateway(t *testing.T) {
 func TestReadCurrentState_ProvidersPopulated(t *testing.T) {
 	ctx := context.Background()
 	c, raw := testutil.NewFakeClient("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.85"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
 	)
 	raw.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
 	raw.AddProvider("default", &types.Provider{Name: "gcp", Type: "google-vertex-ai"})
@@ -119,7 +119,7 @@ func TestReadCurrentState_OtherErrorEscalates(t *testing.T) {
 func TestReadCurrentState_InferenceAlwaysFalse(t *testing.T) {
 	ctx := context.Background()
 	client := testutil.NewFake("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.85"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
 	)
 	desired := &config.Harness{}
 
@@ -139,7 +139,7 @@ func TestReadCurrentState_InferenceAlwaysFalse(t *testing.T) {
 func TestReadCurrentState_OnlyReadMethodsCalled(t *testing.T) {
 	ctx := context.Background()
 	client, fakeClient := testutil.NewFakeClient("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.85"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
 	)
 	fakeClient.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
 	desired := &config.Harness{}

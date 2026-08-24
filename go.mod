@@ -3,7 +3,7 @@ module github.com/stackrox/harness-openshell
 go 1.25.0
 
 require (
-	github.com/NVIDIA/OpenShell/sdk/go v0.0.0-20260818204536-8d67250a5d17
+	github.com/NVIDIA/OpenShell/sdk/go v0.0.0-20260820101241-7909fb5d0f54
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 )
