@@ -41,13 +41,16 @@ cli:
 
 ## Install/refresh the pinned OpenShell CLI + gateway (reads .openshell-version)
 # Matches CI exactly; on macOS this drives Homebrew, on Linux it uses packages +
-# a systemd user service. Start the gateway after installing:
-#   brew services start openshell                (macOS)
-#   systemctl --user start openshell-gateway     (Linux)
+# a systemd user service. The installer starts the gateway service; restart it
+# later with `brew services restart openshell` (macOS) or
+# `systemctl --user restart openshell-gateway` (Linux).
 openshell:
 	@test -n "$(OPENSHELL_VERSION)" || { echo "error: .openshell-version is missing or empty"; exit 1; }
 	@echo "Installing OpenShell $(OPENSHELL_VERSION) (pinned in .openshell-version)..."
-	curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION=$(OPENSHELL_VERSION) sh
+	@tmp="$$(mktemp)"; \
+	  curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$$tmp" \
+	    || { echo "error: failed to download install.sh"; rm -f "$$tmp"; exit 1; }; \
+	  OPENSHELL_VERSION=$(OPENSHELL_VERSION) sh "$$tmp"; status=$$?; rm -f "$$tmp"; exit $$status
 
 ## ── Lint targets ─────────────────────────────────────────────────────
 

@@ -26,7 +26,10 @@ jobs:
         # "supervisor session not found".
         run: |
           ver="$(cat .openshell-version)"
-          curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION="$ver" sh
+          test -n "$ver" || { echo "error: .openshell-version is empty"; exit 1; }
+          tmp="$(mktemp)"
+          curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$tmp"
+          OPENSHELL_VERSION="$ver" sh "$tmp"
 
       - name: Wait for gateway
         run: |
@@ -77,7 +80,10 @@ jobs:
         # "supervisor session not found".
         run: |
           ver="$(cat .openshell-version)"
-          curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION="$ver" sh
+          test -n "$ver" || { echo "error: .openshell-version is empty"; exit 1; }
+          tmp="$(mktemp)"
+          curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$tmp"
+          OPENSHELL_VERSION="$ver" sh "$tmp"
 
       - name: Wait for gateway
         run: |

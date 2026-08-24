@@ -174,13 +174,14 @@ Install a bare `brew install openshell` off the tap and you get whatever version
 the formula defaults to — usually behind. `make openshell` runs the upstream
 `install.sh` at the pinned version instead, so local matches CI exactly.
 
-After installing, start the gateway and register it once:
+The installer starts the gateway service; register it once:
 
 ```bash
-brew services start openshell                                   # macOS
-# systemctl --user start openshell-gateway                      # Linux
 openshell gateway add https://127.0.0.1:17670 --local --name openshell
 ```
+
+If you need to restart the service later: `brew services restart openshell`
+(macOS) or `systemctl --user restart openshell-gateway` (Linux).
 
 Or build the harness from source: `make cli`
 
