@@ -13,6 +13,8 @@ func TestResolveTarget(t *testing.T) {
 		name          string
 		flagGateway   string
 		flagWorkspace string
+		cfgGateway    string
+		cfgWorkspace  string
 		env           map[string]string
 		wantGateway   string
 		wantWorkspace string
@@ -21,6 +23,8 @@ func TestResolveTarget(t *testing.T) {
 			name:          "flag wins over env",
 			flagGateway:   "flag-gw",
 			flagWorkspace: "flag-ws",
+			cfgGateway:    "",
+			cfgWorkspace:  "",
 			env:           map[string]string{EnvGateway: "env-gw", EnvWorkspace: "env-ws"},
 			wantGateway:   "flag-gw",
 			wantWorkspace: "flag-ws",
@@ -29,6 +33,8 @@ func TestResolveTarget(t *testing.T) {
 			name:          "env wins when flag empty",
 			flagGateway:   "",
 			flagWorkspace: "",
+			cfgGateway:    "",
+			cfgWorkspace:  "",
 			env:           map[string]string{EnvGateway: "env-gw", EnvWorkspace: "env-ws"},
 			wantGateway:   "env-gw",
 			wantWorkspace: "env-ws",
@@ -37,6 +43,8 @@ func TestResolveTarget(t *testing.T) {
 			name:          "empty flag and env stays empty (no defaulting)",
 			flagGateway:   "",
 			flagWorkspace: "",
+			cfgGateway:    "",
+			cfgWorkspace:  "",
 			env:           map[string]string{},
 			wantGateway:   "",
 			wantWorkspace: "",
@@ -45,6 +53,8 @@ func TestResolveTarget(t *testing.T) {
 			name:          "flag wins when env empty",
 			flagGateway:   "flag-gw",
 			flagWorkspace: "flag-ws",
+			cfgGateway:    "",
+			cfgWorkspace:  "",
 			env:           map[string]string{},
 			wantGateway:   "flag-gw",
 			wantWorkspace: "flag-ws",
@@ -53,15 +63,67 @@ func TestResolveTarget(t *testing.T) {
 			name:          "fields resolve independently",
 			flagGateway:   "flag-gw",
 			flagWorkspace: "",
+			cfgGateway:    "",
+			cfgWorkspace:  "",
 			env:           map[string]string{EnvWorkspace: "env-ws"},
 			wantGateway:   "flag-gw",
 			wantWorkspace: "env-ws",
+		},
+		{
+			name:          "config used when flag and env both empty",
+			flagGateway:   "",
+			flagWorkspace: "",
+			cfgGateway:    "cfg-gw",
+			cfgWorkspace:  "cfg-ws",
+			env:           map[string]string{},
+			wantGateway:   "cfg-gw",
+			wantWorkspace: "cfg-ws",
+		},
+		{
+			name:          "flag wins over config",
+			flagGateway:   "flag-gw",
+			flagWorkspace: "flag-ws",
+			cfgGateway:    "cfg-gw",
+			cfgWorkspace:  "cfg-ws",
+			env:           map[string]string{},
+			wantGateway:   "flag-gw",
+			wantWorkspace: "flag-ws",
+		},
+		{
+			name:          "env wins over config",
+			flagGateway:   "",
+			flagWorkspace: "",
+			cfgGateway:    "cfg-gw",
+			cfgWorkspace:  "cfg-ws",
+			env:           map[string]string{EnvGateway: "env-gw", EnvWorkspace: "env-ws"},
+			wantGateway:   "env-gw",
+			wantWorkspace: "env-ws",
+		},
+		{
+			name:          "config gateway and env workspace resolve independently",
+			flagGateway:   "",
+			flagWorkspace: "",
+			cfgGateway:    "cfg-gw",
+			cfgWorkspace:  "cfg-ws",
+			env:           map[string]string{EnvWorkspace: "env-ws"},
+			wantGateway:   "cfg-gw",
+			wantWorkspace: "env-ws",
+		},
+		{
+			name:          "empty flag/env/config stays empty",
+			flagGateway:   "",
+			flagWorkspace: "",
+			cfgGateway:    "",
+			cfgWorkspace:  "",
+			env:           map[string]string{},
+			wantGateway:   "",
+			wantWorkspace: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ResolveTarget(tt.flagGateway, tt.flagWorkspace, mapEnv(tt.env))
+			got := ResolveTarget(tt.flagGateway, tt.flagWorkspace, tt.cfgGateway, tt.cfgWorkspace, mapEnv(tt.env))
 			if got.Gateway != tt.wantGateway {
 				t.Errorf("Gateway = %q, want %q", got.Gateway, tt.wantGateway)
 			}
