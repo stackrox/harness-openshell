@@ -1,0 +1,8 @@
+name: with-providers-test
+gateway: rc-dev
+repo: https://github.com/example/repo
+repo_ref: main
+entrypoint: claude
+providers:
+  - profile: github-fact
+  - profile: gcp-vertex
