@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stackrox/harness-openshell/internal/config"
@@ -252,10 +253,10 @@ func TestBuild_ProviderDetailIncludesCredentials(t *testing.T) {
 	}
 
 	detail := provGroup.Resources[0].Detail
-	if !contains(detail, "credential source:") {
+	if !strings.Contains(detail, "credential source:") {
 		t.Errorf("expected credential source in detail: %s", detail)
 	}
-	if !contains(detail, "gcloud ADC") {
+	if !strings.Contains(detail, "gcloud ADC") {
 		t.Errorf("expected 'gcloud ADC' in detail: %s", detail)
 	}
 }
@@ -296,10 +297,10 @@ func TestBuild_InferenceGroupWhenConfigured(t *testing.T) {
 	if res.Action != ActionValidate {
 		t.Errorf("expected ActionValidate, got %s", res.Action)
 	}
-	if !contains(res.Detail, "my-gcp/claude-haiku-4-5") {
+	if !strings.Contains(res.Detail, "my-gcp/claude-haiku-4-5") {
 		t.Errorf("expected provider/model in detail: %s", res.Detail)
 	}
-	if !contains(res.Detail, "gateway does not report inference state") {
+	if !strings.Contains(res.Detail, "gateway does not report inference state") {
 		t.Errorf("expected config-only note in detail: %s", res.Detail)
 	}
 }
@@ -360,7 +361,7 @@ func TestBuild_RunGroupWithSandbox(t *testing.T) {
 	for _, res := range runGroup.Resources {
 		if res.Action == ActionCreateSandbox {
 			hasCreateSandbox = true
-			if !contains(res.Detail, "github") {
+			if !strings.Contains(res.Detail, "github") {
 				t.Errorf("expected provider list in detail: %s", res.Detail)
 			}
 		}
@@ -458,7 +459,7 @@ func TestBuild_RunGroupWithAgent(t *testing.T) {
 			if res.Name != "claude" {
 				t.Errorf("expected agent type 'claude', got %s", res.Name)
 			}
-			if !contains(res.Detail, "--bare") {
+			if !strings.Contains(res.Detail, "--bare") {
 				t.Errorf("expected --bare in detail: %s", res.Detail)
 			}
 		}
@@ -537,14 +538,4 @@ func TestPlan_TableSections(t *testing.T) {
 	if len(targetRows[0]) != 3 {
 		t.Errorf("expected 3 columns in row, got %d", len(targetRows[0]))
 	}
-}
-
-// contains is a helper for substring checking.
-func contains(s, substr string) bool {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

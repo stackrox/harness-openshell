@@ -2,6 +2,7 @@ package plan
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	fake "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/fake"
@@ -103,7 +104,7 @@ func TestReadCurrentState_OtherErrorEscalates(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected ReadCurrentState to escalate ErrPermission")
 	}
-	if !testErrorIs(err, openshell.ErrPermission) {
+	if !errors.Is(err, openshell.ErrPermission) {
 		t.Errorf("expected ErrPermission, got %v", err)
 	}
 }
@@ -195,23 +196,4 @@ func (e *errorClient) Providers(ctx context.Context) ([]openshell.Provider, erro
 
 func (e *errorClient) Close() error {
 	return nil
-}
-
-// testErrorIs is a helper to check if an error matches a sentinel.
-func testErrorIs(err, sentinel error) bool {
-	for err != nil {
-		if err == sentinel {
-			return true
-		}
-		// Try to unwrap
-		type unwrapper interface {
-			Unwrap() error
-		}
-		u, ok := err.(unwrapper)
-		if !ok {
-			break
-		}
-		err = u.Unwrap()
-	}
-	return false
 }

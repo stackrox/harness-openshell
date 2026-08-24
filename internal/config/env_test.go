@@ -316,6 +316,41 @@ func TestResolveSandboxEnv(t *testing.T) {
 	}
 }
 
+func TestResolveSandboxPolicyFile(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec: Spec{
+			Sandbox: Sandbox{
+				Policy: &PolicyRef{File: "${POLICY_DIR}/fact.yaml"},
+			},
+		},
+	}
+
+	getenv := func(name string) string {
+		if name == "POLICY_DIR" {
+			return "/etc/policies"
+		}
+		return ""
+	}
+
+	resolved, err := Resolve(h, getenv)
+	if err != nil {
+		t.Fatalf("Resolve failed: %v", err)
+	}
+	if got := resolved.Spec.Sandbox.Policy.File; got != "/etc/policies/fact.yaml" {
+		t.Errorf("policy.file should be expanded: got %q", got)
+	}
+	// The input's PolicyRef must not be mutated or aliased.
+	if h.Spec.Sandbox.Policy.File != "${POLICY_DIR}/fact.yaml" {
+		t.Errorf("input policy.file mutated: got %q", h.Spec.Sandbox.Policy.File)
+	}
+	if resolved.Spec.Sandbox.Policy == h.Spec.Sandbox.Policy {
+		t.Error("resolved policy aliases the input PolicyRef pointer")
+	}
+}
+
 func TestResolveSourceFields(t *testing.T) {
 	// Test resolving source fields
 	h := &Harness{

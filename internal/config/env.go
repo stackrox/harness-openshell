@@ -114,6 +114,11 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	s.Inference.Timeout = exp("spec.inference.timeout", h.Spec.Inference.Timeout)
 
 	s.Sandbox.Image = exp("spec.sandbox.image", h.Spec.Sandbox.Image)
+	if p := h.Spec.Sandbox.Policy; p != nil {
+		np := *p // copy so the resolved struct never aliases the input's PolicyRef
+		np.File = exp("spec.sandbox.policy.file", p.File)
+		s.Sandbox.Policy = &np
+	}
 	if len(h.Spec.Sandbox.Providers) > 0 {
 		s.Sandbox.Providers = make([]string, len(h.Spec.Sandbox.Providers))
 		for i, p := range h.Spec.Sandbox.Providers {

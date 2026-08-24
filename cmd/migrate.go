@@ -54,9 +54,13 @@ documents, unresolved base_agent) are reported as warnings on stderr.`,
 				}
 			}
 
-			// Print warnings to command's ErrOrStderr (which can be a buffer in tests)
+			// Print warnings to command's ErrOrStderr (which can be a buffer in
+			// tests). Migration warnings flag data that has no v1alpha1 home, so
+			// a failed write must not be swallowed into a silent success.
 			for _, w := range warnings {
-				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s: %s\n", w.Field, w.Message)
+				if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s: %s\n", w.Field, w.Message); err != nil {
+					return fmt.Errorf("writing migration warnings: %w", err)
+				}
 			}
 
 			return nil

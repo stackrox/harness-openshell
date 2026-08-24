@@ -182,7 +182,9 @@ func buildProviderDetail(prov *config.Provider) string {
 
 // buildInferenceGroup returns the INFERENCE group. The action is always
 // validate: the gateway does not report inference state, so the plan can only
-// validate the configured route against the desired config.
+// validate the configured route against the desired config. current is threaded
+// for uniformity with the other build* helpers and to carry the future
+// inference-state read (see InferenceState) without a signature change.
 func buildInferenceGroup(desired *config.Harness, current CurrentState) Group {
 	group := Group{Section: SectionInference}
 

@@ -287,6 +287,32 @@ func TestMigrateDeprecatedGateway(t *testing.T) {
 	}
 }
 
+// TestMigrateInlineDocsWarn checks that inline kind:gateway and kind:provider
+// documents are flagged rather than silently dropped.
+func TestMigrateInlineDocsWarn(t *testing.T) {
+	legacy := &agent.Harness{
+		Agent:     &agent.AgentConfig{Name: "inline-test", Entrypoint: "claude"},
+		Gateways:  map[string][]byte{"gw-a": []byte("kind: gateway\n")},
+		Providers: map[string][]byte{"prov-b": []byte("kind: provider\n")},
+	}
+
+	_, warnings, err := Migrate(legacy)
+	if err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	fields := make(map[string]int)
+	for _, w := range warnings {
+		fields[w.Field]++
+	}
+	if fields["kind:gateway"] != 1 {
+		t.Errorf("kind:gateway warnings: got %d, want 1", fields["kind:gateway"])
+	}
+	if fields["kind:provider"] != 1 {
+		t.Errorf("kind:provider warnings: got %d, want 1", fields["kind:provider"])
+	}
+}
+
 // TestMigrateBytes validates the full pipeline: parse → migrate → marshal.
 func TestMigrateBytes(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("testdata", "legacy", "basic.yaml"))

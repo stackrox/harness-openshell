@@ -7,11 +7,18 @@ package legacy
 import (
 	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/stackrox/harness-openshell/internal/config"
 	"gopkg.in/yaml.v3"
 )
+
+// sortedKeys returns the map keys in deterministic order so migration warnings
+// are stable across runs.
+func sortedKeys[V any](m map[string]V) []string {
+	return slices.Sorted(maps.Keys(m))
+}
 
 // Warning is a non-fatal deprecation or conversion notice surfaced during migration.
 type Warning struct {
@@ -91,6 +98,16 @@ func Migrate(legacy *agent.Harness) (*config.Harness, []Warning, error) {
 			Content:     p.Content,
 			Destination: p.SandboxPath,
 		})
+	}
+
+	// Inline kind:gateway / kind:provider documents have no v1alpha1 home: a
+	// gateway is registered out-of-band via the openshell CLI, and a provider
+	// profile is a separate artifact. Warn rather than drop them silently.
+	for _, name := range sortedKeys(legacy.Gateways) {
+		warn("kind:gateway", fmt.Sprintf("inline gateway document %q not migrated; register the gateway with the openshell CLI", name))
+	}
+	for _, name := range sortedKeys(legacy.Providers) {
+		warn("kind:provider", fmt.Sprintf("inline provider profile %q not migrated; keep it as a separate provider profile", name))
 	}
 
 	return h, warnings, nil
