@@ -1,8 +1,9 @@
 # Local gateway — runs on your machine via podman or docker.
 #
-# The openshell gateway must be installed and running:
-#   macOS:  brew install openshell && brew services start openshell
-#   Linux:  curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh
+# The openshell gateway must be installed (at the pinned version) and running:
+#   Install:  make openshell            # pinned to .openshell-version, matches CI
+#   Start:    brew services start openshell               (macOS)
+#             systemctl --user start openshell-gateway    (Linux)
 
 gateway:
   type: local

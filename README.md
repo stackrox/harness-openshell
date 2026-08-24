@@ -160,15 +160,30 @@ openshell term                       # interactive policy terminal
 ## Install
 
 ```bash
-# macOS
-brew tap nvidia/openshell && brew install openshell && brew services start openshell
+# OpenShell CLI + local gateway, pinned to the version this repo targets
+# (.openshell-version). Installs the exact release CI uses and starts the
+# managed gateway service (Homebrew/launchd on macOS, systemd on Linux).
+make openshell
 
 # Download the harness binary
 curl -L https://github.com/stackrox/harness-openshell/releases/latest/download/harness_darwin_arm64 -o harness
 chmod +x harness
 ```
 
-Or build from source: `make cli`
+Install a bare `brew install openshell` off the tap and you get whatever version
+the formula defaults to — usually behind. `make openshell` runs the upstream
+`install.sh` at the pinned version instead, so local matches CI exactly.
+
+The installer starts the gateway service; register it once:
+
+```bash
+openshell gateway add https://127.0.0.1:17670 --local --name openshell
+```
+
+If you need to restart the service later: `brew services restart openshell`
+(macOS) or `systemctl --user restart openshell-gateway` (Linux).
+
+Or build the harness from source: `make cli`
 
 ## Reference
 

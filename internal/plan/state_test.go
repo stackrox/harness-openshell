@@ -56,11 +56,18 @@ func TestReadCurrentState_ProvidersPopulated(t *testing.T) {
 	if len(state.Providers) != 2 {
 		t.Errorf("expected 2 providers, got %d", len(state.Providers))
 	}
-	if state.Providers[0].Name != "github" {
-		t.Errorf("expected first provider 'github', got %s", state.Providers[0].Name)
+	// The fake stores providers in a name-keyed map, so Providers() order is
+	// not guaranteed (and production does not rely on it — the plan matches
+	// current providers by name). Assert membership, not position.
+	byName := make(map[string]string, len(state.Providers))
+	for _, p := range state.Providers {
+		byName[p.Name] = p.Type
 	}
-	if state.Providers[1].Name != "gcp" {
-		t.Errorf("expected second provider 'gcp', got %s", state.Providers[1].Name)
+	if byName["github"] != "github" {
+		t.Errorf("expected provider 'github' of type github, got type %q", byName["github"])
+	}
+	if byName["gcp"] != "google-vertex-ai" {
+		t.Errorf("expected provider 'gcp' of type google-vertex-ai, got type %q", byName["gcp"])
 	}
 }
 

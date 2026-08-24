@@ -20,6 +20,13 @@ import (
 // (empty/unparseable output) via errors.Is and treat it as a hard failure.
 var ErrVersionBelowMinimum = errors.New("openshell version below minimum")
 
+// MinOpenShellVersion is the lowest openshell CLI/gateway version the harness
+// supports. It is kept in lockstep with the repo-root .openshell-version pin
+// (the single source of truth that CI and `make openshell` also read);
+// TestMinOpenShellVersionMatchesPin fails if the two drift. Re-baseline both
+// together.
+const MinOpenShellVersion = "0.0.85"
+
 var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 // CLI implements Gateway by shelling out to the openshell binary.
