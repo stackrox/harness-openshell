@@ -9,8 +9,9 @@ const (
 	EnvWorkspace = "OPENSHELL_WORKSPACE"
 )
 
-// ResolveTarget builds a Target from explicit flag values and the environment,
-// applying flag > env > empty for each field independently.
+// ResolveTarget builds a Target from explicit flag values, environment variables,
+// and config values, applying flag > env > config > empty for each field
+// independently.
 //
 // It does NOT default the workspace: an unset workspace stays "" and sdkclient
 // maps "" -> "default" at construction (the single owner of that default). An
@@ -19,18 +20,22 @@ const (
 //
 // Resolution is pure: getenv is injected (production passes os.Getenv, tests
 // pass a map closure) so this package imports neither os nor any CLI framework.
-func ResolveTarget(flagGateway, flagWorkspace string, getenv func(string) string) Target {
+func ResolveTarget(flagGateway, flagWorkspace, cfgGateway, cfgWorkspace string, getenv func(string) string) Target {
 	return Target{
-		Gateway:   resolveField(flagGateway, EnvGateway, getenv),
-		Workspace: resolveField(flagWorkspace, EnvWorkspace, getenv),
+		Gateway:   resolveField(flagGateway, EnvGateway, cfgGateway, getenv),
+		Workspace: resolveField(flagWorkspace, EnvWorkspace, cfgWorkspace, getenv),
 	}
 }
 
-// resolveField applies flag > env > empty for one field. An empty flag value is
-// treated as unset so the env var can take effect.
-func resolveField(flagVal, envKey string, getenv func(string) string) string {
+// resolveField applies flag > env > config > empty for one field. An empty flag
+// value is treated as unset so env and config can take effect in precedence.
+func resolveField(flagVal, envKey, cfgVal string, getenv func(string) string) string {
 	if flagVal != "" {
 		return flagVal
 	}
-	return getenv(envKey)
+	envVal := getenv(envKey)
+	if envVal != "" {
+		return envVal
+	}
+	return cfgVal
 }

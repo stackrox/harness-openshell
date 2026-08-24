@@ -1,0 +1,12 @@
+apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+    name: deprecated-gateway-test
+spec:
+    target:
+        gateway: helm
+    agent:
+        type: claude
+    source:
+        repo: https://github.com/example/repo
+        ref: main

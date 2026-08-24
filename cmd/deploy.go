@@ -148,7 +148,6 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 		status.Infof("KUBECONFIG: %s", kbcfg)
 	}
 
-	// Step 1: Namespace
 	status.Step(1, "Namespace")
 	clusterRunner.RunKubectl(ctx, "create", "ns", namespace)
 	if _, err := clusterRunner.RunKubectl(ctx, "label", "ns", namespace,
@@ -158,14 +157,12 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 		return fmt.Errorf("labeling namespace: %w", err)
 	}
 
-	// Step 2: Sandbox CRD
 	status.Step(2, "Sandbox CRD")
 	if _, err := clusterRunner.RunKubectl(ctx, "apply", "-f", gwCfg.Chart.CRD.URL); err != nil {
 		return fmt.Errorf("installing sandbox CRD: %w", err)
 	}
 	status.OK("Installed")
 
-	// Step 3: Platform-specific setup
 	if gwCfg.IsOCP() {
 		status.Step(3, "OpenShift SCCs")
 		for _, sa := range gwCfg.OCP.SCCPrivileged {
@@ -189,7 +186,6 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 		}
 	}
 
-	// Step 4: Helm install
 	status.Step(4, "Helm install")
 
 	// routeHost is needed before Helm (for OCP PKI cert SAN).
@@ -233,7 +229,6 @@ func deployFromConfig(harnessDir string, gwCfg *gateway.GatewayConfig, gw gatewa
 	}
 	status.OK("Gateway ready")
 
-	// Step 5: CLI gateway config
 	status.Step(5, "CLI gateway")
 	gatewayName := gwCfg.Gateway.Name
 

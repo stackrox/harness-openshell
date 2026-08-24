@@ -68,10 +68,11 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 			for _, p := range h.Agent.Providers {
 				providerProfiles = append(providerProfiles, p.Profile)
 			}
-			// Flag/env precedence (flag > env > empty) is owned by
+			// Flag/env precedence (flag > env > config > empty) is owned by
 			// openshell.ResolveTarget; an unset gateway (flag and env both empty)
-			// skips Phase 2.
-			target := openshell.ResolveTarget(*gatewayName, *workspace, os.Getenv)
+			// skips Phase 2. Doctor does not load v1alpha1 config, so the config
+			// parameters are empty.
+			target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
 			results = append(results, runOnlineChecks(cmd.Context(), newClient, target, providerProfiles)...)
 
 			if format != formatTable {

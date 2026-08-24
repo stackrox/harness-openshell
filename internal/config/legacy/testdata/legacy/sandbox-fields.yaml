@@ -1,0 +1,10 @@
+name: sandbox-fields-test
+gateway: rc-dev
+repo: https://github.com/example/repo
+repo_ref: main
+entrypoint: claude
+image: quay.io/example/sandbox:latest
+policy: .harness/policies/dev.yaml
+tty: true
+env:
+  RUST_BACKTRACE: "1"
