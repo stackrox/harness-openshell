@@ -48,7 +48,7 @@ secrets:
 
 ### `local-container.yaml` -- Podman on your machine
 
-The default. Requires openshell installed and running via `brew services start openshell` or equivalent. No Helm, no K8s.
+The default. Requires openshell installed at the pinned version (`make openshell`) and the gateway running (`brew services start openshell` on macOS, `systemctl --user start openshell-gateway` on Linux). No Helm, no K8s.
 
 ### `helm.yaml` -- local kind cluster
 

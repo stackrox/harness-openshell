@@ -18,9 +18,14 @@ PLATFORM      := linux/amd64
 VERSION       := $(shell git describe --tags --always 2>/dev/null || echo dev)
 LDFLAGS       := -s -w -X main.version=$(VERSION)
 
+# Pinned OpenShell CLI/gateway version — single source of truth for `make
+# openshell`, CI (.github/workflows/integration.yml), and the runtime min-version
+# check (internal/gateway.MinOpenShellVersion, enforced in lockstep by a test).
+OPENSHELL_VERSION := $(shell cat .openshell-version 2>/dev/null)
+
 IMAGE  := $(REGISTRY):sandbox-$(VERSION)
 
-.PHONY: all cli \
+.PHONY: all cli openshell \
         vet lint test test-local test-kind test-remote test-all \
         dev-sandbox dev-push tag clean help
 
@@ -33,6 +38,16 @@ all: cli dev-sandbox
 cli:
 	CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)' -o harness .
 	@echo "Built: ./harness ($(VERSION))"
+
+## Install/refresh the pinned OpenShell CLI + gateway (reads .openshell-version)
+# Matches CI exactly; on macOS this drives Homebrew, on Linux it uses packages +
+# a systemd user service. Start the gateway after installing:
+#   brew services start openshell                (macOS)
+#   systemctl --user start openshell-gateway     (Linux)
+openshell:
+	@test -n "$(OPENSHELL_VERSION)" || { echo "error: .openshell-version is missing or empty"; exit 1; }
+	@echo "Installing OpenShell $(OPENSHELL_VERSION) (pinned in .openshell-version)..."
+	curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION=$(OPENSHELL_VERSION) sh
 
 ## ── Lint targets ─────────────────────────────────────────────────────
 

@@ -18,11 +18,15 @@ jobs:
           go-version-file: go.mod
 
       - name: Install openshell
-        # Pin to the same version the gateway charts deploy (profiles/gateways/*.yaml).
-        # The install script otherwise grabs the latest tagged release, which can
-        # drift past the chart's supervisor image and break the sandbox ssh/tar
-        # relay with "supervisor session not found".
-        run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION=v0.0.85 sh
+        # Version is pinned in .openshell-version (the single source of truth,
+        # also read by `make openshell` and asserted against
+        # internal/gateway.MinOpenShellVersion). The install script otherwise
+        # grabs the latest tagged release, which can drift past the chart's
+        # supervisor image and break the sandbox ssh/tar relay with
+        # "supervisor session not found".
+        run: |
+          ver="$(cat .openshell-version)"
+          curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION="$ver" sh
 
       - name: Wait for gateway
         run: |
@@ -65,11 +69,15 @@ jobs:
           go-version-file: go.mod
 
       - name: Install openshell
-        # Pin to the same version the gateway charts deploy (profiles/gateways/*.yaml).
-        # The install script otherwise grabs the latest tagged release, which can
-        # drift past the chart's supervisor image and break the sandbox ssh/tar
-        # relay with "supervisor session not found".
-        run: curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION=v0.0.85 sh
+        # Version is pinned in .openshell-version (the single source of truth,
+        # also read by `make openshell` and asserted against
+        # internal/gateway.MinOpenShellVersion). The install script otherwise
+        # grabs the latest tagged release, which can drift past the chart's
+        # supervisor image and break the sandbox ssh/tar relay with
+        # "supervisor session not found".
+        run: |
+          ver="$(cat .openshell-version)"
+          curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | OPENSHELL_VERSION="$ver" sh
 
       - name: Wait for gateway
         run: |

@@ -92,7 +92,7 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 			}
 
 			gw := gateway.New(cli)
-			if err := gw.CheckMinVersion("0.0.85"); err != nil {
+			if err := gw.CheckMinVersion(gateway.MinOpenShellVersion); err != nil {
 				// A CLI that is definitively too old will fail deployment later
 				// with far less context, so refuse up front. If we merely could
 				// not read/parse the version, warn and proceed — the CLI may
