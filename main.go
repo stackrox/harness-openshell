@@ -70,6 +70,7 @@ func main() {
 		cmd.NewDoctorCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewInitCmd(harnessDir),
 		cmd.NewMigrateCmd(),
+		cmd.NewPlanCmd(harnessDir, sdkclient.New),
 	)
 
 	// Deprecated aliases
