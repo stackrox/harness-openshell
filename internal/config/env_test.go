@@ -123,6 +123,73 @@ func TestResolveEmptyString(t *testing.T) {
 	}
 }
 
+func TestResolveInvalidTimeout(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec:       Spec{Inference: Inference{Timeout: "60"}}, // bare integer, no unit
+	}
+
+	if _, err := Resolve(h, func(string) string { return "" }); err == nil {
+		t.Fatal("expected Resolve to reject a unitless inference timeout")
+	}
+}
+
+func TestResolveValidTimeout(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		// Provider+model are required whenever the inference block is configured;
+		// this test only exercises timeout expansion, so supply them as fixtures.
+		Spec: Spec{Inference: Inference{Provider: "gcp", Model: "claude-opus-4-8", Timeout: "${INF_TIMEOUT}"}},
+	}
+
+	resolved, err := Resolve(h, func(name string) string {
+		if name == "INF_TIMEOUT" {
+			return "90s"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("Resolve failed: %v", err)
+	}
+	secs, err := resolved.Spec.Inference.TimeoutSecs()
+	if err != nil || secs != 90 {
+		t.Errorf("resolved+parsed timeout = %d (err %v), want 90", secs, err)
+	}
+}
+
+func TestResolveVerifyRoundTrips(t *testing.T) {
+	// verify:false must survive YAML parse + Resolve as an explicit false, not
+	// collapse to the nil→true default, and must not alias the input pointer.
+	src := `apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: test
+spec:
+  inference:
+    provider: gcp
+    model: claude-opus-4-8
+    verify: false
+`
+	h, err := Parse([]byte(src))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	resolved, err := Resolve(h, func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if resolved.Spec.Inference.VerifyEnabled() {
+		t.Error("verify:false should resolve to VerifyEnabled()==false")
+	}
+	if resolved.Spec.Inference.Verify == h.Spec.Inference.Verify {
+		t.Error("resolved Verify aliases the input's *bool pointer")
+	}
+}
+
 func TestResolveNonSecretField(t *testing.T) {
 	// Build Harness with ${SECRET_ISH} in non-secret field
 	h := &Harness{

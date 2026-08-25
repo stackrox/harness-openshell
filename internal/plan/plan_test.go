@@ -305,6 +305,151 @@ func TestBuild_InferenceGroupWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestInferenceAction(t *testing.T) {
+	desired := config.Inference{Provider: "gcp", Model: "claude-opus-4-8", Timeout: "60s"}
+
+	tests := []struct {
+		name string
+		cur  InferenceState
+		want Action
+	}{
+		{
+			name: "not capable falls back to validate",
+			cur:  InferenceState{Capable: false},
+			want: ActionValidate,
+		},
+		{
+			name: "capable but absent creates",
+			cur:  InferenceState{Capable: true, Present: false},
+			want: ActionCreate,
+		},
+		{
+			name: "model mismatch updates",
+			cur:  InferenceState{Capable: true, Present: true, Provider: "gcp", Model: "claude-sonnet-5", TimeoutSecs: 60},
+			want: ActionUpdate,
+		},
+		{
+			name: "provider mismatch updates",
+			cur:  InferenceState{Capable: true, Present: true, Provider: "aws", Model: "claude-opus-4-8", TimeoutSecs: 60},
+			want: ActionUpdate,
+		},
+		{
+			name: "timeout mismatch updates",
+			cur:  InferenceState{Capable: true, Present: true, Provider: "gcp", Model: "claude-opus-4-8", TimeoutSecs: 30},
+			want: ActionUpdate,
+		},
+		{
+			name: "exact match noops",
+			cur:  InferenceState{Capable: true, Present: true, Provider: "gcp", Model: "claude-opus-4-8", TimeoutSecs: 60},
+			want: ActionNoop,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := InferenceAction(desired, tt.cur); got != tt.want {
+				t.Errorf("InferenceAction = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestInferenceAction_UnsetTimeoutMatchesZero pins that an unset desired timeout
+// (secs 0, gateway default) noops against a route the gateway reports as 0.
+func TestInferenceAction_UnsetTimeoutMatchesZero(t *testing.T) {
+	desired := config.Inference{Provider: "gcp", Model: "claude-opus-4-8"} // no timeout
+	cur := InferenceState{Capable: true, Present: true, Provider: "gcp", Model: "claude-opus-4-8", TimeoutSecs: 0}
+	if got := InferenceAction(desired, cur); got != ActionNoop {
+		t.Errorf("InferenceAction = %s, want noop", got)
+	}
+}
+
+// TestInferenceAction_UnsetTimeoutIgnoresGatewayDefault is the finding-1
+// regression: an unset desired timeout means "don't care", so it must noop even
+// when the gateway reports a nonzero default it applied — otherwise the plan
+// reports a perpetual update it can never resolve.
+func TestInferenceAction_UnsetTimeoutIgnoresGatewayDefault(t *testing.T) {
+	desired := config.Inference{Provider: "gcp", Model: "claude-opus-4-8"} // no timeout
+	cur := InferenceState{Capable: true, Present: true, Provider: "gcp", Model: "claude-opus-4-8", TimeoutSecs: 300}
+	if got := InferenceAction(desired, cur); got != ActionNoop {
+		t.Errorf("InferenceAction = %s, want noop (unset timeout must not chase the gateway default)", got)
+	}
+}
+
+// TestInferenceAction_ZeroSecondsTimeoutIsDontCare pins the whole-spec finding:
+// "0s" resolves to 0 seconds, which the gateway can never store (0 => default),
+// so it must be treated as "don't care" just like "" — otherwise it churns an
+// update forever against the gateway's nonzero default.
+func TestInferenceAction_ZeroSecondsTimeoutIsDontCare(t *testing.T) {
+	desired := config.Inference{Provider: "gcp", Model: "claude-opus-4-8", Timeout: "0s"}
+	cur := InferenceState{Capable: true, Present: true, Provider: "gcp", Model: "claude-opus-4-8", TimeoutSecs: 60}
+	if got := InferenceAction(desired, cur); got != ActionNoop {
+		t.Errorf("InferenceAction = %s, want noop (\"0s\" must not chase the gateway default)", got)
+	}
+}
+
+// TestInferenceAction_ExplicitTimeoutStillDiffs guards that the finding-1 fix did
+// not neuter the timeout diff: an explicitly configured timeout still updates
+// against a mismatched gateway value.
+func TestInferenceAction_ExplicitTimeoutStillDiffs(t *testing.T) {
+	desired := config.Inference{Provider: "gcp", Model: "claude-opus-4-8", Timeout: "60s"}
+	cur := InferenceState{Capable: true, Present: true, Provider: "gcp", Model: "claude-opus-4-8", TimeoutSecs: 300}
+	if got := InferenceAction(desired, cur); got != ActionUpdate {
+		t.Errorf("InferenceAction = %s, want update (explicit timeout must still diff)", got)
+	}
+}
+
+func TestResolveInferenceRoute(t *testing.T) {
+	if got := ResolveInferenceRoute(""); got != DefaultInferenceRoute {
+		t.Errorf("empty route: got %q, want %q", got, DefaultInferenceRoute)
+	}
+	if got := ResolveInferenceRoute("custom-route"); got != "custom-route" {
+		t.Errorf("explicit route: got %q, want %q", got, "custom-route")
+	}
+}
+
+func TestBuild_InferenceRealDiff(t *testing.T) {
+	desired := &config.Harness{
+		Spec: config.Spec{
+			Target:    config.Target{Gateway: "test-gateway"},
+			Inference: config.Inference{Provider: "gcp", Model: "claude-opus-4-8"},
+		},
+	}
+
+	infGroup := func(p *Plan) *Resource {
+		for i := range p.Groups {
+			if p.Groups[i].Section == SectionInference {
+				return &p.Groups[i].Resources[0]
+			}
+		}
+		return nil
+	}
+
+	// Capable + absent → create.
+	res := infGroup(Build(desired, CurrentState{
+		Reachable: true,
+		Inference: InferenceState{Capable: true, Present: false},
+	}))
+	if res == nil || res.Action != ActionCreate {
+		t.Fatalf("absent route: want create, got %+v", res)
+	}
+	if strings.Contains(res.Detail, "config only") {
+		t.Errorf("create detail should not carry the config-only caveat: %s", res.Detail)
+	}
+
+	// Capable + matching → noop.
+	res = infGroup(Build(desired, CurrentState{
+		Reachable: true,
+		Inference: InferenceState{Capable: true, Present: true, Provider: "gcp", Model: "claude-opus-4-8"},
+	}))
+	if res == nil || res.Action != ActionNoop {
+		t.Fatalf("matching route: want noop, got %+v", res)
+	}
+	if !strings.Contains(res.Detail, "matches gateway") {
+		t.Errorf("noop detail should say it matches: %s", res.Detail)
+	}
+}
+
 func TestBuild_NoInferenceGroupWhenEmpty(t *testing.T) {
 	desired := &config.Harness{
 		Spec: config.Spec{

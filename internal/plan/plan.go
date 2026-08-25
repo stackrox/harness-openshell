@@ -180,46 +180,86 @@ func buildProviderDetail(prov *config.Provider) string {
 	return detail
 }
 
-// buildInferenceGroup returns the INFERENCE group. The action is always
-// validate: the gateway does not report inference state, so the plan can only
-// validate the configured route against the desired config. current is threaded
-// for uniformity with the other build* helpers and to carry the future
-// inference-state read (see InferenceState) without a signature change.
-func buildInferenceGroup(desired *config.Harness, current CurrentState) Group {
-	group := Group{Section: SectionInference}
-
-	detail := buildInferenceDetail(desired.Spec.Inference)
-
-	group.Resources = append(group.Resources, Resource{
-		Name:   "inference",
-		Action: ActionValidate,
-		Detail: detail,
-	})
-
-	return group
+// InferenceAction is the single owner of the inference create/update/noop rule.
+// Both buildInferenceGroup (harness plan) and internal/reconcile call it, so the
+// plan and the reconcile write can never disagree on what a change is.
+//
+// A gateway that does not serve inference state (cur.Capable false) yields
+// validate — the plan can only echo the desired config. Verify is deliberately
+// not part of the diff: the gateway does not report validation intent, so it
+// only affects the write, never whether a change is needed.
+//
+// Precondition: desired must be Resolve-validated (config.Resolve), so its
+// Timeout parses. An unresolved config with an invalid timeout silently degrades
+// that term to 0; callers other than the plan/reconcile path must not rely on
+// that behavior.
+func InferenceAction(desired config.Inference, cur InferenceState) Action {
+	if !cur.Capable {
+		return ActionValidate
+	}
+	if !cur.Present {
+		return ActionCreate
+	}
+	// A desired timeout of 0 seconds means "let the gateway apply its default",
+	// so it must not force an update against whatever nonzero default the gateway
+	// reports back. Both "" (unset) and "0s" resolve to 0 here, and neither can
+	// ever be a stored gateway value (writing 0 stores the gateway's nonzero
+	// default), so both are treated as "don't care" — guarding on the value, not
+	// the string, is what keeps "0s" from churning an update forever.
+	desiredSecs, _ := desired.TimeoutSecs() // Resolve-validated; error → 0
+	timeoutDiffers := desiredSecs != 0 && desiredSecs != cur.TimeoutSecs
+	if desired.Provider != cur.Provider ||
+		desired.Model != cur.Model ||
+		timeoutDiffers {
+		return ActionUpdate
+	}
+	return ActionNoop
 }
 
-// buildInferenceDetail constructs a detail string for inference config.
-func buildInferenceDetail(inf config.Inference) string {
-	detail := ""
+// buildInferenceGroup returns the INFERENCE group with the real diff action.
+func buildInferenceGroup(desired *config.Harness, current CurrentState) Group {
+	inf := desired.Spec.Inference
+	action := InferenceAction(inf, current.Inference)
 
+	return Group{
+		Section: SectionInference,
+		Resources: []Resource{{
+			Name:   "inference",
+			Action: action,
+			Detail: buildInferenceDetail(inf, action),
+		}},
+	}
+}
+
+// buildInferenceDetail constructs a redaction-safe detail string for the
+// inference action. provider/model (and timeout, if set) for a real change; a
+// short note for noop; the config-only caveat only on the validate fallback.
+func buildInferenceDetail(inf config.Inference, action Action) string {
+	pm := ""
 	if inf.Provider != "" {
-		detail += inf.Provider
+		pm = inf.Provider
 	}
 	if inf.Model != "" {
-		if detail != "" {
-			detail += "/"
+		if pm != "" {
+			pm += "/"
 		}
-		detail += inf.Model
+		pm += inf.Model
+	}
+	if pm == "" {
+		pm = "(provider/model unspecified)"
 	}
 
-	if detail == "" {
-		detail = "(provider/model unspecified)"
+	switch action {
+	case ActionNoop:
+		return pm + "; matches gateway"
+	case ActionValidate:
+		return pm + "; config only (gateway does not report inference state)"
+	default: // create / update
+		if inf.Timeout != "" {
+			pm += "; timeout " + inf.Timeout
+		}
+		return pm
 	}
-
-	detail += "; config only (gateway does not report inference state)"
-
-	return detail
 }
 
 // buildRunGroup returns the RUN group with descriptive actions.
@@ -288,9 +328,12 @@ func buildRunGroup(desired *config.Harness) Group {
 	return group
 }
 
-// isInferenceConfigured returns true if inference config has any meaningful fields set.
+// isInferenceConfigured reports whether inference is meaningfully configured.
+// Verify is deliberately excluded: it is a modifier on how a route is written,
+// not a route on its own, so a config that only sets verify (no provider/model/
+// route/timeout) has nothing to reconcile and must not trigger a read or create.
 func isInferenceConfigured(inf config.Inference) bool {
-	return inf.Route != "" || inf.Provider != "" || inf.Model != "" || inf.Timeout != "" || inf.Verify
+	return inf.Route != "" || inf.Provider != "" || inf.Model != "" || inf.Timeout != ""
 }
 
 // hasRunConfig returns true if any run-related config is present.

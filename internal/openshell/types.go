@@ -26,3 +26,28 @@ type Provider struct {
 	Name string
 	Type string
 }
+
+// InferenceRoute is the harness view of an inference route read from a gateway.
+//
+// Deliberately minimal (least-exposure firewall): only the fields the harness
+// diffs or reports. Version is server-assigned and increments on every write.
+type InferenceRoute struct {
+	Provider    string
+	Model       string
+	Route       string
+	TimeoutSecs uint64
+	Version     uint64
+}
+
+// InferenceRouteConfig is a desired inference route to write.
+//
+// Provider and Model are required. Route "" targets the gateway default route.
+// NoVerify skips the gateway's synchronous endpoint validation. TimeoutSecs 0
+// lets the gateway apply its default.
+type InferenceRouteConfig struct {
+	Provider    string
+	Model       string
+	Route       string
+	NoVerify    bool
+	TimeoutSecs uint64
+}

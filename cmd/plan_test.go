@@ -11,6 +11,7 @@ import (
 	fake "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/fake"
 	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
 	"github.com/stackrox/harness-openshell/internal/openshell"
+	"github.com/stackrox/harness-openshell/internal/plan"
 	"github.com/stackrox/harness-openshell/internal/testutil"
 )
 
@@ -129,6 +130,56 @@ spec:
 	}
 	if !contains(output, "create") {
 		t.Errorf("output missing action 'create':\n%s", output)
+	}
+}
+
+// TestPlanCmd_InferenceRealDiff proves the inference row reflects the gateway's
+// actual route: a matching seeded route renders noop, not the old flat validate.
+func TestPlanCmd_InferenceRealDiff(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	configPath := filepath.Join(tmpDir, "plan-test.yaml")
+	configContent := `apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: plan-test
+spec:
+  target:
+    gateway: test-gateway
+  inference:
+    provider: test-provider
+    model: claude-haiku-4-5
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	fakeClient := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{
+		Healthy: true, Version: "1.0.0",
+	}))
+	// Seed a route matching the desired config, under the resolved default name.
+	if _, err := fakeClient.SetInferenceRoute(context.Background(), openshell.InferenceRouteConfig{
+		Provider: "test-provider", Model: "claude-haiku-4-5", Route: plan.DefaultInferenceRoute, NoVerify: true,
+	}); err != nil {
+		t.Fatalf("seed route: %v", err)
+	}
+
+	cmd := NewPlanCmd(tmpDir, testutil.FakeFactory(fakeClient))
+	cmd.SetArgs([]string{"-f", configPath, "-o", "table"})
+
+	output, err := captureStdout(t, func() error { return cmd.Execute() })
+	if err != nil {
+		t.Fatalf("cmd.Execute: %v", err)
+	}
+
+	if !contains(output, "INFERENCE") {
+		t.Fatalf("output missing INFERENCE section:\n%s", output)
+	}
+	if !contains(output, "noop") {
+		t.Errorf("expected inference noop for a matching route:\n%s", output)
+	}
+	if contains(output, "does not report inference state") {
+		t.Errorf("capable gateway should not render the config-only caveat:\n%s", output)
 	}
 }
 

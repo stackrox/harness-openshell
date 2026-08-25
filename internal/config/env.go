@@ -112,6 +112,29 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	s.Inference.Provider = exp("spec.inference.provider", h.Spec.Inference.Provider)
 	s.Inference.Model = exp("spec.inference.model", h.Spec.Inference.Model)
 	s.Inference.Timeout = exp("spec.inference.timeout", h.Spec.Inference.Timeout)
+	// Validate the (now expanded) timeout once, here at resolve time, so the plan
+	// diff and reconcile write can parse it without handling an error.
+	if _, err := s.Inference.TimeoutSecs(); err != nil {
+		errs = append(errs, fmt.Sprintf("spec.inference.timeout: %v", err))
+	}
+	// A configured inference block must name both a provider and a model: the
+	// gateway rejects a route write that lacks either, and reconcile has nothing
+	// to write without them. Catch it here at resolve time with a clear message
+	// instead of surfacing a late ErrInvalidArgument on apply. Route/timeout alone
+	// (or verify alone) don't identify a route to reconcile. Kept in step with
+	// plan.isInferenceConfigured.
+	if s.Inference.Route != "" || s.Inference.Provider != "" || s.Inference.Model != "" || s.Inference.Timeout != "" {
+		if s.Inference.Provider == "" {
+			errs = append(errs, "spec.inference.provider: required when inference is configured")
+		}
+		if s.Inference.Model == "" {
+			errs = append(errs, "spec.inference.model: required when inference is configured")
+		}
+	}
+	if v := h.Spec.Inference.Verify; v != nil {
+		b := *v // copy so the resolved struct never aliases the input's *bool
+		s.Inference.Verify = &b
+	}
 
 	s.Sandbox.Image = exp("spec.sandbox.image", h.Spec.Sandbox.Image)
 	if p := h.Spec.Sandbox.Policy; p != nil {
