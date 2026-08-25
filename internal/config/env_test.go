@@ -123,6 +123,42 @@ func TestResolveEmptyString(t *testing.T) {
 	}
 }
 
+func TestResolveInvalidTimeout(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec:       Spec{Inference: Inference{Timeout: "60"}}, // bare integer, no unit
+	}
+
+	if _, err := Resolve(h, func(string) string { return "" }); err == nil {
+		t.Fatal("expected Resolve to reject a unitless inference timeout")
+	}
+}
+
+func TestResolveValidTimeout(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec:       Spec{Inference: Inference{Timeout: "${INF_TIMEOUT}"}},
+	}
+
+	resolved, err := Resolve(h, func(name string) string {
+		if name == "INF_TIMEOUT" {
+			return "90s"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("Resolve failed: %v", err)
+	}
+	secs, err := resolved.Spec.Inference.TimeoutSecs()
+	if err != nil || secs != 90 {
+		t.Errorf("resolved+parsed timeout = %d (err %v), want 90", secs, err)
+	}
+}
+
 func TestResolveNonSecretField(t *testing.T) {
 	// Build Harness with ${SECRET_ISH} in non-secret field
 	h := &Harness{

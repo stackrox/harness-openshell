@@ -112,6 +112,11 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	s.Inference.Provider = exp("spec.inference.provider", h.Spec.Inference.Provider)
 	s.Inference.Model = exp("spec.inference.model", h.Spec.Inference.Model)
 	s.Inference.Timeout = exp("spec.inference.timeout", h.Spec.Inference.Timeout)
+	// Validate the (now expanded) timeout once, here at resolve time, so the plan
+	// diff and reconcile write can parse it without handling an error.
+	if _, err := s.Inference.TimeoutSecs(); err != nil {
+		errs = append(errs, fmt.Sprintf("spec.inference.timeout: %v", err))
+	}
 
 	s.Sandbox.Image = exp("spec.sandbox.image", h.Spec.Sandbox.Image)
 	if p := h.Spec.Sandbox.Policy; p != nil {

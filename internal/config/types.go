@@ -5,7 +5,11 @@
 // the source (e.g. "gcloud-adc").
 package config
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 // Harness is the root v1alpha1 configuration document.
 type Harness struct {
@@ -89,6 +93,26 @@ type Inference struct {
 	Model    string `yaml:"model,omitempty"`
 	Timeout  string `yaml:"timeout,omitempty"`
 	Verify   bool   `yaml:"verify,omitempty"`
+}
+
+// TimeoutSecs parses Timeout (a Go duration string like "60s" or "2m") into
+// whole seconds. Empty → 0, meaning "let the gateway apply its default". A bare
+// number without a unit (e.g. "60") is an error — the unit is required so the
+// meaning is unambiguous. This is the single owner of the Timeout → seconds
+// conversion; the plan diff and the reconcile write both call it. Validated at
+// Resolve time, so by plan/reconcile time it cannot fail.
+func (inf Inference) TimeoutSecs() (uint64, error) {
+	if inf.Timeout == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(inf.Timeout)
+	if err != nil {
+		return 0, fmt.Errorf("invalid timeout %q: want a duration string like \"60s\" or \"2m\"", inf.Timeout)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("invalid timeout %q: must not be negative", inf.Timeout)
+	}
+	return uint64(d.Round(time.Second) / time.Second), nil
 }
 
 // Sandbox describes the execution sandbox for this run.

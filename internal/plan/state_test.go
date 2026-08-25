@@ -116,7 +116,10 @@ func TestReadCurrentState_OtherErrorEscalates(t *testing.T) {
 	}
 }
 
-func TestReadCurrentState_InferenceAlwaysFalse(t *testing.T) {
+// TestReadCurrentState_InferenceNotReadWhenUnconfigured pins that an unused
+// inference subsystem is never probed: with no desired inference config, the
+// route is not read and Inference stays zero (Capable=false).
+func TestReadCurrentState_InferenceNotReadWhenUnconfigured(t *testing.T) {
 	ctx := context.Background()
 	client := testutil.NewFake("default",
 		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
@@ -129,11 +132,135 @@ func TestReadCurrentState_InferenceAlwaysFalse(t *testing.T) {
 	}
 
 	if state.Inference.Capable {
-		t.Error("expected Inference.Capable=false")
+		t.Error("expected Inference.Capable=false when inference is unconfigured")
 	}
 	if state.Inference.Route != "" {
 		t.Error("expected Inference.Route empty")
 	}
+}
+
+// inferenceDesired is a minimal harness with inference configured (default
+// route), for exercising the inference read path.
+func inferenceDesired() *config.Harness {
+	return &config.Harness{
+		Spec: config.Spec{
+			Inference: config.Inference{Provider: "gcp", Model: "claude-opus-4-8"},
+		},
+	}
+}
+
+func TestReadCurrentState_InferencePresent(t *testing.T) {
+	ctx := context.Background()
+	client, _ := testutil.NewFakeClient("default",
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+	)
+	// Seed the route under the resolved default name so the read finds it.
+	if _, err := client.SetInferenceRoute(ctx, openshell.InferenceRouteConfig{
+		Provider: "gcp", Model: "claude-opus-4-8", Route: DefaultInferenceRoute, TimeoutSecs: 60, NoVerify: true,
+	}); err != nil {
+		t.Fatalf("seed SetInferenceRoute: %v", err)
+	}
+
+	state, err := ReadCurrentState(ctx, client, inferenceDesired())
+	if err != nil {
+		t.Fatalf("ReadCurrentState: %v", err)
+	}
+
+	got := state.Inference
+	if !got.Capable || !got.Present {
+		t.Fatalf("want Capable && Present, got %+v", got)
+	}
+	if got.Provider != "gcp" || got.Model != "claude-opus-4-8" || got.TimeoutSecs != 60 {
+		t.Errorf("route not populated: %+v", got)
+	}
+	if got.Route != DefaultInferenceRoute {
+		t.Errorf("route name: want %q, got %q", DefaultInferenceRoute, got.Route)
+	}
+}
+
+func TestReadCurrentState_InferenceAbsent(t *testing.T) {
+	ctx := context.Background()
+	client := testutil.NewFake("default",
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+	)
+
+	state, err := ReadCurrentState(ctx, client, inferenceDesired())
+	if err != nil {
+		t.Fatalf("ReadCurrentState: %v", err)
+	}
+
+	if !state.Inference.Capable {
+		t.Error("expected Capable=true (gateway serves inference, route just absent)")
+	}
+	if state.Inference.Present {
+		t.Error("expected Present=false for a gateway with no route")
+	}
+}
+
+func TestReadCurrentState_InferenceUnsupportedNotCapable(t *testing.T) {
+	ctx := context.Background()
+	base := testutil.NewFake("default",
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+	)
+	client := &inferenceErrClient{Client: base, getErr: openshell.ErrUnsupported}
+
+	state, err := ReadCurrentState(ctx, client, inferenceDesired())
+	if err != nil {
+		t.Fatalf("ReadCurrentState should degrade on ErrUnsupported: %v", err)
+	}
+
+	if state.Inference.Capable {
+		t.Error("expected Capable=false when the gateway does not serve inference")
+	}
+}
+
+// TestReadCurrentState_InferenceTransientErrorKeepsReachable pins finding-4
+// behavior: health and providers already proved the gateway reachable, so a
+// transient inference-read failure degrades inference to the not-capable
+// validate fallback rather than flipping Reachable to false.
+func TestReadCurrentState_InferenceTransientErrorKeepsReachable(t *testing.T) {
+	ctx := context.Background()
+	for _, transient := range []error{openshell.ErrUnavailable, openshell.ErrUnauthenticated} {
+		base := testutil.NewFake("default",
+			fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+		)
+		client := &inferenceErrClient{Client: base, getErr: transient}
+
+		state, err := ReadCurrentState(ctx, client, inferenceDesired())
+		if err != nil {
+			t.Fatalf("%v: ReadCurrentState should degrade, got %v", transient, err)
+		}
+		if !state.Reachable {
+			t.Errorf("%v: expected Reachable=true (health+providers succeeded)", transient)
+		}
+		if state.Inference.Capable {
+			t.Errorf("%v: expected Inference.Capable=false (validate fallback)", transient)
+		}
+	}
+}
+
+func TestReadCurrentState_InferenceOtherErrorEscalates(t *testing.T) {
+	ctx := context.Background()
+	base := testutil.NewFake("default",
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+	)
+	client := &inferenceErrClient{Client: base, getErr: openshell.ErrPermission}
+
+	if _, err := ReadCurrentState(ctx, client, inferenceDesired()); !errors.Is(err, openshell.ErrPermission) {
+		t.Fatalf("expected ErrPermission to escalate, got %v", err)
+	}
+}
+
+// inferenceErrClient wraps a healthy client but forces GetInferenceRoute to
+// return a chosen error, exercising read paths the SDK fake cannot produce
+// (e.g. ErrUnsupported).
+type inferenceErrClient struct {
+	openshell.Client
+	getErr error
+}
+
+func (c *inferenceErrClient) GetInferenceRoute(context.Context, string) (openshell.InferenceRoute, error) {
+	return openshell.InferenceRoute{}, c.getErr
 }
 
 func TestReadCurrentState_OnlyReadMethodsCalled(t *testing.T) {
