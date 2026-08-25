@@ -203,6 +203,48 @@ func TestReconcileInference_WriteErrorPropagates(t *testing.T) {
 	}
 }
 
+// TestReconcileMatchesPlanAction locks the feature-level invariant that the
+// read-only plan and the reconcile write agree on the action for the same gateway
+// state (both route through plan.InferenceAction). Guards against future drift.
+func TestReconcileMatchesPlanAction(t *testing.T) {
+	ctx := context.Background()
+	desired := config.Inference{Provider: "gcp", Model: "claude-opus-4-8"}
+
+	cases := []struct {
+		name string
+		seed *openshell.InferenceRouteConfig // nil = no route
+		want plan.Action
+	}{
+		{name: "absent -> create", seed: nil, want: plan.ActionCreate},
+		{name: "matching -> noop", seed: &openshell.InferenceRouteConfig{Provider: "gcp", Model: "claude-opus-4-8", Route: plan.DefaultInferenceRoute}, want: plan.ActionNoop},
+		{name: "stale -> update", seed: &openshell.InferenceRouteConfig{Provider: "gcp", Model: "claude-sonnet-5", Route: plan.DefaultInferenceRoute}, want: plan.ActionUpdate},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := healthyClient(t)
+			if tc.seed != nil {
+				if _, err := c.SetInferenceRoute(ctx, *tc.seed); err != nil {
+					t.Fatalf("seed: %v", err)
+				}
+			}
+			// Plan action from the read-only path.
+			cur, err := plan.ReadInferenceState(ctx, c, desired)
+			if err != nil {
+				t.Fatalf("ReadInferenceState: %v", err)
+			}
+			planAction := plan.InferenceAction(desired, cur)
+			// Reconcile action from the write path against the same state.
+			res, err := ReconcileInference(ctx, c, desired)
+			if err != nil {
+				t.Fatalf("ReconcileInference: %v", err)
+			}
+			if planAction != tc.want || res.Action != tc.want {
+				t.Errorf("plan=%s reconcile=%s, want %s", planAction, res.Action, tc.want)
+			}
+		})
+	}
+}
+
 // capturingClient records the last SetInferenceRoute config while delegating to
 // a real fake-backed client, so the outbound mapping can be asserted.
 type capturingClient struct {

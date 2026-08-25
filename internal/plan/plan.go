@@ -200,13 +200,14 @@ func InferenceAction(desired config.Inference, cur InferenceState) Action {
 	if !cur.Present {
 		return ActionCreate
 	}
-	// An unset desired timeout means "let the gateway apply its default" (0 ==
-	// don't care), so it must not force an update against whatever nonzero
-	// default the gateway reports back. Only an explicitly configured timeout
-	// participates in the diff. "" is the sole "don't care" marker — "0s" parses
-	// to 0 too but is an explicit choice.
+	// A desired timeout of 0 seconds means "let the gateway apply its default",
+	// so it must not force an update against whatever nonzero default the gateway
+	// reports back. Both "" (unset) and "0s" resolve to 0 here, and neither can
+	// ever be a stored gateway value (writing 0 stores the gateway's nonzero
+	// default), so both are treated as "don't care" — guarding on the value, not
+	// the string, is what keeps "0s" from churning an update forever.
 	desiredSecs, _ := desired.TimeoutSecs() // Resolve-validated; error → 0
-	timeoutDiffers := desired.Timeout != "" && desiredSecs != cur.TimeoutSecs
+	timeoutDiffers := desiredSecs != 0 && desiredSecs != cur.TimeoutSecs
 	if desired.Provider != cur.Provider ||
 		desired.Model != cur.Model ||
 		timeoutDiffers {

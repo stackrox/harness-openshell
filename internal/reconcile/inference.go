@@ -32,7 +32,10 @@ type InferenceResult struct {
 // returned, so the caller learns the write did not happen.
 //
 // Precondition: desired must be Resolve-validated (config.Resolve) so its timeout
-// parses; ReconcileInference re-parses defensively and errors if it does not.
+// parses; ReconcileInference re-parses defensively and errors if it does not. It
+// does not gate on inference being configured (that is the plan's job via
+// isInferenceConfigured) — a caller that passes an empty desired will attempt a
+// create with empty provider/model and get openshell.ErrInvalidArgument.
 //
 // Verify is not part of the diff (the gateway does not report validation intent),
 // so a config that only flips verify with provider/model/timeout unchanged yields

@@ -159,6 +159,35 @@ func TestResolveValidTimeout(t *testing.T) {
 	}
 }
 
+func TestResolveVerifyRoundTrips(t *testing.T) {
+	// verify:false must survive YAML parse + Resolve as an explicit false, not
+	// collapse to the nil→true default, and must not alias the input pointer.
+	src := `apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: test
+spec:
+  inference:
+    provider: gcp
+    model: claude-opus-4-8
+    verify: false
+`
+	h, err := Parse([]byte(src))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	resolved, err := Resolve(h, func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if resolved.Spec.Inference.VerifyEnabled() {
+		t.Error("verify:false should resolve to VerifyEnabled()==false")
+	}
+	if resolved.Spec.Inference.Verify == h.Spec.Inference.Verify {
+		t.Error("resolved Verify aliases the input's *bool pointer")
+	}
+}
+
 func TestResolveNonSecretField(t *testing.T) {
 	// Build Harness with ${SECRET_ISH} in non-secret field
 	h := &Harness{

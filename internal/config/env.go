@@ -117,6 +117,10 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	if _, err := s.Inference.TimeoutSecs(); err != nil {
 		errs = append(errs, fmt.Sprintf("spec.inference.timeout: %v", err))
 	}
+	if v := h.Spec.Inference.Verify; v != nil {
+		b := *v // copy so the resolved struct never aliases the input's *bool
+		s.Inference.Verify = &b
+	}
 
 	s.Sandbox.Image = exp("spec.sandbox.image", h.Spec.Sandbox.Image)
 	if p := h.Spec.Sandbox.Policy; p != nil {

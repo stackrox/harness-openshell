@@ -376,6 +376,18 @@ func TestInferenceAction_UnsetTimeoutIgnoresGatewayDefault(t *testing.T) {
 	}
 }
 
+// TestInferenceAction_ZeroSecondsTimeoutIsDontCare pins the whole-spec finding:
+// "0s" resolves to 0 seconds, which the gateway can never store (0 => default),
+// so it must be treated as "don't care" just like "" — otherwise it churns an
+// update forever against the gateway's nonzero default.
+func TestInferenceAction_ZeroSecondsTimeoutIsDontCare(t *testing.T) {
+	desired := config.Inference{Provider: "gcp", Model: "claude-opus-4-8", Timeout: "0s"}
+	cur := InferenceState{Capable: true, Present: true, Provider: "gcp", Model: "claude-opus-4-8", TimeoutSecs: 60}
+	if got := InferenceAction(desired, cur); got != ActionNoop {
+		t.Errorf("InferenceAction = %s, want noop (\"0s\" must not chase the gateway default)", got)
+	}
+}
+
 // TestInferenceAction_ExplicitTimeoutStillDiffs guards that the finding-1 fix did
 // not neuter the timeout diff: an explicitly configured timeout still updates
 // against a mismatched gateway value.
