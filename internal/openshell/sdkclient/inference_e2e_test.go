@@ -81,6 +81,33 @@ func TestLiveInferenceRoleProbe(t *testing.T) {
 	}
 	existed := beforeErr == nil
 
+	// Register restoration BEFORE the write. SetInferenceRoute persists the route
+	// at the gateway before its gRPC response returns, so a write that reports a
+	// transport/unexpected error may still have changed state; t.Cleanup runs on
+	// every exit path (including t.Fatalf) so the probe never leaves inference.local
+	// pointing at probe-model. It uses a fresh context because ctx may be spent by
+	// the time cleanup runs. It is skipped only on a pre-write permission denial:
+	// then no write applied and the identity lacks the admin role the restore
+	// itself would need, so attempting it would just log a spurious error.
+	permissionDenied := false
+	t.Cleanup(func() {
+		if permissionDenied {
+			return
+		}
+		cctx, ccancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer ccancel()
+		if existed {
+			if _, err := c.SetInferenceRoute(cctx, openshell.InferenceRouteConfig{
+				Provider: before.Provider, Model: before.Model, Route: defaultRoute,
+				NoVerify: true, TimeoutSecs: before.TimeoutSecs,
+			}); err != nil {
+				t.Errorf("restoring inference route: %v", err)
+			}
+		} else if err := c.DeleteInferenceRoute(cctx, defaultRoute); err != nil {
+			t.Errorf("cleanup DeleteInferenceRoute(%q): %v", defaultRoute, err)
+		}
+	})
+
 	_, setErr := c.SetInferenceRoute(ctx, openshell.InferenceRouteConfig{
 		Provider: provider,
 		Model:    "probe-model",
@@ -91,21 +118,10 @@ func TestLiveInferenceRoleProbe(t *testing.T) {
 	case setErr == nil:
 		t.Logf("WRITE path OK on gateway %q: identity HAS the workspace admin role", gw)
 	case errors.Is(setErr, openshell.ErrPermission):
+		permissionDenied = true
 		t.Fatalf("WRITE path DENIED on gateway %q: identity LACKS the workspace admin role "+
 			"(reconcile-write will fail until the mTLS identity is granted admin): %v", gw, setErr)
 	default:
 		t.Fatalf("SetInferenceRoute returned an unexpected error: %v", setErr)
-	}
-
-	// Restore the pre-probe state.
-	if existed {
-		if _, err := c.SetInferenceRoute(ctx, openshell.InferenceRouteConfig{
-			Provider: before.Provider, Model: before.Model, Route: defaultRoute,
-			NoVerify: true, TimeoutSecs: before.TimeoutSecs,
-		}); err != nil {
-			t.Errorf("restoring inference route: %v", err)
-		}
-	} else if err := c.DeleteInferenceRoute(ctx, defaultRoute); err != nil {
-		t.Errorf("cleanup DeleteInferenceRoute(%q): %v", defaultRoute, err)
 	}
 }
