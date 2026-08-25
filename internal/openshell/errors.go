@@ -19,6 +19,10 @@ var (
 	// ErrUnsupported is returned when the gateway does not implement the
 	// requested RPC (gRPC Unimplemented).
 	ErrUnsupported = errors.New("openshell: not supported by gateway")
+	// ErrInvalidArgument is returned when the caller supplied invalid input
+	// (e.g. a required field left empty), rejected by the gateway before any
+	// state change (gRPC InvalidArgument).
+	ErrInvalidArgument = errors.New("openshell: invalid argument")
 	// ErrConfig is returned when the gateway config cannot be loaded, parsed, or
 	// its auth mode cannot be satisfied.
 	ErrConfig = errors.New("openshell: gateway config error")

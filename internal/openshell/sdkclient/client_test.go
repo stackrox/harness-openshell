@@ -214,6 +214,14 @@ func TestTranslate(t *testing.T) {
 			},
 			expectSent: openshell.ErrPermission,
 		},
+		{
+			name: "invalid argument",
+			err: &types.StatusError{
+				Code:    types.ErrorInvalidArgument,
+				Message: "invalid argument",
+			},
+			expectSent: openshell.ErrInvalidArgument,
+		},
 	}
 
 	for _, tt := range tests {

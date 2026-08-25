@@ -183,6 +183,18 @@ func (r *recordingClient) Providers(ctx context.Context) ([]openshell.Provider, 
 	return r.wrapped.Providers(ctx)
 }
 
+func (r *recordingClient) GetInferenceRoute(ctx context.Context, route string) (openshell.InferenceRoute, error) {
+	return r.wrapped.GetInferenceRoute(ctx, route)
+}
+
+func (r *recordingClient) SetInferenceRoute(ctx context.Context, cfg openshell.InferenceRouteConfig) (openshell.InferenceRoute, error) {
+	return r.wrapped.SetInferenceRoute(ctx, cfg)
+}
+
+func (r *recordingClient) DeleteInferenceRoute(ctx context.Context, route string) error {
+	return r.wrapped.DeleteInferenceRoute(ctx, route)
+}
+
 func (r *recordingClient) Close() error {
 	r.closeCalled = true
 	return r.wrapped.Close()
@@ -199,6 +211,18 @@ func (e *errorClient) Health(ctx context.Context) (openshell.Health, error) {
 
 func (e *errorClient) Providers(ctx context.Context) ([]openshell.Provider, error) {
 	return nil, e.err
+}
+
+func (e *errorClient) GetInferenceRoute(ctx context.Context, route string) (openshell.InferenceRoute, error) {
+	return openshell.InferenceRoute{}, e.err
+}
+
+func (e *errorClient) SetInferenceRoute(ctx context.Context, cfg openshell.InferenceRouteConfig) (openshell.InferenceRoute, error) {
+	return openshell.InferenceRoute{}, e.err
+}
+
+func (e *errorClient) DeleteInferenceRoute(ctx context.Context, route string) error {
+	return e.err
 }
 
 func (e *errorClient) Close() error {

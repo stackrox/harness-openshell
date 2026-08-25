@@ -25,6 +25,8 @@ func translate(err error) error {
 		return fmt.Errorf("%w: %v", openshell.ErrUnauthenticated, err)
 	case v1.IsPermissionDenied(err):
 		return fmt.Errorf("%w: %v", openshell.ErrPermission, err)
+	case v1.IsInvalidArgument(err):
+		return fmt.Errorf("%w: %v", openshell.ErrInvalidArgument, err)
 	default:
 		return err
 	}

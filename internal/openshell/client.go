@@ -18,6 +18,18 @@ type Client interface {
 	Health(ctx context.Context) (Health, error)
 	// Providers lists the providers registered in the bound workspace.
 	Providers(ctx context.Context) ([]Provider, error)
+	// GetInferenceRoute reads the named inference route in the bound workspace.
+	// An empty route targets the gateway default route. Returns ErrNotFound when
+	// no such route exists (requires the workspace "user" role).
+	GetInferenceRoute(ctx context.Context, route string) (InferenceRoute, error)
+	// SetInferenceRoute creates or updates an inference route in the bound
+	// workspace (upsert). Returns the resulting route. Requires the workspace
+	// "admin" role; a caller lacking it gets ErrPermission.
+	SetInferenceRoute(ctx context.Context, cfg InferenceRouteConfig) (InferenceRoute, error)
+	// DeleteInferenceRoute removes the named inference route in the bound
+	// workspace. Idempotent: deleting a missing route is not an error. Requires
+	// the workspace "admin" role.
+	DeleteInferenceRoute(ctx context.Context, route string) error
 	// Close releases any resources held by the client.
 	Close() error
 }
