@@ -11,7 +11,10 @@ gateway:
   name: openshell-remote-ocp
 
 chart:
-  version: "0.0.85"
+  # Keep in lockstep with .openshell-version / gateway.MinOpenShellVersion. A
+  # chart behind the CLI pin can leave the inference gRPC Unimplemented and skews
+  # the supervisor image. Verified live at 0.0.110 on OCP 2026-08-25.
+  version: "0.0.110"
 
 helm:
   values:

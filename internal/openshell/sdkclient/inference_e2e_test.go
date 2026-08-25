@@ -11,16 +11,29 @@ import (
 	"github.com/stackrox/harness-openshell/internal/openshell/sdkclient"
 )
 
-// TestLiveInferenceRoleProbe probes whether the harness mTLS identity holds the
-// workspace "admin" role required to write inference routes. This is the S1 risk
-// gate for PR4b: SetInferenceRoute/DeleteInferenceRoute require admin, while
-// GetInferenceRoute only needs the user role. Slice 3's reconcile-write cannot
-// succeed on a real gateway if the identity lacks admin.
+// defaultRoute mirrors plan.DefaultInferenceRoute. It is duplicated here (not
+// imported) to keep the firewall's e2e test from depending on the plan package.
+// A real 0.0.110 gateway accepts only a fixed set of route names —
+// "inference.local" and "sandbox-system" — and rejects any other with
+// InvalidArgument (verified live 2026-08-25); the harness only ever uses
+// "inference.local".
+const defaultRoute = "inference.local"
+
+// TestLiveInferenceRoleProbe verifies the harness mTLS identity can serve the
+// inference surface reconcile depends on: the user-role read path always, and —
+// when a credentialed provider is supplied — the admin-role write path.
 //
 // It is skipped unless HARNESS_E2E_GATEWAY names a registered mTLS gateway (the
 // same gate as the other live checks). Optional HARNESS_E2E_WORKSPACE overrides
-// the workspace. The probe uses a SCRATCH route name and cleans it up; it never
-// touches the default route.
+// the workspace.
+//
+// The admin-role write is the S1 risk gate for PR4b: SetInferenceRoute requires
+// the workspace "admin" role, GetInferenceRoute only "user". But a live gateway
+// checks Set's preconditions BEFORE the role — the route name must be valid, the
+// provider must exist in the workspace, and it must carry a usable credential —
+// so the role can only be probed once a credentialed provider exists. Supply its
+// name via HARNESS_E2E_INFERENCE_PROVIDER to exercise the write path; without it
+// the write probe is skipped (admin was confirmed present on OCP 2026-08-25).
 //
 //	HARNESS_E2E_GATEWAY=openshell go test ./internal/openshell/sdkclient/ -run LiveInferenceRoleProbe -v
 func TestLiveInferenceRoleProbe(t *testing.T) {
@@ -41,33 +54,52 @@ func TestLiveInferenceRoleProbe(t *testing.T) {
 	}
 	defer c.Close()
 
-	const scratch = "harness-probe"
-
-	// Read path requires only the user role; ErrNotFound is a success signal
-	// (the identity can read; the scratch route just doesn't exist yet).
-	if _, err := c.GetInferenceRoute(ctx, scratch); err != nil && !errors.Is(err, openshell.ErrNotFound) {
-		t.Fatalf("GetInferenceRoute (user role) failed unexpectedly: %v", err)
+	// Read path (user role). On the default route the gateway returns the route
+	// if configured, or ErrNotFound if not — both mean the identity can read and
+	// the gateway serves inference. ErrPermission/ErrUnavailable/InvalidArgument
+	// are all failures of the surface the harness needs.
+	if _, err := c.GetInferenceRoute(ctx, defaultRoute); err != nil && !errors.Is(err, openshell.ErrNotFound) {
+		t.Fatalf("GetInferenceRoute(%q) read path failed: %v", defaultRoute, err)
 	}
-	t.Logf("read path OK on gateway %q (user role confirmed)", gw)
+	t.Logf("read path OK on gateway %q (user role confirmed, gateway serves inference)", gw)
 
-	// Write path requires the admin role. Either outcome is a recordable probe
-	// result; ErrPermission is exactly the risk we are measuring, not a bug.
+	provider := os.Getenv("HARNESS_E2E_INFERENCE_PROVIDER")
+	if provider == "" {
+		t.Skip("set HARNESS_E2E_INFERENCE_PROVIDER to a registered, credentialed provider to probe the admin write path")
+	}
+
+	// Write path (admin role) on the default route. NoVerify skips endpoint
+	// validation so the probe measures the role, not the provider's credentials.
+	// Read the current route first so cleanup can restore it (the write bumps
+	// Version); if it was unconfigured, delete to restore that state.
+	before, beforeErr := c.GetInferenceRoute(ctx, defaultRoute)
+	existed := beforeErr == nil
+
 	_, setErr := c.SetInferenceRoute(ctx, openshell.InferenceRouteConfig{
-		Provider: "gcp",
-		Model:    "claude-opus-4-8",
-		Route:    scratch,
+		Provider: provider,
+		Model:    "probe-model",
+		Route:    defaultRoute,
 		NoVerify: true,
 	})
 	switch {
 	case setErr == nil:
 		t.Logf("WRITE path OK on gateway %q: identity HAS the workspace admin role", gw)
-		if delErr := c.DeleteInferenceRoute(ctx, scratch); delErr != nil {
-			t.Errorf("cleanup DeleteInferenceRoute(%q): %v", scratch, delErr)
-		}
 	case errors.Is(setErr, openshell.ErrPermission):
 		t.Fatalf("WRITE path DENIED on gateway %q: identity LACKS the workspace admin role "+
-			"(PR4b Slice 3 reconcile-write will fail until the mTLS identity is granted admin): %v", gw, setErr)
+			"(reconcile-write will fail until the mTLS identity is granted admin): %v", gw, setErr)
 	default:
 		t.Fatalf("SetInferenceRoute returned an unexpected error: %v", setErr)
+	}
+
+	// Restore the pre-probe state.
+	if existed {
+		if _, err := c.SetInferenceRoute(ctx, openshell.InferenceRouteConfig{
+			Provider: before.Provider, Model: before.Model, Route: defaultRoute,
+			NoVerify: true, TimeoutSecs: before.TimeoutSecs,
+		}); err != nil {
+			t.Errorf("restoring inference route: %v", err)
+		}
+	} else if err := c.DeleteInferenceRoute(ctx, defaultRoute); err != nil {
+		t.Errorf("cleanup DeleteInferenceRoute(%q): %v", defaultRoute, err)
 	}
 }
