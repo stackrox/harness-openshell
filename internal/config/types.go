@@ -92,7 +92,19 @@ type Inference struct {
 	Provider string `yaml:"provider,omitempty"`
 	Model    string `yaml:"model,omitempty"`
 	Timeout  string `yaml:"timeout,omitempty"`
-	Verify   bool   `yaml:"verify,omitempty"`
+	// Verify controls the gateway's synchronous endpoint validation on write.
+	// It is a *bool so "unset" is distinct from "false": unset (nil) means
+	// verify (the safe default), so only an explicit `verify: false` skips it.
+	// Verify is not part of the reconcile diff, so changing only this field does
+	// not by itself trigger a re-write; it takes effect on the next write caused
+	// by a provider/model/timeout change.
+	Verify *bool `yaml:"verify,omitempty"`
+}
+
+// VerifyEnabled reports whether endpoint verification should run on write.
+// Unset (nil) defaults to true; this is the single owner of the nil→verify rule.
+func (inf Inference) VerifyEnabled() bool {
+	return inf.Verify == nil || *inf.Verify
 }
 
 // TimeoutSecs parses Timeout (a Go duration string like "60s" or "2m") into

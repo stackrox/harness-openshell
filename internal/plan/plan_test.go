@@ -388,10 +388,10 @@ func TestInferenceAction_ExplicitTimeoutStillDiffs(t *testing.T) {
 }
 
 func TestResolveInferenceRoute(t *testing.T) {
-	if got := resolveInferenceRoute(""); got != DefaultInferenceRoute {
+	if got := ResolveInferenceRoute(""); got != DefaultInferenceRoute {
 		t.Errorf("empty route: got %q, want %q", got, DefaultInferenceRoute)
 	}
-	if got := resolveInferenceRoute("custom-route"); got != "custom-route" {
+	if got := ResolveInferenceRoute("custom-route"); got != "custom-route" {
 		t.Errorf("explicit route: got %q, want %q", got, "custom-route")
 	}
 }

@@ -77,7 +77,7 @@ func ReadCurrentState(ctx context.Context, c openshell.Client, desired *config.H
 	// fallback — the same config-only outcome as an older gateway that does not
 	// serve inference state at all.
 	if isInferenceConfigured(desired.Spec.Inference) {
-		inf, err := readInferenceState(ctx, c, desired.Spec.Inference)
+		inf, err := ReadInferenceState(ctx, c, desired.Spec.Inference)
 		if err != nil {
 			if errors.Is(err, openshell.ErrUnavailable) || errors.Is(err, openshell.ErrUnauthenticated) {
 				state.Inference = InferenceState{Capable: false}
@@ -92,12 +92,14 @@ func ReadCurrentState(ctx context.Context, c openshell.Client, desired *config.H
 	return state, nil
 }
 
-// readInferenceState reads the current inference route for the desired config.
+// ReadInferenceState reads the current inference route for the desired config.
 // An absent route is not an error (Capable, not Present); a gateway that does
 // not serve inference (ErrUnsupported) leaves Capable false so the plan falls
-// back to a config-only validate.
-func readInferenceState(ctx context.Context, c openshell.Client, desired config.Inference) (InferenceState, error) {
-	route, err := c.GetInferenceRoute(ctx, resolveInferenceRoute(desired.Route))
+// back to a config-only validate. Transient errors (unavailable/unauthenticated)
+// and ErrPermission are propagated so the caller decides whether to degrade
+// (the read-only plan) or fail (the reconcile write path).
+func ReadInferenceState(ctx context.Context, c openshell.Client, desired config.Inference) (InferenceState, error) {
+	route, err := c.GetInferenceRoute(ctx, ResolveInferenceRoute(desired.Route))
 	switch {
 	case err == nil:
 		return InferenceState{
@@ -117,9 +119,9 @@ func readInferenceState(ctx context.Context, c openshell.Client, desired config.
 	}
 }
 
-// resolveInferenceRoute maps an empty configured route to the gateway default so
+// ResolveInferenceRoute maps an empty configured route to the gateway default so
 // the read and the write address the same route.
-func resolveInferenceRoute(route string) string {
+func ResolveInferenceRoute(route string) string {
 	if route == "" {
 		return DefaultInferenceRoute
 	}
