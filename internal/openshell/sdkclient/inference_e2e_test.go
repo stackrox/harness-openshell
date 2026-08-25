@@ -52,7 +52,15 @@ func TestLiveInferenceRoleProbe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sdkclient.New(%q): %v", gw, err)
 	}
-	defer c.Close()
+	// Close via t.Cleanup, not defer: t.Cleanup callbacks run in LIFO order after
+	// the test's deferred calls, so a deferred Close would shut the client's gRPC
+	// connection before the route-restoration cleanup registered below could use
+	// it. Registered first here, it runs last — after restoration.
+	t.Cleanup(func() {
+		if err := c.Close(); err != nil {
+			t.Errorf("closing client: %v", err)
+		}
+	})
 
 	// Read path (user role). On the default route the gateway returns the route
 	// if configured, or ErrNotFound if not — both mean the identity can read and
