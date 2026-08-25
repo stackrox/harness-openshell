@@ -73,6 +73,12 @@ func TestLiveInferenceRoleProbe(t *testing.T) {
 	// Read the current route first so cleanup can restore it (the write bumps
 	// Version); if it was unconfigured, delete to restore that state.
 	before, beforeErr := c.GetInferenceRoute(ctx, defaultRoute)
+	// Only ErrNotFound means "no route to restore"; any other read error is a real
+	// failure. Treating it as absent would make cleanup delete a route that was
+	// actually there (the read merely failed transiently) after the write succeeds.
+	if beforeErr != nil && !errors.Is(beforeErr, openshell.ErrNotFound) {
+		t.Fatalf("GetInferenceRoute(%q) pre-write read failed: %v", defaultRoute, beforeErr)
+	}
 	existed := beforeErr == nil
 
 	_, setErr := c.SetInferenceRoute(ctx, openshell.InferenceRouteConfig{

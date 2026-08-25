@@ -141,7 +141,9 @@ func TestResolveValidTimeout(t *testing.T) {
 		APIVersion: "harness.openshell.dev/v1alpha1",
 		Kind:       "Harness",
 		Metadata:   Metadata{Name: "test"},
-		Spec:       Spec{Inference: Inference{Timeout: "${INF_TIMEOUT}"}},
+		// Provider+model are required whenever the inference block is configured;
+		// this test only exercises timeout expansion, so supply them as fixtures.
+		Spec: Spec{Inference: Inference{Provider: "gcp", Model: "claude-opus-4-8", Timeout: "${INF_TIMEOUT}"}},
 	}
 
 	resolved, err := Resolve(h, func(name string) string {
