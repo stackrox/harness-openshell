@@ -18,9 +18,6 @@ type Gateway interface {
 	SandboxCreate(opts SandboxCreateOpts) error
 	SandboxDelete(name string) error
 
-	// Policy
-	PolicySet(name, policyFile string) error
-
 	// Inference
 	//
 	// The inference route is owned by the SDK reconcile path

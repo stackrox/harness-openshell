@@ -108,4 +108,3 @@ env:
 `), 0o644)
 	return dir
 }
-func (m *mockGW) PolicySet(string, string) error { return nil }

@@ -266,37 +266,6 @@ func TestBuildEnvMap_Empty(t *testing.T) {
 	}
 }
 
-func TestBuildRunSh(t *testing.T) {
-	cfg := &AgentConfig{
-		Entrypoint: "claude",
-		Task:       "tasks/standup.md",
-	}
-	runSh := cfg.BuildRunSh()
-	if !strings.Contains(runSh, "#!/usr/bin/env bash") {
-		t.Error("missing shebang")
-	}
-	if strings.Contains(runSh, "env.sh") {
-		t.Error("run.sh should not source env.sh — env vars are injected via --env")
-	}
-	if !strings.Contains(runSh, `command -v "claude"`) {
-		t.Error("missing entrypoint validation")
-	}
-	if !strings.Contains(runSh, `exec claude -p "$TASK"`) {
-		t.Errorf("missing task exec with -p in:\n%s", runSh)
-	}
-}
-
-func TestBuildRunSh_NoTask(t *testing.T) {
-	cfg := &AgentConfig{Entrypoint: "codex"}
-	runSh := cfg.BuildRunSh()
-	if !strings.Contains(runSh, "exec codex\n") {
-		t.Errorf("expected bare exec, got:\n%s", runSh)
-	}
-	if strings.Contains(runSh, "task.md") {
-		t.Error("should not reference task.md when no task set")
-	}
-}
-
 func TestRenderPayload(t *testing.T) {
 	baseDir := t.TempDir()
 	os.WriteFile(filepath.Join(baseDir, "my-task.md"), []byte("Do the thing: ${USER}"), 0o644)
@@ -315,8 +284,10 @@ func TestRenderPayload(t *testing.T) {
 		t.Fatalf("RenderPayload: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(destDir, "run.sh")); err != nil {
-		t.Error("missing run.sh")
+	// run.sh is no longer generated — the in-sandbox command is built by the
+	// agent adapters (see adapter_test.go).
+	if _, err := os.Stat(filepath.Join(destDir, "run.sh")); !os.IsNotExist(err) {
+		t.Error("run.sh should not be created — command comes from the adapter")
 	}
 	if _, err := os.Stat(filepath.Join(destDir, "task.md")); err != nil {
 		t.Error("missing task.md")
@@ -326,11 +297,6 @@ func TestRenderPayload(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(destDir, "env.sh")); !os.IsNotExist(err) {
 		t.Error("env.sh should not be created — env vars are injected via --env")
-	}
-
-	runData, _ := os.ReadFile(filepath.Join(destDir, "run.sh"))
-	if !strings.Contains(string(runData), "exec claude") {
-		t.Errorf("run.sh missing entrypoint:\n%s", runData)
 	}
 
 	taskData, _ := os.ReadFile(filepath.Join(destDir, "task.md"))
@@ -353,8 +319,8 @@ func TestRenderPayload_NoEnv(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(destDir, "env.sh")); !os.IsNotExist(err) {
 		t.Error("env.sh should not exist when no config vars")
 	}
-	if _, err := os.Stat(filepath.Join(destDir, "run.sh")); err != nil {
-		t.Error("run.sh should always be created")
+	if _, err := os.Stat(filepath.Join(destDir, "run.sh")); !os.IsNotExist(err) {
+		t.Error("run.sh should not be created")
 	}
 }
 
