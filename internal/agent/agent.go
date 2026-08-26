@@ -164,7 +164,7 @@ type Harness struct {
 	Gateways  map[string][]byte // name -> raw gateway YAML
 	Providers map[string][]byte // name -> raw provider profile YAML
 	Payloads  []PayloadEntry    // files to upload to sandbox
-	Policy    []byte            // raw policy YAML
+	Policy    []byte            // policy body YAML, without the kind: policy discriminator
 }
 
 // kindHeader peeks at the kind and name fields of a YAML document.
@@ -264,7 +264,14 @@ func ParseHarness(data []byte) (*Harness, error) {
 			if h.Policy != nil {
 				return nil, fmt.Errorf("multiple policy documents found")
 			}
-			h.Policy = raw
+			// Store the bare policy body: the gateway's --policy parser (and the
+			// ACP exporter) reject the kind discriminator as an unknown field, and
+			// RenderHarness re-adds the `kind: policy` header on serialize.
+			body, err := policyBody(&node)
+			if err != nil {
+				return nil, fmt.Errorf("re-marshaling policy document %d: %w", docIndex, err)
+			}
+			h.Policy = body
 
 		default:
 			return nil, fmt.Errorf("document %d: unknown kind %q", docIndex, header.Kind)
@@ -278,6 +285,28 @@ func ParseHarness(data []byte) (*Harness, error) {
 	// Merge agent-level payloads into harness payloads
 	h.Payloads = append(h.Payloads, h.Agent.Payloads...)
 	return h, nil
+}
+
+// policyBody re-marshals a kind: policy document without the kind discriminator,
+// yielding the bare policy YAML that the gateway's --policy parser accepts (it
+// rejects unknown top-level keys such as kind) and that RenderHarness re-wraps
+// under a `kind: policy` header. Non-mapping documents fall through unchanged.
+func policyBody(doc *yaml.Node) ([]byte, error) {
+	mapping := doc
+	if doc.Kind == yaml.DocumentNode && len(doc.Content) == 1 {
+		mapping = doc.Content[0]
+	}
+	if mapping.Kind == yaml.MappingNode {
+		filtered := make([]*yaml.Node, 0, len(mapping.Content))
+		for i := 0; i+1 < len(mapping.Content); i += 2 {
+			if mapping.Content[i].Value == "kind" {
+				continue
+			}
+			filtered = append(filtered, mapping.Content[i], mapping.Content[i+1])
+		}
+		mapping.Content = filtered
+	}
+	return yaml.Marshal(doc)
 }
 
 // RenderHarness writes a complete multi-document YAML from a Harness.

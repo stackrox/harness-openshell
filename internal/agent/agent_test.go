@@ -410,6 +410,47 @@ network_policies:
 	if h.Policy == nil {
 		t.Error("missing policy")
 	}
+	// Policy is stored as the bare body: the kind discriminator is stripped so
+	// the gateway's --policy parser accepts it, but the policy fields survive.
+	if strings.Contains(string(h.Policy), "kind:") {
+		t.Errorf("Policy retained kind discriminator:\n%s", h.Policy)
+	}
+	if !strings.Contains(string(h.Policy), "network_policies:") {
+		t.Errorf("Policy dropped its body:\n%s", h.Policy)
+	}
+}
+
+// TestParseHarness_PolicyRoundTrip proves ParseHarness → RenderHarness restores a
+// single kind: policy header (capture strips it, RenderHarness re-adds it) rather
+// than duplicating it.
+func TestParseHarness_PolicyRoundTrip(t *testing.T) {
+	data := []byte(`kind: agent
+name: rt
+entrypoint: claude
+providers: []
+---
+kind: policy
+network_policies:
+  demo:
+    endpoints:
+      - host: example.com
+        port: 443
+`)
+	h, err := ParseHarness(data)
+	if err != nil {
+		t.Fatalf("ParseHarness: %v", err)
+	}
+	out, err := RenderHarness(h, nil)
+	if err != nil {
+		t.Fatalf("RenderHarness: %v", err)
+	}
+	if n := strings.Count(string(out), "kind: policy"); n != 1 {
+		t.Errorf("kind: policy appears %d times, want 1:\n%s", n, out)
+	}
+	// The rendered harness must re-parse (proves it is not malformed).
+	if _, err := ParseHarness(out); err != nil {
+		t.Fatalf("re-parsing rendered harness: %v", err)
+	}
 }
 
 func TestParseHarness_DuplicateAgent(t *testing.T) {
