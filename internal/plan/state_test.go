@@ -310,6 +310,14 @@ func (r *recordingClient) Providers(ctx context.Context) ([]openshell.Provider, 
 	return r.wrapped.Providers(ctx)
 }
 
+func (r *recordingClient) GetProvider(ctx context.Context, name string) (openshell.Provider, error) {
+	return r.wrapped.GetProvider(ctx, name)
+}
+
+func (r *recordingClient) UpdateProvider(ctx context.Context, p openshell.Provider) (openshell.Provider, error) {
+	return r.wrapped.UpdateProvider(ctx, p)
+}
+
 func (r *recordingClient) GetInferenceRoute(ctx context.Context, route string) (openshell.InferenceRoute, error) {
 	return r.wrapped.GetInferenceRoute(ctx, route)
 }
@@ -338,6 +346,14 @@ func (e *errorClient) Health(ctx context.Context) (openshell.Health, error) {
 
 func (e *errorClient) Providers(ctx context.Context) ([]openshell.Provider, error) {
 	return nil, e.err
+}
+
+func (e *errorClient) GetProvider(ctx context.Context, name string) (openshell.Provider, error) {
+	return openshell.Provider{}, e.err
+}
+
+func (e *errorClient) UpdateProvider(ctx context.Context, p openshell.Provider) (openshell.Provider, error) {
+	return openshell.Provider{}, e.err
 }
 
 func (e *errorClient) GetInferenceRoute(ctx context.Context, route string) (openshell.InferenceRoute, error) {
