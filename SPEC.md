@@ -80,7 +80,7 @@ Documents are dispatched by `kind` field. No `kind` field = agent (backwards com
 
 ## CLI
 
-### `harness apply [-f FILE] [--agent NAME] [--gateway NAME] [--gateway-profile FILE] [--name SANDBOX] [--attach] [--provider-refresh] [--dry-run] [-o yaml|json]`
+### `harness apply [-f FILE] [--agent NAME] [--gateway NAME] [--gateway-profile FILE] [--name SANDBOX] [--attach] [--setup-only] [--dry-run] [-o yaml|json]`
 
 Primary command. Resolves an agent config, deploys the gateway and providers, creates a sandbox.
 
@@ -99,7 +99,7 @@ Primary command. Resolves an agent config, deploys the gateway and providers, cr
 
 Default is non-interactive (headless). Use `--attach` for TTY mode.
 
-`--provider-refresh` deletes and recreates all providers.
+`--setup-only` deploys the gateway and reconciles providers/inference, then stops before creating a sandbox or running the agent.
 
 ### `harness get <resource> [-o table|json|yaml]`
 

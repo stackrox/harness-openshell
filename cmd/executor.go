@@ -22,6 +22,11 @@ import (
 
 var Version = "dev"
 
+// reconcileTimeout bounds the SDK reconcile (provider Get/Update + inference
+// verify) so a stalled gateway or provider endpoint degrades to a warning
+// instead of hanging apply indefinitely.
+const reconcileTimeout = 60 * time.Second
+
 var DefaultAgentConfig []byte
 
 type upLocalOpts struct {
@@ -336,7 +341,12 @@ func reconcileGateway(opts upLocalOpts, agentCfg *agent.AgentConfig) {
 		status.Warnf("gateway reconcile skipped: %v", err)
 		return
 	}
-	ctx := context.Background()
+	// Bound the whole reconcile: verify-by-default makes the inference write
+	// contact the provider endpoint synchronously, so a stalled gateway or
+	// endpoint would otherwise hang apply with no deadline. Every other failure
+	// here degrades to a warning; a timeout must too.
+	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
+	defer cancel()
 	client, err := opts.newClient(ctx, target)
 	if err != nil {
 		status.Warnf("gateway reconcile skipped: %v", err)
@@ -363,6 +373,12 @@ func reconcileProvidersStep(ctx context.Context, client openshell.Client, provid
 		switch {
 		case r.Action == plan.ActionAdoptionRequired:
 			status.Warnf("provider %s: %s (set adopt: true or re-create managed)", r.Name, r.Action)
+		case r.Action == plan.ActionCreate:
+			// Reconcile never SDK-creates: an ActionCreate means the managed
+			// provider is absent and the CLI-bridge bootstrap did not create it
+			// (e.g. gws missing, or an ADC create that ensureProviders degraded
+			// to a warning). Surface it, never report the missing provider as OK.
+			status.Warnf("provider %s: not present on the gateway (bootstrap did not create it)", r.Name)
 		case r.Adopted:
 			status.Warnf("provider %s: adopted (was unowned — harness now owns it)", r.Name)
 		default:
