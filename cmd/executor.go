@@ -161,7 +161,11 @@ func upLocal(opts upLocalOpts) error {
 	if noTTY && agentCfg.Task == "" {
 		sandboxCmd = []string{"true"}
 	} else {
-		sandboxCmd = agent.AdapterFor(agentCfg.EffectiveEntrypoint()).Command(agentCfg, taskPath)
+		cmd, cmdErr := agent.AdapterFor(agentCfg.EffectiveEntrypoint()).Command(agentCfg, taskPath)
+		if cmdErr != nil {
+			return cmdErr
+		}
+		sandboxCmd = cmd
 	}
 
 	// Stage the rendered payload for upload (--upload lands it at

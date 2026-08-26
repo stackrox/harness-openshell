@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -25,7 +27,10 @@ type AgentAdapter interface {
 	//   - For tasks with headless mode: uses --print (claude/codex) or run (opencode)
 	//   - For tasks with interactive mode: uses -p
 	//   - For no task: just the entrypoint
-	Command(cfg *AgentConfig, taskPath string) []string
+	// It returns an error when the configured entrypoint is empty or contains
+	// shell metacharacters: the command is wrapped in bash -lc, so an unsafe
+	// entrypoint would otherwise be interpreted by the shell.
+	Command(cfg *AgentConfig, taskPath string) ([]string, error)
 }
 
 // AdapterFor returns the appropriate AgentAdapter for the given entrypoint.
@@ -51,7 +56,7 @@ func (a *claudeAdapter) Environment(cfg *AgentConfig) map[string]string {
 	return make(map[string]string)
 }
 
-func (a *claudeAdapter) Command(cfg *AgentConfig, taskPath string) []string {
+func (a *claudeAdapter) Command(cfg *AgentConfig, taskPath string) ([]string, error) {
 	return buildCommand("claude", cfg, taskPath)
 }
 
@@ -62,7 +67,7 @@ func (a *codexAdapter) Environment(cfg *AgentConfig) map[string]string {
 	return make(map[string]string)
 }
 
-func (a *codexAdapter) Command(cfg *AgentConfig, taskPath string) []string {
+func (a *codexAdapter) Command(cfg *AgentConfig, taskPath string) ([]string, error) {
 	return buildCommand("codex", cfg, taskPath)
 }
 
@@ -73,7 +78,7 @@ func (a *opencodeAdapter) Environment(cfg *AgentConfig) map[string]string {
 	return make(map[string]string)
 }
 
-func (a *opencodeAdapter) Command(cfg *AgentConfig, taskPath string) []string {
+func (a *opencodeAdapter) Command(cfg *AgentConfig, taskPath string) ([]string, error) {
 	return buildCommand("opencode", cfg, taskPath)
 }
 
@@ -84,12 +89,20 @@ func (a *customAdapter) Environment(cfg *AgentConfig) map[string]string {
 	return make(map[string]string)
 }
 
-func (a *customAdapter) Command(cfg *AgentConfig, taskPath string) []string {
+func (a *customAdapter) Command(cfg *AgentConfig, taskPath string) ([]string, error) {
 	entrypoint := cfg.EffectiveEntrypoint()
 	// For custom entrypoints, treat them as the base agent type but use their
 	// custom entrypoint instead of a predefined one.
 	return buildCommand(entrypoint, cfg, taskPath)
 }
+
+// entrypointPattern allows a command (optionally a path) plus flag-style
+// arguments: space-separated tokens of letters, digits, and the punctuation a
+// command line legitimately needs (./-_@:=+,). It deliberately rejects shell
+// metacharacters (; | & $ ` < > ( ) { } [ ] * ? ! " ' \ newline #) because the
+// entrypoint is embedded in a bash -lc script — anything the shell would
+// interpret must not reach it.
+var entrypointPattern = regexp.MustCompile(`^[A-Za-z0-9._/@:=+,\- ]+$`)
 
 // buildCommand constructs the argv for the given base entrypoint (could be
 // "claude", "codex", "opencode", or a custom entrypoint). It handles:
@@ -97,8 +110,20 @@ func (a *customAdapter) Command(cfg *AgentConfig, taskPath string) []string {
 //   - Task dispatch (--print for headless, -p for interactive, none for no task)
 //   - Entrypoint validation via command -v check
 //   - Wrapping in bash -lc for shell setup
-func buildCommand(baseEntrypoint string, cfg *AgentConfig, taskPath string) []string {
-	epBin := strings.Fields(baseEntrypoint)[0]
+//
+// It returns an error when the entrypoint is empty/whitespace-only or contains
+// shell metacharacters (see entrypointPattern) — the entrypoint reaches a shell,
+// so it must be shell-safe rather than trusted implicitly.
+func buildCommand(baseEntrypoint string, cfg *AgentConfig, taskPath string) ([]string, error) {
+	baseEntrypoint = strings.TrimSpace(baseEntrypoint)
+	fields := strings.Fields(baseEntrypoint)
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("agent entrypoint is empty")
+	}
+	if !entrypointPattern.MatchString(baseEntrypoint) {
+		return nil, fmt.Errorf("agent entrypoint %q contains unsupported characters; shell metacharacters are not allowed", baseEntrypoint)
+	}
+	epBin := fields[0]
 
 	var cmdBuilder strings.Builder
 
@@ -139,5 +164,5 @@ func buildCommand(baseEntrypoint string, cfg *AgentConfig, taskPath string) []st
 		}
 	}
 
-	return []string{"bash", "-lc", cmdBuilder.String()}
+	return []string{"bash", "-lc", cmdBuilder.String()}, nil
 }

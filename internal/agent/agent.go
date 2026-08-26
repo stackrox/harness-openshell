@@ -118,7 +118,7 @@ func (c *AgentConfig) NoTTY() bool {
 }
 
 func (c *AgentConfig) EffectiveEntrypoint() string {
-	if c.Entrypoint == "" {
+	if strings.TrimSpace(c.Entrypoint) == "" {
 		return "claude"
 	}
 	return c.Entrypoint

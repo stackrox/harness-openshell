@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -65,7 +66,10 @@ func TestClaudeHeadlessWithTask(t *testing.T) {
 	}
 
 	adapter := AdapterFor("claude")
-	cmd := adapter.Command(cfg, SandboxTaskPath)
+	cmd, err := adapter.Command(cfg, SandboxTaskPath)
+	if err != nil {
+		t.Fatalf("Command() returned error: %v", err)
+	}
 
 	expected := []string{
 		"bash",
@@ -88,7 +92,10 @@ func TestClaudeInteractiveWithTask(t *testing.T) {
 	}
 
 	adapter := AdapterFor("claude")
-	cmd := adapter.Command(cfg, SandboxTaskPath)
+	cmd, err := adapter.Command(cfg, SandboxTaskPath)
+	if err != nil {
+		t.Fatalf("Command() returned error: %v", err)
+	}
 
 	expected := []string{
 		"bash",
@@ -110,7 +117,10 @@ func TestClaudeNoTask(t *testing.T) {
 	}
 
 	adapter := AdapterFor("claude")
-	cmd := adapter.Command(cfg, "")
+	cmd, err := adapter.Command(cfg, "")
+	if err != nil {
+		t.Fatalf("Command() returned error: %v", err)
+	}
 
 	expected := []string{
 		"bash",
@@ -133,7 +143,10 @@ func TestClaudeImplicitEntrypoint(t *testing.T) {
 	}
 
 	adapter := AdapterFor("") // "" dispatches to claude
-	cmd := adapter.Command(cfg, SandboxTaskPath)
+	cmd, err := adapter.Command(cfg, SandboxTaskPath)
+	if err != nil {
+		t.Fatalf("Command() returned error: %v", err)
+	}
 
 	expected := []string{
 		"bash",
@@ -156,7 +169,10 @@ func TestOpenCodeHeadlessWithTask(t *testing.T) {
 	}
 
 	adapter := AdapterFor("opencode")
-	cmd := adapter.Command(cfg, SandboxTaskPath)
+	cmd, err := adapter.Command(cfg, SandboxTaskPath)
+	if err != nil {
+		t.Fatalf("Command() returned error: %v", err)
+	}
 
 	expected := []string{
 		"bash",
@@ -179,7 +195,10 @@ func TestOpenCodeInteractiveWithTask(t *testing.T) {
 	}
 
 	adapter := AdapterFor("opencode")
-	cmd := adapter.Command(cfg, SandboxTaskPath)
+	cmd, err := adapter.Command(cfg, SandboxTaskPath)
+	if err != nil {
+		t.Fatalf("Command() returned error: %v", err)
+	}
 
 	expected := []string{
 		"bash",
@@ -202,7 +221,10 @@ func TestCodexHeadlessWithTask(t *testing.T) {
 	}
 
 	adapter := AdapterFor("codex")
-	cmd := adapter.Command(cfg, SandboxTaskPath)
+	cmd, err := adapter.Command(cfg, SandboxTaskPath)
+	if err != nil {
+		t.Fatalf("Command() returned error: %v", err)
+	}
 
 	expected := []string{
 		"bash",
@@ -225,7 +247,10 @@ func TestCustomHeadlessWithTask(t *testing.T) {
 	}
 
 	adapter := AdapterFor("myagent")
-	cmd := adapter.Command(cfg, SandboxTaskPath)
+	cmd, err := adapter.Command(cfg, SandboxTaskPath)
+	if err != nil {
+		t.Fatalf("Command() returned error: %v", err)
+	}
 
 	expected := []string{
 		"bash",
@@ -248,7 +273,10 @@ func TestCustomWithArgsHeadlessWithTask(t *testing.T) {
 	}
 
 	adapter := AdapterFor("myagent --model=mini")
-	cmd := adapter.Command(cfg, SandboxTaskPath)
+	cmd, err := adapter.Command(cfg, SandboxTaskPath)
+	if err != nil {
+		t.Fatalf("Command() returned error: %v", err)
+	}
 
 	expected := []string{
 		"bash",
@@ -271,7 +299,10 @@ func TestTaskPathUsesProvidedConstant(t *testing.T) {
 	}
 
 	adapter := AdapterFor("claude")
-	cmd := adapter.Command(cfg, SandboxTaskPath)
+	cmd, err := adapter.Command(cfg, SandboxTaskPath)
+	if err != nil {
+		t.Fatalf("Command() returned error: %v", err)
+	}
 
 	// Verify the exact constant is used
 	if len(cmd) != 3 || cmd[0] != "bash" || cmd[1] != "-lc" {
@@ -325,6 +356,58 @@ func TestAnthropicBaseURLFromConfig(t *testing.T) {
 	adapterEnv := adapter.Environment(cfg)
 	if len(adapterEnv) > 0 {
 		t.Errorf("adapter.Environment() should be empty but got: %v", adapterEnv)
+	}
+}
+
+// TestCustomEntrypointRejectsShellMetacharacters verifies a custom entrypoint
+// carrying shell metacharacters is rejected rather than embedded in the bash -lc
+// script (the entrypoint reaches a shell, so it must be shell-safe).
+func TestCustomEntrypointRejectsShellMetacharacters(t *testing.T) {
+	for _, ep := range []string{
+		"claude; rm -rf /",
+		"claude && curl evil",
+		"claude | tee /tmp/x",
+		"claude $(whoami)",
+		"claude `id`",
+		"claude > /etc/passwd",
+	} {
+		cfg := &AgentConfig{Name: "test", Entrypoint: ep, Task: "task.md", TTY: boolPtr(false)}
+		adapter := AdapterFor(cfg.EffectiveEntrypoint())
+		if _, err := adapter.Command(cfg, SandboxTaskPath); err == nil {
+			t.Errorf("entrypoint %q: expected error, got nil", ep)
+		}
+	}
+}
+
+// TestEntrypointEmptyOrWhitespaceRejected verifies buildCommand does not panic
+// on a whitespace-only entrypoint and returns an error instead of indexing an
+// empty strings.Fields result.
+func TestEntrypointEmptyOrWhitespaceRejected(t *testing.T) {
+	// A whitespace-only Entrypoint resolves to the default via EffectiveEntrypoint.
+	cfg := &AgentConfig{Name: "test", Entrypoint: "   "}
+	if got := cfg.EffectiveEntrypoint(); got != "claude" {
+		t.Errorf("EffectiveEntrypoint() = %q, want claude for whitespace-only", got)
+	}
+	// buildCommand itself rejects an empty/whitespace entrypoint without panicking.
+	if _, err := buildCommand("   ", cfg, ""); err == nil {
+		t.Error("buildCommand(whitespace) = nil error, want error")
+	}
+}
+
+// TestCustomEntrypointWithArgsAllowed verifies a legitimate command-plus-flags
+// entrypoint (spaces and flag punctuation) is accepted.
+func TestCustomEntrypointWithArgsAllowed(t *testing.T) {
+	cfg := &AgentConfig{Name: "test", Entrypoint: "/usr/local/bin/my-agent --model gpt-4o", Task: "task.md", TTY: boolPtr(false)}
+	adapter := AdapterFor(cfg.EffectiveEntrypoint())
+	cmd, err := adapter.Command(cfg, SandboxTaskPath)
+	if err != nil {
+		t.Fatalf("Command() returned error for valid entrypoint: %v", err)
+	}
+	if len(cmd) != 3 || !strings.Contains(cmd[2], "command -v /usr/local/bin/my-agent") {
+		t.Errorf("expected entrypoint bin validated in script, got: %v", cmd)
+	}
+	if !strings.Contains(cmd[2], "exec /usr/local/bin/my-agent --model gpt-4o --print") {
+		t.Errorf("expected full entrypoint with args in exec, got: %s", cmd[2])
 	}
 }
 
