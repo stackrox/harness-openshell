@@ -80,6 +80,32 @@ func TestCmdDoesNotRedactNonSensitiveLiteral(t *testing.T) {
 	}
 }
 
+func TestCmdRedactsSensitiveEnv(t *testing.T) {
+	// sandbox create --env carries secrets on the plaintext path; a sensitive
+	// key's value must not leak into diagnostics, but the key stays visible.
+	out := captureCmd("openshell", "sandbox", "create",
+		"--env", "ANTHROPIC_API_KEY=sk-secret-xyz",
+		"--env", "ANTHROPIC_BASE_URL=https://inference.local")
+	if contains(out, "sk-secret-xyz") {
+		t.Errorf("sensitive env value leaked: %s", out)
+	}
+	if !contains(out, "ANTHROPIC_API_KEY=***") {
+		t.Errorf("expected redacted sensitive env, got: %s", out)
+	}
+	// benign env (no sensitive keyword) stays readable for debugging.
+	if !contains(out, "ANTHROPIC_BASE_URL=https://inference.local") {
+		t.Errorf("benign env should not be redacted, got: %s", out)
+	}
+}
+
+func TestCmdEnvKeyOnly(t *testing.T) {
+	// --env KEY (no =VALUE) passes through unchanged.
+	out := captureCmd("openshell", "sandbox", "create", "--env", "ANTHROPIC_API_KEY")
+	if !contains(out, "ANTHROPIC_API_KEY") {
+		t.Errorf("env key should be preserved: %s", out)
+	}
+}
+
 func TestCmdCredentialKeyOnly(t *testing.T) {
 	// --credential KEY (no =VALUE) should pass through as-is
 	out := captureCmd("openshell", "provider", "create", "github", "--credential", "GITHUB_TOKEN")
