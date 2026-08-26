@@ -33,7 +33,6 @@ type upLocalOpts struct {
 	agentPath       string
 	sandboxName     string
 	noTTY           bool
-	providerRefresh bool
 	setupOnly       bool
 	harness         *agent.Harness
 	newClient       openshell.Factory
@@ -80,7 +79,7 @@ func upLocal(opts upLocalOpts) error {
 		}
 	}
 
-	registered := ensureProviders(opts.harnessDir, gw, agentCfg, opts.providerRefresh, opts.harness)
+	registered := ensureProviders(opts.harnessDir, gw, agentCfg, opts.harness)
 
 	if needsInference(agentCfg.EffectiveEntrypoint()) && !hasInferenceProvider(agentCfg.Providers) {
 		status.Warn("No inference provider configured — the agent will not be able to authenticate. Add google-vertex-ai to providers.")

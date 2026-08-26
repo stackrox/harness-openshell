@@ -101,7 +101,7 @@ func adcConfigs() []string {
 	return configs
 }
 
-func ensureProviders(harnessDir string, gw gateway.Gateway, agentCfg *agent.AgentConfig, forceRefresh bool, h *agent.Harness) []string {
+func ensureProviders(harnessDir string, gw gateway.Gateway, agentCfg *agent.AgentConfig, h *agent.Harness) []string {
 	providerNames := agentCfg.ProviderNames()
 	if len(providerNames) == 0 {
 		return nil
@@ -121,7 +121,7 @@ func ensureProviders(harnessDir string, gw gateway.Gateway, agentCfg *agent.Agen
 	}
 
 	registered, missing := gateway.ValidateProviders(providerNames, gw)
-	if len(missing) > 0 || forceRefresh {
+	if len(missing) > 0 {
 		desired, _ := desiredFromAgent(agentCfg, os.Getenv)
 		if err := registerProviders(harnessDir, gw, desired); err != nil {
 			status.Warnf("provider registration: %v", err)
@@ -174,7 +174,7 @@ func registerADC(name, profileType string, gw gateway.Gateway, configs []string)
 
 func registerGWS(harnessDir string, gw gateway.Gateway) error {
 	if gw.ProviderGet("google-workspace") == nil {
-		status.Info("google-workspace: exists (use --provider-refresh to recreate)")
+		status.Info("google-workspace: exists")
 		return nil
 	}
 

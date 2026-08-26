@@ -129,12 +129,6 @@ func teardownProviders(gw gateway.Gateway, activeGW string) error {
 		}
 	}
 
-	status.Section("Inference")
-	if gw.InferenceRemove() == nil {
-		status.Info("Cleared")
-	} else {
-		status.Info("Already cleared")
-	}
 	fmt.Println()
 	return nil
 }

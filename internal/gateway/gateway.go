@@ -23,11 +23,11 @@ type Gateway interface {
 
 	// Inference
 	//
-	// Setting the inference route moved to the SDK reconcile path
-	// (reconcile.ReconcileInference) in PR4a S5; the legacy InferenceSet write
-	// was removed. Get/Remove remain for reachability checks and teardown.
+	// The inference route is owned by the SDK reconcile path
+	// (reconcile.ReconcileInference), which sets it (PR4a S5). Teardown no longer
+	// clears it — an orphaned route is inert and overwritten on the next apply.
+	// Only the reachability check remains on the CLI bridge.
 	InferenceGet() error
-	InferenceRemove() error
 
 	// Gateway management
 	CLIVersion() string
@@ -37,7 +37,6 @@ type Gateway interface {
 	GatewayRemove(name string) error
 	GatewayList() ([]GatewayInfo, error)
 	GatewaySelect(name string) error
-	SettingsSet(key, value string) error
 }
 
 // ProviderChecker is the subset of Gateway needed to check provider registration.
