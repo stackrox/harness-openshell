@@ -163,7 +163,7 @@ func upLocal(opts upLocalOpts) error {
 	} else {
 		cmd, cmdErr := agent.AdapterFor(agentCfg.EffectiveEntrypoint()).Command(agentCfg, taskPath)
 		if cmdErr != nil {
-			return cmdErr
+			return fmt.Errorf("building sandbox command: %w", cmdErr)
 		}
 		sandboxCmd = cmd
 	}
