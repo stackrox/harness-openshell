@@ -360,9 +360,11 @@ func reconcileProvidersStep(ctx context.Context, client openshell.Client, provid
 		return
 	}
 	for _, r := range results {
-		switch r.Action {
-		case plan.ActionAdoptionRequired:
+		switch {
+		case r.Action == plan.ActionAdoptionRequired:
 			status.Warnf("provider %s: %s (set adopt: true or re-create managed)", r.Name, r.Action)
+		case r.Adopted:
+			status.Warnf("provider %s: adopted (was unowned — harness now owns it)", r.Name)
 		default:
 			status.OKf("provider %s: %s", r.Name, r.Action)
 		}

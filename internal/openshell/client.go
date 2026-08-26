@@ -22,12 +22,12 @@ type Client interface {
 	// ErrNotFound when no such provider exists (requires the "provider:read"
 	// role).
 	GetProvider(ctx context.Context, name string) (Provider, error)
-	// UpdateProvider writes the desired non-secret Config and Labels of an
+	// UpdateProvider writes the desired non-secret Config, Labels, and Type of an
 	// existing provider, preserving its stored credentials. It is
 	// credential-preserving by construction: the harness Provider carries no
-	// credentials, and sdkclient overlays only Config/Labels onto the provider's
-	// current server object (see sdkclient.UpdateProvider). Reconcile issues it
-	// only on a real non-secret delta. Requires the workspace "admin" role plus
+	// credentials, and sdkclient overlays only those non-secret fields onto the
+	// provider's current server object (see sdkclient.UpdateProvider). Reconcile
+	// issues it only on a real non-secret delta. Requires the workspace "admin" role plus
 	// "provider:write"; a caller lacking either gets ErrPermission.
 	UpdateProvider(ctx context.Context, p Provider) (Provider, error)
 	// GetInferenceRoute reads the named inference route in the bound workspace.

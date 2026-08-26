@@ -21,6 +21,11 @@ type ProviderResult struct {
 	Name     string
 	Action   plan.Action
 	Provider openshell.Provider
+	// Adopted is true when this Update took ownership of a provider that existed
+	// but carried no harness owner label (adopt: true authorized it). It is a
+	// takeover, not an ordinary drift-correcting update, so callers surface it
+	// distinctly for the operator to audit.
+	Adopted bool
 }
 
 // ReconcileProviders drives each desired provider toward the gateway state,
@@ -64,11 +69,14 @@ func ReconcileProviders(ctx context.Context, c openshell.Client, desired []confi
 			results = append(results, ProviderResult{Name: d.Name, Action: action, Provider: cur})
 
 		case plan.ActionUpdate:
+			// An Update on a not-yet-owned provider is an adoption (adopt: true
+			// stamping the owner label for the first time), not a routine update.
+			adopted := curPtr != nil && !plan.IsOwned(*curPtr)
 			updated, err := c.UpdateProvider(ctx, managedProvider(d, curPtr))
 			if err != nil {
 				return nil, fmt.Errorf("updating provider %q: %w", d.Name, err)
 			}
-			results = append(results, ProviderResult{Name: d.Name, Action: action, Provider: updated})
+			results = append(results, ProviderResult{Name: d.Name, Action: action, Provider: updated, Adopted: adopted})
 
 		case plan.ActionCreate:
 			// Managed absent: report the intended create; do NOT SDK-create.

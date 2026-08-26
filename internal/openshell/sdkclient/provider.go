@@ -49,8 +49,9 @@ func (c *client) GetProvider(ctx context.Context, name string) (openshell.Provid
 // provider while preserving everything else the gateway holds — this is the
 // single credential-preserving-update site (spec §8.5).
 //
-// It re-Gets the provider's current server object and overlays only Config and
-// Labels onto it, then Updates. The credential-bearing spec fields
+// It re-Gets the provider's current server object and overlays the non-secret
+// managed fields (Config, Labels, and Type) onto it, then Updates. The
+// credential-bearing spec fields
 // (Credentials, CredentialHandles, CredentialExpiresAt, ProfileWorkspace) and
 // the ResourceVersion are carried through from that Get verbatim; the harness
 // never authors them. Because the harness openshell.Provider has no credentials
@@ -73,6 +74,13 @@ func (c *client) UpdateProvider(ctx context.Context, p openshell.Provider) (open
 	// exactly as Get returned it.
 	cur.Spec.Config = copyStringMap(p.Config)
 	cur.Labels = copyStringMap(p.Labels)
+	if p.Type != "" {
+		// Type is a non-secret managed field. ProviderAction returns Update on a
+		// type delta (plan.ProviderAction), so this is the write that actually
+		// applies it — overlaid only when declared, so an unset desired Type never
+		// wipes the stored one.
+		cur.Type = p.Type
+	}
 	updated, err := c.raw.Providers().Update(ctx, c.workspace, cur)
 	if err != nil {
 		return openshell.Provider{}, translate(err)

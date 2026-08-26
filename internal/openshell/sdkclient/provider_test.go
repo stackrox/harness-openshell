@@ -149,6 +149,47 @@ func TestUpdateProviderOverlaysConfigPreservesCredentials(t *testing.T) {
 	}
 }
 
+// TestUpdateProviderWritesType: a declared Type is overlaid onto the stored
+// provider, so a type delta reported as Update by plan.ProviderAction actually
+// converges. An empty desired Type leaves the stored one untouched.
+func TestUpdateProviderWritesType(t *testing.T) {
+	ctx := context.Background()
+	fc := fake.NewClient()
+	fc.AddProvider("default", &types.Provider{
+		Name: "gcp", Type: "old-type",
+		Spec: types.ProviderSpec{Config: map[string]string{"K": "v"}},
+	})
+	c := NewFromClient(fc, "default")
+
+	// Declared Type is written.
+	if _, err := c.UpdateProvider(ctx, openshell.Provider{
+		Name: "gcp", Type: "new-type", Config: map[string]string{"K": "v"},
+	}); err != nil {
+		t.Fatalf("UpdateProvider: %v", err)
+	}
+	stored, err := fc.Providers().Get(ctx, "default", "gcp")
+	if err != nil {
+		t.Fatalf("raw Get: %v", err)
+	}
+	if stored.Type != "new-type" {
+		t.Errorf("Type not written: got %q, want new-type", stored.Type)
+	}
+
+	// Empty desired Type preserves the stored one.
+	if _, err := c.UpdateProvider(ctx, openshell.Provider{
+		Name: "gcp", Config: map[string]string{"K": "v2"},
+	}); err != nil {
+		t.Fatalf("UpdateProvider (empty type): %v", err)
+	}
+	stored, err = fc.Providers().Get(ctx, "default", "gcp")
+	if err != nil {
+		t.Fatalf("raw Get: %v", err)
+	}
+	if stored.Type != "new-type" {
+		t.Errorf("empty desired Type wiped stored Type: got %q, want new-type", stored.Type)
+	}
+}
+
 // TestUpdateProviderNotFound: updating an absent provider surfaces ErrNotFound
 // from the internal Get, never a nil-object write.
 func TestUpdateProviderNotFound(t *testing.T) {
