@@ -119,8 +119,78 @@ func buildTargetGroup(desired *config.Harness, current CurrentState) Group {
 	}
 }
 
-// buildProvidersGroup returns the PROVIDERS group.
-// Matches desired providers by name against current.Providers.
+// isManaged reports whether a desired provider is harness-managed. Management is
+// "managed" or "referenced"; empty defaults to referenced (never auto-create,
+// never overwrite — the safe default, enforced at config.Resolve). Only "managed"
+// providers are created or updated by reconcile.
+func isManaged(p config.Provider) bool {
+	return p.Management == "managed"
+}
+
+// ProviderAction is the single owner of the provider create/adopt/update/noop
+// rule (invariant 22). Both harness plan (buildProvidersGroup) and
+// internal/reconcile call it, so the plan preview and the reconcile write can
+// never disagree on what a change is.
+//
+// cur is the matching current provider by name, or nil when none exists.
+//
+// Referenced providers are never written: an existing one is a noop whoever owns
+// it, and an absent one is adoption-required (it must be created/adopted out of
+// band). Managed providers are where ownership matters — reconcile must never
+// overwrite one it does not own. A managed provider carrying no harness owner
+// label (plan.IsOwned false) is therefore adoption-required until the operator
+// opts in with `adopt: true`; only then does managed drift (type/config) or the
+// still-missing owner label become an Update. Stamping the owner label on that
+// first adopting update is itself the Label delta the credential-preserving
+// copy-through then carries (see the spec's credential-preservation note);
+// reconcile issues no Update without one of these real deltas.
+func ProviderAction(desired config.Provider, cur *openshell.Provider) Action {
+	managed := isManaged(desired)
+
+	if cur == nil {
+		if managed {
+			return ActionCreate
+		}
+		return ActionAdoptionRequired // referenced/unknown: never auto-create
+	}
+
+	// Referenced providers are never written: if it exists we simply reference it,
+	// regardless of who owns it.
+	if !managed {
+		return ActionNoop
+	}
+
+	// Managed, but not ours and the operator has not authorized taking it over:
+	// never overwrite a provider another owner (or a human) created.
+	if !IsOwned(*cur) && !desired.Adopt {
+		return ActionAdoptionRequired
+	}
+
+	// We own it, or the operator authorized adoption. A missing owner label here
+	// means we are adopting (adopt=true), so stamping it is a real Update.
+	typeMismatch := desired.Type != "" && cur.Type != desired.Type
+	if typeMismatch || configDrifts(desired.Config, cur.Config) || !IsOwned(*cur) {
+		return ActionUpdate
+	}
+	return ActionNoop
+}
+
+// configDrifts reports whether the current provider config is missing or differs
+// from any key the desired config declares. The harness owns only the keys it
+// declares: extra keys the gateway or provider carries are not drift, so this is
+// a subset check (desired ⊆ current), not equality.
+func configDrifts(desired, current map[string]string) bool {
+	for k, v := range desired {
+		if current[k] != v {
+			return true
+		}
+	}
+	return false
+}
+
+// buildProvidersGroup returns the PROVIDERS group. It matches desired providers
+// by name against current.Providers and defers every per-provider decision to
+// ProviderAction, so plan and reconcile share one rule.
 func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 	group := Group{Section: SectionProviders}
 
@@ -130,35 +200,18 @@ func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 		currentByName[p.Name] = p
 	}
 
-	for _, desiredProv := range desired.Spec.Providers {
-		var action Action
-		var detail string
+	for i := range desired.Spec.Providers {
+		desiredProv := desired.Spec.Providers[i]
 
-		currentProv, exists := currentByName[desiredProv.Name]
-
-		if !exists {
-			// Provider not present in current state.
-			if desiredProv.Management == "managed" {
-				action = ActionCreate
-			} else {
-				// referenced or unknown management
-				action = ActionAdoptionRequired
-			}
-		} else if desiredProv.Type != "" && currentProv.Type != desiredProv.Type {
-			// Type mismatch.
-			action = ActionUpdate
-		} else {
-			// Provider exists and type matches (or desired type is empty).
-			action = ActionNoop
+		var cur *openshell.Provider
+		if c, exists := currentByName[desiredProv.Name]; exists {
+			cur = &c
 		}
-
-		// Build detail string: type + management + credentials source if applicable.
-		detail = buildProviderDetail(&desiredProv)
 
 		group.Resources = append(group.Resources, Resource{
 			Name:   desiredProv.Name,
-			Action: action,
-			Detail: detail,
+			Action: ProviderAction(desiredProv, cur),
+			Detail: buildProviderDetail(&desiredProv),
 		})
 	}
 
