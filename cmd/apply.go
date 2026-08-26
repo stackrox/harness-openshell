@@ -56,7 +56,8 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 				agentCfg.Entrypoint = entrypoint
 			}
 			if task != "" && !attach {
-				// Headless task: set TTY=false so BuildRunSh generates --print
+				// Headless task: set TTY=false so the agent adapter dispatches with
+				// --print (claude/codex) or run (opencode) instead of interactive -p.
 				f := false
 				agentCfg.TTY = &f
 			}

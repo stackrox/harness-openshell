@@ -15,8 +15,10 @@ import (
 	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/k8s"
 	"github.com/stackrox/harness-openshell/internal/openshell"
+	"github.com/stackrox/harness-openshell/internal/payload"
 	"github.com/stackrox/harness-openshell/internal/plan"
 	"github.com/stackrox/harness-openshell/internal/reconcile"
+	"github.com/stackrox/harness-openshell/internal/run"
 	"github.com/stackrox/harness-openshell/internal/status"
 )
 
@@ -123,7 +125,7 @@ func upLocal(opts upLocalOpts) error {
 	// Resolve payload entries into upload pairs. Inline content payloads are
 	// written to temp files that are uploaded individually by their own
 	// sandbox_path, so their source paths must survive until SandboxCreate.
-	// They MUST NOT live inside payloadDir: createSandbox renames payloadDir
+	// They MUST NOT live inside payloadDir: stagePayloadUpload renames payloadDir
 	// into a staging directory, which would invalidate any path pointing inside
 	// it and fail every upload with "local path does not exist" (issue #84).
 	var extraUploads []gateway.Upload
@@ -148,53 +150,65 @@ func upLocal(opts upLocalOpts) error {
 	}
 
 	status.Header("Sandbox")
+
+	// Command: the agent adapter owns entrypoint + task dispatch (replaces the
+	// generated run.sh). Headless with no task starts the sandbox without an agent.
+	taskPath := ""
+	if agentCfg.Task != "" {
+		taskPath = agent.SandboxTaskPath
+	}
 	var sandboxCmd []string
 	if noTTY && agentCfg.Task == "" {
 		sandboxCmd = []string{"true"}
 	} else {
-		sandboxCmd = []string{"bash", "/sandbox/.config/openshell/run.sh"}
+		cmd, cmdErr := agent.AdapterFor(agentCfg.EffectiveEntrypoint()).Command(agentCfg, taskPath)
+		if cmdErr != nil {
+			return fmt.Errorf("building sandbox command: %w", cmdErr)
+		}
+		sandboxCmd = cmd
 	}
 
-	err = createSandbox(sandboxOpts{
-		harnessDir: opts.harnessDir,
-		gw:         gw,
-		name:       sandboxName,
-		image:      sandboxImage,
-		providers:  registered,
-		noTTY:      noTTY,
-		retrySleep: opts.retrySleep,
-		sandboxCmd: sandboxCmd,
-		payloadDir: payloadDir,
-		uploads:    extraUploads,
-		env:        agentCfg.BuildEnvMap(),
-	})
+	// Stage the rendered payload for upload (--upload lands it at
+	// /sandbox/.config/openshell/*).
+	uploadDir, cleanupUpload, err := stagePayloadUpload(payloadDir)
 	if err != nil {
 		return err
 	}
+	defer cleanupUpload()
 
-	// Apply custom policy after sandbox creation (kind: policy in harness YAML).
-	// /etc/openshell/policy.yaml is read-only in the image, so policy changes
-	// must go through the openshell CLI which hot-reloads the policy.
+	uploads := []gateway.Upload{{Src: uploadDir, Dst: "/sandbox/.config"}}
+	uploads = append(uploads, extraUploads...)
+
+	// Stage the effective policy and apply it AT CREATE via --policy.
+	// /etc/openshell/policy.yaml is read-only in the image; policy-at-create is
+	// authoritative (the old post-create hot-reload could be silently dropped).
+	var policyPath string
 	if opts.harness != nil && opts.harness.Policy != nil {
-		policyFile, writeErr := os.CreateTemp("", "harness-policy-*.yaml")
-		if writeErr != nil {
-			return fmt.Errorf("creating policy temp file: %w", writeErr)
+		policyDir, mkErr := os.MkdirTemp("", "harness-policy-")
+		if mkErr != nil {
+			return fmt.Errorf("creating policy dir: %w", mkErr)
 		}
-		defer os.Remove(policyFile.Name())
-		if _, writeErr := policyFile.Write(opts.harness.Policy); writeErr != nil {
-			policyFile.Close()
-			return fmt.Errorf("writing policy: %w", writeErr)
+		defer os.RemoveAll(policyDir)
+		p, wErr := payload.WriteEffectivePolicy(policyDir, opts.harness.Policy)
+		if wErr != nil {
+			return fmt.Errorf("writing policy: %w", wErr)
 		}
-		policyFile.Close()
-
-		status.Info("Applying custom policy...")
-		if err := gw.PolicySet(sandboxName, policyFile.Name()); err != nil {
-			return fmt.Errorf("applying policy: %w", err)
-		}
-		status.OK("Policy applied")
+		policyPath = p
 	}
 
-	return nil
+	return run.RunSandbox(context.Background(), gw, run.SandboxRunRequest{
+		Name:       sandboxName,
+		Gateway:    gw.ActiveGateway(),
+		Image:      resolveSandboxImagePath(sandboxImage, opts.harnessDir),
+		Providers:  registered,
+		Env:        agentCfg.BuildEnvMap(),
+		Command:    sandboxCmd,
+		Uploads:    uploads,
+		TTY:        !noTTY,
+		Keep:       true,
+		PolicyPath: policyPath,
+		RetrySleep: opts.retrySleep,
+	})
 }
 
 // cloneRepo clones or updates a cached git repository and returns an Upload

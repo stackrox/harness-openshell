@@ -118,7 +118,7 @@ func (c *AgentConfig) NoTTY() bool {
 }
 
 func (c *AgentConfig) EffectiveEntrypoint() string {
-	if c.Entrypoint == "" {
+	if strings.TrimSpace(c.Entrypoint) == "" {
 		return "claude"
 	}
 	return c.Entrypoint
@@ -164,7 +164,7 @@ type Harness struct {
 	Gateways  map[string][]byte // name -> raw gateway YAML
 	Providers map[string][]byte // name -> raw provider profile YAML
 	Payloads  []PayloadEntry    // files to upload to sandbox
-	Policy    []byte            // raw policy YAML
+	Policy    []byte            // policy body YAML, without the kind: policy discriminator
 }
 
 // kindHeader peeks at the kind and name fields of a YAML document.
@@ -264,7 +264,14 @@ func ParseHarness(data []byte) (*Harness, error) {
 			if h.Policy != nil {
 				return nil, fmt.Errorf("multiple policy documents found")
 			}
-			h.Policy = raw
+			// Store the bare policy body: the gateway's --policy parser (and the
+			// ACP exporter) reject the kind discriminator as an unknown field, and
+			// RenderHarness re-adds the `kind: policy` header on serialize.
+			body, err := policyBody(&node)
+			if err != nil {
+				return nil, fmt.Errorf("re-marshaling policy document %d: %w", docIndex, err)
+			}
+			h.Policy = body
 
 		default:
 			return nil, fmt.Errorf("document %d: unknown kind %q", docIndex, header.Kind)
@@ -278,6 +285,28 @@ func ParseHarness(data []byte) (*Harness, error) {
 	// Merge agent-level payloads into harness payloads
 	h.Payloads = append(h.Payloads, h.Agent.Payloads...)
 	return h, nil
+}
+
+// policyBody re-marshals a kind: policy document without the kind discriminator,
+// yielding the bare policy YAML that the gateway's --policy parser accepts (it
+// rejects unknown top-level keys such as kind) and that RenderHarness re-wraps
+// under a `kind: policy` header. Non-mapping documents fall through unchanged.
+func policyBody(doc *yaml.Node) ([]byte, error) {
+	mapping := doc
+	if doc.Kind == yaml.DocumentNode && len(doc.Content) == 1 {
+		mapping = doc.Content[0]
+	}
+	if mapping.Kind == yaml.MappingNode {
+		filtered := make([]*yaml.Node, 0, len(mapping.Content))
+		for i := 0; i+1 < len(mapping.Content); i += 2 {
+			if mapping.Content[i].Value == "kind" {
+				continue
+			}
+			filtered = append(filtered, mapping.Content[i], mapping.Content[i+1])
+		}
+		mapping.Content = filtered
+	}
+	return yaml.Marshal(doc)
 }
 
 // RenderHarness writes a complete multi-document YAML from a Harness.
@@ -356,39 +385,10 @@ func (c *AgentConfig) BuildEnvMap() map[string]string {
 	return env
 }
 
-func (c *AgentConfig) BuildRunSh() string {
-	var b strings.Builder
-	b.WriteString("#!/usr/bin/env bash\nset -euo pipefail\n\n")
-	b.WriteString("PAYLOAD_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n\n")
-	b.WriteString("# Prepend payload bin to PATH\n")
-	b.WriteString("export PATH=\"$PAYLOAD_DIR/bin:$PATH\"\n\n")
-	b.WriteString("# Validate entrypoint\n")
-	entrypoint := c.EffectiveEntrypoint()
-	epBin := strings.Fields(entrypoint)[0]
-	fmt.Fprintf(&b, "if ! command -v %q >/dev/null 2>&1; then\n", epBin)
-	fmt.Fprintf(&b, "  echo \"ERROR: entrypoint %q not found in PATH\" >&2\n", epBin)
-	b.WriteString("  exit 1\n")
-	b.WriteString("fi\n\n")
-	b.WriteString("# Execute entrypoint\n")
-	if c.Task != "" {
-		b.WriteString("TASK=\"$(cat \"$PAYLOAD_DIR/task.md\")\"\n")
-		if c.NoTTY() {
-			// Headless: use --print (claude) or run (opencode) for stdout output
-			switch epBin {
-			case "opencode":
-				fmt.Fprintf(&b, "exec %s run \"$TASK\"\n", entrypoint)
-			default:
-				fmt.Fprintf(&b, "exec %s --print \"$TASK\"\n", entrypoint)
-			}
-		} else {
-			fmt.Fprintf(&b, "exec %s -p \"$TASK\"\n", entrypoint)
-		}
-	} else {
-		fmt.Fprintf(&b, "exec %s\n", entrypoint)
-	}
-	return b.String()
-}
-
+// RenderPayload writes the payload directory uploaded into the sandbox: the bin/
+// dir (for payload-provided binaries on PATH), task.md when a task is set, and
+// any includes. The in-sandbox command is built by the agent adapters (see
+// internal/agent/adapter.go), not a generated run.sh.
 func RenderPayload(cfg *AgentConfig, baseDir, destDir string) error {
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("creating payload dir: %w", err)
@@ -396,11 +396,6 @@ func RenderPayload(cfg *AgentConfig, baseDir, destDir string) error {
 	binDir := filepath.Join(destDir, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return fmt.Errorf("creating bin dir: %w", err)
-	}
-
-	runSh := cfg.BuildRunSh()
-	if err := os.WriteFile(filepath.Join(destDir, "run.sh"), []byte(runSh), 0o755); err != nil {
-		return fmt.Errorf("writing run.sh: %w", err)
 	}
 
 	if cfg.Task != "" {

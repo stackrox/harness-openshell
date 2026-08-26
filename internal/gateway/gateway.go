@@ -18,9 +18,6 @@ type Gateway interface {
 	SandboxCreate(opts SandboxCreateOpts) error
 	SandboxDelete(name string) error
 
-	// Policy
-	PolicySet(name, policyFile string) error
-
 	// Inference
 	//
 	// The inference route is owned by the SDK reconcile path
@@ -88,12 +85,17 @@ type Upload struct {
 }
 
 type SandboxCreateOpts struct {
-	Name      string
-	From      string
-	Providers []string
-	TTY       bool
-	Keep      bool
-	Uploads   []Upload
-	Command   []string
-	Env       map[string]string
+	Name            string
+	From            string
+	Providers       []string
+	TTY             bool
+	Keep            bool
+	Uploads         []Upload
+	Command         []string
+	Env             map[string]string
+	Policy          string            // --policy <path>
+	Gateway         string            // --gateway <name>
+	Workspace       string            // --workspace <name>
+	Labels          map[string]string // --label k=v
+	NoAutoProviders bool              // --no-auto-providers when true
 }

@@ -27,6 +27,7 @@ func formatCmdLine(name string, args []string) string {
 	b.WriteString("$ ")
 	b.WriteString(name)
 	redactNext := false
+	redactNextEnvIfSensitive := false
 	for _, a := range args {
 		b.WriteByte(' ')
 		if redactNext {
@@ -34,8 +35,26 @@ func formatCmdLine(name string, args []string) string {
 			redactNext = false
 			continue
 		}
+		if redactNextEnvIfSensitive {
+			// --env values carry secrets on the acknowledged-plaintext path
+			// (the gateway also warns the agent can read them). Mask the value
+			// when the key looks sensitive; keep KEY visible either way, and
+			// leave benign env (e.g. ANTHROPIC_BASE_URL) readable for debugging.
+			if isSensitiveLiteral(a) {
+				b.WriteString(redactValue(a))
+			} else {
+				b.WriteString(a)
+			}
+			redactNextEnvIfSensitive = false
+			continue
+		}
 		if a == "--credential" || a == "--material" || a == "--secret-material-key" {
 			redactNext = true
+			b.WriteString(a)
+			continue
+		}
+		if a == "--env" {
+			redactNextEnvIfSensitive = true
 			b.WriteString(a)
 			continue
 		}
