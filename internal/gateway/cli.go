@@ -242,12 +242,16 @@ func (c *CLI) GatewaySelect(name string) error {
 	return c.silent("gateway", "select", name)
 }
 
-func (c *CLI) SandboxCreate(opts SandboxCreateOpts) error {
+func sandboxCreateArgs(opts SandboxCreateOpts) []string {
 	args := []string{"sandbox", "create", "--name", opts.Name}
-	if opts.TTY {
-		args = append(args, "--tty")
-	} else {
-		args = append(args, "--no-tty")
+	if opts.Gateway != "" {
+		args = append(args, "--gateway", opts.Gateway)
+	}
+	if opts.Workspace != "" {
+		args = append(args, "--workspace", opts.Workspace)
+	}
+	if opts.Policy != "" {
+		args = append(args, "--policy", opts.Policy)
 	}
 	if opts.From != "" {
 		args = append(args, "--from", opts.From)
@@ -255,14 +259,13 @@ func (c *CLI) SandboxCreate(opts SandboxCreateOpts) error {
 	for _, p := range opts.Providers {
 		args = append(args, "--provider", p)
 	}
-	if !opts.Keep {
-		args = append(args, "--no-keep")
+	if opts.NoAutoProviders {
+		args = append(args, "--no-auto-providers")
 	}
-	if len(opts.Uploads) > 0 {
-		for _, u := range opts.Uploads {
-			args = append(args, "--upload", u.Src+":"+u.Dst)
-		}
-		args = append(args, "--no-git-ignore")
+	if opts.TTY {
+		args = append(args, "--tty")
+	} else {
+		args = append(args, "--no-tty")
 	}
 	if len(opts.Env) > 0 {
 		keys := make([]string, 0, len(opts.Env))
@@ -274,10 +277,34 @@ func (c *CLI) SandboxCreate(opts SandboxCreateOpts) error {
 			args = append(args, "--env", k+"="+opts.Env[k])
 		}
 	}
+	if len(opts.Uploads) > 0 {
+		for _, u := range opts.Uploads {
+			args = append(args, "--upload", u.Src+":"+u.Dst)
+		}
+		args = append(args, "--no-git-ignore")
+	}
+	if !opts.Keep {
+		args = append(args, "--no-keep")
+	}
+	if len(opts.Labels) > 0 {
+		keys := make([]string, 0, len(opts.Labels))
+		for k := range opts.Labels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			args = append(args, "--label", k+"="+opts.Labels[k])
+		}
+	}
 	if len(opts.Command) > 0 {
 		args = append(args, "--")
 		args = append(args, opts.Command...)
 	}
+	return args
+}
+
+func (c *CLI) SandboxCreate(opts SandboxCreateOpts) error {
+	args := sandboxCreateArgs(opts)
 	return c.passthrough(args...)
 }
 
