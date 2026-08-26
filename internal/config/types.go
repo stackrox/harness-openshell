@@ -79,9 +79,14 @@ func (s SecretRef) Describe() string {
 
 // Provider represents a desired provider resource.
 type Provider struct {
-	Name        string            `yaml:"name"`
-	Type        string            `yaml:"type,omitempty"`
-	Management  string            `yaml:"management"` // "managed" or "referenced"
+	Name       string `yaml:"name"`
+	Type       string `yaml:"type,omitempty"`
+	Management string `yaml:"management"` // "managed" or "referenced"; empty → referenced
+	// Adopt authorizes reconcile to take over an existing provider that does not
+	// carry this harness's owner label. Without it, a matching-but-unowned
+	// provider is reported adoption-required and never overwritten. It is the
+	// operator's explicit opt-in to manage a pre-existing provider.
+	Adopt       bool              `yaml:"adopt,omitempty"`
 	Credentials *SecretRef        `yaml:"credentials,omitempty"`
 	Config      map[string]string `yaml:"config,omitempty"`
 }

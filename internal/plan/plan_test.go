@@ -84,7 +84,10 @@ func TestBuild_ProviderPresentNoop(t *testing.T) {
 		Reachable: true,
 		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 		Providers: []openshell.Provider{
-			{Name: "github", Type: "github"},
+			// Owned by the harness (carries the owner label), so a matching managed
+			// provider is a noop. An unowned match would be adoption-required — see
+			// the ProviderAction table.
+			{Name: "github", Type: "github", Labels: map[string]string{OwnerLabelKey: OwnerLabelValue}},
 		},
 	}
 
@@ -200,7 +203,9 @@ func TestBuild_ProviderTypeUpdate(t *testing.T) {
 		Reachable: true,
 		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 		Providers: []openshell.Provider{
-			{Name: "github", Type: "github-old"},
+			// Owned, so a type mismatch is an in-place update. An unowned provider
+			// with a type mismatch would be adoption-required, not overwritten.
+			{Name: "github", Type: "github-old", Labels: map[string]string{OwnerLabelKey: OwnerLabelValue}},
 		},
 	}
 
@@ -258,6 +263,97 @@ func TestBuild_ProviderDetailIncludesCredentials(t *testing.T) {
 	}
 	if !strings.Contains(detail, "gcloud ADC") {
 		t.Errorf("expected 'gcloud ADC' in detail: %s", detail)
+	}
+}
+
+// TestProviderAction is the single-owner diff-rule table (invariant 22). It
+// pins every branch of the create/adopt/update/noop rule, including the
+// ownership gate that keeps reconcile from overwriting a provider it does not
+// own.
+func TestProviderAction(t *testing.T) {
+	owned := map[string]string{OwnerLabelKey: OwnerLabelValue}
+	foreign := map[string]string{OwnerLabelKey: "someone-else"}
+
+	tests := []struct {
+		name    string
+		desired config.Provider
+		cur     *openshell.Provider
+		want    Action
+	}{
+		{
+			name:    "managed absent creates",
+			desired: config.Provider{Name: "gcp", Type: "google-vertex-ai", Management: "managed"},
+			cur:     nil,
+			want:    ActionCreate,
+		},
+		{
+			name:    "referenced absent requires adoption",
+			desired: config.Provider{Name: "ext", Management: "referenced"},
+			cur:     nil,
+			want:    ActionAdoptionRequired,
+		},
+		{
+			name:    "empty management treated as referenced (absent) requires adoption",
+			desired: config.Provider{Name: "ext"},
+			cur:     nil,
+			want:    ActionAdoptionRequired,
+		},
+		{
+			name:    "unowned existing requires adoption (no overwrite)",
+			desired: config.Provider{Name: "gh", Type: "github", Management: "managed"},
+			cur:     &openshell.Provider{Name: "gh", Type: "github"},
+			want:    ActionAdoptionRequired,
+		},
+		{
+			name:    "foreign-owned existing requires adoption",
+			desired: config.Provider{Name: "gh", Type: "github", Management: "managed"},
+			cur:     &openshell.Provider{Name: "gh", Type: "github", Labels: foreign},
+			want:    ActionAdoptionRequired,
+		},
+		{
+			name:    "adopt authorizes taking over an unowned provider (label stamp is an update)",
+			desired: config.Provider{Name: "gh", Type: "github", Management: "managed", Adopt: true},
+			cur:     &openshell.Provider{Name: "gh", Type: "github"},
+			want:    ActionUpdate,
+		},
+		{
+			name:    "owned type mismatch updates",
+			desired: config.Provider{Name: "gh", Type: "github-new", Management: "managed"},
+			cur:     &openshell.Provider{Name: "gh", Type: "github-old", Labels: owned},
+			want:    ActionUpdate,
+		},
+		{
+			name:    "owned config drift updates",
+			desired: config.Provider{Name: "gcp", Type: "google-vertex-ai", Management: "managed", Config: map[string]string{"VERTEX_AI_REGION": "us-east1"}},
+			cur:     &openshell.Provider{Name: "gcp", Type: "google-vertex-ai", Labels: owned, Config: map[string]string{"VERTEX_AI_REGION": "global"}},
+			want:    ActionUpdate,
+		},
+		{
+			name:    "owned matching is noop (extra current config keys are not drift)",
+			desired: config.Provider{Name: "gcp", Type: "google-vertex-ai", Management: "managed", Config: map[string]string{"VERTEX_AI_REGION": "global"}},
+			cur:     &openshell.Provider{Name: "gcp", Type: "google-vertex-ai", Labels: owned, Config: map[string]string{"VERTEX_AI_REGION": "global", "EXTRA": "x"}},
+			want:    ActionNoop,
+		},
+		{
+			name:    "referenced existing and owned is noop (never updated)",
+			desired: config.Provider{Name: "ext", Type: "custom", Management: "referenced"},
+			cur:     &openshell.Provider{Name: "ext", Type: "different", Labels: owned},
+			want:    ActionNoop,
+		},
+		{
+			name:    "referenced existing and unowned is noop (referenced is never written)",
+			desired: config.Provider{Name: "ext", Type: "custom", Management: "referenced"},
+			cur:     &openshell.Provider{Name: "ext", Type: "different"},
+			want:    ActionNoop,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ProviderAction(tt.desired, tt.cur); got != tt.want {
+				t.Errorf("ProviderAction() = %s, want %s", got, tt.want)
+			}
+		})
 	}
 }
 

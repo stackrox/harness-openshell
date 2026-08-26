@@ -2,8 +2,16 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+// routeNamePattern is a format-only guard for inference route names: a
+// DNS-label-ish token, optionally dotted (e.g. "inference.local"). It rejects
+// empty/whitespace/leading-or-trailing-punctuation garbage at load time; it is
+// NOT an allowlist — the gateway stays the authority on which names exist and
+// returns ErrInvalidArgument for unknown ones at apply.
+var routeNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$`)
 
 // Expand interpolates ${VAR} references in raw using getenv. A referenced but
 // unset variable is an error (strict — never os.ExpandEnv, which is lenient).
@@ -98,6 +106,16 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 			np.Name = exp(base+".name", p.Name)
 			np.Type = exp(base+".type", p.Type)
 			np.Management = exp(base+".management", p.Management)
+			// Empty management defaults to referenced (the safe default: never
+			// auto-creates, never overwrites). Reject only non-empty invalid values.
+			switch np.Management {
+			case "":
+				np.Management = "referenced"
+			case "managed", "referenced":
+				// valid
+			default:
+				errs = append(errs, fmt.Sprintf("%s.management: %q is invalid (want \"managed\" or \"referenced\")", base, np.Management))
+			}
 			if len(p.Config) > 0 {
 				np.Config = make(map[string]string, len(p.Config))
 				for k, v := range p.Config {
@@ -109,6 +127,11 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	}
 
 	s.Inference.Route = exp("spec.inference.route", h.Spec.Inference.Route)
+	// Format-only check: reject a malformed route name at load time; the gateway
+	// remains the authority on which names actually exist (no allowlist here).
+	if s.Inference.Route != "" && !routeNamePattern.MatchString(s.Inference.Route) {
+		errs = append(errs, fmt.Sprintf("spec.inference.route: %q is malformed (want a DNS-label-like name such as \"inference.local\")", s.Inference.Route))
+	}
 	s.Inference.Provider = exp("spec.inference.provider", h.Spec.Inference.Provider)
 	s.Inference.Model = exp("spec.inference.model", h.Spec.Inference.Model)
 	s.Inference.Timeout = exp("spec.inference.timeout", h.Spec.Inference.Timeout)

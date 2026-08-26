@@ -161,6 +161,75 @@ func TestResolveValidTimeout(t *testing.T) {
 	}
 }
 
+func TestResolve_RejectsBadManagement(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec: Spec{Providers: []Provider{
+			{Name: "gh", Type: "github", Management: "bogus"},
+		}},
+	}
+
+	_, err := Resolve(h, func(string) string { return "" })
+	if err == nil {
+		t.Fatal("expected Resolve to reject an invalid management value")
+	}
+	if !strings.Contains(err.Error(), "management") || !strings.Contains(err.Error(), "bogus") {
+		t.Errorf("error should name the field and bad value: %v", err)
+	}
+}
+
+func TestResolve_DefaultsEmptyManagementToReferenced(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec: Spec{Providers: []Provider{
+			{Name: "gh", Type: "github"}, // no management
+		}},
+	}
+
+	resolved, err := Resolve(h, func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("Resolve failed: %v", err)
+	}
+	if got := resolved.Spec.Providers[0].Management; got != "referenced" {
+		t.Errorf("empty management should default to referenced, got %q", got)
+	}
+}
+
+func TestResolve_RejectsMalformedRoute(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		// Provider+model supplied so only the route-format error can fire.
+		Spec: Spec{Inference: Inference{Provider: "gcp", Model: "claude-opus-4-8", Route: "bad route"}},
+	}
+
+	_, err := Resolve(h, func(string) string { return "" })
+	if err == nil {
+		t.Fatal("expected Resolve to reject a malformed route name")
+	}
+	if !strings.Contains(err.Error(), "route") {
+		t.Errorf("error should name the route field: %v", err)
+	}
+}
+
+func TestResolve_AcceptsDottedRoute(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec:       Spec{Inference: Inference{Provider: "gcp", Model: "claude-opus-4-8", Route: "inference.local"}},
+	}
+
+	if _, err := Resolve(h, func(string) string { return "" }); err != nil {
+		t.Fatalf("Resolve rejected a valid dotted route: %v", err)
+	}
+}
+
 func TestResolveVerifyRoundTrips(t *testing.T) {
 	// verify:false must survive YAML parse + Resolve as an explicit false, not
 	// collapse to the nil→true default, and must not alias the input pointer.

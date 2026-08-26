@@ -18,6 +18,18 @@ type Client interface {
 	Health(ctx context.Context) (Health, error)
 	// Providers lists the providers registered in the bound workspace.
 	Providers(ctx context.Context) ([]Provider, error)
+	// GetProvider reads the named provider in the bound workspace. Returns
+	// ErrNotFound when no such provider exists (requires the "provider:read"
+	// role).
+	GetProvider(ctx context.Context, name string) (Provider, error)
+	// UpdateProvider writes the desired non-secret Config, Labels, and Type of an
+	// existing provider, preserving its stored credentials. It is
+	// credential-preserving by construction: the harness Provider carries no
+	// credentials, and sdkclient overlays only those non-secret fields onto the
+	// provider's current server object (see sdkclient.UpdateProvider). Reconcile
+	// issues it only on a real non-secret delta. Requires the workspace "admin" role plus
+	// "provider:write"; a caller lacking either gets ErrPermission.
+	UpdateProvider(ctx context.Context, p Provider) (Provider, error)
 	// GetInferenceRoute reads the named inference route in the bound workspace.
 	// An empty route targets the gateway default route. Returns ErrNotFound when
 	// no such route exists (requires the workspace "user" role).

@@ -27,8 +27,18 @@ type mockGW struct {
 	createOpts        []gateway.SandboxCreateOpts
 	deletedNames      []string
 	gatewayListResult []gateway.GatewayInfo
+	activeGateway     string
 	onGatewayRemove   func(string)
 	onSandboxCreate   func(gateway.SandboxCreateOpts) error
+	providerCreates   []providerCreateCall
+}
+
+// providerCreateCall records one ProviderCreate for assertions on which
+// bootstrap strategy fired.
+type providerCreateCall struct {
+	name        string
+	profileType string
+	opts        gateway.ProviderCreateOpts
 }
 
 func (m *mockGW) InferenceGet() error { return m.inferenceErr }
@@ -58,14 +68,14 @@ func (m *mockGW) SandboxDelete(name string) error {
 }
 func (m *mockGW) CLIVersion() string                                              { return "openshell v0.0.59" }
 func (m *mockGW) CLIPath() string                                                 { return "/usr/bin/openshell" }
-func (m *mockGW) InferenceSet(string, string) error                               { return nil }
-func (m *mockGW) InferenceRemove() error                                          { return nil }
-func (m *mockGW) ActiveGateway() string                                           { return "" }
-func (m *mockGW) ProviderCreate(string, string, gateway.ProviderCreateOpts) error { return nil }
+func (m *mockGW) ActiveGateway() string                                           { return m.activeGateway }
+func (m *mockGW) ProviderCreate(name, profileType string, opts gateway.ProviderCreateOpts) error {
+	m.providerCreates = append(m.providerCreates, providerCreateCall{name, profileType, opts})
+	return nil
+}
 func (m *mockGW) ProviderDelete(string) error                                     { return nil }
 func (m *mockGW) ProviderProfileImport(string) error                              { return nil }
 func (m *mockGW) ProviderProfileDelete(string) error                              { return nil }
-func (m *mockGW) SettingsSet(string, string) error                                { return nil }
 func (m *mockGW) SandboxList() ([]string, error)                                  { return nil, nil }
 func (m *mockGW) SandboxStatus() ([]gateway.SandboxInfo, error)                   { return nil, nil }
 func (m *mockGW) GatewayAdd(string, string, bool, bool) error                    { return nil }
