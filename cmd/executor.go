@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,8 @@ import (
 	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/k8s"
+	"github.com/stackrox/harness-openshell/internal/openshell"
+	"github.com/stackrox/harness-openshell/internal/reconcile"
 	"github.com/stackrox/harness-openshell/internal/status"
 )
 
@@ -29,7 +32,9 @@ type upLocalOpts struct {
 	sandboxName     string
 	noTTY           bool
 	providerRefresh bool
+	setupOnly       bool
 	harness         *agent.Harness
+	newClient       openshell.Factory
 	retrySleep      time.Duration
 }
 
@@ -77,6 +82,17 @@ func upLocal(opts upLocalOpts) error {
 
 	if needsInference(agentCfg.EffectiveEntrypoint()) && !hasInferenceProvider(agentCfg.Providers) {
 		status.Warn("No inference provider configured — the agent will not be able to authenticate. Add google-vertex-ai to providers.")
+	}
+
+	reconcileInference(opts, agentCfg)
+
+	// --setup-only stops here: the gateway is deployed and providers/inference
+	// are reconciled, but no sandbox is created and no agent is run. This leaves
+	// a clean seam for the provider reconcile (S6) to land alongside inference
+	// above without disturbing the sandbox path below.
+	if opts.setupOnly {
+		status.OK("Setup complete (--setup-only): skipping sandbox creation")
+		return nil
 	}
 
 	// Clone repo outside the sandbox so git credentials never enter it.
@@ -287,6 +303,52 @@ func initSubmodules(dir string) error {
 		return fmt.Errorf("git submodule update: %w", err)
 	}
 	return nil
+}
+
+// reconcileInference drives the gateway's inference route to match the agent
+// config through the SDK reconcile path. It replaces the legacy fire-and-forget
+// gw.InferenceSet write that used to live in registerADC.
+//
+// Behavior change (PR4a S5): the legacy write always passed --no-verify; the
+// reconcile path verifies by default (see config.Inference.VerifyEnabled). A
+// route write is therefore validated against the provider endpoint. The apply
+// path has no opt-out field yet — the escape hatch (inference.verify: false)
+// lives in the config.Harness path consumed by `harness plan`/reconcile, and a
+// future agent-config field can be threaded through desiredFromAgent if needed.
+//
+// It is non-fatal by construction, mirroring the provider path: if no inference
+// is configured it is a no-op, and any client-construction or reconcile failure
+// degrades to a warning rather than aborting apply — provider registration has
+// already happened and the sandbox can still be created.
+func reconcileInference(opts upLocalOpts, agentCfg *agent.AgentConfig) {
+	_, desired := desiredFromAgent(agentCfg, os.Getenv)
+	if desired.Provider == "" {
+		return // no inference provider in this agent — nothing to reconcile
+	}
+
+	if opts.newClient == nil {
+		status.Warn("inference reconcile skipped: no SDK client factory")
+		return
+	}
+	target, err := resolveApplyTarget(opts.gw)
+	if err != nil {
+		status.Warnf("inference reconcile skipped: %v", err)
+		return
+	}
+	ctx := context.Background()
+	client, err := opts.newClient(ctx, target)
+	if err != nil {
+		status.Warnf("inference reconcile skipped: %v", err)
+		return
+	}
+	defer client.Close()
+
+	result, err := reconcile.ReconcileInference(ctx, client, desired)
+	if err != nil {
+		status.Warnf("inference reconcile: %v", err)
+		return
+	}
+	status.OKf("inference: %s (model %s)", result.Action, desired.Model)
 }
 
 var inferenceProviders = map[string]bool{

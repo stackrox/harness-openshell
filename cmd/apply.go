@@ -10,11 +10,12 @@ import (
 
 	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/stackrox/harness-openshell/internal/gateway"
+	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
 )
 
-func NewApplyCmd(harnessDir, cli string) *cobra.Command {
+func NewApplyCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Command {
 	var (
 		file            string
 		agentName       string
@@ -26,6 +27,7 @@ func NewApplyCmd(harnessDir, cli string) *cobra.Command {
 		attach          bool
 		providerRefresh bool
 		dryRun          bool
+		setupOnly       bool
 		output          string
 	)
 
@@ -138,7 +140,9 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 				sandboxName:     sandboxName,
 				noTTY:           !attach,
 				providerRefresh: providerRefresh,
+				setupOnly:       setupOnly,
 				harness:         harness,
+				newClient:       newClient,
 				retrySleep:      5 * time.Second,
 			})
 		},
@@ -154,6 +158,7 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 	cmd.Flags().BoolVar(&attach, "attach", false, "Attach TTY after creation (interactive mode)")
 	cmd.Flags().BoolVar(&providerRefresh, "provider-refresh", false, "Delete and recreate all providers")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Validate configuration without deploying")
+	cmd.Flags().BoolVar(&setupOnly, "setup-only", false, "Deploy the gateway and reconcile providers/inference, but do not create a sandbox or run the agent")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: yaml or json")
 
 	return cmd

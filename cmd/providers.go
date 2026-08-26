@@ -18,8 +18,6 @@ import (
 // the gateway. Only providers in the agent YAML are registered. Provider
 // config values are passed via --config during registration.
 func registerProviders(harnessDir string, gw gateway.Gateway, force bool, providers []agent.ProviderRef) error {
-	model := envOr("OPENSHELL_MODEL", "claude-sonnet-4-6")
-
 	wanted := make(map[string]*agent.ProviderRef, len(providers))
 	for i := range providers {
 		wanted[providers[i].Profile] = &providers[i]
@@ -67,7 +65,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, force bool, provid
 			configs = append(configs, "VERTEX_AI_PROJECT_ID="+project)
 		}
 		configs = append(configs, "VERTEX_AI_REGION="+region)
-		if err := registerADC("google-vertex-ai", "google-vertex-ai", model, gw, configs); err != nil {
+		if err := registerADC("google-vertex-ai", "google-vertex-ai", gw, configs); err != nil {
 			return err
 		}
 	}
@@ -136,7 +134,11 @@ func registerStandard(name, profileType string, gw gateway.Gateway, configs []st
 	return nil
 }
 
-func registerADC(name, profileType, model string, gw gateway.Gateway, configs []string) error {
+// registerADC creates a provider from gcloud Application Default Credentials.
+// It no longer sets the inference route: that write moved to the SDK reconcile
+// path (reconcileInference in executor.go) as part of PR4a S5, so provider
+// registration and inference reconciliation are now separate concerns.
+func registerADC(name, profileType string, gw gateway.Gateway, configs []string) error {
 	if gw.ProviderGet(name) == nil {
 		status.Infof("%s: exists", name)
 		return nil
@@ -148,10 +150,6 @@ func registerADC(name, profileType, model string, gw gateway.Gateway, configs []
 		return fmt.Errorf("%s: registration failed: %w", name, err)
 	}
 	status.OKf("%s: registered", name)
-	if err := gw.InferenceSet(name, model); err != nil {
-		return fmt.Errorf("inference: %w", err)
-	}
-	status.OKf("inference: model %s", model)
 	return nil
 }
 

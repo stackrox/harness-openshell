@@ -22,8 +22,11 @@ type Gateway interface {
 	PolicySet(name, policyFile string) error
 
 	// Inference
+	//
+	// Setting the inference route moved to the SDK reconcile path
+	// (reconcile.ReconcileInference) in PR4a S5; the legacy InferenceSet write
+	// was removed. Get/Remove remain for reachability checks and teardown.
 	InferenceGet() error
-	InferenceSet(provider, model string) error
 	InferenceRemove() error
 
 	// Gateway management

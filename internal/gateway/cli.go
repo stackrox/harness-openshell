@@ -193,10 +193,6 @@ func (c *CLI) InferenceRemove() error {
 	return c.silent("inference", "remove")
 }
 
-func (c *CLI) InferenceSet(provider, model string) error {
-	return c.passthrough("inference", "set", "--provider", provider, "--model", model, "--no-verify")
-}
-
 func (c *CLI) SettingsSet(key, value string) error {
 	return c.passthrough("settings", "set", "--global", "--key", key, "--value", value, "--yes")
 }

@@ -27,6 +27,7 @@ type mockGW struct {
 	createOpts        []gateway.SandboxCreateOpts
 	deletedNames      []string
 	gatewayListResult []gateway.GatewayInfo
+	activeGateway     string
 	onGatewayRemove   func(string)
 	onSandboxCreate   func(gateway.SandboxCreateOpts) error
 }
@@ -58,9 +59,8 @@ func (m *mockGW) SandboxDelete(name string) error {
 }
 func (m *mockGW) CLIVersion() string                                              { return "openshell v0.0.59" }
 func (m *mockGW) CLIPath() string                                                 { return "/usr/bin/openshell" }
-func (m *mockGW) InferenceSet(string, string) error                               { return nil }
 func (m *mockGW) InferenceRemove() error                                          { return nil }
-func (m *mockGW) ActiveGateway() string                                           { return "" }
+func (m *mockGW) ActiveGateway() string                                           { return m.activeGateway }
 func (m *mockGW) ProviderCreate(string, string, gateway.ProviderCreateOpts) error { return nil }
 func (m *mockGW) ProviderDelete(string) error                                     { return nil }
 func (m *mockGW) ProviderProfileImport(string) error                              { return nil }

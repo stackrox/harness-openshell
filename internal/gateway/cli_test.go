@@ -500,28 +500,6 @@ printf '%s\n' "$*" > `+argsFile+`
 	}
 }
 
-func TestInferenceSet_Args(t *testing.T) {
-	dir := t.TempDir()
-	argsFile := filepath.Join(dir, "args")
-	bin := writeStub(t, `#!/bin/bash
-printf '%s\n' "$*" > `+argsFile+`
-`)
-	gw := New(bin)
-	gw.InferenceSet("google-vertex-ai", "claude-sonnet-4-6")
-	data, _ := os.ReadFile(argsFile)
-	args := strings.TrimSpace(string(data))
-	for _, want := range []string{
-		"inference set",
-		"--provider google-vertex-ai",
-		"--model claude-sonnet-4-6",
-		"--no-verify",
-	} {
-		if !strings.Contains(args, want) {
-			t.Errorf("missing %q in: %s", want, args)
-		}
-	}
-}
-
 func TestGatewayAdd_Args(t *testing.T) {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")

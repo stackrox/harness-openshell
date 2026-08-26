@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
@@ -23,4 +24,25 @@ func registerTargetFlags(cmd *cobra.Command) (gateway, workspace *string) {
 	workspace = cmd.Flags().String("workspace", "",
 		fmt.Sprintf("OpenShell workspace (defaults to %q; falls back to $%s).", "default", openshell.EnvWorkspace))
 	return gateway, workspace
+}
+
+// resolveApplyTarget builds the SDK openshell.Target for the apply command from
+// the CLI's currently-active gateway registration.
+//
+// Apply deliberately does NOT register the standard --gateway/--workspace target
+// flags: apply's own --gateway flag names a deploy profile (e.g. "openshift"),
+// not an openshell registration, so reusing it as the SDK target would connect
+// to the wrong thing. Instead the registration name is read from the active
+// gateway the CLI already selected.
+//
+// An empty active gateway is an error, not a silent skip: without a registration
+// name the SDK client cannot connect and inference reconcile would quietly
+// no-op, hiding a misconfiguration. Workspace is left "" so sdkclient applies
+// its "default" default (the single owner of that rule).
+func resolveApplyTarget(gw gateway.Gateway) (openshell.Target, error) {
+	name := gw.ActiveGateway()
+	if name == "" {
+		return openshell.Target{}, fmt.Errorf("no active openshell gateway — deploy or select one first")
+	}
+	return openshell.Target{Gateway: name, Workspace: ""}, nil
 }

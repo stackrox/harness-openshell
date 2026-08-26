@@ -62,7 +62,7 @@ func main() {
 	root.CompletionOptions.HiddenDefaultCmd = true
 
 	root.AddCommand(
-		cmd.NewApplyCmd(harnessDir, cli),
+		cmd.NewApplyCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewGetCmd(harnessDir, cli),
 		cmd.NewDescribeCmd(harnessDir, cli),
 		cmd.NewDeleteCmd(harnessDir, cli),
