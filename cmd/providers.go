@@ -9,78 +9,96 @@ import (
 	"strings"
 
 	"github.com/stackrox/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/status"
 	"gopkg.in/yaml.v3"
 )
 
-// registerProviders registers the providers listed in the agent config with
-// the gateway. Only providers in the agent YAML are registered. Provider
-// config values are passed via --config during registration.
-func registerProviders(harnessDir string, gw gateway.Gateway, force bool, providers []agent.ProviderRef) error {
-	wanted := make(map[string]*agent.ProviderRef, len(providers))
-	for i := range providers {
-		wanted[providers[i].Profile] = &providers[i]
-	}
+// createStrategy names how a not-yet-existing provider is bootstrapped on the CLI
+// bridge. Credentialed creation (ADC/OAuth) has to stay on the bridge — the
+// firewall Provider type cannot carry a secret (invariant 26) — so this is the one
+// place the SDK-vs-bridge fork for *creation* lives. Once a provider exists the SDK
+// reconcile (reconcile.ReconcileProviders) owns verify/update/adoption.
+type createStrategy int
 
-	if force {
-		sandboxes, err := gw.SandboxList()
-		if err != nil {
-			return fmt.Errorf("listing sandboxes: %w", err)
-		}
-		if len(sandboxes) > 0 {
-			return fmt.Errorf("cannot --provider-refresh with running sandboxes — delete them first")
-		}
-		for _, p := range providers {
-			gw.ProviderDelete(p.Profile)
-		}
-		deleteCustomProfiles(harnessDir, gw)
-		status.Info("Deleted existing providers")
-	}
+const (
+	// strategyReference registers a provider from an existing credential already
+	// present in the environment (github, atlassian). It is the default.
+	strategyReference createStrategy = iota
+	// strategyADC creates a provider from gcloud Application Default Credentials
+	// (google-vertex-ai).
+	strategyADC
+	// strategyOAuth creates a provider with a gateway-managed OAuth refresh flow
+	// (google-workspace).
+	strategyOAuth
+)
 
+// providerCreatePlan is the single owner of "which create strategy" for a desired
+// provider. It keys on how credentials are acquired (Credentials.Source) and the
+// provider type — never on a hard-coded per-profile switch. This is the classifier
+// invariant 26 points at: ADC/OAuth acquisition stays on the CLI bridge because the
+// harness cannot express a credentialed create through the firewall by design.
+func providerCreatePlan(p config.Provider) createStrategy {
+	switch {
+	case p.Credentials != nil && p.Credentials.Source == "gcloud-adc":
+		return strategyADC
+	case p.Type == "google-workspace" || p.Name == "google-workspace":
+		return strategyOAuth
+	default:
+		return strategyReference
+	}
+}
+
+// registerProviders bootstrap-creates every desired provider that does not yet
+// exist on the gateway, dispatching each through providerCreatePlan. It performs
+// no destructive delete and no SDK write: credential-preserving update and owner
+// adoption are the SDK reconcile's job (reconcile.ReconcileProviders, run from
+// upLocal after this). The register* helpers each no-op when their provider
+// already exists, so this is safe to call on every apply.
+func registerProviders(harnessDir string, gw gateway.Gateway, desired []config.Provider) error {
 	status.Header("Providers")
-
-	if err := gw.SettingsSet("providers_v2_enabled", "true"); err != nil {
-		return fmt.Errorf("enabling providers v2: %w", err)
-	}
 
 	profilesDir := filepath.Join(harnessDir, "profiles", "providers")
 	if err := gw.ProviderProfileImport(profilesDir); err != nil {
 		status.Warnf("provider profile import: %v", err)
 	}
 
-	if _, ok := wanted["github"]; ok {
-		if err := registerStandard("github", "github", gw, nil); err != nil {
+	for _, p := range desired {
+		if err := bootstrapProvider(harnessDir, gw, p); err != nil {
 			return err
 		}
 	}
-	if _, ok := wanted["google-vertex-ai"]; ok {
-		home, _ := os.UserHomeDir()
-		adcPath := envOr("GOOGLE_APPLICATION_CREDENTIALS",
-			filepath.Join(home, ".config", "gcloud", "application_default_credentials.json"))
-		project := envOr("ANTHROPIC_VERTEX_PROJECT_ID", readADCProject(adcPath))
-		region := envOr("CLOUD_ML_REGION", "global")
-		var configs []string
-		if project != "" {
-			configs = append(configs, "VERTEX_AI_PROJECT_ID="+project)
-		}
-		configs = append(configs, "VERTEX_AI_REGION="+region)
-		if err := registerADC("google-vertex-ai", "google-vertex-ai", gw, configs); err != nil {
-			return err
-		}
-	}
-	if _, ok := wanted["atlassian"]; ok {
-		if err := registerStandard("atlassian", "atlassian", gw, nil); err != nil {
-			return err
-		}
-	}
-	if _, ok := wanted["google-workspace"]; ok {
-		if err := registerGWS(harnessDir, gw); err != nil {
-			return err
-		}
-	}
-
 	return nil
+}
+
+// bootstrapProvider creates one absent provider via its create strategy.
+func bootstrapProvider(harnessDir string, gw gateway.Gateway, p config.Provider) error {
+	switch providerCreatePlan(p) {
+	case strategyADC:
+		return registerADC(p.Name, p.Type, gw, adcConfigs())
+	case strategyOAuth:
+		return registerGWS(harnessDir, gw)
+	default:
+		return registerStandard(p.Name, p.Type, gw, nil)
+	}
+}
+
+// adcConfigs resolves the Vertex project/region config passed to the ADC create,
+// preserving the legacy resolution order: explicit env overrides first, then the
+// ADC file's quota project, then a "global" region default.
+func adcConfigs() []string {
+	home, _ := os.UserHomeDir()
+	adcPath := envOr("GOOGLE_APPLICATION_CREDENTIALS",
+		filepath.Join(home, ".config", "gcloud", "application_default_credentials.json"))
+	project := envOr("ANTHROPIC_VERTEX_PROJECT_ID", readADCProject(adcPath))
+	region := envOr("CLOUD_ML_REGION", "global")
+	var configs []string
+	if project != "" {
+		configs = append(configs, "VERTEX_AI_PROJECT_ID="+project)
+	}
+	configs = append(configs, "VERTEX_AI_REGION="+region)
+	return configs
 }
 
 func ensureProviders(harnessDir string, gw gateway.Gateway, agentCfg *agent.AgentConfig, forceRefresh bool, h *agent.Harness) []string {
@@ -104,7 +122,8 @@ func ensureProviders(harnessDir string, gw gateway.Gateway, agentCfg *agent.Agen
 
 	registered, missing := gateway.ValidateProviders(providerNames, gw)
 	if len(missing) > 0 || forceRefresh {
-		if err := registerProviders(harnessDir, gw, forceRefresh, agentCfg.Providers); err != nil {
+		desired, _ := desiredFromAgent(agentCfg, os.Getenv)
+		if err := registerProviders(harnessDir, gw, desired); err != nil {
 			status.Warnf("provider registration: %v", err)
 		}
 		registered, missing = gateway.ValidateProviders(providerNames, gw)
@@ -136,7 +155,7 @@ func registerStandard(name, profileType string, gw gateway.Gateway, configs []st
 
 // registerADC creates a provider from gcloud Application Default Credentials.
 // It no longer sets the inference route: that write moved to the SDK reconcile
-// path (reconcileInference in executor.go) as part of PR4a S5, so provider
+// path (reconcileGateway in executor.go) as part of PR4a S5/S6, so provider
 // registration and inference reconciliation are now separate concerns.
 func registerADC(name, profileType string, gw gateway.Gateway, configs []string) error {
 	if gw.ProviderGet(name) == nil {
@@ -244,36 +263,6 @@ func gwsProfileScopes(harnessDir string) string {
 		return ""
 	}
 	return strings.Join(profile.Credentials[0].Refresh.Scopes, " ")
-}
-
-func deleteCustomProfiles(harnessDir string, gw gateway.Gateway) {
-	profilesDir := filepath.Join(harnessDir, "profiles", "providers")
-	entries, err := os.ReadDir(profilesDir)
-	if err != nil {
-		return
-	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
-			continue
-		}
-		id := extractYAMLID(filepath.Join(profilesDir, e.Name()))
-		if id != "" {
-			gw.ProviderProfileDelete(id)
-		}
-	}
-}
-
-func extractYAMLID(path string) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if id, ok := strings.CutPrefix(line, "id:"); ok {
-			return strings.TrimSpace(id)
-		}
-	}
-	return ""
 }
 
 func envOr(key, fallback string) string {

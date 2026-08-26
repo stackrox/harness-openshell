@@ -3,10 +3,9 @@ package cmd
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/stackrox/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/config"
 )
 
 func setupProvidersTest(t *testing.T) string {
@@ -16,112 +15,85 @@ func setupProvidersTest(t *testing.T) string {
 	return dir
 }
 
-func TestRegisterProviders_GitHubWhenTokenSet(t *testing.T) {
-	dir := setupProvidersTest(t)
-	t.Setenv("GITHUB_TOKEN", "ghp_test123")
+// TestProviderCreatePlan pins the single owner of "which create strategy": it keys
+// on Credentials.Source and provider type, never on a hard-coded profile switch.
+func TestProviderCreatePlan(t *testing.T) {
+	cases := []struct {
+		name string
+		p    config.Provider
+		want createStrategy
+	}{
+		{"github references existing", config.Provider{Name: "github", Type: "github"}, strategyReference},
+		{"atlassian references existing", config.Provider{Name: "atlassian", Type: "atlassian"}, strategyReference},
+		{
+			"vertex uses ADC via credential source",
+			config.Provider{Name: "google-vertex-ai", Type: "google-vertex-ai", Credentials: &config.SecretRef{Source: "gcloud-adc"}},
+			strategyADC,
+		},
+		{"workspace uses OAuth via type", config.Provider{Name: "google-workspace", Type: "google-workspace"}, strategyOAuth},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := providerCreatePlan(tc.p); got != tc.want {
+				t.Errorf("providerCreatePlan(%+v) = %v, want %v", tc.p, got, tc.want)
+			}
+		})
+	}
+}
 
+func TestRegisterProviders_BootstrapsAbsentReference(t *testing.T) {
+	dir := setupProvidersTest(t)
 	gw := &mockGW{providers: map[string]bool{}}
 
-	err := registerProviders(dir, gw, false, []agent.ProviderRef{
-		{Profile: "github"},
+	err := registerProviders(dir, gw, []config.Provider{
+		{Name: "github", Type: "github"},
 	})
 	if err != nil {
 		t.Fatalf("registerProviders: %v", err)
 	}
+	if len(gw.providerCreates) != 1 {
+		t.Fatalf("providerCreates = %d, want 1", len(gw.providerCreates))
+	}
+	c := gw.providerCreates[0]
+	if c.name != "github" || c.profileType != "github" {
+		t.Errorf("create = %q/%q, want github/github", c.name, c.profileType)
+	}
+	if !c.opts.FromExisting {
+		t.Errorf("github should register FromExisting, got %+v", c.opts)
+	}
 }
 
-func TestRegisterProviders_SkipsWhenTokenMissing(t *testing.T) {
+func TestRegisterProviders_VertexUsesADC(t *testing.T) {
 	dir := setupProvidersTest(t)
-	t.Setenv("GITHUB_TOKEN", "")
-
 	gw := &mockGW{providers: map[string]bool{}}
 
-	err := registerProviders(dir, gw, false, []agent.ProviderRef{
-		{Profile: "github"},
+	err := registerProviders(dir, gw, []config.Provider{
+		{Name: "google-vertex-ai", Type: "google-vertex-ai", Credentials: &config.SecretRef{Source: "gcloud-adc"}},
 	})
 	if err != nil {
 		t.Fatalf("registerProviders: %v", err)
+	}
+	if len(gw.providerCreates) != 1 {
+		t.Fatalf("providerCreates = %d, want 1", len(gw.providerCreates))
+	}
+	c := gw.providerCreates[0]
+	if c.name != "google-vertex-ai" || !c.opts.FromADC {
+		t.Errorf("vertex create = %q FromADC=%v, want google-vertex-ai FromADC=true", c.name, c.opts.FromADC)
 	}
 }
 
 func TestRegisterProviders_SkipsExistingProvider(t *testing.T) {
 	dir := setupProvidersTest(t)
-	t.Setenv("GITHUB_TOKEN", "ghp_test123")
-
 	gw := &mockGW{providers: map[string]bool{"github": true}}
 
-	err := registerProviders(dir, gw, false, []agent.ProviderRef{
-		{Profile: "github"},
+	err := registerProviders(dir, gw, []config.Provider{
+		{Name: "github", Type: "github"},
 	})
 	if err != nil {
 		t.Fatalf("registerProviders: %v", err)
 	}
-}
-
-func TestRegisterProviders_ForceWithRunningSandboxes(t *testing.T) {
-	dir := setupProvidersTest(t)
-
-	gw := &mockGWWithSandboxes{
-		mockGW:    &mockGW{providers: map[string]bool{"github": true}},
-		sandboxes: []string{"test-sandbox"},
-	}
-
-	err := registerProviders(dir, gw, true, []agent.ProviderRef{
-		{Profile: "github"},
-	})
-	if err == nil {
-		t.Fatal("expected error with --force and running sandboxes")
-	}
-	if !strings.Contains(err.Error(), "cannot --provider-refresh") {
-		t.Errorf("error = %q, want 'cannot --provider-refresh'", err)
-	}
-}
-
-func TestRegisterProviders_ForceDeletesAndRecreates(t *testing.T) {
-	dir := setupProvidersTest(t)
-	t.Setenv("GITHUB_TOKEN", "ghp_test123")
-
-	gw := &mockGW{providers: map[string]bool{}}
-
-	err := registerProviders(dir, gw, true, []agent.ProviderRef{
-		{Profile: "github"},
-	})
-	if err != nil {
-		t.Fatalf("registerProviders: %v", err)
-	}
-}
-
-func TestRegisterProviders_OnlyRegistersRequestedProviders(t *testing.T) {
-	dir := setupProvidersTest(t)
-	t.Setenv("GITHUB_TOKEN", "ghp_test123")
-	t.Setenv("JIRA_API_TOKEN", "jira_test")
-
-	gw := &mockGW{providers: map[string]bool{}}
-
-	err := registerProviders(dir, gw, false, []agent.ProviderRef{
-		{Profile: "github"},
-	})
-	if err != nil {
-		t.Fatalf("registerProviders: %v", err)
-	}
-}
-
-func TestRegisterProviders_PassesConfigToProvider(t *testing.T) {
-	dir := setupProvidersTest(t)
-	t.Setenv("JIRA_API_TOKEN", "jira_test")
-	t.Setenv("JIRA_URL", "https://test.atlassian.net")
-	t.Setenv("JIRA_USERNAME", "test@example.com")
-
-	gw := &mockGW{providers: map[string]bool{}}
-
-	err := registerProviders(dir, gw, false, []agent.ProviderRef{
-		{Profile: "atlassian", Env: map[string]string{
-			"JIRA_URL":      "${JIRA_URL}",
-			"JIRA_USERNAME": "${JIRA_USERNAME}",
-		}},
-	})
-	if err != nil {
-		t.Fatalf("registerProviders: %v", err)
+	if len(gw.providerCreates) != 0 {
+		t.Errorf("providerCreates = %d, want 0 (already exists)", len(gw.providerCreates))
 	}
 }
 
@@ -129,19 +101,11 @@ func TestRegisterProviders_EmptyList(t *testing.T) {
 	dir := setupProvidersTest(t)
 	gw := &mockGW{providers: map[string]bool{}}
 
-	err := registerProviders(dir, gw, false, nil)
+	err := registerProviders(dir, gw, nil)
 	if err != nil {
 		t.Fatalf("registerProviders: %v", err)
 	}
+	if len(gw.providerCreates) != 0 {
+		t.Errorf("providerCreates = %d, want 0", len(gw.providerCreates))
+	}
 }
-
-// mockGWWithSandboxes wraps mockGW to return a non-empty sandbox list.
-type mockGWWithSandboxes struct {
-	*mockGW
-	sandboxes []string
-}
-
-func (m *mockGWWithSandboxes) SandboxList() ([]string, error) {
-	return m.sandboxes, nil
-}
-func (m *mockGWWithSandboxes) PolicySet(string, string) error { return nil }

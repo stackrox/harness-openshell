@@ -28,10 +28,23 @@ func desiredFromAgent(agentCfg *agent.AgentConfig, getenv func(string) string) (
 	var providers []config.Provider
 	var inference config.Inference
 	for _, p := range agentCfg.Providers {
-		providers = append(providers, config.Provider{
-			Name:       p.Profile,
-			Management: managementFor(p.Profile),
-		})
+		desired := config.Provider{
+			Name: p.Profile,
+			// For the well-known agent-config profiles the profile name IS the
+			// gateway provider type; the config.Harness world can distinguish them,
+			// but here they coincide.
+			Type:        p.Profile,
+			Management:  managementFor(p.Profile),
+			Credentials: credentialSourceFor(p.Profile),
+		}
+		// A managed provider is one the harness bootstraps and owns; authorize
+		// reconcile to adopt it (stamp the owner label) on first pass, since the
+		// CLI-bridge create cannot stamp the SDK owner label itself. Referenced
+		// providers are never written, so Adopt is irrelevant to them.
+		if desired.Management == "managed" {
+			desired.Adopt = true
+		}
+		providers = append(providers, desired)
 		// The inference route points at whichever provider serves inference.
 		// Verify is left unset so config.Inference.VerifyEnabled defaults to
 		// true — verify-by-default. There is deliberately no agent-config field
@@ -51,13 +64,27 @@ func desiredFromAgent(agentCfg *agent.AgentConfig, getenv func(string) string) (
 // lifecycle — credentials and refresh flow through the gateway) or "referenced"
 // (the harness only points at an existing registration). This mirrors the legacy
 // registration split in registerProviders: ADC/OAuth-refresh providers are
-// managed; the rest are referenced. It is provisional — the authoritative
-// classification arrives with the provider reconcile (S6).
+// managed; the rest are referenced.
 func managementFor(profile string) string {
 	switch profile {
 	case "google-vertex-ai", "google-workspace":
 		return "managed"
 	default:
 		return "referenced"
+	}
+}
+
+// credentialSourceFor records how a managed profile's credentials are acquired,
+// without materializing any secret — it is the key providerCreatePlan dispatches
+// on to pick the CLI-bridge create strategy. Vertex uses gcloud Application
+// Default Credentials; google-workspace's OAuth path is keyed on its type, not a
+// SecretRef, so it carries none; referenced providers have no harness-owned
+// credentials.
+func credentialSourceFor(profile string) *config.SecretRef {
+	switch profile {
+	case "google-vertex-ai":
+		return &config.SecretRef{Source: "gcloud-adc"}
+	default:
+		return nil
 	}
 }
