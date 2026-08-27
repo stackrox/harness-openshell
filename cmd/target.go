@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/internal/gateway"
@@ -24,6 +26,16 @@ func registerTargetFlags(cmd *cobra.Command) (gateway, workspace *string) {
 	workspace = cmd.Flags().String("workspace", "",
 		fmt.Sprintf("OpenShell workspace (defaults to %q; falls back to $%s).", "default", openshell.EnvWorkspace))
 	return gateway, workspace
+}
+
+// openClient resolves the standard --gateway/--workspace target (flag > env >
+// empty, via openshell.ResolveTarget) and constructs an SDK client through the
+// Factory seam. It is the single construction site shared by the SDK-backed read
+// commands (get/describe/delete), so target resolution stays identical across
+// them. Callers own the returned client's Close.
+func openClient(ctx context.Context, newClient openshell.Factory, gatewayName, workspace *string) (openshell.Client, error) {
+	target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
+	return newClient(ctx, target)
 }
 
 // resolveApplyTarget builds the SDK openshell.Target for the apply command from

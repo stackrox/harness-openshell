@@ -3,11 +3,11 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/spf13/cobra"
+	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
-func NewGetCmd(harnessDir, cli string) *cobra.Command {
+func NewGetCmd(newClient openshell.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",
 		Short: "Display resources",
@@ -15,16 +15,17 @@ func NewGetCmd(harnessDir, cli string) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		newGetAgentsCmd(cli),
-		newGetProvidersCmd(cli),
-		newGetGatewaysCmd(cli),
+		newGetAgentsCmd(newClient),
+		newGetProvidersCmd(newClient),
+		newGetGatewaysCmd(newClient),
 	)
 
 	return cmd
 }
 
-func newGetAgentsCmd(cli string) *cobra.Command {
+func newGetAgentsCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
+	var gatewayName, workspace *string
 
 	cmd := &cobra.Command{
 		Use:     "agents",
@@ -36,8 +37,13 @@ func newGetAgentsCmd(cli string) *cobra.Command {
 				return err
 			}
 
-			gw := gateway.New(cli)
-			sandboxes, err := gw.SandboxStatus()
+			client, err := openClient(cmd.Context(), newClient, gatewayName, workspace)
+			if err != nil {
+				return err
+			}
+			defer client.Close()
+
+			sandboxes, err := client.Sandboxes(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("listing sandboxes: %w", err)
 			}
@@ -73,11 +79,13 @@ func newGetAgentsCmd(cli string) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: table, json, or yaml")
+	gatewayName, workspace = registerTargetFlags(cmd)
 	return cmd
 }
 
-func newGetProvidersCmd(cli string) *cobra.Command {
+func newGetProvidersCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
+	var gatewayName, workspace *string
 
 	cmd := &cobra.Command{
 		Use:     "providers",
@@ -89,8 +97,13 @@ func newGetProvidersCmd(cli string) *cobra.Command {
 				return err
 			}
 
-			gw := gateway.New(cli)
-			providers, err := gw.ProviderList()
+			client, err := openClient(cmd.Context(), newClient, gatewayName, workspace)
+			if err != nil {
+				return err
+			}
+			defer client.Close()
+
+			providers, err := client.Providers(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("listing providers: %w", err)
 			}
@@ -110,14 +123,14 @@ func newGetProvidersCmd(cli string) *cobra.Command {
 				}
 				out := make([]providerOut, len(providers))
 				for i, p := range providers {
-					out[i] = providerOut{Name: p}
+					out[i] = providerOut{Name: p.Name}
 				}
 				return printStructured(format, out)
 			}
 
 			rows := make([][]string, len(providers))
 			for i, p := range providers {
-				rows[i] = []string{p}
+				rows[i] = []string{p.Name}
 			}
 			printTable([]string{"Name"}, rows)
 			return nil
@@ -125,63 +138,64 @@ func newGetProvidersCmd(cli string) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: table, json, or yaml")
+	gatewayName, workspace = registerTargetFlags(cmd)
 	return cmd
 }
 
-func newGetGatewaysCmd(cli string) *cobra.Command {
+func newGetGatewaysCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
+	var gatewayName, workspace *string
 
 	cmd := &cobra.Command{
 		Use:     "gateways",
 		Aliases: []string{"gateway", "gw"},
-		Short:   "List gateways",
+		Short:   "Show the active gateway",
+		Long: `Show the active OpenShell gateway (name, endpoint, status, version).
+
+The OpenShell SDK has no gateway-list RPC, so this reports the single gateway the
+client is bound to (via --gateway or $OPENSHELL_GATEWAY), not every configured
+registration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format, err := parseOutputFormat(output)
 			if err != nil {
 				return err
 			}
 
-			gw := gateway.New(cli)
-			gateways, err := gw.GatewayList()
+			client, err := openClient(cmd.Context(), newClient, gatewayName, workspace)
 			if err != nil {
-				return fmt.Errorf("listing gateways: %w", err)
+				return err
 			}
+			defer client.Close()
 
-			if len(gateways) == 0 {
-				if format == formatTable {
-					fmt.Println("No gateways registered.")
-				} else {
-					return printStructured(format, []any{})
-				}
-				return nil
+			info, err := client.GatewayInfo(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("reading gateway info: %w", err)
 			}
 
 			if format != formatTable {
 				type gwOut struct {
 					Name     string `json:"name" yaml:"name"`
 					Endpoint string `json:"endpoint" yaml:"endpoint"`
-					Active   bool   `json:"active" yaml:"active"`
+					Status   string `json:"status" yaml:"status"`
+					Version  string `json:"version" yaml:"version"`
 				}
-				out := make([]gwOut, len(gateways))
-				for i, g := range gateways {
-					out[i] = gwOut{Name: g.Name, Endpoint: g.Endpoint, Active: g.Active}
-				}
-				return printStructured(format, out)
+				return printStructured(format, gwOut{
+					Name:     info.Name,
+					Endpoint: info.Endpoint,
+					Status:   info.Status,
+					Version:  info.Version,
+				})
 			}
 
-			rows := make([][]string, len(gateways))
-			for i, g := range gateways {
-				active := ""
-				if g.Active {
-					active = "*"
-				}
-				rows[i] = []string{g.Name, g.Endpoint, active}
-			}
-			printTable([]string{"Name", "Endpoint", "Active"}, rows)
+			printTable(
+				[]string{"Name", "Endpoint", "Status", "Version"},
+				[][]string{{info.Name, info.Endpoint, info.Status, info.Version}},
+			)
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: table, json, or yaml")
+	gatewayName, workspace = registerTargetFlags(cmd)
 	return cmd
 }
