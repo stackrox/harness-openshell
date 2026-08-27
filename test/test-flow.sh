@@ -75,6 +75,9 @@ strip_ansi() {
   sed 's/\x1b\[[0-9;]*m//g'
 }
 
+# Upstream gateway provisioning (the harness no longer provisions — PR7b).
+source "$SCRIPT_DIR/test/lib/provision.sh"
+
 PASS=0
 FAIL=0
 TOTAL_START=$(date +%s)
@@ -179,15 +182,12 @@ summary() {
 test_errors() {
   echo "=== test: error scenarios ==="
 
-  step_fail "nonexistent profile" harness apply --gateway local-container --agent nonexistent
+  step_fail "nonexistent profile" harness apply --agent nonexistent
 
-  if $REUSE_GATEWAY; then
-    step "teardown (first)" harness delete --sandboxes --providers
-    step "teardown (second)" harness delete --sandboxes --providers
-  else
-    step "teardown (first)" harness delete --sandboxes --providers --k8s
-    step "teardown (second)" harness delete --sandboxes --providers --k8s
-  fi
+  # Best-effort sandbox/provider cleanup (skips cleanly if no active gateway).
+  # Cluster teardown lives in each target's flow via teardown_cluster.
+  step "teardown (first)" harness delete --sandboxes --providers
+  step "teardown (second)" harness delete --sandboxes --providers
 
   echo ""
 }
@@ -200,12 +200,12 @@ test_local() {
   echo "=== test-flow: local-container ($mode) ==="
 
   step "teardown" harness delete --sandboxes --providers
-  step "deploy" harness deploy local-container
+  step "provision" provision_local
   step "gateway reachable" "$CLI" inference get
 
   # up auto-registers providers when missing
   local sandbox_name="test-agent"
-  step "sandbox create (up)" harness apply --gateway local-container --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
+  step "sandbox create (up)" harness apply --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
   sandbox_verify "$sandbox_name"
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
@@ -218,7 +218,7 @@ test_local() {
     echo ""
     echo "=== test: missing providers ==="
     step "teardown providers" harness delete --providers
-    step "up with no providers" harness apply --gateway local-container --name test-noprov
+    step "up with no providers" harness apply --name test-noprov
     step "cleanup" harness delete --sandboxes
   fi
 
@@ -259,12 +259,12 @@ test_kind() {
     return
   fi
 
-  step "teardown" harness delete --sandboxes --providers --k8s
-  step "deploy" harness deploy helm
+  step "teardown" teardown_cluster openshell-kind
+  step "provision" provision_kind
   step "gateway reachable" "$CLI" inference get
 
   local sandbox_name="test-kind"
-  step "sandbox create" harness apply --gateway helm --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
+  step "sandbox create" harness apply --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
   sandbox_verify "$sandbox_name"
 
   if ! $NO_PROVIDERS; then
@@ -273,7 +273,8 @@ test_kind() {
 
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
-  step "teardown (clean)" harness delete --sandboxes --providers --k8s
+  step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
+  step "teardown (cluster)" teardown_cluster openshell-kind
   echo ""
 }
 
@@ -290,13 +291,14 @@ test_ocp() {
 
     step "teardown sandboxes+providers" harness delete --sandboxes --providers
     if ! "$CLI" inference get &>/dev/null; then
-      step "deploy" harness deploy openshift
+      step "provision" provision_ocp
     else
       step "gateway reachable" "$CLI" inference get
     fi
   else
-    step "teardown" harness delete --sandboxes --providers --k8s
-    step "deploy" harness deploy openshift
+    step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
+    step "teardown (cluster)" teardown_cluster openshell-remote-ocp
+    step "provision" provision_ocp
   fi
 
   local sandbox_name
@@ -305,7 +307,7 @@ test_ocp() {
     step "sandbox create" harness apply -f test/ci-agent.yaml --name "$sandbox_name"
   else
     sandbox_name="agent"
-    step "sandbox create (up)" harness apply --gateway openshift --name "$sandbox_name"
+    step "sandbox create (up)" harness apply --name "$sandbox_name"
   fi
 
   sandbox_verify "$sandbox_name"
@@ -314,7 +316,8 @@ test_ocp() {
   if $REUSE_GATEWAY; then
     step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
   else
-    step "teardown (clean)" harness delete --sandboxes --providers --k8s
+    step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
+    step "teardown (cluster)" teardown_cluster openshell-remote-ocp
   fi
 }
 
