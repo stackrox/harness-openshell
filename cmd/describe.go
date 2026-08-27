@@ -27,7 +27,7 @@ func NewDescribeCmd(newClient openshell.Factory) *cobra.Command {
 
 			client, err := openClient(cmd.Context(), newClient, gatewayName, workspace)
 			if err != nil {
-				return err
+				return fmt.Errorf("create OpenShell client: %w", err)
 			}
 			defer client.Close()
 

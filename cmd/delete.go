@@ -50,7 +50,7 @@ Examples:
 				var err error
 				client, err = newClient(ctx, target)
 				if err != nil {
-					return err
+					return fmt.Errorf("create OpenShell client: %w", err)
 				}
 				defer client.Close()
 			}
