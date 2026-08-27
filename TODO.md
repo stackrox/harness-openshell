@@ -24,12 +24,13 @@
 - [x] `harness apply` with `--dry-run`, `-o yaml|json`, `--attach`, `-f`, `--task`, `--entrypoint`
 - [x] `harness get agents|providers|gateways` with `-o table|json|yaml`
 - [x] `harness describe <name>` with `-o table|json|yaml`
-- [x] `harness delete <name>` with `--all`, `--sandboxes`, `--providers`, `--k8s`
-- [x] `harness deploy [local|ocp|kind]`
+- [x] `harness delete <name>` with `--all`, `--sandboxes`, `--providers`
 - [x] Headless task mode: `--task "text"` or `--task @file` runs agent with `--print`
 - [x] `kind: policy` applied via `openshell policy set` after sandbox creation
-- [x] `teardown` and `status` as hidden deprecated aliases
 - [x] `up`, `create`, `render`, `start`, `stop` removed
+- [x] `deploy`, `teardown`, `status`, and `delete --k8s` removed (PR7b): the
+      harness no longer provisions gateways — provision with OpenShell
+      (`openshell` installer or `helm install openshell`)
 
 ## Agent Config [DONE]
 

@@ -17,10 +17,15 @@ harness apply -f harness.yaml       # launch a sandbox
 Launch an interactive coding session with Claude Code or OpenCode.
 
 ```bash
-harness apply --attach                                        # local Podman with built-in harness
-harness apply -f harness.yaml --attach --gateway openshift    # Agent config in harness.yaml on OpenShift
+harness apply --attach                                        # built-in default agent
+harness apply -f harness.yaml --attach                        # agent config in harness.yaml
 harness apply -f harness.yaml --attach --entrypoint opencode  # OpenCode
 ```
+
+`harness apply` runs against whichever gateway OpenShell has provisioned and you
+have selected (`openshell gateway select`) — local or cluster, the harness YAML
+is identical. Provisioning the gateway is OpenShell's job, not the harness's (see
+[Install](#install)).
 
 ### One-shot tasks
 
@@ -50,13 +55,15 @@ To get results out: `--task` mode outputs to stdout, `openshell sandbox exec` pu
 
 ## Why this exists
 
-[OpenShell](https://github.com/NVIDIA/OpenShell) provides a strict, secure sandbox runtime — deny-by-default L7 network policy, credential proxying, Landlock filesystem isolation, and inference routing. What it doesn't provide is the developer workflow layer on top: the config that wires up providers, the deployment abstraction that works the same locally and on a cluster, or the CI harness that catches breakage before developers hit it.
+[OpenShell](https://github.com/NVIDIA/OpenShell) provides a strict, secure sandbox runtime — deny-by-default L7 network policy, credential proxying, Landlock filesystem isolation, and inference routing. It also provisions the gateway itself (the local installer, or `helm install openshell` on a cluster). What it doesn't provide is the developer workflow layer on top: the config that wires up providers, the declarative reconciliation that makes a gateway match your intent, or the CI harness that catches breakage before developers hit it.
 
-Without a shared harness layer, every team building on OpenShell independently solves the same problems — writing shell scripts to register providers, hand-rolling container images, maintaining separate deployment procedures per environment. The configs diverge, the security posture varies, and nobody catches regressions until something breaks in production.
+Without a shared harness layer, every team building on OpenShell independently solves the same problems — writing shell scripts to register providers, hand-rolling container images, re-deriving inference routing. The configs diverge, the security posture varies, and nobody catches regressions until something breaks in production.
 
-**The core design constraint**: if the developer harness isn't running and live-tested in CI, the developer experience can't be maintained. OpenShell, agent CLIs, and provider APIs all change frequently — often multiple times per week. A harness that works today and isn't continuously validated will silently break. harness-openshell runs the full lifecycle (deploy gateway → register providers → create sandbox → run task → tear down) in CI on every change, across three deployment targets: local Podman, Kind, and OpenShift.
+**The design boundary**: managing a gateway is OpenShell's problem; the harness is a declarative setup/run layer with zero compute-backend opinion. It never provisions or tears down a gateway — it declares providers, inference, and policy against one OpenShell already stood up, and runs agents in it. That keeps the harness YAML portable: the same file targets a local gateway or a cluster gateway with no target field to change.
 
-**The path from local to automated**: a developer runs `harness apply --attach` for interactive work. When the workflow is ready for CI, they change `--attach` to `--task @skill.md` and `gateway: local-container` to `gateway: openshift`. Everything else stays the same. No rewriting, no separate deployment tooling. The harness YAML is the artifact — sharable, versionable, forkable.
+**The core design constraint**: if the developer harness isn't running and live-tested in CI, the developer experience can't be maintained. OpenShell, agent CLIs, and provider APIs all change frequently — often multiple times per week. A harness that works today and isn't continuously validated will silently break. harness-openshell runs the workflow (register providers → reconcile inference → create sandbox → run task) in CI on every change, against gateways provisioned three ways: local Podman, Kind, and OpenShift.
+
+**The path from local to automated**: a developer runs `harness apply --attach` for interactive work. When the workflow is ready for CI, they change `--attach` to `--task @skill.md` and select a cluster gateway instead of the local one. The harness YAML stays the same. No rewriting. The harness YAML is the artifact — sharable, versionable, forkable.
 
 OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that with a developer mindset from local machine to cluster.
 
@@ -135,16 +142,17 @@ This inherits all four providers and inference routing from `agent-default.yaml`
 ## How It Works
 
 ```
+(OpenShell has already provisioned the gateway; you selected it)
 harness apply -f config.yaml
     |
-    +-> Deploy gateway (Podman container or K8s StatefulSet)
     +-> Register providers (credentials from host env)
+    +-> Reconcile inference routing to match the config
     +-> Upload payloads (CLAUDE.md, MCP config, skills)
     +-> Create sandbox (isolated container, deny-by-default network)
     +-> Run task (agent executes, outputs results)
 ```
 
-OpenShell provides the runtime isolation. The harness provides the workflow.
+OpenShell provisions the gateway and provides the runtime isolation. The harness provides the workflow.
 
 For runtime operations and policy management, use openshell directly:
 ```bash
@@ -174,16 +182,38 @@ Install a bare `brew install openshell` off the tap and you get whatever version
 the formula defaults to — usually behind. `make openshell` runs the upstream
 `install.sh` at the pinned version instead, so local matches CI exactly.
 
-The installer starts the gateway service; register it once:
+The installer starts the gateway service; register and select it once:
 
 ```bash
 openshell gateway add https://127.0.0.1:17670 --local --name openshell
+openshell gateway select openshell
 ```
 
 If you need to restart the service later: `brew services restart openshell`
 (macOS) or `systemctl --user restart openshell-gateway` (Linux).
 
 Or build the harness from source: `make cli`
+
+### On a cluster
+
+Provisioning a cluster gateway is OpenShell's job too — the harness has no
+`deploy` command. Install the chart, then register and select the gateway:
+
+```bash
+helm install openshell oci://ghcr.io/nvidia/openshell/helm-chart
+openshell gateway add https://<gateway-endpoint> --name my-cluster
+openshell gateway select my-cluster
+harness apply -f harness.yaml            # same YAML, cluster gateway
+```
+
+Tear the gateway down with `helm uninstall openshell` and
+`openshell gateway remove my-cluster`. The harness `delete` command removes
+sandboxes and providers, never the gateway.
+
+> **Migration:** `harness deploy`, `harness teardown`, `harness status`, and
+> `delete --k8s` are removed. Provision the gateway with OpenShell (the
+> `openshell` installer or `helm install openshell`); the harness declares
+> providers/inference/policy and runs agents against it.
 
 ## Reference
 
@@ -199,7 +229,6 @@ Or build the harness from source: `make cli`
 | `harness apply --attach` | Interactive TTY mode |
 | `harness apply --dry-run` | Validate without deploying |
 | `harness apply -o yaml` | Output resolved config |
-| `harness deploy <gateway>` | Deploy gateway only |
 | `harness get agents\|providers\|gateways` | List resources |
 | `harness describe <name>` | Sandbox details |
 | `harness delete <name> [--all]` | Tear down |
@@ -223,7 +252,6 @@ Each provider discovers credentials from the host. Missing providers are skipped
 |------|---------|
 | `profiles/agent-*.yaml` | Agent configs |
 | `profiles/providers/` | Provider profiles (imported to gateway) |
-| `profiles/gateways/*.yaml` | Gateway profiles per target |
 | `profiles/images/sandbox-default/` | Sandbox image defaults (overridable via payloads) |
 
 ## Testing
@@ -239,11 +267,11 @@ make test-kind        # self-contained kind cluster lifecycle
 make test-remote      # full e2e on OCP (needs KUBECONFIG)
 ```
 
-`test-local` is the primary validation target. It deploys the gateway, registers all 4 providers, creates sandboxes, verifies exec/env/GWS token resolution/MCP config/Claude inference, tests missing-provider recovery, and tears down.
+`test-local` is the primary validation target. It provisions a gateway via the OpenShell installer, registers all 4 providers, creates sandboxes, verifies exec/env/GWS token resolution/MCP config/Claude inference, tests missing-provider recovery, and tears down.
 
-`test-kind` creates its own kind cluster, builds and loads the sandbox image, runs the full flow, and deletes the cluster on exit. Use `KEEP=1` to keep the cluster for debugging.
+`test-kind` creates its own kind cluster, `helm install`s OpenShell, builds and loads the sandbox image, runs the full flow, and deletes the cluster on exit. Use `KEEP=1` to keep the cluster for debugging.
 
-`test-remote` requires `KUBECONFIG` pointing at an OCP cluster and pushes the image automatically. Use `--reuse-gateway` to skip deploy/teardown when iterating.
+`test-remote` requires `KUBECONFIG` pointing at an OCP cluster and pushes the image automatically. Use `--reuse-gateway` to skip gateway provisioning/teardown when iterating.
 
 Each integration target builds (and pushes, for remote) the sandbox image automatically.
 
