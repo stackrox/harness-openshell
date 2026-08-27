@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/status"
 )
 
-func NewDeleteCmd(newClient openshell.Factory) *cobra.Command {
+func NewDeleteCmd(gw gateway.Gateway, newClient openshell.Factory) *cobra.Command {
 	var (
 		all       bool
 		sandboxes bool
@@ -37,11 +38,20 @@ Examples:
 
 			ctx := cmd.Context()
 			target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
+			// Fall back to the CLI's active-gateway marker (set by `openshell
+			// gateway select`) when neither --gateway nor $OPENSHELL_GATEWAY
+			// pins one — the same selection apply runs against. An empty target
+			// does NOT mean "the active gateway": ResolveTarget never consults
+			// the marker, so without this delete would ignore a selected gateway
+			// entirely and either error or silently sweep nothing.
+			if target.Gateway == "" {
+				target.Gateway = gw.ActiveGateway()
+			}
 			// The harness only ever acts on an already-selected gateway. Without
 			// one there is nothing to delete from, and the bulk sweeps would
 			// otherwise silently skip and still report success.
 			if target.Gateway == "" {
-				return fmt.Errorf("no active openshell gateway — run 'openshell gateway select <name>' first")
+				return fmt.Errorf("no active openshell gateway — run 'openshell gateway select <name>' first (provision one with the OpenShell installer or 'helm install openshell')")
 			}
 
 			client, err := newClient(ctx, target)
@@ -68,10 +78,10 @@ Examples:
 			fmt.Println()
 
 			if all || sandboxes {
-				deleteSandboxesSDK(ctx, client, target.Gateway)
+				deleteSandboxesSDK(ctx, client)
 			}
 			if all || providers {
-				if err := deleteProvidersSDK(ctx, client, target.Gateway); err != nil {
+				if err := deleteProvidersSDK(ctx, client); err != nil {
 					return err
 				}
 			}
@@ -90,15 +100,10 @@ Examples:
 }
 
 // deleteSandboxesSDK sweeps every sandbox in the target workspace over the
-// OpenShell SDK. It is the sole owner of the bulk sandbox sweep.
-func deleteSandboxesSDK(ctx context.Context, client openshell.Client, activeGW string) {
+// OpenShell SDK. It is the sole owner of the bulk sandbox sweep. The caller has
+// already resolved a non-empty gateway, so there is no no-gateway case here.
+func deleteSandboxesSDK(ctx context.Context, client openshell.Client) {
 	status.Section("Sandboxes")
-	if activeGW == "" {
-		status.Info("No active gateway, skipping")
-		fmt.Println()
-		return
-	}
-
 	sandboxes, err := client.Sandboxes(ctx)
 	if err != nil {
 		status.Fail(fmt.Sprintf("could not list sandboxes: %v", err))
@@ -120,15 +125,10 @@ func deleteSandboxesSDK(ctx context.Context, client openshell.Client, activeGW s
 
 // deleteProvidersSDK sweeps every provider over the SDK. Providers are refused
 // while any sandbox is still up, with one brief retry to absorb a mid-deletion
-// race. It is the sole owner of the bulk provider sweep.
-func deleteProvidersSDK(ctx context.Context, client openshell.Client, activeGW string) error {
+// race. It is the sole owner of the bulk provider sweep. The caller has already
+// resolved a non-empty gateway, so there is no no-gateway case here.
+func deleteProvidersSDK(ctx context.Context, client openshell.Client) error {
 	status.Section("Providers")
-	if activeGW == "" {
-		status.Info("No active gateway, skipping")
-		fmt.Println()
-		return nil
-	}
-
 	remaining, err := client.Sandboxes(ctx)
 	if err != nil {
 		return fmt.Errorf("could not check for running sandboxes: %w", err)
