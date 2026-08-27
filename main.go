@@ -17,15 +17,6 @@ var version = "dev"
 //go:embed profiles/agent-basic.yaml
 var defaultAgentConfig []byte
 
-//go:embed profiles/gateways/local-container.yaml
-var localContainerGatewayProfile []byte
-
-//go:embed profiles/gateways/helm.yaml
-var helmNodeportGatewayProfile []byte
-
-//go:embed profiles/gateways/openshift.yaml
-var helmOpenshiftRouteGatewayProfile []byte
-
 func main() {
 	harnessDir := detectHarnessDir()
 
@@ -54,11 +45,6 @@ func main() {
 
 	cmd.Version = version
 	cmd.DefaultAgentConfig = defaultAgentConfig
-	cmd.EmbeddedGatewayProfiles = map[string][]byte{
-		"local-container": localContainerGatewayProfile,
-		"helm":            helmNodeportGatewayProfile,
-		"openshift":       helmOpenshiftRouteGatewayProfile,
-	}
 	root.CompletionOptions.HiddenDefaultCmd = true
 
 	root.AddCommand(
@@ -66,7 +52,6 @@ func main() {
 		cmd.NewGetCmd(sdkclient.New),
 		cmd.NewDescribeCmd(sdkclient.New),
 		cmd.NewDeleteCmd(sdkclient.New),
-		cmd.NewDeployCmd(harnessDir, cli),
 		cmd.NewDoctorCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewInitCmd(),
 		cmd.NewMigrateCmd(),
@@ -107,7 +92,6 @@ func detectHarnessDir() string {
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		d := filepath.Join(home, ".config", "harness-openshell")
-		os.MkdirAll(filepath.Join(d, "profiles", "gateways"), 0o755)
 		os.MkdirAll(filepath.Join(d, "profiles", "providers"), 0o755)
 		return d
 	}

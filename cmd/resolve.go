@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 
 	"github.com/stackrox/harness-openshell/internal/agent"
-	"github.com/stackrox/harness-openshell/internal/gateway"
 )
 
 
@@ -99,31 +97,6 @@ func versionedImage(name string) string {
 		return base + ":" + name
 	}
 	return base + ":" + name + "-" + Version
-}
-
-// EmbeddedGatewayProfiles holds embedded gateway profile YAML, set from main.go.
-var EmbeddedGatewayProfiles map[string][]byte
-
-func resolveGatewayConfig(harnessDir, name string) (*gateway.GatewayConfig, error) {
-	cfg, err := gateway.LoadProfile(harnessDir, name)
-	if err == nil {
-		return cfg, nil
-	}
-	if !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
-	}
-	gwDir := filepath.Join(harnessDir, "gateways", name)
-	cfg, err = gateway.LoadConfig(gwDir)
-	if err == nil {
-		return cfg, nil
-	}
-	if !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
-	}
-	if data, ok := EmbeddedGatewayProfiles[name]; ok {
-		return gateway.LoadConfigFromBytes(data)
-	}
-	return nil, fmt.Errorf("gateway profile %q not found", name)
 }
 
 func loadProviderProfiles(harnessDir string) map[string][]byte {
