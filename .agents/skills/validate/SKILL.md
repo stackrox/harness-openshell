@@ -83,7 +83,7 @@ gh run list --branch $(git branch --show-current) --limit 3
 make test-suite
 ```
 
-Runs 27+ config parsing, output format, env resolution, and CLI flag tests.
+Runs 33 config parsing, output format, env resolution, and CLI flag tests.
 No gateway needed for most tests. Skip if `harness` binary not built.
 
 ### 10. Config test suite (live)
@@ -107,12 +107,12 @@ in both README.md and SPEC.md. No stale command references should exist.
 grep 'cmd.New.*Cmd' main.go | grep -v Hidden | grep -v Deprecated
 
 # Check README references all primary commands
-for cmd in apply get describe deploy stop start; do
+for cmd in apply get describe delete deploy doctor init migrate plan; do
   grep -q "harness $cmd" README.md && echo "README: $cmd OK" || echo "README: $cmd MISSING"
 done
 
 # Check SPEC references all primary commands
-for cmd in apply get describe deploy stop start; do
+for cmd in apply get describe delete deploy doctor init migrate plan; do
   grep -q "harness $cmd" SPEC.md && echo "SPEC: $cmd OK" || echo "SPEC: $cmd MISSING"
 done
 
@@ -132,7 +132,7 @@ Report a summary table:
 Validation Results
 ------------------
   Build:          PASS
-  Unit tests:     PASS (6 packages)
+  Unit tests:     PASS (16 packages)
   Vet:            PASS
   Local (full):   PASS (22/22)
   Local (CI):     PASS (14/14)

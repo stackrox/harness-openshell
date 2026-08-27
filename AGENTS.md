@@ -165,9 +165,10 @@ See `make help` for the full list. The test entry points:
 
 Or directly:
 ```bash
-./test/test-flow.sh local          # default mode
-./test/test-flow.sh local --ci     # ci mode
-./test/test-flow.sh kind --ci      # used in GitHub Actions
+./test/test-flow.sh local-container        # local Podman (see: make test-local)
+./test/test-flow.sh local-container --ci   # ci mode (no providers, ci-agent.yaml)
+./test/test-flow.sh openshift              # OCP (see: make test-remote)
+./test/kind-lifecycle.sh                   # kind cluster (see: make test-kind, used in CI)
 ```
 
 ### Default mode requirements

@@ -18,7 +18,7 @@ type EnvLookup func(string) string
 type connBranch int
 
 const (
-	branchDefault connBranch = iota // none/plaintext/cloudflare_jwt/oidc-human → gateway.NewClient(name)
+	branchDefault connBranch = iota // none/plaintext/cloudflare_jwt/oidc (no client secret) → gateway.NewClient(name)
 	branchMTLS                      // WithAuth(NoAuth()) + WithTLS(certs derived from cfg.Dir)
 	branchSAOIDC                    // oidc + OPENSHELL_OIDC_CLIENT_SECRET present
 )

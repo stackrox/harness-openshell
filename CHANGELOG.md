@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.3.0] - 2026-06-17
+
+### Added
+- Kubectl-style CLI: `harness apply` with `--dry-run` and `-o yaml`, plus `get`, `describe`, and `delete` commands
+- Multi-document harness YAML (`---` separated agent/provider/gateway/policy docs)
+- `harness init` and `harness doctor` commands
+- `kind: config` embeds sandbox files directly in harness YAML
+- `repo` field with `base_agent` inheritance and an inference warning
+- Cloned repos cached in `~/.cache/harness-openshell/repos/`
+- Configuration test suite with multi-config and free-API support
+- Headless tasks, policy applied via the CLI, and multi-upload payloads
+- Gateway profile auto-discovery and a configurable profile directory
+
+### Changed
+- Deprecated commands removed; docs rewritten around the apply-first CLI
+- Gateway profiles renamed
+- Container registry switched to `quay.io/rcochran/openshell`
+- Repository moved to `stackrox/harness-openshell`; CodeRabbit review config added
+
+### Fixed
+- OpenCode config (`ANTHROPIC_BASE_URL`, MCP format, policy)
+
 ## [0.2.0] - 2026-06-13
 
 ### Added
@@ -39,6 +61,6 @@
 - `docs/proto-migration.md` (stale, never executed)
 - Stale TOML references and completed TODO items
 
-## [0.1.2] - 2026-06-09
+## [0.1.2] - 2026-06-08
 
 Initial Go rewrite release with full CLI, provider registration, and multi-target deployment.
