@@ -3,8 +3,7 @@ kind: Harness
 metadata:
     name: with-providers-test
 spec:
-    target:
-        gateway: rc-dev
+    target: {}
     providers:
         - name: github-fact
           management: referenced

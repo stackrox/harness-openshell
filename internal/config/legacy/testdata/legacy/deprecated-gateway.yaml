@@ -1,5 +1,0 @@
-name: deprecated-gateway-test
-gateway: helm
-repo: https://github.com/example/repo
-repo_ref: main
-entrypoint: claude

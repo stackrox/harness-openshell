@@ -764,7 +764,6 @@ func TestMergeOver(t *testing.T) {
 	base := &AgentConfig{
 		Name:       "base",
 		Entrypoint: "claude",
-		Gateway:    "local-container",
 		Providers: []ProviderRef{
 			{Profile: "github"},
 			{Profile: "google-vertex-ai"},
@@ -797,9 +796,6 @@ func TestMergeOver(t *testing.T) {
 	}
 	if merged.Entrypoint != "claude" {
 		t.Errorf("Entrypoint = %q, want claude (from base)", merged.Entrypoint)
-	}
-	if merged.Gateway != "local-container" {
-		t.Errorf("Gateway = %q, want local-container (from base)", merged.Gateway)
 	}
 	if merged.Repo != "https://github.com/stackrox/collector" {
 		t.Errorf("Repo = %q, want stackrox/collector", merged.Repo)

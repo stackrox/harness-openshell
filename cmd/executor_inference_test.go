@@ -42,6 +42,7 @@ func TestUpLocal_InferenceReconcile_Create(t *testing.T) {
 	err := upLocal(upLocalOpts{
 		harnessDir: dir,
 		gw:         gw,
+		target:     openshell.Target{Gateway: "test-gw"},
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
 		newClient:  keepOpenFactory(fakeClient),
@@ -81,6 +82,7 @@ func TestUpLocal_InferenceReconcile_ModelChange(t *testing.T) {
 	err := upLocal(upLocalOpts{
 		harnessDir: dir,
 		gw:         gw,
+		target:     openshell.Target{Gateway: "test-gw"},
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
 		newClient:  keepOpenFactory(fakeClient),
@@ -109,6 +111,7 @@ func TestUpLocal_InferenceReconcile_ClientFailureDegrades(t *testing.T) {
 	err := upLocal(upLocalOpts{
 		harnessDir: dir,
 		gw:         gw,
+		target:     openshell.Target{Gateway: "test-gw"},
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
 		newClient:  errFactory,
@@ -131,6 +134,7 @@ func TestUpLocal_SetupOnly_SkipsSandbox(t *testing.T) {
 	err := upLocal(upLocalOpts{
 		harnessDir: dir,
 		gw:         gw,
+		target:     openshell.Target{Gateway: "test-gw"},
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
 		setupOnly:  true,

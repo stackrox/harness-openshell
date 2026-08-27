@@ -9,14 +9,6 @@ import (
 	"github.com/stackrox/harness-openshell/internal/gateway"
 )
 
-func init() {
-	EmbeddedGatewayProfiles = map[string][]byte{
-		"local-container":      []byte("gateway:\n  type: local\n"),
-		"helm":        []byte("gateway:\n  type: remote\n  platform: k8s\n  service: nodeport\n"),
-		"openshift": []byte("gateway:\n  type: remote\n  platform: ocp\n  service: route\n"),
-	}
-}
-
 type mockGW struct {
 	inferenceErr      error
 	providers         map[string]bool

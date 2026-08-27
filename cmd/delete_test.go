@@ -45,8 +45,8 @@ func TestDeleteTargeted(t *testing.T) {
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-b", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 
-	cmd := NewDeleteCmd("", "", keepOpenFactory(client))
-	cmd.SetArgs([]string{"agent-a"})
+	cmd := NewDeleteCmd(&mockGW{}, keepOpenFactory(client))
+	cmd.SetArgs([]string{"agent-a", "--gateway", "prod"})
 	if _, err := captureStdout(t, cmd.Execute); err != nil {
 		t.Fatalf("delete agent-a: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestDeleteSandboxesSweep(t *testing.T) {
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-b", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 
-	cmd := NewDeleteCmd("", "", keepOpenFactory(client))
+	cmd := NewDeleteCmd(&mockGW{}, keepOpenFactory(client))
 	cmd.SetArgs([]string{"--sandboxes", "--gateway", "prod"})
 	if _, err := captureStdout(t, cmd.Execute); err != nil {
 		t.Fatalf("delete --sandboxes: %v", err)
@@ -78,7 +78,7 @@ func TestDeleteProvidersGuard(t *testing.T) {
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 	fc.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
 
-	cmd := NewDeleteCmd("", "", keepOpenFactory(client))
+	cmd := NewDeleteCmd(&mockGW{}, keepOpenFactory(client))
 	cmd.SetArgs([]string{"--providers", "--gateway", "prod"})
 	_, err := captureStdout(t, cmd.Execute)
 	if err == nil {
@@ -94,17 +94,55 @@ func TestDeleteProvidersGuard(t *testing.T) {
 	}
 }
 
-// Note: `delete --k8s`-only skipping the SDK client (CodeRabbit finding) is not
-// unit-tested — the --k8s path invokes the real, non-injectable teardownK8s,
-// which shells out to the ambient kubeconfig and would destructively act on a
-// live cluster. The gating (`needsSDK`) is a simple guard in delete.go.
+// Bulk deletion with no gateway resolved must fail loudly rather than skip both
+// sweeps and report success — otherwise sandboxes/providers silently survive.
+func TestDeleteBulkNoGatewayErrors(t *testing.T) {
+	t.Setenv("OPENSHELL_GATEWAY", "") // no flag, no env → no gateway
+	client, fc := testutil.NewFakeClient("default")
+	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
+
+	cmd := NewDeleteCmd(&mockGW{}, keepOpenFactory(client))
+	cmd.SetArgs([]string{"--all"})
+	_, err := captureStdout(t, cmd.Execute)
+	if err == nil {
+		t.Fatal("delete --all with no gateway should error, not report success")
+	}
+	if !contains(err.Error(), "no active openshell gateway") {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Nothing was swept.
+	if names := sandboxNames(t, client); len(names) != 1 {
+		t.Errorf("no-gateway delete must not touch resources, got %v", names)
+	}
+}
+
+// With no --gateway flag and no $OPENSHELL_GATEWAY, delete must fall back to the
+// CLI's active-gateway marker (set by `openshell gateway select`) and actually
+// sweep — not error, and not silently skip. This is the exact case the local
+// integration teardowns hit: a gateway is selected but not pinned per-command.
+func TestDeleteUsesActiveGateway(t *testing.T) {
+	t.Setenv("OPENSHELL_GATEWAY", "") // no flag, no env → must use the active marker
+	client, fc := testutil.NewFakeClient("default")
+	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
+
+	cmd := NewDeleteCmd(&mockGW{activeGateway: "openshell"}, keepOpenFactory(client))
+	cmd.SetArgs([]string{"--sandboxes"})
+	if _, err := captureStdout(t, cmd.Execute); err != nil {
+		t.Fatalf("delete --sandboxes with an active gateway: %v", err)
+	}
+
+	if names := sandboxNames(t, client); len(names) != 0 {
+		t.Errorf("active-gateway fallback should sweep every sandbox, got %v", names)
+	}
+}
 
 func TestDeleteProvidersSweep(t *testing.T) {
 	client, fc := testutil.NewFakeClient("default")
 	fc.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
 	fc.AddProvider("default", &types.Provider{Name: "vertex", Type: "google-vertex-ai"})
 
-	cmd := NewDeleteCmd("", "", keepOpenFactory(client))
+	cmd := NewDeleteCmd(&mockGW{}, keepOpenFactory(client))
 	cmd.SetArgs([]string{"--providers", "--gateway", "prod"})
 	if _, err := captureStdout(t, cmd.Execute); err != nil {
 		t.Fatalf("delete --providers: %v", err)

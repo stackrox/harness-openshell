@@ -43,19 +43,26 @@ func openClient(ctx context.Context, newClient openshell.Factory, gatewayName, w
 // the CLI's currently-active gateway registration.
 //
 // Apply deliberately does NOT register the standard --gateway/--workspace target
-// flags: apply's own --gateway flag names a deploy profile (e.g. "openshift"),
-// not an openshell registration, so reusing it as the SDK target would connect
-// to the wrong thing. Instead the registration name is read from the active
-// gateway the CLI already selected.
+// flags: the harness runs against whichever gateway OpenShell has selected, so
+// the registration name is read from the active gateway the CLI already
+// selected rather than pinned per-invocation.
 //
-// An empty active gateway is an error, not a silent skip: without a registration
-// name the SDK client cannot connect and inference reconcile would quietly
-// no-op, hiding a misconfiguration. Workspace is left "" so sdkclient applies
-// its "default" default (the single owner of that rule).
+// $OPENSHELL_GATEWAY takes precedence over the CLI's persisted active-gateway
+// marker, matching OpenShell's own request-targeting precedence: the env var
+// overrides the target without moving the `*` in `openshell gateway list`, so
+// reading only ActiveGateway() would wrongly reject an env-targeted apply.
+//
+// An empty target is an error, not a silent skip: the harness does not provision
+// gateways (that is OpenShell's job), so without a selected registration there is
+// nothing to run against. Workspace is left "" so sdkclient applies its "default"
+// default (the single owner of that rule).
 func resolveApplyTarget(gw gateway.Gateway) (openshell.Target, error) {
-	name := gw.ActiveGateway()
+	name := os.Getenv(openshell.EnvGateway)
 	if name == "" {
-		return openshell.Target{}, fmt.Errorf("no active openshell gateway — deploy or select one first")
+		name = gw.ActiveGateway()
+	}
+	if name == "" {
+		return openshell.Target{}, fmt.Errorf("no active openshell gateway — run 'openshell gateway select <name>' first (provision one with the OpenShell installer or 'helm install openshell')")
 	}
 	return openshell.Target{Gateway: name, Workspace: ""}, nil
 }

@@ -4,10 +4,12 @@ Behavior specification for the OpenShell Harness CLI.
 
 ## Overview
 
-The harness deploys and manages AI agent sandboxes on three targets:
-- **local-container** -- Podman containers via a local OpenShell gateway
-- **helm** -- Kubernetes pods via a k8s cluster (NodePort access)
-- **openshift** -- Kubernetes pods via an OpenShift-hosted OpenShell gateway (Route access)
+The harness declares providers, inference routing, and policy, then creates and
+runs AI agent sandboxes against a gateway **OpenShell has already provisioned**.
+Provisioning a gateway (local installer, or `helm install openshell` on a
+cluster) is OpenShell's job — the harness has zero compute-backend opinion and
+never deploys or tears down a gateway. It runs against whichever gateway is
+selected (`openshell gateway select`), local or cluster, from the same YAML.
 
 Each sandbox is an isolated container running an agent entrypoint (e.g. Claude Code, OpenCode, or Codex; `bash` or any binary on PATH also works), with credential providers, network policies, and a rendered payload (`task.md` and a `bin/` directory).
 
@@ -37,7 +39,7 @@ env:
 
 Fields:
 - `name` (required) -- sandbox name, used for `openshell sandbox connect`
-- `base_agent` -- name of a base agent config to inherit from (e.g., `default` resolves `agent-default.yaml`). Providers, env, and payloads are merged additively; scalar fields (entrypoint, gateway, repo, task, image, policy) from the overlay win when non-empty.
+- `base_agent` -- name of a base agent config to inherit from (e.g., `default` resolves `agent-default.yaml`). Providers, env, and payloads are merged additively; scalar fields (entrypoint, repo, task, image, policy) from the overlay win when non-empty.
 - `image` -- container image for the sandbox (default: version-matched from `quay.io/rcochran/openshell`, override with `HARNESS_OS_IMAGE` env)
 - `entrypoint` -- command to run (default: `claude`). Supports `claude`, `codex`, `opencode`, `bash`, or any binary on PATH.
 - `tty` -- enable TTY (default: true)
@@ -50,13 +52,15 @@ Fields:
 - `env` -- additional environment variables injected via `--env` on sandbox create (empty values read from host env)
 - `include` -- extra files to include in the payload
 - `policy` -- path to a network policy YAML
-- `gateway` -- target gateway name (overrides active gateway)
+
+The agent config names no gateway: `harness apply` runs against the gateway
+OpenShell has provisioned and you have selected (`openshell gateway select`).
 
 Provider profiles live in `profiles/providers/`. These are imported to the gateway during provider registration.
 
 ### Multi-document harness YAML
 
-Agent configs support multi-document YAML (`---` separated) where provider, gateway, and policy definitions are co-located in one file:
+Agent configs support multi-document YAML (`---` separated) where provider and policy definitions are co-located in one file:
 
 ```yaml
 ---
@@ -71,35 +75,37 @@ name: github
 type: github
 credentials: [GITHUB_TOKEN]
 ---
-kind: gateway
-name: local-container
-type: local
+kind: policy
+network_policies:
+  github_git:
+    endpoints:
+      - host: github.com
+        port: 443
 ```
 
 Documents are dispatched by `kind` field. No `kind` field = agent (backwards compatible). Definitions in the harness file take priority over the `profiles/` tree.
 
 ## CLI
 
-### `harness apply [-f FILE] [--agent NAME] [--gateway NAME] [--gateway-profile FILE] [--name SANDBOX] [--attach] [--setup-only] [--dry-run] [-o yaml|json]`
+### `harness apply [-f FILE] [--agent NAME] [--name SANDBOX] [--task TEXT|@FILE] [--entrypoint CMD] [--attach] [--setup-only] [--dry-run] [-o yaml|json]`
 
-Primary command. Resolves an agent config, deploys the gateway and providers, creates a sandbox.
+Primary command. Resolves an agent config, reconciles providers and inference on the selected gateway, creates a sandbox. It never provisions a gateway — one must already be provisioned by OpenShell and selected.
 
 1. **Parse agent config** -- resolve `agent-<name>.yaml` from harness directory (default: `default`). `-f` overrides with a direct file path. Falls back to embedded `agent-basic.yaml` when `agent-default.yaml` is not found on disk.
 2. **Check output mode** -- if `-o yaml` or `-o json`, render the fully resolved config and exit. No gateway interaction needed.
 3. **Check version** -- warn if openshell CLI is below v0.0.110.
-4. **Resolve gateway** -- `--gateway` selects a profile by name; `--gateway-profile` loads from a file path. Default: `local-container`. `OPENSHELL_GATEWAY` env var is used as fallback.
+4. **Require an active gateway** -- resolve the gateway from `openshell`'s active selection (`OPENSHELL_GATEWAY` env var overrides). Error up front if none is selected; `upLocal` additionally preflights that the gateway is reachable before touching providers or creating a sandbox.
 5. **Dry-run check** -- if `--dry-run`, validate each step (gateway reachable, providers resolvable, env vars resolved, image available) and exit with pass/fail report.
-6. **Ensure gateway** -- deploy if needed (local: Podman, remote: Helm to K8s/OCP).
-7. **Ensure providers** -- auto-register missing providers. Three registration flows:
+6. **Ensure providers** -- auto-register missing providers. Three registration flows:
    - **Standard** (`--from-existing`): GitHub, Atlassian -- OpenShell discovers credentials from local env.
    - **ADC** (`--from-gcloud-adc`): Vertex AI -- reads ADC file, configures inference routing.
    - **Custom**: GWS -- multi-step OAuth refresh flow.
-8. **Render payload** -- `task.md` (if set) and a `bin/` directory. The in-sandbox command is built by the agent adapter (`internal/agent/adapter.go`) as a `bash -lc` invocation (PATH setup, entrypoint validation via `command -v`), not a `run.sh` file. Task dispatch depends on mode and entrypoint: headless (default) uses `opencode run "$(cat task.md)"` for OpenCode and `--print "$(cat task.md)"` for claude/codex/custom entrypoints; interactive (`--attach`) uses `-p "$(cat task.md)"`.
-9. **Create sandbox** -- `openshell sandbox create` with `--env` (env vars), `--upload` (payload), and startup command. Retry up to 5 times.
+7. **Render payload** -- `task.md` (if set) and a `bin/` directory. The in-sandbox command is built by the agent adapter (`internal/agent/adapter.go`) as a `bash -lc` invocation (PATH setup, entrypoint validation via `command -v`), not a `run.sh` file. Task dispatch depends on mode and entrypoint: headless (default) uses `opencode run "$(cat task.md)"` for OpenCode and `--print "$(cat task.md)"` for claude/codex/custom entrypoints; interactive (`--attach`) uses `-p "$(cat task.md)"`.
+8. **Create sandbox** -- `openshell sandbox create` with `--env` (env vars), `--upload` (payload), and startup command. Retry up to 5 times.
 
 Default is non-interactive (headless). Use `--attach` for TTY mode.
 
-`--setup-only` deploys the gateway and reconciles providers/inference, then stops before creating a sandbox or running the agent.
+`--setup-only` reconciles providers/inference on the selected gateway, then stops before creating a sandbox or running the agent.
 
 ### `harness get <resource> [-o table|json|yaml]`
 
@@ -117,21 +123,17 @@ These are convenience wrappers. For full details, use `openshell sandbox list`, 
 
 Show detailed status for a specific sandbox: phase, active gateway, and registered providers.
 
-### `harness delete [NAME...] [--all] [--providers] [--k8s]`
+### `harness delete [NAME...] [--all] [--providers]`
 
-Delete sandboxes by name, or use flags for bulk operations. `--all` deletes sandboxes, providers, and k8s resources. Reuses the same teardown functions as the old `teardown` command.
+Delete sandboxes by name, or use flags for bulk operations. `--all` deletes sandboxes and providers. It never removes the gateway: cluster teardown is `helm uninstall openshell` plus `openshell gateway remove`.
 
 ### `harness init [-o FILE] [--force] [--non-interactive]`
 
-Generate a `harness.yaml` config file. Interactive by default (prompts for entrypoint, providers, and gateway target); `--non-interactive` writes the embedded default. Writes to `harness.yaml` unless `-o` overrides the path.
+Generate a `harness.yaml` config file. Interactive by default (prompts for entrypoint and providers); `--non-interactive` writes the embedded default. Writes to `harness.yaml` unless `-o` overrides the path. The generated config names no gateway — select one with `openshell gateway select`.
 
 ### `harness doctor [-f FILE] [--agent NAME] [--gateway NAME] [-o table|json|yaml]`
 
-Validate the environment for a configured sandbox. Phase 1 (offline) checks the openshell binary, target dependencies, and provider credentials without a running gateway; Phase 2 (online) checks provider registration when the gateway is reachable.
-
-### `harness deploy <gateway>`
-
-Deploy or verify the gateway for a target. Reads `profiles/gateways/<target>.yaml`.
+Validate the environment for a configured sandbox. Phase 1 (offline) checks the openshell binary and provider credentials without a running gateway; Phase 2 (online) checks provider registration when the gateway is reachable.
 
 ### `harness plan -f FILE [--gateway NAME] [-o table|json|yaml]`
 
@@ -139,16 +141,7 @@ Read-only reconciliation plan. Shows the actions `harness apply` would take with
 
 ### `harness migrate -f FILE [-o FILE]`
 
-Convert a legacy v1 harness config to the v1alpha1 format. The input YAML is normalized and written as v1alpha1 to stdout (or `-o FILE`). Fields with no v1alpha1 home (`task`, `include`, inline policy documents, unresolved `base_agent`) are reported as warnings on stderr.
-
-### Deprecated Aliases
-
-These commands still work but will be removed in a future release:
-
-| Old command | Replacement | Notes |
-|-------------|-------------|-------|
-| `harness teardown` | `harness delete` | Same flags: `--sandboxes`, `--providers`, `--k8s` |
-| `harness status` | `harness get agents` | |
+Convert a legacy v1 harness config to the v1alpha1 format. The input YAML is normalized and written as v1alpha1 to stdout (or `-o FILE`). Fields with no v1alpha1 home (`task`, `include`, inline policy documents, unresolved `base_agent`) are reported as warnings on stderr. The legacy `gateway:` field named a deploy profile, a concept the harness no longer owns; it is dropped, leaving `spec.target.gateway` empty. The active gateway is chosen outside the config — with `openshell gateway select` or `$OPENSHELL_GATEWAY` — not by re-adding a field to the YAML.
 
 ## Config Files
 
@@ -156,7 +149,6 @@ These commands still work but will be removed in a future release:
 |------|---------|
 | `profiles/agent-*.yaml` | Agent config: image, entrypoint, providers, env, task |
 | `profiles/providers/` | OpenShell provider profile YAMLs |
-| `profiles/gateways/*.yaml` | Gateway profiles: deployment target config with inline Helm values |
 | `profiles/images/sandbox-default/Dockerfile` | Sandbox image: OpenShell base + MCP servers + CLI tools |
 | `profiles/images/sandbox-default/CLAUDE.md` | Claude Code project instructions for sandbox |
 | `profiles/images/sandbox-default/claude.json` | Claude Code settings |
@@ -190,14 +182,9 @@ Harness-specific variables use the `HARNESS_OS_` prefix. OpenShell runtime varia
 |----------|---------|
 | `HARNESS_OS_DIR` | Override harness directory detection |
 | `HARNESS_OS_IMAGE` | Override sandbox image (dev/CI builds) |
-| `HARNESS_OS_PULL_SECRET` | Image pull secret name passed to Helm install |
-| `HARNESS_OS_SANDBOX_PULL_SECRET` | Sandbox image pull secret name passed to Helm install |
 | `OPENSHELL_CLI` | Override openshell binary path |
-| `OPENSHELL_GATEWAY` | Override gateway name (used by apply, plugin-compatible) |
-| `OPENSHELL_NAMESPACE` | Override K8s namespace (default: `openshell`) |
+| `OPENSHELL_GATEWAY` | Override the active gateway name (used by apply, plugin-compatible) |
 | `OPENSHELL_MODEL` | Inference model for provider registration (default: `claude-sonnet-4-6`) |
-| `OPENSHELL_CHART_VERSION` | Override Helm chart version (beats `gateway.yaml`) |
-| `KUBECONFIG` | K8s cluster config for remote targets |
 
 ## Payload
 

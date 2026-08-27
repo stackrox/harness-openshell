@@ -13,7 +13,6 @@ import (
 	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/gateway"
-	"github.com/stackrox/harness-openshell/internal/k8s"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/payload"
 	"github.com/stackrox/harness-openshell/internal/plan"
@@ -34,8 +33,7 @@ var DefaultAgentConfig []byte
 type upLocalOpts struct {
 	harnessDir      string
 	gw              gateway.Gateway
-	gwCfg           *gateway.GatewayConfig
-	ensureLocal     bool
+	target          openshell.Target
 	agentCfg        *agent.AgentConfig
 	agentPath       string
 	sandboxName     string
@@ -71,19 +69,11 @@ func upLocal(opts upLocalOpts) error {
 		status.Infof("Task:  %s", agentCfg.Task)
 	}
 
-	if opts.ensureLocal {
-		if err := deployLocal(gw); err != nil {
-			return fmt.Errorf("deploy failed: %w", err)
-		}
-	} else if gw.InferenceGet() != nil {
-		if opts.gwCfg == nil {
-			return fmt.Errorf("no active gateway -- use --gateway local or: harness deploy ocp")
-		}
-		kc := k8s.New("", k8s.DefaultNamespace())
-		clusterRunner := k8s.New("", "")
-		if err := deployFromConfig(opts.harnessDir, opts.gwCfg, gw, kc, clusterRunner); err != nil {
-			return fmt.Errorf("deploy failed: %w", err)
-		}
+	// The harness no longer provisions gateways: apply runs against a gateway
+	// OpenShell already stood up and the user selected. Fail up front — before
+	// touching providers or creating a sandbox — if none is reachable.
+	if err := gw.InferenceGet(); err != nil {
+		return fmt.Errorf("no active gateway is reachable — provision one with the OpenShell installer or 'helm install openshell', then select it with 'openshell gateway select <name>': %w", err)
 	}
 
 	registered := ensureProviders(opts.harnessDir, gw, agentCfg, opts.harness)
@@ -198,7 +188,7 @@ func upLocal(opts upLocalOpts) error {
 
 	return run.RunSandbox(context.Background(), gw, run.SandboxRunRequest{
 		Name:       sandboxName,
-		Gateway:    gw.ActiveGateway(),
+		Gateway:    opts.target.Gateway,
 		Image:      resolveSandboxImagePath(sandboxImage, opts.harnessDir),
 		Providers:  registered,
 		Env:        agentCfg.BuildEnvMap(),
@@ -350,11 +340,10 @@ func reconcileGateway(opts upLocalOpts, agentCfg *agent.AgentConfig) {
 		status.Warn("gateway reconcile skipped: no SDK client factory")
 		return
 	}
-	target, err := resolveApplyTarget(opts.gw)
-	if err != nil {
-		status.Warnf("gateway reconcile skipped: %v", err)
-		return
-	}
+	// Reconcile acts on the same target apply resolved once and threaded in —
+	// not a re-derivation — so providers/inference and the sandbox always land on
+	// the same gateway.
+	target := opts.target
 	// Bound the whole reconcile: verify-by-default makes the inference write
 	// contact the provider endpoint synchronously, so a stalled gateway or
 	// endpoint would otherwise hang apply with no deadline. Every other failure

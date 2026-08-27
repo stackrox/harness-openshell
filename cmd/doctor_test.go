@@ -44,48 +44,6 @@ func TestCheckOpenShell_NotFound(t *testing.T) {
 	}
 }
 
-func TestCheckTargetDeps_Local(t *testing.T) {
-	cfg := testAgentConfig(t)
-	cfg.Gateway = "local-container"
-	results := checkTargetDeps(cfg, "", "")
-	if len(results) == 0 {
-		t.Fatal("expected at least 1 result")
-	}
-	if results[0].Group != "target" {
-		t.Errorf("Group = %q, want target", results[0].Group)
-	}
-}
-
-func TestCheckTargetDeps_Remote(t *testing.T) {
-	cfg := testAgentConfig(t)
-	cfg.Gateway = "openshift"
-	results := checkTargetDeps(cfg, "", "")
-	if len(results) < 1 {
-		t.Fatal("expected at least 1 result for remote")
-	}
-	hasKubeconfig := false
-	for _, r := range results {
-		if r.Name == "kubeconfig" {
-			hasKubeconfig = true
-		}
-	}
-	if !hasKubeconfig {
-		t.Error("missing kubeconfig check for remote target")
-	}
-}
-
-func TestCheckTargetDeps_EmptyGateway_DefaultsToLocal(t *testing.T) {
-	cfg := testAgentConfig(t)
-	cfg.Gateway = ""
-	results := checkTargetDeps(cfg, "", "")
-	if len(results) == 0 {
-		t.Fatal("expected at least 1 result")
-	}
-	if results[0].Name != "local-container" {
-		t.Errorf("Name = %q, want local-container (default)", results[0].Name)
-	}
-}
-
 func TestCheckProviderEnvVars_AllSet(t *testing.T) {
 	dir := t.TempDir()
 	writeProviderProfile(t, dir, "github", `

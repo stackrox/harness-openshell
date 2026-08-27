@@ -47,15 +47,14 @@ func Migrate(legacy *agent.Harness) (*config.Harness, []Warning, error) {
 		Kind:       "Harness",
 		Metadata:   config.Metadata{Name: a.Name},
 		Spec: config.Spec{
-			Target: config.Target{Gateway: a.Gateway},
+			// spec.target.gateway names a registered OpenShell gateway and is
+			// left for the user to set: the legacy gateway: field named a deploy
+			// profile (local-container/helm/openshift), a concept the harness no
+			// longer owns (provisioning is OpenShell's job), so it has no
+			// v1alpha1 home and is not carried over.
 			Source: config.Source{Repo: a.Repo, Ref: a.RepoRef},
 			Agent:  config.Agent{Type: a.EffectiveEntrypoint()},
 		},
-	}
-
-	switch a.Gateway {
-	case "helm", "openshift", "local-container":
-		warn("gateway", fmt.Sprintf("deprecated gateway profile %q; set spec.target.gateway to a registered gateway name", a.Gateway))
 	}
 
 	for _, p := range a.Providers {

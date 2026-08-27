@@ -38,8 +38,8 @@ func NewDoctorCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Co
 		Short: "Validate environment for configured sandbox",
 		Long: `Check that prerequisites are met for running a sandbox.
 
-Phase 1 (offline): checks openshell binary, target dependencies, and
-provider credentials without requiring a running gateway.
+Phase 1 (offline): checks the openshell binary and provider credentials
+without requiring a running gateway.
 
 Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -55,7 +55,6 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 
 			checks := []CheckFunc{
 				checkOpenShell,
-				checkTargetDeps,
 				checkProviderEnvVars,
 			}
 
@@ -126,70 +125,6 @@ func checkOpenShell(cfg *agent.AgentConfig, cli, _ string) []CheckResult {
 		Status:  "pass",
 		Message: version,
 	}}
-}
-
-func checkTargetDeps(cfg *agent.AgentConfig, harnessDir, _ string) []CheckResult {
-	target := cfg.Gateway
-	if target == "" {
-		target = "local-container"
-	}
-
-	gwCfg, _ := resolveGatewayConfig(harnessDir, target)
-	if gwCfg != nil {
-		if gwCfg.IsLocal() {
-			return checkLocalDeps()
-		}
-		return checkRemoteDeps()
-	}
-
-	return checkLocalDeps()
-}
-
-func checkLocalDeps() []CheckResult {
-	if _, err := exec.LookPath("podman"); err == nil {
-		if err := exec.Command("podman", "info").Run(); err == nil {
-			ver := ""
-			if out, e := exec.Command("podman", "version", "--format", "{{.Client.Version}}").Output(); e == nil {
-				ver = " " + strings.TrimSpace(string(out))
-			}
-			return []CheckResult{{Group: "target", Name: "local-container", Status: "pass", Message: "podman" + ver + " running"}}
-		}
-	}
-	if _, err := exec.LookPath("docker"); err == nil {
-		if err := exec.Command("docker", "info").Run(); err == nil {
-			return []CheckResult{{Group: "target", Name: "local-container", Status: "pass", Message: "docker running"}}
-		}
-	}
-	return []CheckResult{{Group: "target", Name: "local-container", Status: "fail", Message: "no container runtime (podman or docker) responding"}}
-}
-
-func checkRemoteDeps() []CheckResult {
-	var results []CheckResult
-
-	kubectlFound := false
-	if _, err := exec.LookPath("kubectl"); err == nil {
-		kubectlFound = true
-		results = append(results, CheckResult{Group: "target", Name: "kubectl", Status: "pass", Message: "found"})
-	} else if _, err := exec.LookPath("oc"); err == nil {
-		kubectlFound = true
-		results = append(results, CheckResult{Group: "target", Name: "oc", Status: "pass", Message: "found"})
-	}
-	if !kubectlFound {
-		results = append(results, CheckResult{Group: "target", Name: "kubectl", Status: "fail", Message: "neither kubectl nor oc found on PATH"})
-	}
-
-	kubeconfig := os.Getenv("KUBECONFIG")
-	if kubeconfig == "" {
-		home, _ := os.UserHomeDir()
-		kubeconfig = filepath.Join(home, ".kube", "config")
-	}
-	if _, err := os.Stat(kubeconfig); err != nil {
-		results = append(results, CheckResult{Group: "target", Name: "kubeconfig", Status: "fail", Message: "kubeconfig not found at " + kubeconfig})
-	} else {
-		results = append(results, CheckResult{Group: "target", Name: "kubeconfig", Status: "pass", Message: kubeconfig})
-	}
-
-	return results
 }
 
 type providerProfile struct {
@@ -453,10 +388,9 @@ func checkOnlineSDK(ctx context.Context, client openshell.Client, providers []st
 }
 
 func printDoctorTable(results []CheckResult) {
-	groups := []string{"openshell", "target", "provider", "gateway"}
+	groups := []string{"openshell", "provider", "gateway"}
 	groupLabels := map[string]string{
 		"openshell": "OPENSHELL",
-		"target":    "TARGET",
 		"provider":  "PROVIDER",
 		"gateway":   "GATEWAY",
 	}

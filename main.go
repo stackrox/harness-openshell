@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/cmd"
+	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell/sdkclient"
 	"github.com/stackrox/harness-openshell/internal/status"
 )
@@ -16,15 +17,6 @@ var version = "dev"
 
 //go:embed profiles/agent-basic.yaml
 var defaultAgentConfig []byte
-
-//go:embed profiles/gateways/local-container.yaml
-var localContainerGatewayProfile []byte
-
-//go:embed profiles/gateways/helm.yaml
-var helmNodeportGatewayProfile []byte
-
-//go:embed profiles/gateways/openshift.yaml
-var helmOpenshiftRouteGatewayProfile []byte
 
 func main() {
 	harnessDir := detectHarnessDir()
@@ -54,33 +46,18 @@ func main() {
 
 	cmd.Version = version
 	cmd.DefaultAgentConfig = defaultAgentConfig
-	cmd.EmbeddedGatewayProfiles = map[string][]byte{
-		"local-container": localContainerGatewayProfile,
-		"helm":            helmNodeportGatewayProfile,
-		"openshift":       helmOpenshiftRouteGatewayProfile,
-	}
 	root.CompletionOptions.HiddenDefaultCmd = true
 
 	root.AddCommand(
 		cmd.NewApplyCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewGetCmd(sdkclient.New),
 		cmd.NewDescribeCmd(sdkclient.New),
-		cmd.NewDeleteCmd(harnessDir, cli, sdkclient.New),
-		cmd.NewDeployCmd(harnessDir, cli),
+		cmd.NewDeleteCmd(gateway.New(cli), sdkclient.New),
 		cmd.NewDoctorCmd(harnessDir, cli, sdkclient.New),
-		cmd.NewInitCmd(harnessDir),
+		cmd.NewInitCmd(),
 		cmd.NewMigrateCmd(),
 		cmd.NewPlanCmd(harnessDir, sdkclient.New),
 	)
-
-	// Deprecated aliases
-	teardownCmd := cmd.NewTeardownCmd(harnessDir, cli)
-	teardownCmd.Hidden = true
-	teardownCmd.Deprecated = "use 'harness delete' instead"
-	statusCmd := cmd.NewStatusCmd(harnessDir, cli)
-	statusCmd.Hidden = true
-	statusCmd.Deprecated = "use 'harness get agents' instead"
-	root.AddCommand(teardownCmd, statusCmd)
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -116,7 +93,6 @@ func detectHarnessDir() string {
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		d := filepath.Join(home, ".config", "harness-openshell")
-		os.MkdirAll(filepath.Join(d, "profiles", "gateways"), 0o755)
 		os.MkdirAll(filepath.Join(d, "profiles", "providers"), 0o755)
 		return d
 	}

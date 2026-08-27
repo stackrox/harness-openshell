@@ -3,14 +3,14 @@
 ## Next up
 
 ### `harness init` [DONE]
-- [x] Generate a harness.yaml with interactive prompts (entrypoint, providers, gateway)
+- [x] Generate a harness.yaml with interactive prompts (entrypoint, providers)
 - [x] Discover providers from `openshell provider list-profiles`
 - [x] Print next steps ("run `harness doctor` then `harness apply`")
 - [x] `--non-interactive`, `--force`, `--output` flags
 
 ### `harness doctor` [DONE]
 - [x] Check openshell installed and version
-- [x] Check target-specific deps (podman/docker, kubectl, kind, kubeconfig)
+- [x] Check gateway reachability online (target-specific infra checks removed in PR7b — the harness no longer provisions, so it has no compute-backend deps to check)
 - [x] Check provider credentials via `openshell provider profile export`
 - [x] Online phase: check provider registration if gateway reachable
 - [x] `-o table|json|yaml` output
@@ -24,16 +24,17 @@
 - [x] `harness apply` with `--dry-run`, `-o yaml|json`, `--attach`, `-f`, `--task`, `--entrypoint`
 - [x] `harness get agents|providers|gateways` with `-o table|json|yaml`
 - [x] `harness describe <name>` with `-o table|json|yaml`
-- [x] `harness delete <name>` with `--all`, `--sandboxes`, `--providers`, `--k8s`
-- [x] `harness deploy [local|ocp|kind]`
+- [x] `harness delete <name>` with `--all`, `--sandboxes`, `--providers`
 - [x] Headless task mode: `--task "text"` or `--task @file` runs agent with `--print`
 - [x] `kind: policy` applied via `openshell policy set` after sandbox creation
-- [x] `teardown` and `status` as hidden deprecated aliases
 - [x] `up`, `create`, `render`, `start`, `stop` removed
+- [x] `deploy`, `teardown`, `status`, and `delete --k8s` removed (PR7b): the
+      harness no longer provisions gateways — provision with OpenShell
+      (`openshell` installer or `helm install openshell`)
 
 ## Agent Config [DONE]
 
-- [x] Multi-document harness YAML (`kind: agent/provider/gateway/payload/policy`)
+- [x] Multi-document harness YAML (`kind: agent/provider/payload/policy`; `kind: gateway` still parses but is inert after PR7b)
 - [x] `kind: payload` with `sandbox_path`/`local_path`/`content` + multi-upload
 - [x] Agent-level `payloads:` list merged with document-level payloads
 - [x] `kind: config` kept as silent alias for backwards compat

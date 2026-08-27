@@ -25,7 +25,7 @@ func TestInitRun_NonInteractive(t *testing.T) {
 	outPath := filepath.Join(dir, "harness.yaml")
 	var buf bytes.Buffer
 
-	err := initRun(strings.NewReader(""), &buf, outPath, false, true, testDefaultConfig, "")
+	err := initRun(strings.NewReader(""), &buf, outPath, false, true, testDefaultConfig)
 	if err != nil {
 		t.Fatalf("initRun: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestInitRun_OverwriteGuard(t *testing.T) {
 	os.WriteFile(outPath, []byte("existing"), 0o644)
 	var buf bytes.Buffer
 
-	err := initRun(strings.NewReader(""), &buf, outPath, false, true, testDefaultConfig, "")
+	err := initRun(strings.NewReader(""), &buf, outPath, false, true, testDefaultConfig)
 	if err == nil {
 		t.Fatal("expected error for existing file without --force")
 	}
@@ -68,7 +68,7 @@ func TestInitRun_OverwriteWithForce(t *testing.T) {
 	os.WriteFile(outPath, []byte("existing"), 0o644)
 	var buf bytes.Buffer
 
-	err := initRun(strings.NewReader(""), &buf, outPath, true, true, testDefaultConfig, "")
+	err := initRun(strings.NewReader(""), &buf, outPath, true, true, testDefaultConfig)
 	if err != nil {
 		t.Fatalf("initRun with --force: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestInitRun_InteractiveDefaults(t *testing.T) {
 
 	// Empty input = accept defaults for each prompt
 	input := "\n\n\n"
-	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig, "")
+	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig)
 	if err != nil {
 		t.Fatalf("initRun: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestInitRun_InteractiveOpenCode(t *testing.T) {
 	var buf bytes.Buffer
 
 	input := "opencode\n1\n\n"
-	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig, "")
+	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig)
 	if err != nil {
 		t.Fatalf("initRun: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestInitRun_InteractiveProvidersSingle(t *testing.T) {
 	var buf bytes.Buffer
 
 	input := "claude\n1\n\n"
-	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig, "")
+	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig)
 	if err != nil {
 		t.Fatalf("initRun: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestInitRun_InteractiveProvidersMultiple(t *testing.T) {
 	var buf bytes.Buffer
 
 	input := "claude\n1,3\n\n"
-	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig, "")
+	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig)
 	if err != nil {
 		t.Fatalf("initRun: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestInitRun_InteractiveProvidersNone(t *testing.T) {
 	var buf bytes.Buffer
 
 	input := "claude\nnone\n\n"
-	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig, "")
+	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig)
 	if err != nil {
 		t.Fatalf("initRun: %v", err)
 	}
@@ -184,74 +184,12 @@ func TestInitRun_InteractiveProvidersNone(t *testing.T) {
 	}
 }
 
-func TestInitRun_InteractiveGatewayKind(t *testing.T) {
-	dir := t.TempDir()
-	outPath := filepath.Join(dir, "harness.yaml")
-	var buf bytes.Buffer
-
-	input := "claude\n1\nhelm\n"
-	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig, "")
-	if err != nil {
-		t.Fatalf("initRun: %v", err)
-	}
-
-	data, _ := os.ReadFile(outPath)
-	var cfg agent.AgentConfig
-	yaml.Unmarshal(data, &cfg)
-	if cfg.Gateway != "helm" {
-		t.Errorf("Gateway = %q, want helm", cfg.Gateway)
-	}
-}
-
-func TestInitRun_InteractiveGatewayOCP(t *testing.T) {
-	dir := t.TempDir()
-	outPath := filepath.Join(dir, "harness.yaml")
-	var buf bytes.Buffer
-
-	input := "claude\n1\nopenshift\n"
-	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig, "")
-	if err != nil {
-		t.Fatalf("initRun: %v", err)
-	}
-
-	data, _ := os.ReadFile(outPath)
-	var cfg agent.AgentConfig
-	yaml.Unmarshal(data, &cfg)
-	if cfg.Gateway != "openshift" {
-		t.Errorf("Gateway = %q, want openshift", cfg.Gateway)
-	}
-}
-
-func TestInitRun_InvalidGateway(t *testing.T) {
-	dir := t.TempDir()
-	outPath := filepath.Join(dir, "harness.yaml")
-	var buf bytes.Buffer
-
-	input := "claude\n1\nbadtarget\n"
-	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig, "")
-	if err == nil {
-		t.Fatal("expected error for invalid gateway target")
-	}
-}
-
-func TestInitRun_RemoteIsInvalidGateway(t *testing.T) {
-	dir := t.TempDir()
-	outPath := filepath.Join(dir, "harness.yaml")
-	var buf bytes.Buffer
-
-	input := "claude\n1\nremote\n"
-	err := initRun(strings.NewReader(input), &buf, outPath, false, false, testDefaultConfig, "")
-	if err == nil {
-		t.Fatal("expected error: 'remote' is not a valid gateway, use 'ocp'")
-	}
-}
-
 func TestInitRun_OutputContainsNextSteps(t *testing.T) {
 	dir := t.TempDir()
 	outPath := filepath.Join(dir, "harness.yaml")
 	var buf bytes.Buffer
 
-	err := initRun(strings.NewReader(""), &buf, outPath, false, true, testDefaultConfig, "")
+	err := initRun(strings.NewReader(""), &buf, outPath, false, true, testDefaultConfig)
 	if err != nil {
 		t.Fatalf("initRun: %v", err)
 	}
@@ -325,7 +263,7 @@ func TestInitNoCredentialLeak(t *testing.T) {
 
 	t.Setenv("ANTHROPIC_API_KEY", "sk-secret-key-12345")
 
-	err := initRun(strings.NewReader(""), &buf, outPath, false, true, testDefaultConfig, "")
+	err := initRun(strings.NewReader(""), &buf, outPath, false, true, testDefaultConfig)
 	if err != nil {
 		t.Fatalf("initRun: %v", err)
 	}

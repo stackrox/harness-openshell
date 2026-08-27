@@ -84,8 +84,10 @@ func TestMigrateBasic(t *testing.T) {
 	if migrated.Metadata.Name != "basic-test" {
 		t.Errorf("name: got %q, want basic-test", migrated.Metadata.Name)
 	}
-	if migrated.Spec.Target.Gateway != "rc-dev" {
-		t.Errorf("target.gateway: got %q, want rc-dev", migrated.Spec.Target.Gateway)
+	// The legacy gateway: field named a deploy profile, not a registered gateway,
+	// so migration leaves spec.target.gateway empty for the user to set.
+	if migrated.Spec.Target.Gateway != "" {
+		t.Errorf("target.gateway: got %q, want empty (legacy gateway not carried)", migrated.Spec.Target.Gateway)
 	}
 	if migrated.Spec.Source.Repo != "https://github.com/example/repo" {
 		t.Errorf("source.repo: got %q, want https://github.com/example/repo", migrated.Spec.Source.Repo)
@@ -213,7 +215,6 @@ func TestMigratePayloadRename(t *testing.T) {
 	legacy := &agent.Harness{
 		Agent: &agent.AgentConfig{
 			Name:       "rename-test",
-			Gateway:    "rc-dev",
 			Entrypoint: "claude",
 		},
 		Payloads: []agent.PayloadEntry{
@@ -250,40 +251,6 @@ func TestMigratePayloadRename(t *testing.T) {
 	// Check that Content is preserved
 	if migrated.Spec.Payloads[1].Content != "key: value" {
 		t.Errorf("payload[1].content: got %q, want key: value", migrated.Spec.Payloads[1].Content)
-	}
-}
-
-// TestMigrateDeprecatedGateway checks that deprecated gateway profiles emit warnings.
-func TestMigrateDeprecatedGateway(t *testing.T) {
-	tests := []string{"helm", "openshift", "local-container"}
-	for _, profile := range tests {
-		legacy := &agent.Harness{
-			Agent: &agent.AgentConfig{
-				Name:       "deprecated-test",
-				Gateway:    profile,
-				Entrypoint: "claude",
-			},
-		}
-
-		_, warnings, err := Migrate(legacy)
-		if err != nil {
-			t.Fatalf("migrate %q: %v", profile, err)
-		}
-
-		if len(warnings) == 0 {
-			t.Errorf("gateway %q: expected deprecation warning, got none", profile)
-		}
-
-		found := false
-		for _, w := range warnings {
-			if w.Field == "gateway" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("gateway %q: no warning with field=gateway", profile)
-		}
 	}
 }
 
@@ -366,9 +333,10 @@ providers:
 		t.Fatalf("MigrateBytes: %v", err)
 	}
 
-	// Should have 2 warnings: 1 for deprecated gateway, 1 for provider profile
-	if len(warnings) < 2 {
-		t.Errorf("warnings count: got %d, want at least 2", len(warnings))
+	// The legacy gateway: field is dropped without a warning (it named a removed
+	// deploy-profile concept); the provider profile still warns on conversion.
+	if len(warnings) < 1 {
+		t.Errorf("warnings count: got %d, want at least 1", len(warnings))
 	}
 
 	// Validate output still parses
@@ -397,8 +365,7 @@ func TestMigrateNoAgent(t *testing.T) {
 func TestMigrateDefaultEntrypoint(t *testing.T) {
 	legacy := &agent.Harness{
 		Agent: &agent.AgentConfig{
-			Name:    "default-entrypoint-test",
-			Gateway: "rc-dev",
+			Name: "default-entrypoint-test",
 			// Entrypoint is empty
 		},
 	}
