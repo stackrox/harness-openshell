@@ -40,11 +40,20 @@ Examples:
 
 			ctx := cmd.Context()
 			target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
-			client, err := newClient(ctx, target)
-			if err != nil {
-				return err
+
+			// The --k8s branch is CLI/kubectl-backed and needs no SDK client;
+			// open (and dial) one only when a sandbox/provider path will use it,
+			// so `delete --k8s` still works when the OpenShell API is down.
+			needsSDK := len(args) > 0 || all || sandboxes || providers
+			var client openshell.Client
+			if needsSDK {
+				var err error
+				client, err = newClient(ctx, target)
+				if err != nil {
+					return err
+				}
+				defer client.Close()
 			}
-			defer client.Close()
 
 			// Targeted sandbox deletion
 			if len(args) > 0 {

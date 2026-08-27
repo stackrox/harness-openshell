@@ -94,6 +94,11 @@ func TestDeleteProvidersGuard(t *testing.T) {
 	}
 }
 
+// Note: `delete --k8s`-only skipping the SDK client (CodeRabbit finding) is not
+// unit-tested — the --k8s path invokes the real, non-injectable teardownK8s,
+// which shells out to the ambient kubeconfig and would destructively act on a
+// live cluster. The gating (`needsSDK`) is a simple guard in delete.go.
+
 func TestDeleteProvidersSweep(t *testing.T) {
 	client, fc := testutil.NewFakeClient("default")
 	fc.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
