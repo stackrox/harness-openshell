@@ -203,6 +203,8 @@ Or build the harness from source: `make cli`
 | `harness get agents\|providers\|gateways` | List resources |
 | `harness describe <name>` | Sandbox details |
 | `harness delete <name> [--all]` | Tear down |
+| `harness plan -f FILE` | Read-only reconciliation plan (mutates nothing) |
+| `harness migrate -f FILE` | Convert a legacy v1 config to v1alpha1 |
 
 ### Credentials
 
@@ -229,9 +231,9 @@ Each provider discovers credentials from the host. Missing providers are skipped
 Tested on macOS (arm64) with Podman. Linux support is expected but not yet validated.
 
 ```bash
-make test             # vet + unit tests (5 packages)
+make test             # vet + unit tests (16 packages)
 make lint             # golangci-lint
-make test-suite       # config parsing (23 tests, no gateway needed)
+make test-suite       # config parsing (33 tests, no gateway needed)
 make test-local       # full e2e on local Podman (22 tests)
 make test-kind        # self-contained kind cluster lifecycle
 make test-remote      # full e2e on OCP (needs KUBECONFIG)

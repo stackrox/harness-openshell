@@ -246,13 +246,13 @@ func ParseHarness(data []byte) (*Harness, error) {
 				return nil, fmt.Errorf("document %d: parsing payload: %w", docIndex, err)
 			}
 			if doc.SandboxPath == "" {
-				return nil, fmt.Errorf("document %d: kind: payload requires a sandbox_path field", docIndex)
+				return nil, fmt.Errorf("document %d: kind: %s requires a sandbox_path field", docIndex, header.Kind)
 			}
 			if doc.Content == "" && doc.LocalPath == "" {
-				return nil, fmt.Errorf("document %d: kind: payload requires content or local_path field", docIndex)
+				return nil, fmt.Errorf("document %d: kind: %s requires content or local_path field", docIndex, header.Kind)
 			}
 			if doc.Content != "" && doc.LocalPath != "" {
-				return nil, fmt.Errorf("document %d: kind: payload cannot have both content and local_path", docIndex)
+				return nil, fmt.Errorf("document %d: kind: %s cannot have both content and local_path", docIndex, header.Kind)
 			}
 			h.Payloads = append(h.Payloads, PayloadEntry{
 				SandboxPath: doc.SandboxPath,

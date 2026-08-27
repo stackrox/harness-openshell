@@ -1,5 +1,15 @@
 # Release Plan: CI → Embed → GoReleaser
 
+> **Historical plan.** This records the original release roadmap; Phase 0 shipped.
+> Some later details diverged from what shipped and are kept here for provenance,
+> not as current behavior:
+> - `harness init` generates a `harness.yaml` (interactive, or `--non-interactive`
+>   for the embedded default) at an output path — it does **not** extract the
+>   embedded FS to `~/.openshell/harness/`. See `cmd/init_cmd.go`.
+> - The on-disk fallback harness directory is `~/.config/harness-openshell`
+>   (overridable via `HARNESS_OS_DIR` / `HARNESS_PROFILE_DIR`), not
+>   `~/.openshell/harness/`. See `detectHarnessDir()` in `main.go`.
+
 ## Phase 0: CI (done)
 
 GitHub Actions for every PR and push to main.
