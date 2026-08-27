@@ -91,7 +91,7 @@ EOF
 
   # kind runs disableTls=true → register plaintext HTTP (skips mTLS/browser auth).
   "$CLI" gateway remove openshell-kind 2>/dev/null || true
-  "$CLI" gateway add "http://$ip:$np" openshell-kind --local || return 1
+  "$CLI" gateway add "http://$ip:$np" --name openshell-kind --local || return 1
   "$CLI" gateway select openshell-kind || return 1
 
   for i in $(seq 1 30); do
@@ -184,7 +184,7 @@ EOF
   done
 
   "$CLI" gateway remove openshell-remote-ocp 2>/dev/null || true
-  "$CLI" gateway add "https://$route_host:443" openshell-remote-ocp --local || return 1
+  "$CLI" gateway add "https://$route_host:443" --name openshell-remote-ocp --local || return 1
   "$CLI" gateway select openshell-remote-ocp || return 1
 
   for i in $(seq 1 30); do
