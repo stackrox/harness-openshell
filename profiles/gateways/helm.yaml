@@ -21,7 +21,7 @@ chart:
   # OPENSHELL_VERSION pin in .github/workflows/integration.yml). The chart
   # version determines the supervisor image tag; if it lags the CLI, sandbox
   # create fails with "supervisor session not found" during the ssh/tar upload.
-  version: "0.0.85"
+  version: "0.0.110"
 
 helm:
   values:

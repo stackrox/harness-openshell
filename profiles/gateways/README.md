@@ -13,7 +13,7 @@ gateway:
   mode: direct                   # direct or launcher (remote only)
 
 chart:
-  version: "0.0.59"             # Helm chart version
+  version: "0.0.110"            # Helm chart version (keep in lockstep with the openshell CLI)
 
 helm:
   values:                        # Helm values passed to openshell chart
