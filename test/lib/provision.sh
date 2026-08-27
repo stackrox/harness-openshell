@@ -75,14 +75,14 @@ pkiInitJob:
 EOF
 
   local helm_args=(upgrade --install openshell "$OPENSHELL_CHART_OCI"
-    --version "$ver" --values "$values")
+    --namespace openshell --version "$ver" --values "$values")
   [[ -n "${HARNESS_OS_IMAGE:-}" ]] && helm_args+=(--set "server.sandboxImage=$HARNESS_OS_IMAGE")
   helm "${helm_args[@]}" || { rm -f "$values"; return 1; }
   rm -f "$values"
 
-  kubectl rollout status statefulset/openshell --timeout=300s || return 1
+  kubectl rollout status statefulset/openshell -n openshell --timeout=300s || return 1
 
-  np="$(kubectl get svc openshell -o jsonpath='{.spec.ports[?(@.port==8080)].nodePort}')"
+  np="$(kubectl get svc openshell -n openshell -o jsonpath='{.spec.ports[?(@.port==8080)].nodePort}')"
   ip="$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')"
   if [[ -z "$np" || -z "$ip" ]]; then
     echo "  ERROR: could not resolve NodePort ($np) / node IP ($ip)" >&2
@@ -164,7 +164,7 @@ pkiInitJob:
   enabled: true
 EOF
   local helm_args=(upgrade --install openshell "$OPENSHELL_CHART_OCI"
-    --version "$ver" --values "$values"
+    --namespace openshell --version "$ver" --values "$values"
     --set "pkiInitJob.serverDnsNames[0]=$route_host")
   [[ -n "${HARNESS_OS_IMAGE:-}" ]] && helm_args+=(--set "server.sandboxImage=$HARNESS_OS_IMAGE")
   [[ -n "${HARNESS_OS_PULL_SECRET:-}" ]] && helm_args+=(--set "imagePullSecrets[0].name=$HARNESS_OS_PULL_SECRET")
@@ -172,7 +172,7 @@ EOF
   helm "${helm_args[@]}" || { rm -f "$values"; return 1; }
   rm -f "$values"
 
-  kubectl rollout status statefulset/openshell --timeout=300s || return 1
+  kubectl rollout status statefulset/openshell -n openshell --timeout=300s || return 1
 
   # Extract mTLS bundle from the cluster secret and register the route gateway.
   local mtls_dir field
@@ -197,9 +197,20 @@ EOF
 
 # teardown_cluster: replaces `harness delete --k8s`. helm uninstall + gateway
 # deregister + namespace delete. Best-effort (idempotent).
+#
+# Waits for the namespace to finish deleting before returning: the kind and
+# fresh-OCP flows reprovision immediately after teardown, and a create/apply/helm
+# against a still-`Terminating` namespace fails. Best-effort — warns rather than
+# fails if a finalizer stalls deletion past the timeout.
 teardown_cluster() {
   local gw_name="${1:-}"
   helm uninstall openshell -n openshell 2>/dev/null || true
   [[ -n "$gw_name" ]] && "$CLI" gateway remove "$gw_name" 2>/dev/null || true
-  kubectl delete ns openshell --wait=false 2>/dev/null || true
+  kubectl delete ns openshell --ignore-not-found --wait=false 2>/dev/null || true
+  local i
+  for i in $(seq 1 60); do
+    kubectl get ns openshell &>/dev/null || return 0
+    sleep 2
+  done
+  echo "  WARN: namespace 'openshell' still terminating after 120s" >&2
 }
