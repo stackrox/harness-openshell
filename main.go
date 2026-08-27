@@ -65,7 +65,7 @@ func main() {
 		cmd.NewApplyCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewGetCmd(sdkclient.New),
 		cmd.NewDescribeCmd(sdkclient.New),
-		cmd.NewDeleteCmd(harnessDir, cli),
+		cmd.NewDeleteCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewDeployCmd(harnessDir, cli),
 		cmd.NewDoctorCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewInitCmd(harnessDir),

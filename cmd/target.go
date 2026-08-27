@@ -30,9 +30,10 @@ func registerTargetFlags(cmd *cobra.Command) (gateway, workspace *string) {
 
 // openClient resolves the standard --gateway/--workspace target (flag > env >
 // empty, via openshell.ResolveTarget) and constructs an SDK client through the
-// Factory seam. It is the single construction site shared by the SDK-backed read
-// commands (get/describe/delete), so target resolution stays identical across
-// them. Callers own the returned client's Close.
+// Factory seam. It is the shared construction site for get and describe, so
+// target resolution stays identical across them. delete resolves the target
+// itself (it needs the resolved gateway name for its banner) but uses the same
+// ResolveTarget rule. Callers own the returned client's Close.
 func openClient(ctx context.Context, newClient openshell.Factory, gatewayName, workspace *string) (openshell.Client, error) {
 	target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
 	return newClient(ctx, target)
