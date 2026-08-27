@@ -103,19 +103,24 @@ first (installer or 'helm install openshell') and select it with
 			}
 
 			// The harness runs against a gateway OpenShell already provisioned;
-			// it never provisions one. Require a selected, reachable gateway up
-			// front so we fail clearly here instead of deep in reconcile/run.
-			if _, err := resolveApplyTarget(gw); err != nil {
+			// it never provisions one. Resolve the target once here — this is the
+			// single owner of apply's gateway selection ($OPENSHELL_GATEWAY >
+			// active marker) — and thread it through so reconcile and
+			// sandbox-create act on the same gateway. Fail clearly here if none is
+			// selected instead of deep in reconcile/run.
+			target, err := resolveApplyTarget(gw)
+			if err != nil {
 				return err
 			}
 
 			if dryRun {
-				return dryRunApply(gw, agentCfg)
+				return dryRunApply(gw, target, agentCfg)
 			}
 
 			return upLocal(upLocalOpts{
 				harnessDir:      harnessDir,
 				gw:              gw,
+				target:          target,
 				agentCfg:        agentCfg,
 				agentPath:       agentPath,
 				sandboxName:     sandboxName,
@@ -175,7 +180,7 @@ func mapKeys(m map[string][]byte) []string {
 	return keys
 }
 
-func dryRunApply(gw gateway.Gateway, agentCfg *agent.AgentConfig) error {
+func dryRunApply(gw gateway.Gateway, target openshell.Target, agentCfg *agent.AgentConfig) error {
 	status.Header("Dry Run")
 	allPass := true
 
@@ -184,7 +189,9 @@ func dryRunApply(gw gateway.Gateway, agentCfg *agent.AgentConfig) error {
 	image := resolveSandboxImage(agentCfg.Image)
 	status.OKf("image: %s", image)
 
-	gwName := gw.ActiveGateway()
+	// Report the resolved target — the same gateway apply will act on — not the
+	// raw active marker, so a $OPENSHELL_GATEWAY-targeted dry run matches apply.
+	gwName := target.Gateway
 	if gw.InferenceGet() != nil {
 		status.Failf("gateway: %s (not reachable)", gwName)
 		allPass = false

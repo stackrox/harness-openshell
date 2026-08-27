@@ -33,6 +33,7 @@ var DefaultAgentConfig []byte
 type upLocalOpts struct {
 	harnessDir      string
 	gw              gateway.Gateway
+	target          openshell.Target
 	agentCfg        *agent.AgentConfig
 	agentPath       string
 	sandboxName     string
@@ -187,7 +188,7 @@ func upLocal(opts upLocalOpts) error {
 
 	return run.RunSandbox(context.Background(), gw, run.SandboxRunRequest{
 		Name:       sandboxName,
-		Gateway:    gw.ActiveGateway(),
+		Gateway:    opts.target.Gateway,
 		Image:      resolveSandboxImagePath(sandboxImage, opts.harnessDir),
 		Providers:  registered,
 		Env:        agentCfg.BuildEnvMap(),
@@ -339,11 +340,10 @@ func reconcileGateway(opts upLocalOpts, agentCfg *agent.AgentConfig) {
 		status.Warn("gateway reconcile skipped: no SDK client factory")
 		return
 	}
-	target, err := resolveApplyTarget(opts.gw)
-	if err != nil {
-		status.Warnf("gateway reconcile skipped: %v", err)
-		return
-	}
+	// Reconcile acts on the same target apply resolved once and threaded in —
+	// not a re-derivation — so providers/inference and the sandbox always land on
+	// the same gateway.
+	target := opts.target
 	// Bound the whole reconcile: verify-by-default makes the inference write
 	// contact the provider endpoint synchronously, so a stalled gateway or
 	// endpoint would otherwise hang apply with no deadline. Every other failure

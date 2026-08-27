@@ -13,7 +13,6 @@ entrypoint: claude              # claude, opencode, bash, or any binary on PATH
 tty: true                       # enable TTY (default: true)
 repo: https://github.com/org/repo  # cloned outside sandbox, uploaded to /sandbox/<repo>
 repo_ref: main                  # branch, tag, or ref to clone (default: HEAD)
-gateway: openshift              # target gateway (default: local-container)
 task: @tasks/review.md          # task file passed to entrypoint via -p
 image: ghcr.io/...              # override sandbox image
 policy: path/to/policy.yaml     # network policy file
@@ -72,12 +71,14 @@ network_policies:
       - { host: "api.github.com", port: 443 }
 ```
 
-Supported kinds: `agent`, `provider`, `gateway`, `payload` (alias: `config`), `policy`.
+Supported kinds: `agent`, `provider`, `payload` (alias: `config`), `policy`.
+
+A `kind: gateway` document is still accepted for backward compatibility but has
+no effect: the harness no longer provisions gateways — it targets whichever
+gateway OpenShell already stood up and you selected (`openshell gateway
+select`). `harness migrate` warns when it finds one so you can register it with
+the openshell CLI instead.
 
 ## Providers (`providers/`)
 
 See [providers/README.md](providers/README.md).
-
-## Gateways (`gateways/`)
-
-See [gateways/README.md](gateways/README.md).

@@ -7,6 +7,7 @@ import (
 
 	fake "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/fake"
 	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
+	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/plan"
 	"github.com/stackrox/harness-openshell/internal/testutil"
 )
@@ -37,6 +38,7 @@ func TestUpLocal_ProviderReconcile_AdoptsBootstrapped(t *testing.T) {
 	err := upLocal(upLocalOpts{
 		harnessDir: dir,
 		gw:         gw,
+		target:     openshell.Target{Gateway: "test-gw"},
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
 		setupOnly:  true,
@@ -67,6 +69,7 @@ func TestUpLocal_ProviderReconcile_OwnedNoop(t *testing.T) {
 	err := upLocal(upLocalOpts{
 		harnessDir: dir,
 		gw:         gw,
+		target:     openshell.Target{Gateway: "test-gw"},
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
 		newClient:  keepOpenFactory(fakeClient),

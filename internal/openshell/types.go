@@ -3,10 +3,9 @@ package openshell
 // Target identifies what to connect to.
 //
 // Gateway is the OPENSHELL REGISTRATION name — the directory under
-// ~/.config/openshell/gateways/<name> managed by the openshell CLI. It is NOT a
-// harness gateway profile (e.g. "openshift", "local-container"); those name
-// deployment recipes, not registered gateways. Never pass an agent.AgentConfig
-// gateway profile here.
+// ~/.config/openshell/gateways/<name> managed by the openshell CLI, as shown by
+// `openshell gateway list`. The harness never provisions gateways; it only
+// targets one OpenShell already stood up and the user selected.
 type Target struct {
 	Gateway   string // required; openshell registration name
 	Workspace string // "" defaults to "default" (defaulting owned by sdkclient)
