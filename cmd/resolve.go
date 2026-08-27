@@ -182,16 +182,6 @@ func loadGatewayProfile(harnessDir, name string) []byte {
 	return nil
 }
 
-func resolveFirstRemoteGateway(harnessDir string) *gateway.GatewayConfig {
-	for _, name := range listGatewayProfiles(harnessDir) {
-		cfg, err := resolveGatewayConfig(harnessDir, name)
-		if err == nil && !cfg.IsLocal() {
-			return cfg
-		}
-	}
-	return nil
-}
-
 func listGatewayProfiles(harnessDir string) []string {
 	seen := make(map[string]bool)
 	for name := range EmbeddedGatewayProfiles {

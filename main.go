@@ -65,22 +65,13 @@ func main() {
 		cmd.NewApplyCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewGetCmd(sdkclient.New),
 		cmd.NewDescribeCmd(sdkclient.New),
-		cmd.NewDeleteCmd(harnessDir, cli, sdkclient.New),
+		cmd.NewDeleteCmd(sdkclient.New),
 		cmd.NewDeployCmd(harnessDir, cli),
 		cmd.NewDoctorCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewInitCmd(harnessDir),
 		cmd.NewMigrateCmd(),
 		cmd.NewPlanCmd(harnessDir, sdkclient.New),
 	)
-
-	// Deprecated aliases
-	teardownCmd := cmd.NewTeardownCmd(harnessDir, cli)
-	teardownCmd.Hidden = true
-	teardownCmd.Deprecated = "use 'harness delete' instead"
-	statusCmd := cmd.NewStatusCmd(harnessDir, cli)
-	statusCmd.Hidden = true
-	statusCmd.Deprecated = "use 'harness get agents' instead"
-	root.AddCommand(teardownCmd, statusCmd)
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

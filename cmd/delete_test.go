@@ -45,7 +45,7 @@ func TestDeleteTargeted(t *testing.T) {
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-b", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 
-	cmd := NewDeleteCmd("", "", keepOpenFactory(client))
+	cmd := NewDeleteCmd(keepOpenFactory(client))
 	cmd.SetArgs([]string{"agent-a"})
 	if _, err := captureStdout(t, cmd.Execute); err != nil {
 		t.Fatalf("delete agent-a: %v", err)
@@ -62,7 +62,7 @@ func TestDeleteSandboxesSweep(t *testing.T) {
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-b", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 
-	cmd := NewDeleteCmd("", "", keepOpenFactory(client))
+	cmd := NewDeleteCmd(keepOpenFactory(client))
 	cmd.SetArgs([]string{"--sandboxes", "--gateway", "prod"})
 	if _, err := captureStdout(t, cmd.Execute); err != nil {
 		t.Fatalf("delete --sandboxes: %v", err)
@@ -78,7 +78,7 @@ func TestDeleteProvidersGuard(t *testing.T) {
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 	fc.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
 
-	cmd := NewDeleteCmd("", "", keepOpenFactory(client))
+	cmd := NewDeleteCmd(keepOpenFactory(client))
 	cmd.SetArgs([]string{"--providers", "--gateway", "prod"})
 	_, err := captureStdout(t, cmd.Execute)
 	if err == nil {
@@ -94,17 +94,12 @@ func TestDeleteProvidersGuard(t *testing.T) {
 	}
 }
 
-// Note: `delete --k8s`-only skipping the SDK client (CodeRabbit finding) is not
-// unit-tested — the --k8s path invokes the real, non-injectable teardownK8s,
-// which shells out to the ambient kubeconfig and would destructively act on a
-// live cluster. The gating (`needsSDK`) is a simple guard in delete.go.
-
 func TestDeleteProvidersSweep(t *testing.T) {
 	client, fc := testutil.NewFakeClient("default")
 	fc.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
 	fc.AddProvider("default", &types.Provider{Name: "vertex", Type: "google-vertex-ai"})
 
-	cmd := NewDeleteCmd("", "", keepOpenFactory(client))
+	cmd := NewDeleteCmd(keepOpenFactory(client))
 	cmd.SetArgs([]string{"--providers", "--gateway", "prod"})
 	if _, err := captureStdout(t, cmd.Execute); err != nil {
 		t.Fatalf("delete --providers: %v", err)

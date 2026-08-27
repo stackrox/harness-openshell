@@ -7,53 +7,42 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/stackrox/harness-openshell/internal/gateway"
-	"github.com/stackrox/harness-openshell/internal/k8s"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/status"
 )
 
-func NewDeleteCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Command {
+func NewDeleteCmd(newClient openshell.Factory) *cobra.Command {
 	var (
 		all       bool
 		sandboxes bool
 		providers bool
-		k8sFlag   bool
 	)
 	var gatewayName, workspace *string
 
 	cmd := &cobra.Command{
-		Use:   "delete [NAME...] [--all] [--providers] [--k8s]",
-		Short: "Delete sandboxes, providers, or k8s resources",
+		Use:   "delete [NAME...] [--all] [--sandboxes] [--providers]",
+		Short: "Delete sandboxes or providers",
 		Long: `Delete specific sandboxes by name, or use flags for bulk operations.
 
 Examples:
   harness delete my-sandbox          Delete a specific sandbox
   harness delete agent test          Delete multiple sandboxes
-  harness delete --all               Delete all sandboxes, providers, and k8s resources
-  harness delete --providers         Delete all providers (no running sandboxes allowed)
-  harness delete --k8s               Delete k8s resources (helm, namespace, SCCs)`,
+  harness delete --all               Delete all sandboxes and providers
+  harness delete --sandboxes         Delete all sandboxes
+  harness delete --providers         Delete all providers (no running sandboxes allowed)`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 && !all && !sandboxes && !providers && !k8sFlag {
-				return fmt.Errorf("specify sandbox name(s) or use --all, --sandboxes, --providers, --k8s")
+			if len(args) == 0 && !all && !sandboxes && !providers {
+				return fmt.Errorf("specify sandbox name(s) or use --all, --sandboxes, --providers")
 			}
 
 			ctx := cmd.Context()
 			target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
 
-			// The --k8s branch is CLI/kubectl-backed and needs no SDK client;
-			// open (and dial) one only when a sandbox/provider path will use it,
-			// so `delete --k8s` still works when the OpenShell API is down.
-			needsSDK := len(args) > 0 || all || sandboxes || providers
-			var client openshell.Client
-			if needsSDK {
-				var err error
-				client, err = newClient(ctx, target)
-				if err != nil {
-					return fmt.Errorf("create OpenShell client: %w", err)
-				}
-				defer client.Close()
+			client, err := newClient(ctx, target)
+			if err != nil {
+				return fmt.Errorf("create OpenShell client: %w", err)
 			}
+			defer client.Close()
 
 			// Targeted sandbox deletion
 			if len(args) > 0 {
@@ -64,7 +53,7 @@ Examples:
 						status.OKf("Deleted sandbox %s", name)
 					}
 				}
-				if !all && !providers && !k8sFlag {
+				if !all && !providers {
 					return nil
 				}
 			}
@@ -84,35 +73,22 @@ Examples:
 					return err
 				}
 			}
-			if all || k8sFlag {
-				// internal/gateway residual: the --k8s path stays CLI-backed
-				// until PR7b retires the legacy bridge. This is the only
-				// sanctioned use of internal/gateway and internal/k8s in delete.
-				gw := gateway.New(cli)
-				ns := k8s.DefaultNamespace()
-				gwCfg := resolveFirstRemoteGateway(harnessDir)
-				teardownK8s(gw, gwCfg, k8s.New("", ns), k8s.New("", ""))
-			}
 
 			status.Done("Done.")
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&all, "all", false, "Delete all sandboxes, providers, and k8s resources")
+	cmd.Flags().BoolVar(&all, "all", false, "Delete all sandboxes and providers")
 	cmd.Flags().BoolVar(&sandboxes, "sandboxes", false, "Delete all sandboxes")
 	cmd.Flags().BoolVar(&providers, "providers", false, "Delete all providers")
-	cmd.Flags().BoolVar(&k8sFlag, "k8s", false, "Delete k8s resources")
 	gatewayName, workspace = registerTargetFlags(cmd)
 
 	return cmd
 }
 
 // deleteSandboxesSDK sweeps every sandbox in the target workspace over the
-// OpenShell SDK. It is delete's own SDK-backed sweep, intentionally mirroring
-// teardownSandboxes (cmd/teardown.go) on a different backing; the duplication is
-// a short-lived seam removed in PR7b when the CLI helper and teardown command
-// are retired, leaving this the single owner of the sweep.
+// OpenShell SDK. It is the sole owner of the bulk sandbox sweep.
 func deleteSandboxesSDK(ctx context.Context, client openshell.Client, activeGW string) {
 	status.Section("Sandboxes")
 	if activeGW == "" {
@@ -140,11 +116,9 @@ func deleteSandboxesSDK(ctx context.Context, client openshell.Client, activeGW s
 	fmt.Println()
 }
 
-// deleteProvidersSDK sweeps every provider over the SDK, preserving the
-// running-sandbox guard from teardownProviders (cmd/teardown.go): providers are
-// refused while any sandbox is still up, with one brief retry to absorb a
-// mid-deletion race. Like deleteSandboxesSDK this is a short-lived duplicate of
-// the CLI helper, collapsed to the single owner in PR7b.
+// deleteProvidersSDK sweeps every provider over the SDK. Providers are refused
+// while any sandbox is still up, with one brief retry to absorb a mid-deletion
+// race. It is the sole owner of the bulk provider sweep.
 func deleteProvidersSDK(ctx context.Context, client openshell.Client, activeGW string) error {
 	status.Section("Providers")
 	if activeGW == "" {
