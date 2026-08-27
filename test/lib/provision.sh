@@ -178,9 +178,11 @@ EOF
   local mtls_dir field
   mtls_dir="$HOME/.config/openshell/gateways/openshell-remote-ocp/mtls"
   mkdir -p "$mtls_dir"
+  chmod 700 "$mtls_dir" || return 1
   for field in ca.crt tls.crt tls.key; do
     kubectl get secret openshell-client-tls -n openshell \
       -o jsonpath="{.data.$field}" | base64 -d > "$mtls_dir/$field" || return 1
+    chmod 600 "$mtls_dir/$field" || return 1
   done
 
   "$CLI" gateway remove openshell-remote-ocp 2>/dev/null || true
