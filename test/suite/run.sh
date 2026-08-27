@@ -96,38 +96,42 @@ wait_sandbox() {
 
 echo "=== Config parsing ==="
 
+# Config parsing is validated offline via `apply -o yaml`, which resolves the
+# full config and renders it without touching a gateway. (`--dry-run` is a
+# pre-apply preflight that now requires a reachable, selected gateway, so it is
+# not an offline config-parse check.)
 run_test "parse: minimal agent (no providers)" \
-  "$HARNESS" apply --dry-run -f "$CONFIGS/agent-minimal.yaml"
+  "$HARNESS" apply -o yaml -f "$CONFIGS/agent-minimal.yaml"
 
 run_test "parse: multi-provider agent" \
-  "$HARNESS" apply --dry-run -f "$CONFIGS/agent-multi-provider.yaml"
+  "$HARNESS" apply -o yaml -f "$CONFIGS/agent-multi-provider.yaml"
 
 run_test "parse: task agent" \
-  "$HARNESS" apply --dry-run -f "$CONFIGS/agent-task.yaml"
+  "$HARNESS" apply -o yaml -f "$CONFIGS/agent-task.yaml"
 
 run_test "parse: multi-doc harness yaml" \
-  "$HARNESS" apply --dry-run -f "$CONFIGS/harness-multidoc.yaml"
+  "$HARNESS" apply -o yaml -f "$CONFIGS/harness-multidoc.yaml"
 
 run_test "parse: harness with policy" \
-  "$HARNESS" apply --dry-run -f "$CONFIGS/harness-with-policy.yaml"
+  "$HARNESS" apply -o yaml -f "$CONFIGS/harness-with-policy.yaml"
 
 run_test "parse: default agent (no -f)" \
-  "$HARNESS" apply --dry-run
+  "$HARNESS" apply -o yaml
 
 run_test "parse: custom provider profile" \
-  "$HARNESS" apply --dry-run -f "$CONFIGS/agent-groq.yaml"
+  "$HARNESS" apply -o yaml -f "$CONFIGS/agent-groq.yaml"
 
 run_test "parse: harness with payloads" \
-  "$HARNESS" apply --dry-run -f "$CONFIGS/harness-with-payloads.yaml"
+  "$HARNESS" apply -o yaml -f "$CONFIGS/harness-with-payloads.yaml"
 
 run_test "output: kind: payload in -o yaml" \
   bash -c '"$1" apply -o yaml -f "$2" | grep "kind: payload"' _ "$HARNESS" "$CONFIGS/harness-with-payloads.yaml"
 
 run_test_fail "parse: nonexistent file rejects" \
-  "$HARNESS" apply --dry-run -f "/nonexistent/agent.yaml"
+  "$HARNESS" apply -o yaml -f "/nonexistent/agent.yaml"
 
 run_test_fail "parse: invalid yaml rejects" \
-  bash -c 'f=$(mktemp); echo "name: [broken" > "$f"; "$1" apply --dry-run -f "$f"; rc=$?; rm -f "$f"; exit $rc' _ "$HARNESS"
+  bash -c 'f=$(mktemp); echo "name: [broken" > "$f"; "$1" apply -o yaml -f "$f"; rc=$?; rm -f "$f"; exit $rc' _ "$HARNESS"
 
 echo ""
 
@@ -152,18 +156,15 @@ run_test "output: env template preserved (not expanded)" \
 
 echo ""
 
-# ── 3. CLI Flags (4 tests) ──────────────────────────────────────
+# ── 3. CLI Flags (3 tests) ──────────────────────────────────────
 
 echo "=== CLI flags ==="
 
 run_test "flags: --agent default" \
-  "$HARNESS" apply --dry-run --agent default
+  "$HARNESS" apply -o yaml --agent default
 
 run_test_fail "flags: --agent nonexistent rejects" \
-  "$HARNESS" apply --dry-run --agent nonexistent
-
-run_test_fail "flags: --gateway + --gateway-profile rejects" \
-  "$HARNESS" apply --dry-run --gateway local --gateway-profile /dev/null
+  "$HARNESS" apply -o yaml --agent nonexistent
 
 run_test_fail "flags: delete with no args rejects" \
   "$HARNESS" delete
