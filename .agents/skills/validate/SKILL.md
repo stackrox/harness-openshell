@@ -139,7 +139,7 @@ Validation Results
   OCP:            PASS (10/10)
   Kind:           SKIP (kind not installed)
   CI:             GREEN (3/3 workflows)
-  Config suite:   PASS (27/27, 3 skipped)
+  Config suite:   PASS (33/33, 0 skipped)
   Config live:    PASS (35/35, 3 skipped)
   Docs:           PASS (all commands documented, no stale refs)
 ```

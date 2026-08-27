@@ -203,6 +203,8 @@ Or build the harness from source: `make cli`
 | `harness get agents\|providers\|gateways` | List resources |
 | `harness describe <name>` | Sandbox details |
 | `harness delete <name> [--all]` | Tear down |
+| `harness plan -f FILE` | Read-only reconciliation plan (mutates nothing) |
+| `harness migrate -f FILE` | Convert a legacy v1 config to v1alpha1 |
 
 ### Credentials
 

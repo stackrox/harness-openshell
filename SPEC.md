@@ -9,7 +9,7 @@ The harness deploys and manages AI agent sandboxes on three targets:
 - **helm** -- Kubernetes pods via a k8s cluster (NodePort access)
 - **openshift** -- Kubernetes pods via an OpenShift-hosted OpenShell gateway (Route access)
 
-Each sandbox is an isolated container running an agent entrypoint (Claude Code or OpenCode), with credential providers, network policies, and a rendered payload (`task.md` and a `bin/` directory).
+Each sandbox is an isolated container running an agent entrypoint (e.g. Claude Code, OpenCode, or Codex; `bash` or any binary on PATH also works), with credential providers, network policies, and a rendered payload (`task.md` and a `bin/` directory).
 
 Requires OpenShell v0.0.110+.
 
@@ -39,7 +39,7 @@ Fields:
 - `name` (required) -- sandbox name, used for `openshell sandbox connect`
 - `base_agent` -- name of a base agent config to inherit from (e.g., `default` resolves `agent-default.yaml`). Providers, env, and payloads are merged additively; scalar fields (entrypoint, gateway, repo, task, image, policy) from the overlay win when non-empty.
 - `image` -- container image for the sandbox (default: version-matched from `quay.io/rcochran/openshell`, override with `HARNESS_OS_IMAGE` env)
-- `entrypoint` -- command to run (default: `claude`). Supports `claude`, `opencode`, `bash`, or any binary on PATH.
+- `entrypoint` -- command to run (default: `claude`). Supports `claude`, `codex`, `opencode`, `bash`, or any binary on PATH.
 - `tty` -- enable TTY (default: true)
 - `repo` -- git URL to clone outside the sandbox and upload to `/sandbox/<repo-name>`. Shallow clone (`--depth 1`) with submodules. Git credentials never enter the sandbox unless needed.
 - `repo_ref` -- branch, tag, or ref to clone (default: HEAD). Passed as `--branch` to git clone.
@@ -94,7 +94,7 @@ Primary command. Resolves an agent config, deploys the gateway and providers, cr
    - **Standard** (`--from-existing`): GitHub, Atlassian -- OpenShell discovers credentials from local env.
    - **ADC** (`--from-gcloud-adc`): Vertex AI -- reads ADC file, configures inference routing.
    - **Custom**: GWS -- multi-step OAuth refresh flow.
-8. **Render payload** -- `task.md` (if set) and a `bin/` directory. The in-sandbox command is built by the agent adapter (`internal/agent/adapter.go`) as a `bash -lc` invocation (PATH setup, entrypoint validation via `command -v`, `-p`/`--print` task), not a `run.sh` file.
+8. **Render payload** -- `task.md` (if set) and a `bin/` directory. The in-sandbox command is built by the agent adapter (`internal/agent/adapter.go`) as a `bash -lc` invocation (PATH setup, entrypoint validation via `command -v`), not a `run.sh` file. Task dispatch depends on mode and entrypoint: headless (default) uses `opencode run "$(cat task.md)"` for OpenCode and `--print "$(cat task.md)"` for claude/codex/custom entrypoints; interactive (`--attach`) uses `-p "$(cat task.md)"`.
 9. **Create sandbox** -- `openshell sandbox create` with `--env` (env vars), `--upload` (payload), and startup command. Retry up to 5 times.
 
 Default is non-interactive (headless). Use `--attach` for TTY mode.
@@ -121,9 +121,25 @@ Show detailed status for a specific sandbox: phase, active gateway, and register
 
 Delete sandboxes by name, or use flags for bulk operations. `--all` deletes sandboxes, providers, and k8s resources. Reuses the same teardown functions as the old `teardown` command.
 
+### `harness init [-o FILE] [--force] [--non-interactive]`
+
+Generate a `harness.yaml` config file. Interactive by default (prompts for entrypoint, providers, and gateway target); `--non-interactive` writes the embedded default. Writes to `harness.yaml` unless `-o` overrides the path.
+
+### `harness doctor [-f FILE] [--agent NAME] [--gateway NAME] [-o table|json|yaml]`
+
+Validate the environment for a configured sandbox. Phase 1 (offline) checks the openshell binary, target dependencies, and provider credentials without a running gateway; Phase 2 (online) checks provider registration when the gateway is reachable.
+
 ### `harness deploy <gateway>`
 
 Deploy or verify the gateway for a target. Reads `profiles/gateways/<target>.yaml`.
+
+### `harness plan -f FILE [--gateway NAME] [-o table|json|yaml]`
+
+Read-only reconciliation plan. Shows the actions `harness apply` would take without mutating anything. Distinct from `apply --dry-run`, which is a separate legacy path.
+
+### `harness migrate -f FILE [-o FILE]`
+
+Convert a legacy v1 harness config to the v1alpha1 format. The input YAML is normalized and written as v1alpha1 to stdout (or `-o FILE`). Fields with no v1alpha1 home (`task`, `include`, inline policy documents, unresolved `base_agent`) are reported as warnings on stderr.
 
 ### Deprecated Aliases
 
