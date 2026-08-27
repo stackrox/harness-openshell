@@ -37,6 +37,12 @@ Examples:
 
 			ctx := cmd.Context()
 			target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
+			// The harness only ever acts on an already-selected gateway. Without
+			// one there is nothing to delete from, and the bulk sweeps would
+			// otherwise silently skip and still report success.
+			if target.Gateway == "" {
+				return fmt.Errorf("no active openshell gateway — run 'openshell gateway select <name>' first")
+			}
 
 			client, err := newClient(ctx, target)
 			if err != nil {
@@ -58,11 +64,7 @@ Examples:
 				}
 			}
 
-			if target.Gateway != "" {
-				status.Infof("Active gateway: %s", target.Gateway)
-			} else {
-				status.Info("Active gateway: none")
-			}
+			status.Infof("Active gateway: %s", target.Gateway)
 			fmt.Println()
 
 			if all || sandboxes {

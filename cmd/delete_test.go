@@ -46,7 +46,7 @@ func TestDeleteTargeted(t *testing.T) {
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-b", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 
 	cmd := NewDeleteCmd(keepOpenFactory(client))
-	cmd.SetArgs([]string{"agent-a"})
+	cmd.SetArgs([]string{"agent-a", "--gateway", "prod"})
 	if _, err := captureStdout(t, cmd.Execute); err != nil {
 		t.Fatalf("delete agent-a: %v", err)
 	}
@@ -91,6 +91,29 @@ func TestDeleteProvidersGuard(t *testing.T) {
 	// The guard must prevent deletion, not delete-then-error: the provider survives.
 	if names := providerNames(t, client); len(names) != 1 || names[0] != "github" {
 		t.Errorf("guard should leave the provider untouched, got %v", names)
+	}
+}
+
+// Bulk deletion with no gateway resolved must fail loudly rather than skip both
+// sweeps and report success — otherwise sandboxes/providers silently survive.
+func TestDeleteBulkNoGatewayErrors(t *testing.T) {
+	t.Setenv("OPENSHELL_GATEWAY", "") // no flag, no env → no gateway
+	client, fc := testutil.NewFakeClient("default")
+	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
+
+	cmd := NewDeleteCmd(keepOpenFactory(client))
+	cmd.SetArgs([]string{"--all"})
+	_, err := captureStdout(t, cmd.Execute)
+	if err == nil {
+		t.Fatal("delete --all with no gateway should error, not report success")
+	}
+	if !contains(err.Error(), "no active openshell gateway") {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Nothing was swept.
+	if names := sandboxNames(t, client); len(names) != 1 {
+		t.Errorf("no-gateway delete must not touch resources, got %v", names)
 	}
 }
 

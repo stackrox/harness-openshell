@@ -71,8 +71,8 @@ func upLocal(opts upLocalOpts) error {
 	// The harness no longer provisions gateways: apply runs against a gateway
 	// OpenShell already stood up and the user selected. Fail up front — before
 	// touching providers or creating a sandbox — if none is reachable.
-	if gw.InferenceGet() != nil {
-		return fmt.Errorf("no active gateway is reachable — provision one with the OpenShell installer or 'helm install openshell', then select it with 'openshell gateway select <name>'")
+	if err := gw.InferenceGet(); err != nil {
+		return fmt.Errorf("no active gateway is reachable — provision one with the OpenShell installer or 'helm install openshell', then select it with 'openshell gateway select <name>': %w", err)
 	}
 
 	registered := ensureProviders(opts.harnessDir, gw, agentCfg, opts.harness)

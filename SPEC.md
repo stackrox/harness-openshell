@@ -87,7 +87,7 @@ Documents are dispatched by `kind` field. No `kind` field = agent (backwards com
 
 ## CLI
 
-### `harness apply [-f FILE] [--agent NAME] [--name SANDBOX] [--attach] [--setup-only] [--dry-run] [-o yaml|json]`
+### `harness apply [-f FILE] [--agent NAME] [--name SANDBOX] [--task TEXT|@FILE] [--entrypoint CMD] [--attach] [--setup-only] [--dry-run] [-o yaml|json]`
 
 Primary command. Resolves an agent config, reconciles providers and inference on the selected gateway, creates a sandbox. It never provisions a gateway — one must already be provisioned by OpenShell and selected.
 
@@ -141,7 +141,7 @@ Read-only reconciliation plan. Shows the actions `harness apply` would take with
 
 ### `harness migrate -f FILE [-o FILE]`
 
-Convert a legacy v1 harness config to the v1alpha1 format. The input YAML is normalized and written as v1alpha1 to stdout (or `-o FILE`). Fields with no v1alpha1 home (`task`, `include`, inline policy documents, unresolved `base_agent`) are reported as warnings on stderr. The legacy `gateway:` field named a deploy profile, a concept the harness no longer owns; it is dropped, leaving `spec.target.gateway` empty for the user to set.
+Convert a legacy v1 harness config to the v1alpha1 format. The input YAML is normalized and written as v1alpha1 to stdout (or `-o FILE`). Fields with no v1alpha1 home (`task`, `include`, inline policy documents, unresolved `base_agent`) are reported as warnings on stderr. The legacy `gateway:` field named a deploy profile, a concept the harness no longer owns; it is dropped, leaving `spec.target.gateway` empty. The active gateway is chosen outside the config — with `openshell gateway select` or `$OPENSHELL_GATEWAY` — not by re-adding a field to the YAML.
 
 ## Config Files
 

@@ -208,7 +208,8 @@ harness apply -f harness.yaml            # same YAML, cluster gateway
 
 Tear the gateway down with `helm uninstall openshell` and
 `openshell gateway remove my-cluster`. The harness `delete` command removes
-sandboxes and providers, never the gateway.
+sandboxes; add `--providers` (or `--all`) to remove providers too. It never
+removes the gateway.
 
 > **Migration:** `harness deploy`, `harness teardown`, `harness status`, and
 > `delete --k8s` are removed. Provision the gateway with OpenShell (the
@@ -267,7 +268,7 @@ make test-kind        # self-contained kind cluster lifecycle
 make test-remote      # full e2e on OCP (needs KUBECONFIG)
 ```
 
-`test-local` is the primary validation target. It provisions a gateway via the OpenShell installer, registers all 4 providers, creates sandboxes, verifies exec/env/GWS token resolution/MCP config/Claude inference, tests missing-provider recovery, and tears down.
+`test-local` is the primary validation target. It provisions a gateway via the OpenShell installer, registers all 4 providers, creates sandboxes, verifies exec/env/GWS token resolution/MCP config/Claude inference, tests missing-provider recovery, and tears down the sandboxes and providers it created (the gateway is OpenShell's to remove).
 
 `test-kind` creates its own kind cluster, `helm install`s OpenShell, builds and loads the sandbox image, runs the full flow, and deletes the cluster on exit. Use `KEEP=1` to keep the cluster for debugging.
 
