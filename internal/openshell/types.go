@@ -34,6 +34,31 @@ type Provider struct {
 	Labels map[string]string // ownership + metadata (see plan.OwnerLabelKey)
 }
 
+// Sandbox is the harness view of a sandbox for the read UX (get/describe).
+//
+// Deliberately narrow (least-exposure firewall): only the fields the read
+// commands render. Phase is the SDK SandboxPhase carried through as a string
+// (Provisioning|Ready|Error|Deleting|Unknown|Stopping). Widen only when a
+// consumer genuinely needs more, changing this and fromSDKSandbox together.
+type Sandbox struct {
+	Name  string
+	Phase string
+}
+
+// GatewayInfo is the harness view of the active gateway.
+//
+// Name and Endpoint are connection facts captured at construction (New, from the
+// CLI-managed gateway config); the injection path (NewFromClient) leaves them
+// empty, so Endpoint in particular is production-only and untested via the SDK
+// fake. Status and Version come from the gateway's health RPC. Status is the SDK
+// ServiceStatus as a string (Healthy|Degraded|Unhealthy|Unknown).
+type GatewayInfo struct {
+	Name     string
+	Endpoint string
+	Status   string
+	Version  string
+}
+
 // InferenceRoute is the harness view of an inference route read from a gateway.
 //
 // Deliberately minimal (least-exposure firewall): only the fields the harness
