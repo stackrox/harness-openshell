@@ -19,8 +19,6 @@ func NewApplyCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Com
 	var (
 		file            string
 		agentName       string
-		gatewayName     string
-		gatewayProfile  string
 		sandboxName     string
 		task            string
 		entrypoint      string
@@ -33,13 +31,12 @@ func NewApplyCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Com
 	cmd := &cobra.Command{
 		Use:   "apply [flags]",
 		Short: "Apply an agent configuration to create a sandbox",
-		Long: `Resolve an agent config against the profiles directory and running gateway,
-then deploy a sandbox. Use --dry-run to validate without deploying, or
+		Long: `Resolve an agent config against the profiles directory and the active
+OpenShell gateway, then create a sandbox. Provision the gateway with OpenShell
+first (installer or 'helm install openshell') and select it with
+'openshell gateway select'. Use --dry-run to validate without creating, or
 -o yaml to output the fully resolved configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if gatewayName != "" && gatewayProfile != "" {
-				return fmt.Errorf("--gateway and --gateway-profile are mutually exclusive")
-			}
 			if len(args) > 0 && sandboxName == "" {
 				sandboxName = args[0]
 			}
@@ -95,46 +92,30 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 
 			gw := gateway.New(cli)
 			if err := gw.CheckMinVersion(gateway.MinOpenShellVersion); err != nil {
-				// A CLI that is definitively too old will fail deployment later
-				// with far less context, so refuse up front. If we merely could
-				// not read/parse the version, warn and proceed — the CLI may
-				// still be usable and we don't want to block on a format change.
+				// A CLI that is definitively too old will fail later with far
+				// less context, so refuse up front. If we merely could not
+				// read/parse the version, warn and proceed — the CLI may still
+				// be usable and we don't want to block on a format change.
 				if errors.Is(err, gateway.ErrVersionBelowMinimum) {
 					return fmt.Errorf("incompatible openshell CLI: %w", err)
 				}
 				status.Warn(fmt.Sprintf("OpenShell version: %v", err))
 			}
 
-			// Resolve gateway
-			var gwCfg *gateway.GatewayConfig
-			gwTarget := gatewayName
-			if gatewayProfile != "" {
-				gwCfg, err = resolveGatewayConfigFromFile(gatewayProfile)
-				if err != nil {
-					return err
-				}
-				gwTarget = gwCfg.Gateway.Type
-			} else {
-				if gwTarget == "" {
-					if agentCfg.Gateway != "" {
-						gwTarget = agentCfg.Gateway
-					} else {
-						gwTarget = "local-container"
-					}
-				}
-				gwCfg, _ = resolveGatewayConfigWithHarness(harnessDir, gwTarget, harness)
+			// The harness runs against a gateway OpenShell already provisioned;
+			// it never provisions one. Require a selected, reachable gateway up
+			// front so we fail clearly here instead of deep in reconcile/run.
+			if _, err := resolveApplyTarget(gw); err != nil {
+				return err
 			}
-			isRemote := gwCfg != nil && !gwCfg.IsLocal()
 
 			if dryRun {
-				return dryRunApply(gw, agentCfg, gwTarget, isRemote)
+				return dryRunApply(gw, agentCfg)
 			}
 
 			return upLocal(upLocalOpts{
 				harnessDir:      harnessDir,
 				gw:              gw,
-				gwCfg:           gwCfg,
-				ensureLocal:     !isRemote,
 				agentCfg:        agentCfg,
 				agentPath:       agentPath,
 				sandboxName:     sandboxName,
@@ -149,14 +130,12 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 
 	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to harness/agent YAML file")
 	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name (from profiles/)")
-	cmd.Flags().StringVar(&gatewayName, "gateway", envOr("OPENSHELL_GATEWAY", ""), "Gateway profile name")
-	cmd.Flags().StringVar(&gatewayProfile, "gateway-profile", "", "Path to gateway profile YAML")
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Sandbox name (overrides agent config)")
 	cmd.Flags().StringVar(&task, "task", "", "Task to pass to the agent (inline text or @filepath)")
 	cmd.Flags().StringVar(&entrypoint, "entrypoint", "", "Override agent entrypoint (claude, opencode, bash)")
 	cmd.Flags().BoolVar(&attach, "attach", false, "Attach TTY after creation (interactive mode)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Validate configuration without deploying")
-	cmd.Flags().BoolVar(&setupOnly, "setup-only", false, "Deploy the gateway and reconcile providers/inference, but do not create a sandbox or run the agent")
+	cmd.Flags().BoolVar(&setupOnly, "setup-only", false, "Reconcile providers/inference on the active gateway, but do not create a sandbox or run the agent")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: yaml or json")
 
 	return cmd
@@ -164,16 +143,6 @@ then deploy a sandbox. Use --dry-run to validate without deploying, or
 
 func renderOutput(harnessDir string, h *agent.Harness, format string) error {
 	builtinProviders := loadProviderProfiles(harnessDir)
-
-	gwName := h.Agent.Gateway
-	if gwName == "" {
-		gwName = "local-container"
-	}
-	if len(h.Gateways) == 0 {
-		if gwData := loadGatewayProfile(harnessDir, gwName); gwData != nil {
-			h.Gateways[gwName] = gwData
-		}
-	}
 
 	switch format {
 	case "yaml":
@@ -206,7 +175,7 @@ func mapKeys(m map[string][]byte) []string {
 	return keys
 }
 
-func dryRunApply(gw gateway.Gateway, agentCfg *agent.AgentConfig, gwTarget string, isRemote bool) error {
+func dryRunApply(gw gateway.Gateway, agentCfg *agent.AgentConfig) error {
 	status.Header("Dry Run")
 	allPass := true
 
@@ -215,15 +184,12 @@ func dryRunApply(gw gateway.Gateway, agentCfg *agent.AgentConfig, gwTarget strin
 	image := resolveSandboxImage(agentCfg.Image)
 	status.OKf("image: %s", image)
 
-	if isRemote {
-		if gw.InferenceGet() != nil {
-			status.Failf("gateway: %s (not reachable)", gwTarget)
-			allPass = false
-		} else {
-			status.OKf("gateway: %s (reachable)", gwTarget)
-		}
+	gwName := gw.ActiveGateway()
+	if gw.InferenceGet() != nil {
+		status.Failf("gateway: %s (not reachable)", gwName)
+		allPass = false
 	} else {
-		status.OKf("gateway: %s (local)", gwTarget)
+		status.OKf("gateway: %s (reachable)", gwName)
 	}
 
 	for _, p := range agentCfg.Providers {

@@ -3,8 +3,7 @@ kind: Harness
 metadata:
     name: basic-test
 spec:
-    target:
-        gateway: rc-dev
+    target: {}
     agent:
         type: claude
     source:

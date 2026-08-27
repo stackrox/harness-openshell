@@ -47,8 +47,11 @@ entrypoint: claude`
 	if migrated.Metadata.Name != "basic-test" {
 		t.Errorf("name: got %q, want basic-test", migrated.Metadata.Name)
 	}
-	if migrated.Spec.Target.Gateway != "rc-dev" {
-		t.Errorf("target.gateway: got %q, want rc-dev", migrated.Spec.Target.Gateway)
+	// The legacy gateway: field named a deploy profile, a concept the harness no
+	// longer owns; migration drops it rather than mismapping it to a registered
+	// gateway name, so spec.target.gateway is left empty for the user to set.
+	if migrated.Spec.Target.Gateway != "" {
+		t.Errorf("target.gateway: got %q, want empty (legacy gateway not carried)", migrated.Spec.Target.Gateway)
 	}
 }
 

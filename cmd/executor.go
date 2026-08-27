@@ -13,7 +13,6 @@ import (
 	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/gateway"
-	"github.com/stackrox/harness-openshell/internal/k8s"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/payload"
 	"github.com/stackrox/harness-openshell/internal/plan"
@@ -34,8 +33,6 @@ var DefaultAgentConfig []byte
 type upLocalOpts struct {
 	harnessDir      string
 	gw              gateway.Gateway
-	gwCfg           *gateway.GatewayConfig
-	ensureLocal     bool
 	agentCfg        *agent.AgentConfig
 	agentPath       string
 	sandboxName     string
@@ -71,19 +68,11 @@ func upLocal(opts upLocalOpts) error {
 		status.Infof("Task:  %s", agentCfg.Task)
 	}
 
-	if opts.ensureLocal {
-		if err := deployLocal(gw); err != nil {
-			return fmt.Errorf("deploy failed: %w", err)
-		}
-	} else if gw.InferenceGet() != nil {
-		if opts.gwCfg == nil {
-			return fmt.Errorf("no active gateway -- use --gateway local or: harness deploy ocp")
-		}
-		kc := k8s.New("", k8s.DefaultNamespace())
-		clusterRunner := k8s.New("", "")
-		if err := deployFromConfig(opts.harnessDir, opts.gwCfg, gw, kc, clusterRunner); err != nil {
-			return fmt.Errorf("deploy failed: %w", err)
-		}
+	// The harness no longer provisions gateways: apply runs against a gateway
+	// OpenShell already stood up and the user selected. Fail up front — before
+	// touching providers or creating a sandbox — if none is reachable.
+	if gw.InferenceGet() != nil {
+		return fmt.Errorf("no active gateway is reachable — provision one with the OpenShell installer or 'helm install openshell', then select it with 'openshell gateway select <name>'")
 	}
 
 	registered := ensureProviders(opts.harnessDir, gw, agentCfg, opts.harness)

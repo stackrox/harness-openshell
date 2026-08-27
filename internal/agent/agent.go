@@ -25,7 +25,6 @@ type PayloadEntry struct {
 type AgentConfig struct {
 	Name       string            `yaml:"name"`
 	BaseAgent  string            `yaml:"base_agent,omitempty"`
-	Gateway    string            `yaml:"gateway,omitempty"`
 	Repo       string            `yaml:"repo,omitempty"`
 	RepoRef    string            `yaml:"repo_ref,omitempty"`
 	Providers  []ProviderRef     `yaml:"providers"`
@@ -45,9 +44,6 @@ type AgentConfig struct {
 func (base *AgentConfig) MergeOver(overlay *AgentConfig) *AgentConfig {
 	merged := *base
 	merged.Name = overlay.Name
-	if overlay.Gateway != "" {
-		merged.Gateway = overlay.Gateway
-	}
 	if overlay.Repo != "" {
 		merged.Repo = overlay.Repo
 	}

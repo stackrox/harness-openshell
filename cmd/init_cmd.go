@@ -27,7 +27,7 @@ var defaultProviders = []availableProvider{
 	{ID: "google-workspace", DisplayName: "Google Workspace", Category: "knowledge"},
 }
 
-func NewInitCmd(harnessDir string) *cobra.Command {
+func NewInitCmd() *cobra.Command {
 	var (
 		outputPath     string
 		force          bool
@@ -37,12 +37,12 @@ func NewInitCmd(harnessDir string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Generate a harness.yaml config file",
-		Long: `Create a harness.yaml by selecting an entrypoint, providers, and
-gateway target. The generated config is yours to version, share, and customize.
+		Long: `Create a harness.yaml by selecting an entrypoint and providers.
+The generated config is yours to version, share, and customize.
 
 Use --non-interactive to write the embedded default config without prompts.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return initRun(os.Stdin, os.Stdout, outputPath, force, nonInteractive, DefaultAgentConfig, harnessDir)
+			return initRun(os.Stdin, os.Stdout, outputPath, force, nonInteractive, DefaultAgentConfig)
 		},
 	}
 
@@ -53,7 +53,7 @@ Use --non-interactive to write the embedded default config without prompts.`,
 	return cmd
 }
 
-func initRun(in io.Reader, out io.Writer, outputPath string, force, nonInteractive bool, defaultCfg []byte, harnessDir string) error {
+func initRun(in io.Reader, out io.Writer, outputPath string, force, nonInteractive bool, defaultCfg []byte) error {
 	if _, err := os.Stat(outputPath); err == nil && !force {
 		return fmt.Errorf("%s already exists (use --force to overwrite)", outputPath)
 	}
@@ -77,12 +77,6 @@ func initRun(in io.Reader, out io.Writer, outputPath string, force, nonInteracti
 			return err
 		}
 		cfg.Providers = providers
-
-		target, err := promptGateway(scanner, out, harnessDir)
-		if err != nil {
-			return err
-		}
-		cfg.Gateway = target
 	}
 
 	data, err := yaml.Marshal(cfg)
@@ -139,26 +133,6 @@ func promptProviders(scanner *bufio.Scanner, out io.Writer) ([]agent.ProviderRef
 	}
 
 	return buildProviderRefs(available, indices), nil
-}
-
-func promptGateway(scanner *bufio.Scanner, out io.Writer, harnessDir string) (string, error) {
-	profiles := listGatewayProfiles(harnessDir)
-	defaultGW := "local-container"
-	choices := strings.Join(profiles, "/")
-	fmt.Fprintf(out, "Gateway target [%s] (default: %s): ", choices, defaultGW)
-	if !scanner.Scan() {
-		return defaultGW, nil
-	}
-	input := strings.TrimSpace(strings.ToLower(scanner.Text()))
-	if input == "" {
-		return defaultGW, nil
-	}
-	for _, p := range profiles {
-		if input == p {
-			return input, nil
-		}
-	}
-	return "", fmt.Errorf("unknown gateway target: %q (available: %s)", input, choices)
 }
 
 func discoverProviders() []availableProvider {

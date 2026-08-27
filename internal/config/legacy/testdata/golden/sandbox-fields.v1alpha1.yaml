@@ -3,8 +3,7 @@ kind: Harness
 metadata:
     name: sandbox-fields-test
 spec:
-    target:
-        gateway: rc-dev
+    target: {}
     sandbox:
         image: quay.io/example/sandbox:latest
         policy:
