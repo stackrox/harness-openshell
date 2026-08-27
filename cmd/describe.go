@@ -1,15 +1,17 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
-	"github.com/stackrox/harness-openshell/internal/gateway"
-	"github.com/stackrox/harness-openshell/internal/status"
 	"github.com/spf13/cobra"
+	"github.com/stackrox/harness-openshell/internal/openshell"
+	"github.com/stackrox/harness-openshell/internal/status"
 )
 
-func NewDescribeCmd(harnessDir, cli string) *cobra.Command {
+func NewDescribeCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
+	var gatewayName, workspace *string
 
 	cmd := &cobra.Command{
 		Use:   "describe [NAME]",
@@ -17,42 +19,41 @@ func NewDescribeCmd(harnessDir, cli string) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			gw := gateway.New(cli)
-
-			sandboxes, err := gw.SandboxStatus()
-			if err != nil {
-				return fmt.Errorf("listing sandboxes: %w", err)
-			}
-
-			var found *gateway.SandboxInfo
-			for i := range sandboxes {
-				if sandboxes[i].Name == name {
-					found = &sandboxes[i]
-					break
-				}
-			}
-			if found == nil {
-				return fmt.Errorf("sandbox %q not found", name)
-			}
-
-			// Find active gateway
-			var activeGW *gateway.GatewayInfo
-			gateways, err := gw.GatewayList()
-			if err == nil {
-				for i := range gateways {
-					if gateways[i].Active {
-						activeGW = &gateways[i]
-						break
-					}
-				}
-			}
-
-			// Find providers
-			providers, _ := gw.ProviderList()
 
 			format, err := parseOutputFormat(output)
 			if err != nil {
 				return err
+			}
+
+			client, err := openClient(cmd.Context(), newClient, gatewayName, workspace)
+			if err != nil {
+				return fmt.Errorf("create OpenShell client: %w", err)
+			}
+			defer client.Close()
+
+			sandbox, err := client.GetSandbox(cmd.Context(), name)
+			if err != nil {
+				if errors.Is(err, openshell.ErrNotFound) {
+					return fmt.Errorf("sandbox %q not found", name)
+				}
+				return fmt.Errorf("reading sandbox: %w", err)
+			}
+
+			// Gateway context and providers are best-effort: a describe still
+			// shows the sandbox even if gateway introspection or the provider
+			// list fails (behavior-preserving with the former CLI path).
+			var gwName, gwEndpoint string
+			if info, err := client.GatewayInfo(cmd.Context()); err == nil {
+				gwName = info.Name
+				gwEndpoint = info.Endpoint
+			}
+
+			var providerNames []string
+			if providers, err := client.Providers(cmd.Context()); err == nil {
+				providerNames = make([]string, len(providers))
+				for i, p := range providers {
+					providerNames[i] = p.Name
+				}
 			}
 
 			if format != formatTable {
@@ -63,28 +64,25 @@ func NewDescribeCmd(harnessDir, cli string) *cobra.Command {
 					Endpoint  string   `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
 					Providers []string `json:"providers,omitempty" yaml:"providers,omitempty"`
 				}
-				out := describeOut{
-					Name:      found.Name,
-					Phase:     found.Phase,
-					Providers: providers,
-				}
-				if activeGW != nil {
-					out.Gateway = activeGW.Name
-					out.Endpoint = activeGW.Endpoint
-				}
-				return printStructured(format, out)
+				return printStructured(format, describeOut{
+					Name:      sandbox.Name,
+					Phase:     sandbox.Phase,
+					Gateway:   gwName,
+					Endpoint:  gwEndpoint,
+					Providers: providerNames,
+				})
 			}
 
-			status.Header(found.Name)
-			status.Infof("Phase: %s", found.Phase)
+			status.Header(sandbox.Name)
+			status.Infof("Phase: %s", sandbox.Phase)
 
-			if activeGW != nil {
-				status.Infof("Gateway: %s (%s)", activeGW.Name, activeGW.Endpoint)
+			if gwName != "" {
+				status.Infof("Gateway: %s (%s)", gwName, gwEndpoint)
 			}
 
-			if len(providers) > 0 {
-				status.Infof("Providers: %d registered", len(providers))
-				for _, p := range providers {
+			if len(providerNames) > 0 {
+				status.Infof("Providers: %d registered", len(providerNames))
+				for _, p := range providerNames {
 					fmt.Printf("  - %s\n", p)
 				}
 			}
@@ -94,5 +92,6 @@ func NewDescribeCmd(harnessDir, cli string) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: table, json, or yaml")
+	gatewayName, workspace = registerTargetFlags(cmd)
 	return cmd
 }

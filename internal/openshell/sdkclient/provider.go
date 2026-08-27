@@ -45,6 +45,11 @@ func (c *client) GetProvider(ctx context.Context, name string) (openshell.Provid
 	return fromSDKProvider(p), nil
 }
 
+// DeleteProvider removes the named provider in the bound workspace.
+func (c *client) DeleteProvider(ctx context.Context, name string) error {
+	return translate(c.raw.Providers().Delete(ctx, c.workspace, name))
+}
+
 // UpdateProvider writes the desired non-secret Config/Labels of an existing
 // provider while preserving everything else the gateway holds — this is the
 // single credential-preserving-update site (spec §8.5).

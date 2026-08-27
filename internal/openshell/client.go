@@ -18,6 +18,19 @@ type Client interface {
 	Health(ctx context.Context) (Health, error)
 	// Providers lists the providers registered in the bound workspace.
 	Providers(ctx context.Context) ([]Provider, error)
+	// Sandboxes lists the sandboxes in the bound workspace (read UX: get agents).
+	Sandboxes(ctx context.Context) ([]Sandbox, error)
+	// GetSandbox reads the named sandbox in the bound workspace. Returns
+	// ErrNotFound when no such sandbox exists (read UX: describe).
+	GetSandbox(ctx context.Context, name string) (Sandbox, error)
+	// DeleteSandbox removes the named sandbox in the bound workspace.
+	DeleteSandbox(ctx context.Context, name string) error
+	// DeleteProvider removes the named provider in the bound workspace.
+	DeleteProvider(ctx context.Context, name string) error
+	// GatewayInfo introspects the active gateway (name, endpoint, status,
+	// version). The SDK offers no gateway list; this reports the single gateway
+	// the client is bound to.
+	GatewayInfo(ctx context.Context) (GatewayInfo, error)
 	// GetProvider reads the named provider in the bound workspace. Returns
 	// ErrNotFound when no such provider exists (requires the "provider:read"
 	// role).

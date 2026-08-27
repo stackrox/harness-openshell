@@ -314,6 +314,26 @@ func (r *recordingClient) GetProvider(ctx context.Context, name string) (openshe
 	return r.wrapped.GetProvider(ctx, name)
 }
 
+func (r *recordingClient) Sandboxes(ctx context.Context) ([]openshell.Sandbox, error) {
+	return r.wrapped.Sandboxes(ctx)
+}
+
+func (r *recordingClient) GetSandbox(ctx context.Context, name string) (openshell.Sandbox, error) {
+	return r.wrapped.GetSandbox(ctx, name)
+}
+
+func (r *recordingClient) DeleteSandbox(ctx context.Context, name string) error {
+	return r.wrapped.DeleteSandbox(ctx, name)
+}
+
+func (r *recordingClient) DeleteProvider(ctx context.Context, name string) error {
+	return r.wrapped.DeleteProvider(ctx, name)
+}
+
+func (r *recordingClient) GatewayInfo(ctx context.Context) (openshell.GatewayInfo, error) {
+	return r.wrapped.GatewayInfo(ctx)
+}
+
 func (r *recordingClient) UpdateProvider(ctx context.Context, p openshell.Provider) (openshell.Provider, error) {
 	return r.wrapped.UpdateProvider(ctx, p)
 }
@@ -350,6 +370,26 @@ func (e *errorClient) Providers(ctx context.Context) ([]openshell.Provider, erro
 
 func (e *errorClient) GetProvider(ctx context.Context, name string) (openshell.Provider, error) {
 	return openshell.Provider{}, e.err
+}
+
+func (e *errorClient) Sandboxes(ctx context.Context) ([]openshell.Sandbox, error) {
+	return nil, e.err
+}
+
+func (e *errorClient) GetSandbox(ctx context.Context, name string) (openshell.Sandbox, error) {
+	return openshell.Sandbox{}, e.err
+}
+
+func (e *errorClient) DeleteSandbox(ctx context.Context, name string) error {
+	return e.err
+}
+
+func (e *errorClient) DeleteProvider(ctx context.Context, name string) error {
+	return e.err
+}
+
+func (e *errorClient) GatewayInfo(ctx context.Context) (openshell.GatewayInfo, error) {
+	return openshell.GatewayInfo{}, e.err
 }
 
 func (e *errorClient) UpdateProvider(ctx context.Context, p openshell.Provider) (openshell.Provider, error) {

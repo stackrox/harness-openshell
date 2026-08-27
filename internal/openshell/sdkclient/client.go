@@ -34,9 +34,16 @@ var (
 
 // client wraps the SDK client interface, binding it to one workspace. It holds
 // the interface (not *v1.Client) so tests can inject the SDK fake.
+//
+// gatewayName and gatewayEndpoint are connection facts the SDK does not report
+// over the wire (GatewayInfo carries neither): New captures them from the
+// CLI-managed gateway config so GatewayInfo can merge them with the health RPC's
+// status/version. The NewFromClient injection path leaves both empty.
 type client struct {
-	raw       v1.ClientInterface
-	workspace string
+	raw             v1.ClientInterface
+	workspace       string
+	gatewayName     string
+	gatewayEndpoint string
 }
 
 // New constructs an openshell.Client for the given target: it loads the
@@ -60,15 +67,28 @@ func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 		return nil, err
 	}
 
-	// NewFromClient is the single owner of the "" -> defaultWorkspace default;
-	// pass t.Workspace straight through.
-	return NewFromClient(raw, t.Workspace), nil
+	// newClient is the single owner of the "" -> defaultWorkspace default; pass
+	// t.Workspace straight through. Capture the connection facts the SDK never
+	// reports (gateway name and endpoint) so GatewayInfo can merge them.
+	c := newClient(raw, t.Workspace)
+	c.gatewayName = t.Gateway
+	c.gatewayEndpoint = cfg.Endpoint
+	return c, nil
 }
 
 // NewFromClient wraps an existing SDK client (or the SDK fake) bound to a
 // workspace. It is the injection seam used by white-box tests and by
-// internal/testutil. Empty workspace defaults to defaultWorkspace.
+// internal/testutil. Empty workspace defaults to defaultWorkspace. It leaves the
+// gateway name and endpoint empty — those are connection facts only New can
+// capture from the CLI-managed config.
 func NewFromClient(raw v1.ClientInterface, workspace string) openshell.Client {
+	return newClient(raw, workspace)
+}
+
+// newClient builds the concrete client with the workspace default applied. It
+// returns the concrete type so New can set the connection facts before returning
+// the interface.
+func newClient(raw v1.ClientInterface, workspace string) *client {
 	if workspace == "" {
 		workspace = defaultWorkspace
 	}
