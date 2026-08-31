@@ -27,18 +27,27 @@ func TestOIDCTokenSourceDiscoversAndSendsAudience(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"token_endpoint": server.URL + "/token"})
 		case "/token":
 			tokenRequests.Add(1)
+			// t.Fatalf here would call runtime.Goexit on the server goroutine,
+			// not the test goroutine, so report and return an error response and
+			// let the client-side assertion fail the test cleanly.
 			if err := r.ParseForm(); err != nil {
-				t.Fatalf("parse token request: %v", err)
+				t.Errorf("parse token request: %v", err)
+				http.Error(w, "parse form", http.StatusBadRequest)
+				return
 			}
 			gotID, gotSecret, ok := r.BasicAuth()
 			if !ok {
 				gotID, gotSecret = r.Form.Get("client_id"), r.Form.Get("client_secret")
 			}
 			if gotID != clientID || gotSecret != secret {
-				t.Fatalf("unexpected client authentication: id=%q", gotID)
+				t.Errorf("unexpected client authentication: id=%q", gotID)
+				http.Error(w, "bad client auth", http.StatusUnauthorized)
+				return
 			}
 			if got := r.Form.Get("audience"); got != audience {
-				t.Fatalf("audience=%q, want %q", got, audience)
+				t.Errorf("audience=%q, want %q", got, audience)
+				http.Error(w, "bad audience", http.StatusBadRequest)
+				return
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{

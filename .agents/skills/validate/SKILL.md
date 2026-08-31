@@ -94,10 +94,10 @@ This is an opt-in environment validation, not pull-request CI.
 
 ### 6. HyperShell integration
 
-The `HyperShell` workflow uses the administrator service account only to create
-an isolated per-run workspace and grant the sandbox user membership. It removes
-the administrator token before running repository code, executes the canonical
-SDK lifecycle as the user, and deletes that workspace afterward.
+The `HyperShell` workflow runs the canonical SDK lifecycle against a managed
+remote gateway using a pre-provisioned sandbox service account. Platform
+bootstrap grants that account membership in the gateway's default workspace
+once; no administrator token is stored in the repository or used at runtime.
 
 This workflow intentionally does not run on pull requests because repository
 secrets must not be exposed to untrusted PR code. Validate it after a trusted

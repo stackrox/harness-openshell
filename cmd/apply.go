@@ -68,20 +68,31 @@ Use --dry-run to render the v1alpha1 action plan without mutating anything, or
 						return renderCanonicalWorkflow(workflow, output)
 					}
 					gw := gateway.New(cli)
-					if !dryRun && !canonicalSDKRunEligible(workflow) {
+					// The CLI version gate only matters for the CLI run path. A
+					// direct target never uses the CLI, so skip it there and let
+					// applyCanonical reject any CLI-only run configuration with a
+					// clear message.
+					if !dryRun && workflow.Target.Direct == nil && !canonicalSDKRunEligible(workflow) {
 						if err := checkOpenShellVersion(gw); err != nil {
 							return err
 						}
 					}
 
+					// A direct target carries its own connection with no CLI
+					// gateway name, so connect on that too — otherwise apply
+					// fails the gateway guard for a reachable direct registration.
 					var client openshell.Client
-					if workflow.Target.Gateway != "" {
+					if workflow.Target.Direct != nil || workflow.Target.Gateway != "" {
 						client, err = newClient(cmd.Context(), workflow.Target)
 						if err != nil {
-							if !dryRun {
-								return fmt.Errorf("connecting to gateway %q: %w", workflow.Target.Gateway, err)
+							desc := fmt.Sprintf("gateway %q", workflow.Target.Gateway)
+							if workflow.Target.Direct != nil {
+								desc = "direct target"
 							}
-							fmt.Fprintf(cmd.ErrOrStderr(), "warning: gateway %q unreachable: %v (rendering desired config only)\n", workflow.Target.Gateway, err)
+							if !dryRun {
+								return fmt.Errorf("connecting to %s: %w", desc, err)
+							}
+							fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s unreachable: %v (rendering desired config only)\n", desc, err)
 						} else {
 							defer client.Close()
 						}

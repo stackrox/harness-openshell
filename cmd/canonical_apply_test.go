@@ -258,6 +258,37 @@ func TestCanonicalApplyRetainsCLIFallbackForTTY(t *testing.T) {
 	}
 }
 
+func TestCanonicalApplyRejectsCLIFallbackForDirectTarget(t *testing.T) {
+	// A direct registration carries its own endpoint and OIDC but no CLI
+	// gateway name. A CLI-only run configuration (here, TTY) must be rejected
+	// rather than silently run against unrelated CLI state.
+	desired := &config.Harness{
+		Metadata: config.Metadata{Name: "interactive"},
+		Spec: config.Spec{
+			Sandbox: config.Sandbox{Image: "reviewer", TTY: true},
+			Agent:   config.Agent{Type: "reviewer"},
+		},
+	}
+	workflow := &canonicalWorkflow{
+		Desired: desired,
+		Target:  openshell.Target{Direct: &openshell.DirectConnection{Endpoint: "https://gateway.example.com"}},
+		BaseDir: t.TempDir(),
+	}
+	client := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	planned, current, err := workflow.buildPlan(context.Background(), client)
+	if err != nil {
+		t.Fatalf("buildPlan: %v", err)
+	}
+	gw := &mockGW{}
+	err = applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{})
+	if err == nil || !strings.Contains(err.Error(), "direct registration target does not support") {
+		t.Fatalf("error = %v, want direct-target CLI-path rejection", err)
+	}
+	if gw.createCalls != 0 {
+		t.Fatalf("CLI sandbox create calls = %d, want 0", gw.createCalls)
+	}
+}
+
 func TestPlanAndApplyDryRunRenderSameCanonicalPlan(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := t.TempDir()

@@ -34,11 +34,11 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 	if opts.DryRun {
 		return renderPlan(p, opts.Output)
 	}
-	if workflow.Target.Gateway == "" {
-		return fmt.Errorf("spec.target.gateway is required for apply (or set --gateway or %s)", openshell.EnvGateway)
+	if workflow.Target.Gateway == "" && workflow.Target.Direct == nil {
+		return fmt.Errorf("spec.target.gateway or spec.target.registration is required for apply (or set --gateway or %s)", openshell.EnvGateway)
 	}
 	if client == nil || !current.Reachable {
-		return fmt.Errorf("gateway %q is not reachable or authenticated", workflow.Target.Gateway)
+		return fmt.Errorf("%s is not reachable or authenticated", targetDescription(workflow.Target))
 	}
 	if err := preflightCanonicalPlan(workflow.Desired, p); err != nil {
 		return err
@@ -85,7 +85,22 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 		}
 		return run.RunSandboxSDK(ctx, executor, req, os.Stdout, os.Stderr)
 	}
+	if workflow.Target.Direct != nil {
+		// The CLI run path binds to a named CLI gateway and cannot use the
+		// direct connection's endpoint and OIDC. Reject rather than silently
+		// run against unrelated CLI state.
+		return fmt.Errorf("this workflow needs the CLI run path (source, payloads, policy, an interactive terminal, or a local image), which a direct registration target does not support; use spec.target.gateway")
+	}
 	return run.RunSandbox(ctx, gw, req)
+}
+
+// targetDescription names a target for error messages: direct registrations
+// carry no CLI gateway name, so a quoted empty gateway would read as nonsense.
+func targetDescription(target openshell.Target) string {
+	if target.Direct != nil {
+		return "direct target"
+	}
+	return fmt.Sprintf("gateway %q", target.Gateway)
 }
 
 // canonicalSDKRunEligible selects the lifecycle the pinned SDK implements
