@@ -157,11 +157,16 @@ record the resolved digest.
 The reusable GitHub workflow should own the mechanical setup:
 
 1. exchange GitHub OIDC identity for short-lived gateway authentication;
-2. register or select the ephemeral OpenShell gateway context;
+2. select the already provisioned ACS OpenShell gateway; if the ephemeral runner
+   has no local client entry, add that registration metadata first (this stores
+   client context only and does not create or modify the gateway);
 3. map repository identity to an authorized workspace;
 4. execute the pinned harness workflow;
 5. publish checks, SARIF, and the evidence artifact; and
 6. remove transient local credentials and context files.
+
+Neither the reusable workflow nor harness-openshell provisions or tears down the
+gateway. HyperShell retains gateway lifecycle ownership.
 
 ## First viral application: security review
 
