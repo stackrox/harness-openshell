@@ -1,88 +1,116 @@
-# TODO — Roadmap
+# Roadmap
 
-## Next up
+The harness is a workflow layer for OpenShell gateways that already exist. Its
+next milestone is a repository-declared workflow that can run unchanged against a
+local gateway or a centrally managed HyperShell gateway.
 
-### `harness init` [DONE]
-- [x] Generate a harness.yaml with interactive prompts (entrypoint, providers)
-- [x] Discover providers from `openshell provider list-profiles`
-- [x] Print next steps ("run `harness doctor` then `harness apply`")
-- [x] `--non-interactive`, `--force`, `--output` flags
+Completed work belongs in `CHANGELOG.md`; this file describes active and planned
+work only.
 
-### `harness doctor` [DONE]
-- [x] Check openshell installed and version
-- [x] Check gateway reachability online (target-specific infra checks removed in PR7b — the harness no longer provisions, so it has no compute-backend deps to check)
-- [x] Check provider credentials via `openshell provider profile export`
-- [x] Online phase: check provider registration if gateway reachable
-- [x] `-o table|json|yaml` output
+## P0: source isolation
 
-### registerProviders should filter by agent's provider list
-- `registerProviders()` in `cmd/providers.go` registers all providers regardless
-  of what the agent needs. Fix: filter by `agentCfg.ProviderNames()`.
+- [ ] Complete final review and merge `rc-pr6-source-hardening`.
+- [ ] Verify uploaded Git metadata contains no credential-bearing remote.
+- [ ] Verify submodule authentication cannot persist credentials in the upload.
+- [ ] Return the resolved source commit to the run-result layer.
+- [ ] Clean per-run checkouts after success, failure, and cancellation.
 
-## CLI [DONE]
+## P0: canonical workflow execution
 
-- [x] `harness apply` with `--dry-run`, `-o yaml|json`, `--attach`, `-f`, `--task`, `--entrypoint`
-- [x] `harness get agents|providers|gateways` with `-o table|json|yaml`
-- [x] `harness describe <name>` with `-o table|json|yaml`
-- [x] `harness delete <name>` with `--all`, `--sandboxes`, `--providers`
-- [x] Headless task mode: `--task "text"` or `--task @file` runs agent with `--print`
-- [x] `kind: policy` applied via `openshell policy set` after sandbox creation
-- [x] `up`, `create`, `render`, `start`, `stop` removed
-- [x] `deploy`, `teardown`, `status`, and `delete --k8s` removed (PR7b): the
-      harness no longer provisions gateways — provision with OpenShell
-      (`openshell` installer or `helm install openshell`)
+`harness plan` currently consumes `harness.openshell.dev/v1alpha1`, while
+`harness apply` consumes the legacy `agent.AgentConfig` model. Until both commands
+share one resolved object and action graph, plan is not a reliable preview of
+apply and migration output is not an executable workflow.
 
-## Agent Config [DONE]
+- [ ] Make v1alpha1 the input to plan and apply.
+- [ ] Resolve defaults, environment references, gateway, workspace, and CLI
+      overrides once.
+- [ ] Build one action graph; render it in plan and execute it in apply.
+- [ ] Honor v1alpha1 source, sandbox, agent arguments, payloads, and retention.
+- [ ] Ensure `harness migrate` output can be passed directly to apply.
+- [ ] Publish a bounded legacy-config removal window.
+- [ ] Remove `desiredFromAgent` after migration.
 
-- [x] Multi-document harness YAML (`kind: agent/provider/payload/policy`; `kind: gateway` still parses but is inert after PR7b)
-- [x] `kind: payload` with `sandbox_path`/`local_path`/`content` + multi-upload
-- [x] Agent-level `payloads:` list merged with document-level payloads
-- [x] `kind: config` kept as silent alias for backwards compat
-- [x] Image defaults overridable via payloads (no image rebuild needed)
+## P0: shared-gateway authority
 
-### Config reconciliation (`apply -o yaml`) -- future
-- [ ] Show where each value came from (default, profile, harness file, env var)
-- [ ] Credentials rendered as `${VAR}` placeholders
-- [ ] Round-trip: `apply -o yaml > snapshot.yaml && apply -f snapshot.yaml`
+A repository workflow running on a centrally managed gateway must consume
+platform-owned capabilities. It must not create, adopt, update, or delete shared
+providers or inference routes.
 
-### Future fields
-- [ ] `description` -- one line of human-readable context per agent config
-- [x] `repo` -- git URL cloned outside sandbox and uploaded (git creds never enter sandbox)
+- [ ] Separate administrator reconciliation from ordinary workflow execution.
+- [ ] Support explicit gateway and workspace selection in apply.
+- [ ] Resolve the target once and pass it to every SDK and CLI operation.
+- [ ] Resolve logical capabilities such as `github-read` and
+      `inference-default` to referenced providers in the selected workspace.
+- [ ] Fail before sandbox creation when a required capability is unavailable.
+- [ ] Disable OpenShell automatic provider discovery for declared workflows.
+- [ ] Make best-effort behavior explicit rather than the default.
+- [ ] Make `--setup-only` fail when desired state was not achieved.
 
-## Testing [DONE]
+## P1: deterministic execution
 
-- [x] Config test suite: 37 tests across 7 categories
-- [x] Agent integration: claude + opencode inference, gh cli, jira mcp, gws gmail
-- [x] CI: config-suite + test-suite-live in workflows
+- [ ] Give Claude, Codex, OpenCode, and custom agents separate argv builders.
+- [ ] Use native `codex exec` for headless Codex execution.
+- [ ] Honor `agent.args` without shell interpolation.
+- [ ] Retry only transient sandbox-creation failures.
+- [ ] Define and test an OpenShell compatibility window.
+- [ ] Test both the pinned and newest supported OpenShell release in CI.
+- [ ] Adapt the upload/run lifecycle to OpenShell versions where `--upload`
+      conflicts with a trailing command.
+- [ ] Move secret provider-refresh material from process arguments to
+      environment-backed OpenShell options.
 
-## Architecture (future)
+## P1: structured run results
 
-### Direct gRPC
-- OpenShell gateway exposes 54 gRPC RPCs
-- Would eliminate CLI binary dependency and output parsing fragility
-- Prerequisite: proto files stabilize (OpenShell is alpha)
+- [ ] Define a stable JSON `RunResult` envelope.
+- [ ] Record source, workflow, skill, policy, image, agent, model, target, and
+      OpenShell version provenance without secrets.
+- [ ] Distinguish invalid workflow, missing capability, policy denial, agent
+      failure, and infrastructure failure.
+- [ ] Define typed artifact references for SARIF, Markdown summaries, patches,
+      and test reports.
+- [ ] Make cleanup and retention outcomes visible in the result.
 
-### Upstream issues to track
-- #1719 -- K8s Operator design (providers as CRDs, gateway narrows to data-plane)
-- #1851 -- Plugin system (affects binary naming)
-- #1886 -- Declarative provider config in gateway.toml (core team rejected; redirected to #1719)
-- #1520 -- Sandbox specs / apply -f (stale, no maintainer engagement)
-- #1814 -- Named sandbox templates (no comments, blocked on #863)
+## P1: packaged skills
+
+- [ ] Treat a `SKILL.md` input as a package with referenced scripts, templates,
+      instructions, and assets rather than only task text.
+- [ ] Record a deterministic skill-package digest.
+- [ ] Declare required capabilities, tools, and network access.
+- [ ] Resolve catalog references to immutable versions or digests.
+- [ ] Retain local-path support for skill development.
+
+## P1: ACS HyperShell pilot
+
+- [ ] Publish a reusable read-only security-review GitHub workflow.
+- [ ] Authenticate GitHub Actions to the gateway with short-lived identity.
+- [ ] Map repository identity to an authorized workspace.
+- [ ] Keep inference credentials out of repository and organization secrets.
+- [ ] Publish findings on the pull request and retain a complete evidence
+      artifact.
+- [ ] Pilot in one repository, then two repositories with different build
+      systems and separate workspaces.
+- [ ] Measure setup time, reliability, finding usefulness, false positives,
+      runtime, and inference cost.
+- [ ] After the pilot earns trust, use an organization-required workflow to
+      reduce repository adoption from two files to one declaration.
+
+## Upstream issues to track
+
+- #1719 -- Kubernetes Operator design
+- #1851 -- Plugin system and host contract
 - #1922 -- Portable sandbox log collection
 - #1933 -- Centralized audit/event log
 
-Upstream direction signal (as of 2026-06): the gateway stays a strict foundation
-layer. Provider lifecycle and sandbox declaration are moving toward the operator/CRD
-model for K8s. johntmyers mentioned hooks/middleware for API calls coming soon.
-The harness's provider registration and multi-document YAML have no upstream
-replacement on the current roadmap.
+Provider lifecycle and sandbox declaration may move into upstream operator
+resources. Keep reconciliation behind replaceable interfaces; the durable harness
+contract is workflow intent, capability verification, promotion, and evidence.
 
-## Observability & Tracing
+## Deliberately deferred
 
-Langfuse hooks plugin working. MLflow spiked. SigNoz identified as strongest
-OTel backend. Integration deferred until `init`/`doctor` ship.
-
-## Release
-
-- [x] CHANGELOG.md + LICENSE (Apache 2.0)
-- [x] `harness init` for standalone binary distribution
+- Broad observability integrations beyond the run-result contract
+- A new hosted catalog/control plane
+- Write-capable autonomous remediation
+- Scheduled self-improvement agents
+- OpenShell plugin packaging
+- Additional wrappers around native OpenShell commands

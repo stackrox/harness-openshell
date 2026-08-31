@@ -1,4 +1,4 @@
-# Release Plan: CI → Embed → GoReleaser
+# Archived release plan: CI → Embed → GoReleaser
 
 > **Historical plan.** This records the original release roadmap; Phase 0 shipped.
 > Some later details diverged from what shipped and are kept here for provenance,

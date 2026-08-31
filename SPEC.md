@@ -11,7 +11,7 @@ cluster) is OpenShell's job — the harness has zero compute-backend opinion and
 never deploys or tears down a gateway. It runs against whichever gateway is
 selected (`openshell gateway select`), local or cluster, from the same YAML.
 
-Each sandbox is an isolated container running an agent entrypoint (e.g. Claude Code, OpenCode, or Codex; `bash` or any binary on PATH also works), with credential providers, network policies, and a rendered payload (`task.md` and a `bin/` directory).
+Each sandbox is an isolated container running an agent entrypoint (e.g. Claude Code or OpenCode; `bash` or any binary on PATH also works), with credential providers, network policies, and a rendered payload (`task.md` and a `bin/` directory). A Codex adapter exists, but its current task dispatch still inherits Claude command semantics and is not considered complete.
 
 Requires OpenShell v0.0.110+.
 
@@ -41,11 +41,11 @@ Fields:
 - `name` (required) -- sandbox name, used for `openshell sandbox connect`
 - `base_agent` -- name of a base agent config to inherit from (e.g., `default` resolves `agent-default.yaml`). Providers, env, and payloads are merged additively; scalar fields (entrypoint, repo, task, image, policy) from the overlay win when non-empty.
 - `image` -- container image for the sandbox (default: version-matched from `quay.io/rcochran/openshell`, override with `HARNESS_OS_IMAGE` env)
-- `entrypoint` -- command to run (default: `claude`). Supports `claude`, `codex`, `opencode`, `bash`, or any binary on PATH.
+- `entrypoint` -- command to run (default: `claude`). Supports `claude`, `opencode`, `bash`, or any binary on PATH. `codex` is experimental until the adapter uses native `codex exec` semantics.
 - `tty` -- enable TTY (default: true)
-- `repo` -- git URL to clone outside the sandbox and upload to `/sandbox/<repo-name>`. Shallow clone (`--depth 1`) with submodules. Git credentials never enter the sandbox unless needed.
+- `repo` -- git URL to clone outside the sandbox and upload to `/sandbox/<repo-name>`. Shallow clone (`--depth 1`) with submodules. Do not embed credentials in the URL: current main uploads the checkout's `.git` metadata. The pending source-hardening work removes the credential-bearing origin while retaining local Git history.
 - `repo_ref` -- branch, tag, or ref to clone (default: HEAD). Passed as `--branch` to git clone.
-- `task` -- path to a task.md file, passed to entrypoint via `-p "$(cat task.md)"`
+- `task` -- path to a task.md file. Dispatch depends on TTY mode and adapter as described in the apply lifecycle below.
 - `providers` -- list of provider profile references
 - `providers[].profile` -- OpenShell provider profile name
 - `providers[].env` -- non-secret env vars for this provider (resolved via `os.ExpandEnv`; empty values read from host env; injected via `--env` on sandbox create)
@@ -93,14 +93,14 @@ Primary command. Resolves an agent config, reconciles providers and inference on
 
 1. **Parse agent config** -- resolve `agent-<name>.yaml` from harness directory (default: `default`). `-f` overrides with a direct file path. Falls back to embedded `agent-basic.yaml` when `agent-default.yaml` is not found on disk.
 2. **Check output mode** -- if `-o yaml` or `-o json`, render the fully resolved config and exit. No gateway interaction needed.
-3. **Check version** -- warn if openshell CLI is below v0.0.110.
+3. **Check version** -- reject a definitively detected OpenShell CLI below v0.0.110; warn and continue if the version cannot be read or parsed.
 4. **Require an active gateway** -- resolve the gateway from `openshell`'s active selection (`OPENSHELL_GATEWAY` env var overrides). Error up front if none is selected; `upLocal` additionally preflights that the gateway is reachable before touching providers or creating a sandbox.
 5. **Dry-run check** -- if `--dry-run`, validate each step (gateway reachable, providers resolvable, env vars resolved, image available) and exit with pass/fail report.
 6. **Ensure providers** -- auto-register missing providers. Three registration flows:
    - **Standard** (`--from-existing`): GitHub, Atlassian -- OpenShell discovers credentials from local env.
    - **ADC** (`--from-gcloud-adc`): Vertex AI -- reads ADC file, configures inference routing.
    - **Custom**: GWS -- multi-step OAuth refresh flow.
-7. **Render payload** -- `task.md` (if set) and a `bin/` directory. The in-sandbox command is built by the agent adapter (`internal/agent/adapter.go`) as a `bash -lc` invocation (PATH setup, entrypoint validation via `command -v`), not a `run.sh` file. Task dispatch depends on mode and entrypoint: headless (default) uses `opencode run "$(cat task.md)"` for OpenCode and `--print "$(cat task.md)"` for claude/codex/custom entrypoints; interactive (`--attach`) uses `-p "$(cat task.md)"`.
+7. **Render payload** -- `task.md` (if set) and a `bin/` directory. The in-sandbox command is built by the agent adapter (`internal/agent/adapter.go`) as a `bash -lc` invocation (PATH setup, entrypoint validation via `command -v`), not a `run.sh` file. Task dispatch depends on mode and entrypoint: headless (default) uses `opencode run "$(cat task.md)"` for OpenCode and `--print "$(cat task.md)"` for Claude and custom entrypoints; interactive (`--attach`) uses `-p "$(cat task.md)"`. Current code also emits `--print` for Codex, which is a known adapter defect rather than the intended contract; native headless Codex execution will use `codex exec`.
 8. **Create sandbox** -- `openshell sandbox create` with `--env` (env vars), `--upload` (payload), and startup command. Retry up to 5 times.
 
 Default is non-interactive (headless). Use `--attach` for TTY mode.
@@ -137,11 +137,11 @@ Validate the environment for a configured sandbox. Phase 1 (offline) checks the 
 
 ### `harness plan -f FILE [--gateway NAME] [-o table|json|yaml]`
 
-Read-only reconciliation plan. Shows the actions `harness apply` would take without mutating anything. Distinct from `apply --dry-run`, which is a separate legacy path.
+Read-only reconciliation plan for the strict v1alpha1 desired-resource model. It is currently distinct from the legacy apply path and must not be described as a preview of `harness apply` until both commands consume the same resolved object and action graph.
 
 ### `harness migrate -f FILE [-o FILE]`
 
-Convert a legacy v1 harness config to the v1alpha1 format. The input YAML is normalized and written as v1alpha1 to stdout (or `-o FILE`). Fields with no v1alpha1 home (`task`, `include`, inline policy documents, unresolved `base_agent`) are reported as warnings on stderr. The legacy `gateway:` field named a deploy profile, a concept the harness no longer owns; it is dropped, leaving `spec.target.gateway` empty. The active gateway is chosen outside the config — with `openshell gateway select` or `$OPENSHELL_GATEWAY` — not by re-adding a field to the YAML.
+Convert a legacy v1 harness config to the v1alpha1 format. The input YAML is normalized and written as v1alpha1 to stdout (or `-o FILE`). Fields with no v1alpha1 home (`task`, `include`, inline policy documents, unresolved `base_agent`) are reported as warnings on stderr. The legacy `gateway:` field named a deploy profile, a concept the harness no longer owns; it is dropped, leaving `spec.target.gateway` empty. The active gateway is chosen outside the config — with `openshell gateway select` or `$OPENSHELL_GATEWAY` — not by re-adding a field to the YAML. The migrated output is currently accepted by `harness plan`, not `harness apply`; executable migration is part of the canonical-schema roadmap.
 
 ## Config Files
 

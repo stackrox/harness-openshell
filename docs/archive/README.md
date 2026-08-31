@@ -12,3 +12,9 @@ Original design proposal from early development. **Outdated** — uses old namin
 - OCP vs local k8s comparison (lines 397-421)
 
 For current architecture, see: README.md, SPEC.md, and AGENTS.md in the repo root.
+
+## release-plan-2026-06.md
+
+Original CI, embedding, and GoReleaser rollout plan. Phase 0 shipped, but later
+implementation and filesystem details diverged. Retained for provenance; the
+active roadmap is [`../../TODO.md`](../../TODO.md).

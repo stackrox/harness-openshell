@@ -61,9 +61,11 @@ Without a shared harness layer, every team building on OpenShell independently s
 
 **The design boundary**: managing a gateway is OpenShell's problem; the harness is a declarative setup/run layer with zero compute-backend opinion. It never provisions or tears down a gateway — it declares providers, inference, and policy against one OpenShell already stood up, and runs agents in it. That keeps the harness YAML portable: the same file targets a local gateway or a cluster gateway with no target field to change.
 
-**The core design constraint**: if the developer harness isn't running and live-tested in CI, the developer experience can't be maintained. OpenShell, agent CLIs, and provider APIs all change frequently — often multiple times per week. A harness that works today and isn't continuously validated will silently break. harness-openshell runs the workflow (register providers → reconcile inference → create sandbox → run task) in CI on every change, against gateways provisioned three ways: local Podman, Kind, and OpenShift.
+**The core design constraint**: if the developer harness isn't running and live-tested in CI, the developer experience can't be maintained. OpenShell, agent CLIs, and provider APIs all change frequently — often multiple times per week. A harness that works today and isn't continuously validated will silently break. CI exercises the workflow against local and Kind gateways on Linux. OpenShift remains a manually credentialed integration target.
 
-**The path from local to automated**: a developer runs `harness apply --attach` for interactive work. When the workflow is ready for CI, they change `--attach` to `--task @skill.md` and select a cluster gateway instead of the local one. The harness YAML stays the same. No rewriting. The harness YAML is the artifact — sharable, versionable, forkable.
+**The path from local to automated**: a developer runs `harness apply --attach` for interactive work. When the workflow is ready for CI, they change `--attach` to `--task @skill.md` and select a cluster gateway instead of the local one. The goal is for the same versioned workflow declaration to be sharable, forkable, and executable in both environments.
+
+**Current schema transition**: `harness apply` still consumes the legacy agent format, while `harness plan` consumes the strict `harness.openshell.dev/v1alpha1` format. Until apply is migrated, plan is not a preview of the legacy apply path and the v1alpha1 YAML is not yet the single executable artifact. See [TODO.md](TODO.md).
 
 OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that with a developer mindset from local machine to cluster.
 
@@ -257,7 +259,9 @@ Each provider discovers credentials from the host. Missing providers are skipped
 
 ## Testing
 
-Tested on macOS (arm64) with Podman. Linux support is expected but not yet validated.
+Developer testing primarily uses macOS (arm64) with Podman. GitHub Actions runs
+unit, local-gateway, and Kind integration coverage on Linux. OpenShift integration
+is available as a manually credentialed target.
 
 ```bash
 make test             # vet + unit tests (16 packages)
@@ -276,13 +280,23 @@ make test-remote      # full e2e on OCP (needs KUBECONFIG)
 
 Each integration target builds (and pushes, for remote) the sandbox image automatically.
 
-## Future Work
+## Roadmap
 
-- **GitHub Action** -- run harness tasks in CI (review PRs, enforce standards, generate reports)
-- **Observability** -- structured telemetry export (Langfuse, MLflow, OpenTelemetry) for agent tool calls, token usage, and policy decisions
-- **Skills integration** -- first-class support for community skill packs (e.g., [awesome-omni-skills](https://github.com/diegosouzapw/awesome-omni-skills)) as task inputs
-- **OpenShell plugin** -- register the harness as an `openshell` CLI plugin so `openshell harness apply` works natively alongside other openshell commands
-- **Linux validation** -- CI and local testing on Linux (currently macOS-only)
+The active priorities are:
+
+1. Make the strict v1alpha1 declaration drive both plan and apply.
+2. Support workspace-aware, referenced capabilities for shared gateways without
+   allowing repository runs to mutate platform-owned providers.
+3. Fail closed when a declared capability or inference route is unavailable.
+4. Emit structured run results and provenance.
+5. Publish a reusable GitHub workflow for a read-only security-review pilot on a
+   HyperShell-managed gateway.
+6. Package `SKILL.md` inputs with their referenced scripts, instructions, and
+   assets and resolve shared catalog entries immutably.
+
+Observability integrations and OpenShell plugin packaging are intentionally
+deferred until the workflow and run-result contracts are stable. See
+[TODO.md](TODO.md) for acceptance-level detail.
 
 ## Documentation
 
