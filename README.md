@@ -22,10 +22,10 @@ harness apply -f harness.yaml --attach                        # agent config in 
 harness apply -f harness.yaml --attach --entrypoint opencode  # OpenCode
 ```
 
-`harness apply` runs against whichever gateway OpenShell has provisioned and you
-have selected (`openshell gateway select`) — local or cluster, the harness YAML
-is identical. Provisioning the gateway is OpenShell's job, not the harness's (see
-[Install](#install)).
+For a v1alpha1 workflow, `harness apply` uses `spec.target`, `--gateway` and
+`--workspace` (flag, environment, then config precedence). Legacy configs retain
+the selected-gateway fallback. Provisioning the gateway is OpenShell's or
+HyperShell's job, not the harness's (see [Install](#install)).
 
 ### One-shot tasks
 
@@ -59,17 +59,70 @@ To get results out: `--task` mode outputs to stdout, `openshell sandbox exec` pu
 
 Without a shared harness layer, every team building on OpenShell independently solves the same problems — writing shell scripts to register providers, hand-rolling container images, re-deriving inference routing. The configs diverge, the security posture varies, and nobody catches regressions until something breaks in production.
 
-**The design boundary**: managing a gateway is OpenShell's problem; the harness is a declarative setup/run layer with zero compute-backend opinion. It never provisions or tears down a gateway — it declares providers, inference, and policy against one OpenShell already stood up, and runs agents in it. That keeps the harness YAML portable: the same file targets a local gateway or a cluster gateway with no target field to change.
+**The design boundary**: managing a gateway is OpenShell's problem; the harness is a declarative setup/run layer with zero compute-backend opinion. It never provisions or tears down a gateway — it declares providers, inference, and policy against one OpenShell already stood up, and runs agents in it. The workflow remains portable because its target can be overridden by standard gateway and workspace flags or environment variables.
 
 **The core design constraint**: if the developer harness isn't running and live-tested in CI, the developer experience can't be maintained. OpenShell, agent CLIs, and provider APIs all change frequently — often multiple times per week. A harness that works today and isn't continuously validated will silently break. CI exercises the workflow against local and Kind gateways on Linux. OpenShift remains a manually credentialed integration target.
 
-**The path from local to automated**: a developer runs `harness apply --attach` for interactive work. When the workflow is ready for CI, they change `--attach` to `--task @skill.md` and select a cluster gateway instead of the local one. The goal is for the same versioned workflow declaration to be sharable, forkable, and executable in both environments.
+**The path from local to automated**: a developer runs `harness apply --attach`
+for interactive work, then checks agent arguments and payloads into the v1alpha1
+workflow for headless CI. Legacy configs can continue to use `--task @skill.md`
+during migration. The goal is for the same versioned workflow declaration to be
+sharable, forkable, and executable in both environments.
 
-**Current schema transition**: `harness apply` still consumes the legacy agent format, while `harness plan` consumes the strict `harness.openshell.dev/v1alpha1` format. Until apply is migrated, plan is not a preview of the legacy apply path and the v1alpha1 YAML is not yet the single executable artifact.
+**Current schema transition**: `harness plan` and `harness apply` now share strict
+parsing, environment resolution, target resolution, and action decisions for
+`harness.openshell.dev/v1alpha1`. Legacy agent files remain accepted by `apply`
+through a compatibility path; use `harness migrate` to produce the canonical
+format. New fields are added only to v1alpha1.
 
 OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that with a developer mindset from local machine to cluster.
 
+## The v1alpha1 workflow
+
+The canonical workflow is accepted by both `plan` and `apply`:
+
+```yaml
+apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: security-review
+spec:
+  target:
+    gateway: acs
+    workspace: stackrox
+  providers:
+    - name: github-read
+      management: referenced
+  sandbox:
+    image: quay.io/example/security-reviewer:v1
+    providers: [github-read]
+    keep: false
+    tty: false
+  agent:
+    type: claude
+    args: [--print, "Review the repository for security defects"]
+  source:
+    repo: https://github.com/stackrox/stackrox
+    ref: main
+    destination: /sandbox/stackrox
+```
+
+`plan` is read-only and may render desired state while the gateway is offline.
+`apply` requires the effective gateway to be reachable, verifies referenced
+providers before sandbox creation, and disables OpenShell provider auto-discovery.
+Managed providers may be updated or explicitly adopted, but apply does not create
+credentialed providers; platform bootstrap owns their creation. Relative payload
+and policy paths resolve from the workflow file's directory.
+
+Remote-image, non-interactive workflows use the OpenShell SDK for sandbox
+creation, readiness, execution, and cleanup. Source or payload uploads, local
+image builds, policy files, and interactive TTYs currently use the OpenShell CLI
+because those paths do not yet have complete SDK-native implementations.
+
 ## The Agent YAML
+
+The legacy Agent YAML remains available during migration. It does not use the
+canonical v1alpha1 execution path below.
 
 A single file defines the entrypoint, credential providers, inference routing, environment, and files uploaded to the sandbox. This is the default config (`profiles/agent-default.yaml`):
 
@@ -147,8 +200,7 @@ This inherits all four providers and inference routing from `agent-default.yaml`
 (OpenShell has already provisioned the gateway; you selected it)
 harness apply -f config.yaml
     |
-    +-> Register providers (credentials from host env)
-    +-> Reconcile inference routing to match the config
+    +-> Verify/reconcile declared providers and inference
     +-> Upload payloads (CLAUDE.md, MCP config, skills)
     +-> Create sandbox (isolated container, deny-by-default network)
     +-> Run task (agent executes, outputs results)
@@ -230,7 +282,7 @@ removes the gateway.
 | `harness apply --task TEXT` | One-shot headless run |
 | `harness apply --task @FILE` | One-shot from a skill/playbook file |
 | `harness apply --attach` | Interactive TTY mode |
-| `harness apply --dry-run` | Validate without deploying |
+| `harness apply --dry-run` | Render the v1alpha1 action plan without mutating |
 | `harness apply -o yaml` | Output resolved config |
 | `harness get agents\|providers\|gateways` | List resources |
 | `harness describe <name>` | Sandbox details |
@@ -240,7 +292,10 @@ removes the gateway.
 
 ### Credentials
 
-Each provider discovers credentials from the host. Missing providers are skipped.
+The legacy compatibility path discovers provider credentials from the host and
+may skip missing providers. Canonical v1alpha1 apply is strict: referenced
+providers must already exist, and credentialed provider creation is a separate
+platform/bootstrap responsibility.
 
 | Provider | Required |
 |----------|----------|
@@ -285,4 +340,5 @@ Each integration target builds (and pushes, for remote) the sandbox image automa
 | Document | What it is |
 |----------|------------|
 | [AGENTS.md](AGENTS.md) | Contributor guide |
+| [docs/ci.md](docs/ci.md) | HyperShell CI bootstrap and repository contract |
 | [docs/archive/](docs/archive/) | Historical design context; not current behavior |

@@ -37,12 +37,13 @@ type Spec struct {
 
 // Target specifies the openshell gateway and workspace.
 type Target struct {
-	Gateway      string        `yaml:"gateway,omitempty"`   // openshell registration name
+	Gateway      string        `yaml:"gateway,omitempty"`   // logical name; CLI registration name when Registration is omitted
 	Workspace    string        `yaml:"workspace,omitempty"` // "" → default (owned by sdkclient)
 	Registration *Registration `yaml:"registration,omitempty"`
 }
 
-// Registration describes how to register a gateway.
+// Registration describes a direct, in-memory gateway connection. Despite the
+// v1alpha1 field name, apply does not persist a CLI gateway registration.
 type Registration struct {
 	Endpoint      string `yaml:"endpoint,omitempty"`
 	AutoProviders bool   `yaml:"autoProviders,omitempty"`
@@ -50,7 +51,8 @@ type Registration struct {
 }
 
 // OIDC holds OIDC issuer and client configuration.
-// The client secret is NOT stored here — sdkclient reads it from the environment.
+// The client secret is NOT stored here — sdkclient reads it exclusively from
+// OPENSHELL_OIDC_CLIENT_SECRET.
 type OIDC struct {
 	Issuer   string `yaml:"issuer,omitempty"`
 	ClientID string `yaml:"clientId,omitempty"`

@@ -8,37 +8,103 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/status"
-	"github.com/spf13/cobra"
 )
 
 func NewApplyCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Command {
 	var (
-		file            string
-		agentName       string
-		sandboxName     string
-		task            string
-		entrypoint      string
-		attach          bool
-		dryRun          bool
-		setupOnly       bool
-		output          string
+		file        string
+		agentName   string
+		sandboxName string
+		task        string
+		entrypoint  string
+		attach      bool
+		dryRun      bool
+		setupOnly   bool
+		output      string
 	)
+	var gatewayName, workspace *string
 
 	cmd := &cobra.Command{
 		Use:   "apply [flags]",
 		Short: "Apply an agent configuration to create a sandbox",
-		Long: `Resolve an agent config against the profiles directory and the active
-OpenShell gateway, then create a sandbox. Provision the gateway with OpenShell
-first (installer or 'helm install openshell') and select it with
-'openshell gateway select'. Use --dry-run to validate without creating, or
+		Long: `Resolve a harness.openshell.dev/v1alpha1 workflow and execute its
+planned reconciliation and sandbox run. Legacy agent configs remain supported
+through a compatibility adapter. Provision the gateway with OpenShell first.
+Use --dry-run to render the v1alpha1 action plan without mutating anything, or
 -o yaml to output the fully resolved configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 && sandboxName == "" {
 				sandboxName = args[0]
+			}
+
+			// An explicit v1alpha1 document takes the canonical path. Legacy files
+			// and the built-in default continue through resolveHarness below; this is
+			// the only compatibility branch and no v1alpha1 value is converted back
+			// into agent.AgentConfig.
+			if file != "" {
+				canonical, err := isCanonicalWorkflow(file)
+				if err != nil {
+					return err
+				}
+				if canonical {
+					if cmd.Flags().Changed("agent") {
+						return fmt.Errorf("--agent selects a legacy profile and cannot be used with a v1alpha1 workflow")
+					}
+					if task != "" {
+						return fmt.Errorf("--task is not supported for v1alpha1 workflows; declare agent arguments and payloads in the workflow")
+					}
+					workflow, err := loadCanonicalWorkflow(file, *gatewayName, *workspace, canonicalOverrides{
+						Name: sandboxName, AgentType: entrypoint, ForceTTY: attach,
+					})
+					if err != nil {
+						return err
+					}
+					if output != "" && !dryRun {
+						return renderCanonicalWorkflow(workflow, output)
+					}
+					gw := gateway.New(cli)
+					// The CLI version gate only matters for the CLI run path. A
+					// direct target never uses the CLI, so skip it there and let
+					// applyCanonical reject any CLI-only run configuration with a
+					// clear message.
+					if !dryRun && workflow.Target.Direct == nil && !canonicalSDKRunEligible(workflow) {
+						if err := checkOpenShellVersion(gw); err != nil {
+							return err
+						}
+					}
+
+					// A direct target carries its own connection with no CLI
+					// gateway name, so connect on that too — otherwise apply
+					// fails the gateway guard for a reachable direct registration.
+					var client openshell.Client
+					if workflow.Target.Direct != nil || workflow.Target.Gateway != "" {
+						client, err = newClient(cmd.Context(), workflow.Target)
+						if err != nil {
+							desc := fmt.Sprintf("gateway %q", workflow.Target.Gateway)
+							if workflow.Target.Direct != nil {
+								desc = "direct target"
+							}
+							if !dryRun {
+								return fmt.Errorf("connecting to %s: %w", desc, err)
+							}
+							fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s unreachable: %v (rendering desired config only)\n", desc, err)
+						} else {
+							defer client.Close()
+						}
+					}
+					planned, current, err := workflow.buildPlan(cmd.Context(), client)
+					if err != nil {
+						return err
+					}
+					return applyCanonical(cmd.Context(), workflow, planned, current, client, gw, canonicalApplyOptions{
+						SetupOnly: setupOnly, DryRun: dryRun, Output: output, RetrySleep: 5 * time.Second,
+					})
+				}
 			}
 
 			harness, err := resolveHarness(harnessDir, agentName, file)
@@ -91,15 +157,8 @@ first (installer or 'helm install openshell') and select it with
 			}
 
 			gw := gateway.New(cli)
-			if err := gw.CheckMinVersion(gateway.MinOpenShellVersion); err != nil {
-				// A CLI that is definitively too old will fail later with far
-				// less context, so refuse up front. If we merely could not
-				// read/parse the version, warn and proceed — the CLI may still
-				// be usable and we don't want to block on a format change.
-				if errors.Is(err, gateway.ErrVersionBelowMinimum) {
-					return fmt.Errorf("incompatible openshell CLI: %w", err)
-				}
-				status.Warn(fmt.Sprintf("OpenShell version: %v", err))
+			if err := checkOpenShellVersion(gw); err != nil {
+				return err
 			}
 
 			// The harness runs against a gateway OpenShell already provisioned;
@@ -108,7 +167,7 @@ first (installer or 'helm install openshell') and select it with
 			// active marker) — and thread it through so reconcile and
 			// sandbox-create act on the same gateway. Fail clearly here if none is
 			// selected instead of deep in reconcile/run.
-			target, err := resolveApplyTarget(gw)
+			target, err := resolveApplyTarget(gw, *gatewayName, *workspace)
 			if err != nil {
 				return err
 			}
@@ -118,17 +177,17 @@ first (installer or 'helm install openshell') and select it with
 			}
 
 			return upLocal(upLocalOpts{
-				harnessDir:      harnessDir,
-				gw:              gw,
-				target:          target,
-				agentCfg:        agentCfg,
-				agentPath:       agentPath,
-				sandboxName:     sandboxName,
-				noTTY:           !attach,
-				setupOnly:       setupOnly,
-				harness:         harness,
-				newClient:       newClient,
-				retrySleep:      5 * time.Second,
+				harnessDir:  harnessDir,
+				gw:          gw,
+				target:      target,
+				agentCfg:    agentCfg,
+				agentPath:   agentPath,
+				sandboxName: sandboxName,
+				noTTY:       !attach,
+				setupOnly:   setupOnly,
+				harness:     harness,
+				newClient:   newClient,
+				retrySleep:  5 * time.Second,
 			})
 		},
 	}
@@ -142,8 +201,19 @@ first (installer or 'helm install openshell') and select it with
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Validate configuration without deploying")
 	cmd.Flags().BoolVar(&setupOnly, "setup-only", false, "Reconcile providers/inference on the active gateway, but do not create a sandbox or run the agent")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: yaml or json")
+	gatewayName, workspace = registerTargetFlags(cmd)
 
 	return cmd
+}
+
+func checkOpenShellVersion(gw *gateway.CLI) error {
+	if err := gw.CheckMinVersion(gateway.MinOpenShellVersion); err != nil {
+		if errors.Is(err, gateway.ErrVersionBelowMinimum) {
+			return fmt.Errorf("incompatible openshell CLI: %w", err)
+		}
+		status.Warn(fmt.Sprintf("OpenShell version: %v", err))
+	}
+	return nil
 }
 
 func renderOutput(harnessDir string, h *agent.Harness, format string) error {

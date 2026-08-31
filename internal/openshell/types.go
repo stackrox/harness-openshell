@@ -2,13 +2,28 @@ package openshell
 
 // Target identifies what to connect to.
 //
-// Gateway is the OPENSHELL REGISTRATION name — the directory under
-// ~/.config/openshell/gateways/<name> managed by the openshell CLI, as shown by
-// `openshell gateway list`. The harness never provisions gateways; it only
-// targets one OpenShell already stood up and the user selected.
+// Gateway is the logical name used in plans and status. When Direct is nil it
+// is also the OpenShell CLI registration name. Direct supplies an in-memory SDK
+// connection instead, without creating or reading CLI state.
 type Target struct {
-	Gateway   string // required; openshell registration name
-	Workspace string // "" defaults to "default" (defaulting owned by sdkclient)
+	Gateway   string            `json:"gateway" yaml:"gateway"`
+	Workspace string            `json:"workspace,omitempty" yaml:"workspace,omitempty"` // "" -> default
+	Direct    *DirectConnection `json:"-" yaml:"-"`                                     // never rendered
+}
+
+// DirectConnection contains non-secret connection metadata. The OIDC client
+// secret is deliberately absent and is read only by sdkclient from
+// OPENSHELL_OIDC_CLIENT_SECRET.
+type DirectConnection struct {
+	Endpoint string
+	OIDC     OIDCConnection
+}
+
+// OIDCConnection identifies the client-credentials token request.
+type OIDCConnection struct {
+	Issuer   string
+	ClientID string
+	Audience string
 }
 
 // Health is the harness view of a gateway health check.
@@ -42,6 +57,18 @@ type Provider struct {
 type Sandbox struct {
 	Name  string
 	Phase string
+}
+
+// SandboxCreate describes the SDK-native subset of sandbox creation used by
+// canonical workflows. File uploads, local image builds, and policy-file
+// parsing remain CLI responsibilities until the SDK supports those paths
+// end-to-end.
+type SandboxCreate struct {
+	Name      string
+	Image     string
+	Providers []string
+	Env       map[string]string
+	Labels    map[string]string
 }
 
 // GatewayInfo is the harness view of the active gateway.

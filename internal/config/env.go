@@ -96,14 +96,38 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 			reg.OIDC = &o
 		}
 		s.Target.Registration = &reg
+		if reg.Endpoint == "" {
+			errs = append(errs, "spec.target.registration.endpoint: required")
+		}
+		if reg.OIDC == nil {
+			errs = append(errs, "spec.target.registration.oidc: required")
+		} else {
+			if reg.OIDC.Issuer == "" {
+				errs = append(errs, "spec.target.registration.oidc.issuer: required")
+			}
+			if reg.OIDC.ClientID == "" {
+				errs = append(errs, "spec.target.registration.oidc.clientId: required")
+			}
+			if reg.OIDC.Audience == "" {
+				errs = append(errs, "spec.target.registration.oidc.audience: required")
+			}
+		}
 	}
 
 	if len(h.Spec.Providers) > 0 {
 		s.Providers = make([]Provider, len(h.Spec.Providers))
+		providerNames := make(map[string]struct{}, len(h.Spec.Providers))
 		for i, p := range h.Spec.Providers {
 			np := p // copies Credentials (*SecretRef) through untouched
 			base := fmt.Sprintf("spec.providers[%d]", i)
 			np.Name = exp(base+".name", p.Name)
+			if np.Name == "" {
+				errs = append(errs, base+".name: required")
+			} else if _, exists := providerNames[np.Name]; exists {
+				errs = append(errs, fmt.Sprintf("%s.name: duplicate provider %q", base, np.Name))
+			} else {
+				providerNames[np.Name] = struct{}{}
+			}
 			np.Type = exp(base+".type", p.Type)
 			np.Management = exp(base+".management", p.Management)
 			// Empty management defaults to referenced (the safe default: never
@@ -168,7 +192,12 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	if len(h.Spec.Sandbox.Providers) > 0 {
 		s.Sandbox.Providers = make([]string, len(h.Spec.Sandbox.Providers))
 		for i, p := range h.Spec.Sandbox.Providers {
-			s.Sandbox.Providers[i] = exp(fmt.Sprintf("spec.sandbox.providers[%d]", i), p)
+			path := fmt.Sprintf("spec.sandbox.providers[%d]", i)
+			name := exp(path, p)
+			s.Sandbox.Providers[i] = name
+			if name == "" {
+				errs = append(errs, path+": required")
+			}
 		}
 	}
 	if len(h.Spec.Sandbox.Env) > 0 {

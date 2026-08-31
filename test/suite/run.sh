@@ -41,6 +41,7 @@ TOTAL_START=$(date +%s)
 SANDBOXES_TO_CLEAN=()
 
 cleanup() {
+  [[ -z "${SANDBOXES_TO_CLEAN[*]-}" ]] && return
   for s in "${SANDBOXES_TO_CLEAN[@]}"; do
     "$HARNESS" delete "$s" >/dev/null 2>&1 || true
   done

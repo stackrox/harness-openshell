@@ -70,10 +70,8 @@ echo ""
 
 kubectl create namespace openshell --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
 
-# Pre-load dev sandbox image into kind.
-# In CI (CI=true), images.yml has already pushed the image to the registry so
-# Pre-load the sandbox image into kind from the local container daemon
-# so tests work without a registry push.
+# Pre-load the sandbox image from the local container daemon so the Kind test
+# is self-contained and does not depend on the separate images workflow.
 CONTAINER_CLI=${CONTAINER_CLI:-podman}
 if [[ -n "${HARNESS_OS_IMAGE:-}" ]]; then
   if "$CONTAINER_CLI" image inspect "$HARNESS_OS_IMAGE" &>/dev/null; then

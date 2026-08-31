@@ -386,8 +386,7 @@ spec:
 }
 
 // TestPlanCmd_TargetTierPrecedence tests flag > env > config precedence for target resolution.
-// Verifies that the Factory is called with the correctly-resolved gateway (the resolved target
-// is used only for connecting to the gateway, not for the plan's TARGET resource).
+// Verifies that the Factory and rendered plan use the same resolved gateway.
 func TestPlanCmd_TargetTierPrecedence(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -534,6 +533,60 @@ spec:
 	// RUN group should also be rendered (not skipped for empty gateway).
 	if !contains(output, "login-required") {
 		t.Errorf("output should show login-required for empty gateway:\n%s", output)
+	}
+}
+
+// TestPlanCmd_DirectTargetConnects proves a direct registration with no gateway
+// name still connects to render real current state. An empty gateway used to
+// skip the client entirely, so plan silently rendered desired-only for a
+// reachable direct target.
+func TestPlanCmd_DirectTargetConnects(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	configPath := filepath.Join(tmpDir, "plan-test.yaml")
+	configContent := `apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: plan-test
+spec:
+  target:
+    registration:
+      endpoint: https://gateway.example.com
+      oidc:
+        issuer: https://issuer.example.com
+        clientId: client-123
+        audience: aud-123
+  providers:
+    - name: test-provider
+      type: vertex-ai
+      management: managed
+      credentials:
+        source: gcloud-adc
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var gotDirect bool
+	var gotGateway string
+	recordingFactory := func(_ context.Context, tgt openshell.Target) (openshell.Client, error) {
+		gotDirect = tgt.Direct != nil
+		gotGateway = tgt.Gateway
+		return testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true})), nil
+	}
+
+	cmd := NewPlanCmd(tmpDir, recordingFactory)
+	cmd.SetArgs([]string{"-f", configPath, "-o", "table"})
+
+	if _, err := captureStdout(t, func() error { return cmd.Execute() }); err != nil {
+		t.Fatalf("cmd.Execute: %v", err)
+	}
+
+	if !gotDirect {
+		t.Error("factory was not called with a direct connection for a registration target (direct plan skipped the client)")
+	}
+	if gotGateway != "" {
+		t.Errorf("expected empty gateway name for a direct target, got %q", gotGateway)
 	}
 }
 

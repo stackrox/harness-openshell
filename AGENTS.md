@@ -123,6 +123,7 @@ Current workarounds and their upstream tracking:
 | Custom sandbox image | Adds mcp-atlassian, GWS CLI, and opencode-ai to community base | Upstreaming MCP integrations |
 | `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1` | Vertex AI rejects `context_management` beta header | Anthropic/Google to align APIs |
 | Atlassian `JIRA_URL`/`JIRA_USERNAME` as agent YAML provider config | Provider v2 config keys not injected as env vars yet | OpenShell roadmap |
+| Audience-aware OIDC client-credentials bootstrap in `sdkclient` | The pinned Go SDK token helper cannot send the gateway audience | Upstream Go SDK audience support |
 
 Previously worked around, now resolved:
 
@@ -139,8 +140,9 @@ the target.
 
 ### Modes
 
-**`default`** — expects user credentials. Tests the full stack including provider
-registration, credential injection, and the GWS OAuth token lifecycle.
+**`default`** — uses available user credentials. Tests the full stack and each
+provider capability that was successfully reconciled. Missing provider
+credentials are reported as skips instead of causing unrelated checks to fail.
 
 **`ci`** — no credentials required. Tests gateway deploy and sandbox lifecycle only.
 Runs in GitHub Actions on every PR.
@@ -171,17 +173,25 @@ Or directly:
 ./test/kind-lifecycle.sh                   # kind cluster (see: make test-kind, used in CI)
 ```
 
-### Default mode requirements
+### Default mode capabilities
 
 - `openshell` gateway running locally (`brew services start openshell`)
-- `JIRA_API_TOKEN`, `JIRA_URL`, `JIRA_USERNAME` for Atlassian
-- `gcloud auth application-default login` for Vertex AI
-- `gws auth login` for Google Workspace
-- `GITHUB_TOKEN` for GitHub
+- `JIRA_API_TOKEN`, `JIRA_URL`, `JIRA_USERNAME` enables Atlassian checks
+- `gcloud auth application-default login` enables Vertex AI checks
+- `gws auth login` enables Google Workspace checks
+- `GITHUB_TOKEN` enables GitHub checks
 
 Default mode does not run in GitHub Actions today — it requires personal OAuth
 credentials. Future: service accounts for Vertex AI and Atlassian can run in GHA;
 GWS would need a dedicated OAuth service account.
+
+The trusted `HyperShell` workflow runs separately on `main` or by manual
+dispatch. A platform administrator grants its user service-account subject
+membership in the `default` workspace once; repository CI has no administrator
+credential. The harness connects directly through the SDK and deletes its
+uniquely named sandbox after execution. It does not run on pull requests because
+repository secrets are unavailable to forks and should not be exposed to PR
+code. See `docs/ci.md` for the bootstrap and secret contract.
 
 ### What each mode tests
 

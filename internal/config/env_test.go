@@ -199,6 +199,23 @@ func TestResolve_DefaultsEmptyManagementToReferenced(t *testing.T) {
 	}
 }
 
+func TestResolve_RejectsDuplicateProviderNames(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec: Spec{Providers: []Provider{
+			{Name: "github", Management: "referenced"},
+			{Name: "github", Management: "referenced"},
+		}},
+	}
+
+	_, err := Resolve(h, func(string) string { return "" })
+	if err == nil || !strings.Contains(err.Error(), "duplicate provider") {
+		t.Fatalf("error = %v, want duplicate provider", err)
+	}
+}
+
 func TestResolve_RejectsMalformedRoute(t *testing.T) {
 	h := &Harness{
 		APIVersion: "harness.openshell.dev/v1alpha1",
@@ -774,5 +791,26 @@ func TestResolveRegistrationOIDC(t *testing.T) {
 	}
 	if resolved.Spec.Target.Registration.OIDC.ClientID != "client-id-12345" {
 		t.Errorf("OIDC.ClientID should be resolved")
+	}
+}
+
+func TestResolveRegistrationRequiresCompleteDirectOIDC(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec: Spec{Target: Target{Registration: &Registration{
+			OIDC: &OIDC{},
+		}}},
+	}
+
+	_, err := Resolve(h, func(string) string { return "" })
+	if err == nil {
+		t.Fatal("expected incomplete direct OIDC configuration to fail")
+	}
+	for _, field := range []string{"endpoint", "issuer", "clientId", "audience"} {
+		if !strings.Contains(err.Error(), field) {
+			t.Errorf("error %q does not mention %s", err, field)
+		}
 	}
 }

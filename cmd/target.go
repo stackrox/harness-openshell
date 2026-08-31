@@ -14,8 +14,8 @@ import (
 // returns pointers to their values. Every SDK-backed command registers its
 // target flags through this one helper so the flag names, help text, and the
 // OPENSHELL_* env fallbacks stay identical across commands. The flags are
-// per-command (not root-persistent) so legacy CLI-path commands never carry
-// them.
+// per-command (not root-persistent), and apply exposes them for both canonical
+// target selection and explicit legacy overrides.
 //
 // The returned pointers are meant to be fed to openshell.ResolveTarget together
 // with os.Getenv; resolution (flag > env > empty) and the workspace default live
@@ -39,30 +39,14 @@ func openClient(ctx context.Context, newClient openshell.Factory, gatewayName, w
 	return newClient(ctx, target)
 }
 
-// resolveApplyTarget builds the SDK openshell.Target for the apply command from
-// the CLI's currently-active gateway registration.
-//
-// Apply deliberately does NOT register the standard --gateway/--workspace target
-// flags: the harness runs against whichever gateway OpenShell has selected, so
-// the registration name is read from the active gateway the CLI already
-// selected rather than pinned per-invocation.
-//
-// $OPENSHELL_GATEWAY takes precedence over the CLI's persisted active-gateway
-// marker, matching OpenShell's own request-targeting precedence: the env var
-// overrides the target without moving the `*` in `openshell gateway list`, so
-// reading only ActiveGateway() would wrongly reject an env-targeted apply.
-//
-// An empty target is an error, not a silent skip: the harness does not provision
-// gateways (that is OpenShell's job), so without a selected registration there is
-// nothing to run against. Workspace is left "" so sdkclient applies its "default"
-// default (the single owner of that rule).
-func resolveApplyTarget(gw gateway.Gateway) (openshell.Target, error) {
-	name := os.Getenv(openshell.EnvGateway)
-	if name == "" {
-		name = gw.ActiveGateway()
-	}
-	if name == "" {
+// resolveApplyTarget preserves legacy apply's active-gateway fallback while
+// adopting the standard explicit flag > env > active resolution order. New
+// v1alpha1 workflows use loadCanonicalWorkflow, where config is the final
+// fallback instead of ambient CLI state.
+func resolveApplyTarget(gw gateway.Gateway, flagGateway, flagWorkspace string) (openshell.Target, error) {
+	target := openshell.ResolveTarget(flagGateway, flagWorkspace, gw.ActiveGateway(), "", os.Getenv)
+	if target.Gateway == "" {
 		return openshell.Target{}, fmt.Errorf("no active openshell gateway — run 'openshell gateway select <name>' first (provision one with the OpenShell installer or 'helm install openshell')")
 	}
-	return openshell.Target{Gateway: name, Workspace: ""}, nil
+	return target, nil
 }
