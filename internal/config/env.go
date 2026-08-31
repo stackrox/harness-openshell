@@ -96,6 +96,22 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 			reg.OIDC = &o
 		}
 		s.Target.Registration = &reg
+		if reg.Endpoint == "" {
+			errs = append(errs, "spec.target.registration.endpoint: required")
+		}
+		if reg.OIDC == nil {
+			errs = append(errs, "spec.target.registration.oidc: required")
+		} else {
+			if reg.OIDC.Issuer == "" {
+				errs = append(errs, "spec.target.registration.oidc.issuer: required")
+			}
+			if reg.OIDC.ClientID == "" {
+				errs = append(errs, "spec.target.registration.oidc.clientId: required")
+			}
+			if reg.OIDC.Audience == "" {
+				errs = append(errs, "spec.target.registration.oidc.audience: required")
+			}
+		}
 	}
 
 	if len(h.Spec.Providers) > 0 {

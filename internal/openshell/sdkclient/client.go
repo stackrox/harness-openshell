@@ -2,9 +2,8 @@
 // OpenShell Go SDK. It translates between the harness-owned internal/openshell
 // vocabulary and the SDK, keeping every SDK type behind the firewall.
 //
-// It dials via mTLS or the SDK's CLI-compatible gateway client. OIDC bootstrap
-// remains owned by the OpenShell CLI, which persists an audience-aware token
-// that the SDK reads from the registered gateway directory.
+// It dials either from CLI-compatible gateway state or directly from canonical
+// workflow connection metadata using an audience-aware OIDC token source.
 package sdkclient
 
 import (
@@ -48,6 +47,9 @@ type client struct {
 // executes it via dial. For OIDC gateways, authenticate with the OpenShell CLI
 // first so its audience-aware token is available to the SDK.
 func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
+	if t.Direct != nil {
+		return newDirect(ctx, t)
+	}
 	cfg, err := gateway.LoadConfig(t.Gateway)
 	if err != nil {
 		return nil, fmt.Errorf("%w: load gateway %q: %v", openshell.ErrConfig, t.Gateway, err)

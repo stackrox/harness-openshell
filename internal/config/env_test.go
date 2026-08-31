@@ -793,3 +793,24 @@ func TestResolveRegistrationOIDC(t *testing.T) {
 		t.Errorf("OIDC.ClientID should be resolved")
 	}
 }
+
+func TestResolveRegistrationRequiresCompleteDirectOIDC(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec: Spec{Target: Target{Registration: &Registration{
+			OIDC: &OIDC{},
+		}}},
+	}
+
+	_, err := Resolve(h, func(string) string { return "" })
+	if err == nil {
+		t.Fatal("expected incomplete direct OIDC configuration to fail")
+	}
+	for _, field := range []string{"endpoint", "issuer", "clientId", "audience"} {
+		if !strings.Contains(err.Error(), field) {
+			t.Errorf("error %q does not mention %s", err, field)
+		}
+	}
+}

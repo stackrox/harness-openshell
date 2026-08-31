@@ -56,6 +56,16 @@ func loadCanonicalWorkflow(path, flagGateway, flagWorkspace string, overrides ca
 	}
 
 	target := openshell.ResolveTarget(flagGateway, flagWorkspace, resolved.Spec.Target.Gateway, resolved.Spec.Target.Workspace, os.Getenv)
+	if registration := resolved.Spec.Target.Registration; registration != nil {
+		target.Direct = &openshell.DirectConnection{
+			Endpoint: registration.Endpoint,
+			OIDC: openshell.OIDCConnection{
+				Issuer:   registration.OIDC.Issuer,
+				ClientID: registration.OIDC.ClientID,
+				Audience: registration.OIDC.Audience,
+			},
+		}
+	}
 	// Store the effective target in the resolved desired object. plan.Build reads
 	// this object, while apply passes the same target to its SDK and CLI paths.
 	resolved.Spec.Target.Gateway = target.Gateway

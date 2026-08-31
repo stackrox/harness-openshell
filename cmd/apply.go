@@ -67,10 +67,6 @@ Use --dry-run to render the v1alpha1 action plan without mutating anything, or
 					if output != "" && !dryRun {
 						return renderCanonicalWorkflow(workflow, output)
 					}
-					if workflow.Desired.Spec.Target.Registration != nil && !dryRun {
-						return fmt.Errorf("spec.target.registration is not executed by apply; register the gateway with openshell or HyperShell")
-					}
-
 					gw := gateway.New(cli)
 					if !dryRun && !canonicalSDKRunEligible(workflow) {
 						if err := checkOpenShellVersion(gw); err != nil {

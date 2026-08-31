@@ -123,6 +123,7 @@ Current workarounds and their upstream tracking:
 | Custom sandbox image | Adds mcp-atlassian, GWS CLI, and opencode-ai to community base | Upstreaming MCP integrations |
 | `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1` | Vertex AI rejects `context_management` beta header | Anthropic/Google to align APIs |
 | Atlassian `JIRA_URL`/`JIRA_USERNAME` as agent YAML provider config | Provider v2 config keys not injected as env vars yet | OpenShell roadmap |
+| Audience-aware OIDC client-credentials bootstrap in `sdkclient` | The pinned Go SDK token helper cannot send the gateway audience | Upstream Go SDK audience support |
 
 Previously worked around, now resolved:
 
@@ -185,11 +186,12 @@ credentials. Future: service accounts for Vertex AI and Atlassian can run in GHA
 GWS would need a dedicated OAuth service account.
 
 The trusted `HyperShell` workflow runs separately on `main` or by manual
-dispatch. Its administrator service account creates an isolated per-run
-workspace and grants the sandbox user service account membership. Only the user
-token is present while the harness executes; cleanup re-authenticates the admin
-and deletes the workspace. It does not run on pull requests because repository
-secrets are unavailable to forks and should not be exposed to PR code.
+dispatch. A platform administrator grants its user service-account subject
+membership in the `default` workspace once; repository CI has no administrator
+credential. The harness connects directly through the SDK and deletes its
+uniquely named sandbox after execution. It does not run on pull requests because
+repository secrets are unavailable to forks and should not be exposed to PR
+code. See `docs/ci.md` for the bootstrap and secret contract.
 
 ### What each mode tests
 

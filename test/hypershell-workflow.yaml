@@ -1,0 +1,19 @@
+apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: sdk-smoke
+spec:
+  target:
+    gateway: hypershell
+    registration:
+      endpoint: ${HYPERSHELL_GATEWAY}
+      oidc:
+        issuer: ${HYPERSHELL_OIDC_ISSUER}
+        clientId: ${HYPERSHELL_SANDBOX_SA_ID}
+        audience: ${HYPERSHELL_OIDC_AUDIENCE}
+  sandbox:
+    image: ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+    keep: false
+  agent:
+    type: sh
+    args: [-c, "printf 'canonical-sdk-ok\\n'"]
