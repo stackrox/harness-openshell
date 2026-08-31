@@ -79,6 +79,25 @@ func (s SecretRef) Describe() string {
 	}
 }
 
+// Validate reports whether Source names a supported secret source. It is the
+// single owner of the source grammar (alongside Describe): exactly "gcloud-adc",
+// or "environment:VAR" naming a non-empty variable. Called at Resolve time so a
+// typo'd or unsupported source fails at config load with a clear message rather
+// than being silently accepted and surfacing as a confusing error later.
+func (s SecretRef) Validate() error {
+	switch {
+	case s.Source == "gcloud-adc":
+		return nil
+	case strings.HasPrefix(s.Source, "environment:"):
+		if strings.TrimPrefix(s.Source, "environment:") == "" {
+			return fmt.Errorf("%q names no variable (want \"environment:VAR_NAME\")", s.Source)
+		}
+		return nil
+	default:
+		return fmt.Errorf("%q is invalid (want \"gcloud-adc\" or \"environment:VAR_NAME\")", s.Source)
+	}
+}
+
 // Provider represents a desired provider resource.
 type Provider struct {
 	Name       string `yaml:"name"`
