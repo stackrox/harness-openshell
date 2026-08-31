@@ -65,7 +65,7 @@ Without a shared harness layer, every team building on OpenShell independently s
 
 **The path from local to automated**: a developer runs `harness apply --attach` for interactive work. When the workflow is ready for CI, they change `--attach` to `--task @skill.md` and select a cluster gateway instead of the local one. The goal is for the same versioned workflow declaration to be sharable, forkable, and executable in both environments.
 
-**Current schema transition**: `harness apply` still consumes the legacy agent format, while `harness plan` consumes the strict `harness.openshell.dev/v1alpha1` format. Until apply is migrated, plan is not a preview of the legacy apply path and the v1alpha1 YAML is not yet the single executable artifact. See [TODO.md](TODO.md).
+**Current schema transition**: `harness apply` still consumes the legacy agent format, while `harness plan` consumes the strict `harness.openshell.dev/v1alpha1` format. Until apply is migrated, plan is not a preview of the legacy apply path and the v1alpha1 YAML is not yet the single executable artifact.
 
 OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that with a developer mindset from local machine to cluster.
 
@@ -280,28 +280,9 @@ make test-remote      # full e2e on OCP (needs KUBECONFIG)
 
 Each integration target builds (and pushes, for remote) the sandbox image automatically.
 
-## Roadmap
-
-The active priorities are:
-
-1. Make the strict v1alpha1 declaration drive both plan and apply.
-2. Support workspace-aware, referenced capabilities for shared gateways without
-   allowing repository runs to mutate platform-owned providers.
-3. Fail closed when a declared capability or inference route is unavailable.
-4. Emit structured run results and provenance.
-5. Publish a reusable GitHub workflow for a read-only security-review pilot on a
-   HyperShell-managed gateway.
-6. Package `SKILL.md` inputs with their referenced scripts, instructions, and
-   assets and resolve shared catalog entries immutably.
-
-Observability integrations and OpenShell plugin packaging are intentionally
-deferred until the workflow and run-result contracts are stable. See
-[TODO.md](TODO.md) for acceptance-level detail.
-
 ## Documentation
 
 | Document | What it is |
 |----------|------------|
-| [SPEC.md](SPEC.md) | Behavior spec for the CLI |
 | [AGENTS.md](AGENTS.md) | Contributor guide |
-| [TODO.md](TODO.md) | Roadmap and upstream tracking |
+| [docs/archive/](docs/archive/) | Historical design context; not current behavior |
