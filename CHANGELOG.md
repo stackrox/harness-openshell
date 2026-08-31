@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Cloned repos now use URL-hashed bare mirrors (`~/.cache/harness-openshell/mirrors/`)
+  plus per-run, self-contained checkouts (`~/.cache/harness-openshell/checkouts/`)
+  instead of the basename-keyed `repos/` cache. Distinct repositories that share a
+  basename no longer collide, and concurrent runs of the same repository no longer
+  share a working tree. Each checkout is a real repository with its own `.git`, so
+  git keeps working inside the sandbox after upload. The old
+  `~/.cache/harness-openshell/repos/` directory is orphaned and safe to delete
+  manually.
+
 ## [0.3.0] - 2026-06-17
 
 ### Added
