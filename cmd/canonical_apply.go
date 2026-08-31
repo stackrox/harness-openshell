@@ -15,6 +15,7 @@ import (
 	"github.com/stackrox/harness-openshell/internal/plan"
 	"github.com/stackrox/harness-openshell/internal/reconcile"
 	"github.com/stackrox/harness-openshell/internal/run"
+	"github.com/stackrox/harness-openshell/internal/source"
 	"github.com/stackrox/harness-openshell/internal/status"
 	"gopkg.in/yaml.v3"
 )
@@ -189,7 +190,11 @@ func canonicalRunRequest(workflow *canonicalWorkflow, retrySleep time.Duration) 
 		if mode := desired.Spec.Source.Submodules; mode != "" && mode != "shallow" {
 			return fail(fmt.Errorf("spec.source.submodules %q is not supported; use shallow or omit it", mode))
 		}
-		upload, sourceCleanup, err := cloneRepo(desired.Spec.Source.Repo, desired.Spec.Source.Ref)
+		runID, err := source.NewRunID()
+		if err != nil {
+			return fail(err)
+		}
+		upload, sourceCleanup, err := cloneRepo(desired.Spec.Source.Repo, desired.Spec.Source.Ref, runID)
 		if err != nil {
 			return fail(fmt.Errorf("cloning source: %w", err))
 		}
