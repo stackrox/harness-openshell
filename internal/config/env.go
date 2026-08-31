@@ -13,14 +13,18 @@ import (
 // returns ErrInvalidArgument for unknown ones at apply.
 var routeNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$`)
 
-// Expand interpolates ${VAR} references in raw using getenv. A referenced but
-// unset variable is an error (strict — never os.ExpandEnv, which is lenient).
+// expandStrict interpolates ${VAR} references in raw using getenv. A referenced
+// but unset variable is an error (strict — never os.ExpandEnv, which is lenient).
 // A $$ sequence and a bare $ not followed by { are non-special and left as-is.
 //
 // Because getenv is func(string) string, an unset variable and one set to the
 // empty string are indistinguishable; both are treated as unset (an error).
 // A literal empty value must therefore be written empty in YAML, not as ${VAR}.
-func Expand(raw string, getenv func(string) string) (string, error) {
+//
+// Resolve is the production entry point (it calls expand directly and aggregates
+// missing-variable errors with field paths); expandStrict is the single-string
+// wrapper exercised by the scanner's unit tests.
+func expandStrict(raw string, getenv func(string) string) (string, error) {
 	out, missing := expand(raw, getenv)
 	if len(missing) > 0 {
 		return "", fmt.Errorf("unresolved variables %v", missing)
