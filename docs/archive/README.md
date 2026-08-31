@@ -11,4 +11,5 @@ Original design proposal from early development. **Outdated** — uses old namin
 - OAuth-proxy auth roadmap for OCP (lines 435-476)
 - OCP vs local k8s comparison (lines 397-421)
 
-For current architecture, see: README.md, SPEC.md, and AGENTS.md in the repo root.
+For current behavior and contribution guidance, see `README.md` and `AGENTS.md`
+in the repository root.
