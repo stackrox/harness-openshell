@@ -15,12 +15,48 @@ func TestCanonicalizeURL(t *testing.T) {
 		{"https://GitHub.com/org/repo", "https://github.com/org/repo"},
 		{"HTTPS://github.com/org/repo", "https://github.com/org/repo"},
 		{"  https://github.com/org/repo.git  ", "https://github.com/org/repo"},
+		{"https://user:secret@github.com/org/repo.git", "https://github.com/org/repo"},
 		{"git@github.com:org/repo.git", "git@github.com:org/repo"},
 	}
 	for _, c := range cases {
 		if got := CanonicalizeURL(c.in); got != c.want {
 			t.Errorf("CanonicalizeURL(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+func TestCredentialsShareMirrorKey(t *testing.T) {
+	c := NewCache(t.TempDir())
+	first := c.MirrorPath("https://alice:first-token@github.com/org/repo.git")
+	second := c.MirrorPath("https://bob:rotated-token@github.com/org/repo.git")
+	if first != second {
+		t.Fatalf("credential variants mapped to different mirrors: %q != %q", first, second)
+	}
+}
+
+func TestEnsureOriginDoesNotPersistUserinfo(t *testing.T) {
+	for _, existingOrigin := range []bool{false, true} {
+		t.Run(map[bool]string{false: "add", true: "update"}[existingOrigin], func(t *testing.T) {
+			parent := t.TempDir()
+			mirror := filepath.Join(parent, "mirror.git")
+			runGit(t, parent, "init", "--bare", "--quiet", mirror)
+			if existingOrigin {
+				runGit(t, mirror, "remote", "add", "origin", "https://alice:first-token@github.com/org/repo.git")
+			}
+			if err := ensureOrigin(mirror, "https://bob:rotated-token@github.com/org/repo.git"); err != nil {
+				t.Fatalf("ensureOrigin: %v", err)
+			}
+			// Read the stored config value directly. `git remote get-url`
+			// applies the caller's global insteadOf rules and may report a
+			// rewritten transport.
+			got, err := gitOutput(mirror, "config", "--get", "remote.origin.url")
+			if err != nil {
+				t.Fatalf("get origin URL: %v", err)
+			}
+			if want := "https://github.com/org/repo.git"; got != want {
+				t.Fatalf("origin URL = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

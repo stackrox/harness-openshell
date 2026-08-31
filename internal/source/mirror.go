@@ -102,6 +102,7 @@ func ensureMirror(mirrorPath, repoURL string) error {
 // first keeps the common first-clone path quiet (probing with `remote get-url`
 // on a missing remote would print an error to stderr).
 func ensureOrigin(mirrorPath, repoURL string) error {
+	repoURL = stripURLUserinfo(repoURL)
 	remotes, err := gitOutput(mirrorPath, "remote")
 	if err != nil {
 		return err

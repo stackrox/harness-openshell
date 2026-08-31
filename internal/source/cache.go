@@ -47,13 +47,13 @@ func DefaultCache() (*Cache, error) {
 func NewCache(root string) *Cache { return &Cache{root: root} }
 
 // CanonicalizeURL normalizes a repo URL into a stable key for "same repo".
-// It trims surrounding space, strips a trailing slash and a ".git" suffix, and
-// lowercases the scheme and host only — repository paths stay case-sensitive
-// because many hosts treat them so. Non-URL inputs (e.g. scp-style
-// git@host:org/repo) are returned trimmed of the same suffixes without further
-// change, which is still stable per distinct spelling.
+// It trims surrounding space, removes URL userinfo, strips a trailing slash and
+// a ".git" suffix, and lowercases the scheme and host only — repository paths
+// stay case-sensitive because many hosts treat them so. Non-URL inputs (e.g.
+// scp-style git@host:org/repo) are returned trimmed of the same suffixes without
+// further change, which is still stable per distinct spelling.
 func CanonicalizeURL(raw string) string {
-	s := strings.TrimSpace(raw)
+	s := stripURLUserinfo(strings.TrimSpace(raw))
 	if u, err := url.Parse(s); err == nil && u.Host != "" {
 		u.Scheme = strings.ToLower(u.Scheme)
 		u.Host = strings.ToLower(u.Host)
@@ -62,6 +62,18 @@ func CanonicalizeURL(raw string) string {
 	s = strings.TrimRight(s, "/")
 	s = strings.TrimSuffix(s, ".git")
 	return s
+}
+
+// stripURLUserinfo removes embedded credentials from a URL before it is used
+// as a cache identity or persisted in git configuration. Authentication is
+// resolved by git's configured credential helper instead.
+func stripURLUserinfo(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return raw
+	}
+	u.User = nil
+	return u.String()
 }
 
 // RepoName derives the directory basename a repo is uploaded under
