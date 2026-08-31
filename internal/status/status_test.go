@@ -187,41 +187,6 @@ func TestHeader(t *testing.T) {
 	}
 }
 
-func TestTable_Alignment(t *testing.T) {
-	out := captureStdout(func() {
-		Table(
-			[]string{"NAME", "PHASE"},
-			[][]string{
-				{"my-agent", "Ready"},
-				{"test", "Stopped"},
-			},
-		)
-	})
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if len(lines) != 4 {
-		t.Fatalf("expected 4 lines (header + separator + 2 rows), got %d: %q", len(lines), out)
-	}
-	if !strings.HasPrefix(lines[0], "NAME") {
-		t.Errorf("header missing NAME: %q", lines[0])
-	}
-	if !strings.Contains(lines[1], "─") {
-		t.Errorf("separator missing: %q", lines[1])
-	}
-	if !strings.Contains(lines[2], "my-agent") {
-		t.Errorf("row 1 missing: %q", lines[2])
-	}
-}
-
-func TestTable_Empty(t *testing.T) {
-	out := captureStdout(func() {
-		Table([]string{"NAME", "PHASE"}, nil)
-	})
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("expected 2 lines (header + separator), got %d: %q", len(lines), out)
-	}
-}
-
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
 }

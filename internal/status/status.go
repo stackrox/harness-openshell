@@ -105,17 +105,7 @@ func Warn(msg string)                { fmt.Println("  ! " + msg) }
 func Warnf(format string, a ...any)  { fmt.Printf("  ! "+format+"\n", a...) }
 func Info(msg string)                { fmt.Println("  - " + msg) }
 func Infof(format string, a ...any)  { fmt.Printf("  - "+format+"\n", a...) }
-func Detail(msg string)              { fmt.Println("    " + msg) }
-func Sub(msg string)                 { fmt.Println("      " + msg) }
-func Step(n int, msg string)         { fmt.Printf("\n=== Step %d: %s ===\n", n, msg) }
 func Section(title string)           { fmt.Printf("\n=== %s ===\n", title) }
-func Summary(ok bool) {
-	if ok {
-		fmt.Println("✓ Ready to launch")
-	} else {
-		fmt.Println("✗ Not ready — fix issues above")
-	}
-}
 func Done(msg string) {
 	fmt.Println()
 	fmt.Println(msg)
@@ -124,43 +114,4 @@ func Done(msg string) {
 func Header(title string) {
 	fmt.Printf("\n%s\n", title)
 	fmt.Println(strings.Repeat("─", len(title)))
-}
-
-func Table(headers []string, rows [][]string) {
-	widths := make([]int, len(headers))
-	for i, h := range headers {
-		widths[i] = len(h)
-	}
-	for _, row := range rows {
-		for i, cell := range row {
-			if i < len(widths) && len(cell) > widths[i] {
-				widths[i] = len(cell)
-			}
-		}
-	}
-	for i, h := range headers {
-		if i > 0 {
-			fmt.Print("  ")
-		}
-		fmt.Printf("%-*s", widths[i], h)
-	}
-	fmt.Println()
-	for i := range headers {
-		if i > 0 {
-			fmt.Print("  ")
-		}
-		fmt.Print(strings.Repeat("─", widths[i]))
-	}
-	fmt.Println()
-	for _, row := range rows {
-		for i, cell := range row {
-			if i > 0 {
-				fmt.Print("  ")
-			}
-			if i < len(widths) {
-				fmt.Printf("%-*s", widths[i], cell)
-			}
-		}
-		fmt.Println()
-	}
 }

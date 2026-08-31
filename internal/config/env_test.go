@@ -14,7 +14,7 @@ func TestExpandSetVar(t *testing.T) {
 		return ""
 	}
 
-	result, err := Expand("prefix${TEST_VAR}suffix", getenv)
+	result, err := expandStrict("prefix${TEST_VAR}suffix", getenv)
 	if err != nil {
 		t.Fatalf("Expand failed: %v", err)
 	}
@@ -29,7 +29,7 @@ func TestExpandUnsetVar(t *testing.T) {
 		return ""
 	}
 
-	_, err := Expand("${UNSET_VAR}", getenv)
+	_, err := expandStrict("${UNSET_VAR}", getenv)
 	if err == nil {
 		t.Fatal("expected error for unset variable")
 	}
@@ -40,7 +40,7 @@ func TestExpandUnsetVar(t *testing.T) {
 
 func TestExpandExplicitEmpty(t *testing.T) {
 	// Literal empty string (no variable reference) → ok
-	result, err := Expand("", func(name string) string {
+	result, err := expandStrict("", func(name string) string {
 		return ""
 	})
 	if err != nil {
@@ -57,7 +57,7 @@ func TestExpandDoubleDollar(t *testing.T) {
 		return ""
 	}
 
-	result, err := Expand("test$$var", getenv)
+	result, err := expandStrict("test$$var", getenv)
 	if err != nil {
 		t.Fatalf("Expand failed: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestExpandBareDoller(t *testing.T) {
 		return ""
 	}
 
-	result, err := Expand("price$10", getenv)
+	result, err := expandStrict("price$10", getenv)
 	if err != nil {
 		t.Fatalf("Expand failed: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestExpandMultipleMissing(t *testing.T) {
 		return ""
 	}
 
-	_, err := Expand("${VAR1} and ${VAR2} and ${VAR3}", getenv)
+	_, err := expandStrict("${VAR1} and ${VAR2} and ${VAR3}", getenv)
 	if err == nil {
 		t.Fatal("expected error for multiple unset variables")
 	}
@@ -538,7 +538,7 @@ func TestResolveSourceFields(t *testing.T) {
 
 func TestExpandNoVarReference(t *testing.T) {
 	// Test string with no ${...} references
-	result, err := Expand("just a plain string", func(name string) string {
+	result, err := expandStrict("just a plain string", func(name string) string {
 		return ""
 	})
 	if err != nil {
@@ -551,7 +551,7 @@ func TestExpandNoVarReference(t *testing.T) {
 
 func TestExpandMissingCloseBrace(t *testing.T) {
 	// Test ${VAR without closing brace → treat $ as literal
-	result, err := Expand("test ${VAR with no close", func(name string) string {
+	result, err := expandStrict("test ${VAR with no close", func(name string) string {
 		return ""
 	})
 	if err != nil {
@@ -687,7 +687,7 @@ func TestResolveAgentFields(t *testing.T) {
 
 func TestExpandMultipleInSameString(t *testing.T) {
 	// Test multiple ${VAR} in the same string
-	result, err := Expand("${VAR1}-${VAR2}-${VAR3}", func(name string) string {
+	result, err := expandStrict("${VAR1}-${VAR2}-${VAR3}", func(name string) string {
 		switch name {
 		case "VAR1":
 			return "a"
