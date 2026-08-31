@@ -42,11 +42,18 @@ uses this same resolved desired object and action-decision engine.`,
 
 			// An empty or unreachable gateway is a valid read-only plan: render
 			// the desired config against empty current state rather than failing.
+			// A direct target carries its own connection with no CLI gateway name,
+			// so connect on that too — otherwise plan silently renders empty
+			// current state for a reachable direct registration.
 			var client openshell.Client
-			if workflow.Target.Gateway != "" {
+			if workflow.Target.Direct != nil || workflow.Target.Gateway != "" {
 				client, err = newClient(cmd.Context(), workflow.Target)
 				if err != nil {
-					fmt.Fprintf(cmd.ErrOrStderr(), "warning: gateway %q unreachable: %v (rendering desired config only)\n", workflow.Target.Gateway, err)
+					desc := fmt.Sprintf("gateway %q", workflow.Target.Gateway)
+					if workflow.Target.Direct != nil {
+						desc = "direct target"
+					}
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s unreachable: %v (rendering desired config only)\n", desc, err)
 				} else {
 					defer client.Close()
 				}

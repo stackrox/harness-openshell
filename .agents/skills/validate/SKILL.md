@@ -115,6 +115,7 @@ search for references to removed commands. `SPEC.md` is intentionally not part
 of the repository.
 
 ```bash
+make cli   # the root ./harness binary is gitignored; build it first
 ./harness --help
 rg -n 'harness (apply|get|describe|delete|doctor|init|migrate|plan)' README.md
 rg -n 'harness (up|create|render|deploy)' README.md

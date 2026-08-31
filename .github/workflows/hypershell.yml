@@ -18,6 +18,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          # This job builds and runs repository-controlled code; don't leave the
+          # GITHUB_TOKEN in the local git config for it to reach.
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
