@@ -44,6 +44,18 @@ type Sandbox struct {
 	Phase string
 }
 
+// SandboxCreate describes the SDK-native subset of sandbox creation used by
+// canonical workflows. File uploads, local image builds, and policy-file
+// parsing remain CLI responsibilities until the SDK supports those paths
+// end-to-end.
+type SandboxCreate struct {
+	Name      string
+	Image     string
+	Providers []string
+	Env       map[string]string
+	Labels    map[string]string
+}
+
 // GatewayInfo is the harness view of the active gateway.
 //
 // Name and Endpoint are connection facts captured at construction (New, from the

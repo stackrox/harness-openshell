@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -62,28 +63,25 @@ spec:
 		t.Fatalf("plan target = %+v, workflow target = %+v", planned.Target, workflow.Target)
 	}
 
+	sdk := &recordingCanonicalSDK{Client: client}
 	gw := &mockGW{}
-	if err := applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{}); err != nil {
+	if err := applyCanonical(context.Background(), workflow, planned, current, sdk, gw, canonicalApplyOptions{}); err != nil {
 		t.Fatalf("applyCanonical: %v", err)
 	}
-	if gw.createCalls != 1 {
-		t.Fatalf("sandbox create calls = %d, want 1", gw.createCalls)
+	if gw.createCalls != 0 {
+		t.Fatalf("CLI sandbox create calls = %d, want 0", gw.createCalls)
 	}
-	opts := gw.createOpts[0]
-	if opts.Gateway != planned.Target.Gateway || opts.Workspace != planned.Target.Workspace {
-		t.Errorf("sandbox target = %q/%q, plan target = %q/%q", opts.Gateway, opts.Workspace, planned.Target.Gateway, planned.Target.Workspace)
+	if sdk.createCalls != 1 || sdk.created.Name != "review" || sdk.created.Image != "quay.io/test/reviewer:latest" {
+		t.Errorf("SDK create calls=%d request=%+v", sdk.createCalls, sdk.created)
 	}
-	if !opts.NoAutoProviders {
-		t.Error("v1alpha1 apply must disable automatic providers")
+	if !reflect.DeepEqual(sdk.command, []string{"reviewer", "--format", "sarif"}) {
+		t.Errorf("command = %v", sdk.command)
 	}
-	if !reflect.DeepEqual(opts.Command, []string{"reviewer", "--format", "sarif"}) {
-		t.Errorf("command = %v", opts.Command)
+	if !reflect.DeepEqual(sdk.created.Providers, []string{"github"}) {
+		t.Errorf("providers = %v", sdk.created.Providers)
 	}
-	if !reflect.DeepEqual(opts.Providers, []string{"github"}) {
-		t.Errorf("providers = %v", opts.Providers)
-	}
-	if opts.Env["REVIEW_MODE"] != "strict" || !opts.Keep {
-		t.Errorf("sandbox options did not preserve env/keep: %+v", opts)
+	if sdk.created.Env["REVIEW_MODE"] != "strict" || sdk.deleted {
+		t.Errorf("sandbox options did not preserve env/keep: %+v deleted=%v", sdk.created, sdk.deleted)
 	}
 }
 
@@ -163,10 +161,11 @@ printf '%%s\n' "$@" > %s
 
 	client, raw := testutil.NewFakeClient("cli-workspace", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
 	raw.AddProvider("cli-workspace", &types.Provider{Name: "github", Type: "github"})
+	sdk := &recordingCanonicalSDK{Client: client}
 	var factoryTarget openshell.Target
 	factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
 		factoryTarget = target
-		return client, nil
+		return sdk, nil
 	}
 
 	command := NewApplyCmd(dir, cliPath, factory)
@@ -177,14 +176,85 @@ printf '%%s\n' "$@" > %s
 	if factoryTarget != (openshell.Target{Gateway: "cli-gateway", Workspace: "cli-workspace"}) {
 		t.Fatalf("factory target = %+v", factoryTarget)
 	}
-	args, err := os.ReadFile(argsLog)
-	if err != nil {
-		t.Fatalf("read fake openshell args: %v", err)
+	if _, err := os.Stat(argsLog); !os.IsNotExist(err) {
+		t.Fatalf("openshell CLI was invoked on SDK-native path: %v", err)
 	}
-	for _, want := range []string{"sandbox\ncreate\n", "--gateway\ncli-gateway\n", "--workspace\ncli-workspace\n", "--no-auto-providers\n", "reviewer\n--strict\n"} {
-		if !strings.Contains(string(args), want) {
-			t.Errorf("openshell args missing %q:\n%s", want, args)
-		}
+	if sdk.createCalls != 1 || !reflect.DeepEqual(sdk.command, []string{"reviewer", "--strict"}) {
+		t.Errorf("SDK create calls=%d command=%v", sdk.createCalls, sdk.command)
+	}
+}
+
+type recordingCanonicalSDK struct {
+	openshell.Client
+	createCalls int
+	created     openshell.SandboxCreate
+	command     []string
+	deleted     bool
+}
+
+func (c *recordingCanonicalSDK) CreateSandbox(_ context.Context, desired openshell.SandboxCreate) (openshell.Sandbox, error) {
+	c.createCalls++
+	c.created = desired
+	return openshell.Sandbox{Name: desired.Name, Phase: "Provisioning"}, nil
+}
+
+func (c *recordingCanonicalSDK) WaitSandboxReady(_ context.Context, name string) (openshell.Sandbox, error) {
+	return openshell.Sandbox{Name: name, Phase: "Ready"}, nil
+}
+
+func (c *recordingCanonicalSDK) ExecSandbox(_ context.Context, _ string, command []string, _, _ io.Writer) (int, error) {
+	c.command = append([]string(nil), command...)
+	return 0, nil
+}
+
+func (c *recordingCanonicalSDK) DeleteSandbox(_ context.Context, _ string) error {
+	c.deleted = true
+	return nil
+}
+
+func TestCanonicalSDKRunEligibility(t *testing.T) {
+	desired := &config.Harness{Spec: config.Spec{Sandbox: config.Sandbox{Image: "quay.io/example/reviewer:v1"}}}
+	workflow := &canonicalWorkflow{Desired: desired, BaseDir: t.TempDir()}
+	if !canonicalSDKRunEligible(workflow) {
+		t.Fatal("remote-image non-interactive workflow should use SDK")
+	}
+
+	desired.Spec.Payloads = []config.Payload{{Content: "review", Destination: "/sandbox/review.md"}}
+	if canonicalSDKRunEligible(workflow) {
+		t.Fatal("payload upload must retain CLI fallback")
+	}
+	desired.Spec.Payloads = nil
+	desired.Spec.Sandbox.TTY = true
+	if canonicalSDKRunEligible(workflow) {
+		t.Fatal("interactive workflow must retain CLI fallback")
+	}
+}
+
+func TestCanonicalApplyRetainsCLIFallbackForTTY(t *testing.T) {
+	desired := &config.Harness{
+		Metadata: config.Metadata{Name: "interactive"},
+		Spec: config.Spec{
+			Target:  config.Target{Gateway: "acs", Workspace: "team"},
+			Sandbox: config.Sandbox{Image: "reviewer", TTY: true},
+			Agent:   config.Agent{Type: "reviewer"},
+		},
+	}
+	workflow := &canonicalWorkflow{
+		Desired: desired,
+		Target:  openshell.Target{Gateway: "acs", Workspace: "team"},
+		BaseDir: t.TempDir(),
+	}
+	client := testutil.NewFake("team", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	planned, current, err := workflow.buildPlan(context.Background(), client)
+	if err != nil {
+		t.Fatalf("buildPlan: %v", err)
+	}
+	gw := &mockGW{}
+	if err := applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{}); err != nil {
+		t.Fatalf("applyCanonical: %v", err)
+	}
+	if gw.createCalls != 1 || !gw.createOpts[0].TTY || !gw.createOpts[0].NoAutoProviders {
+		t.Errorf("CLI create calls=%d options=%+v", gw.createCalls, gw.createOpts)
 	}
 }
 

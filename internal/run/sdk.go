@@ -1,0 +1,57 @@
+package run
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"time"
+
+	"github.com/stackrox/harness-openshell/internal/openshell"
+)
+
+// RunSandboxSDK executes the SDK-native sandbox lifecycle. It intentionally
+// has no retry loop: the SDK owns transport retries, while invalid requests,
+// authentication failures, and agent failures must not be repeated blindly.
+func RunSandboxSDK(ctx context.Context, client openshell.SandboxExecutionClient, req SandboxRunRequest, stdout, stderr io.Writer) (runErr error) {
+	_, err := client.CreateSandbox(ctx, openshell.SandboxCreate{
+		Name:      req.Name,
+		Image:     req.Image,
+		Providers: req.Providers,
+		Env:       req.Env,
+		Labels:    req.Labels,
+	})
+	if err != nil {
+		return fmt.Errorf("creating sandbox %q: %w", req.Name, err)
+	}
+	if !req.Keep {
+		defer func() {
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			defer cancel()
+			if err := client.DeleteSandbox(cleanupCtx, req.Name); err != nil {
+				cleanupErr := fmt.Errorf("deleting sandbox %q: %w", req.Name, err)
+				if runErr == nil {
+					runErr = cleanupErr
+				} else {
+					runErr = errors.Join(runErr, cleanupErr)
+				}
+			}
+		}()
+	}
+
+	if _, err := client.WaitSandboxReady(ctx, req.Name); err != nil {
+		return fmt.Errorf("waiting for sandbox %q: %w", req.Name, err)
+	}
+	if len(req.Command) == 0 {
+		return nil
+	}
+
+	exitCode, err := client.ExecSandbox(ctx, req.Name, req.Command, stdout, stderr)
+	if err != nil {
+		return fmt.Errorf("executing command in sandbox %q: %w", req.Name, err)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("sandbox command exited with status %d", exitCode)
+	}
+	return nil
+}

@@ -28,8 +28,9 @@ const defaultWorkspace = "default"
 // Compile-time guarantees that New satisfies the Factory seam and *client
 // satisfies the Client interface.
 var (
-	_ openshell.Factory = New
-	_ openshell.Client  = (*client)(nil)
+	_ openshell.Factory                = New
+	_ openshell.Client                 = (*client)(nil)
+	_ openshell.SandboxExecutionClient = (*client)(nil)
 )
 
 // client wraps the SDK client interface, binding it to one workspace. It holds

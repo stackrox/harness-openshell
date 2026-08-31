@@ -72,7 +72,7 @@ Use --dry-run to render the v1alpha1 action plan without mutating anything, or
 					}
 
 					gw := gateway.New(cli)
-					if !dryRun {
+					if !dryRun && !canonicalSDKRunEligible(workflow) {
 						if err := checkOpenShellVersion(gw); err != nil {
 							return err
 						}

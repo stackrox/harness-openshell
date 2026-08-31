@@ -77,7 +77,28 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 		status.OK("Reconciliation complete: workflow declares no sandbox run")
 		return nil
 	}
+	if canonicalSDKRunEligible(workflow) {
+		executor, ok := client.(openshell.SandboxExecutionClient)
+		if !ok {
+			return fmt.Errorf("configured OpenShell client does not support SDK sandbox execution")
+		}
+		return run.RunSandboxSDK(ctx, executor, req, os.Stdout, os.Stderr)
+	}
 	return run.RunSandbox(ctx, gw, req)
+}
+
+// canonicalSDKRunEligible selects the lifecycle the pinned SDK implements
+// end-to-end. The SDK exposes file transfer methods, but its shipped transport
+// is unavailable, so uploads remain on the CLI path. Policy files, local image
+// builds, and interactive terminals likewise stay on the CLI until each has a
+// tested SDK-native implementation.
+func canonicalSDKRunEligible(workflow *canonicalWorkflow) bool {
+	desired := workflow.Desired
+	if desired.Spec.Source.Repo != "" || len(desired.Spec.Payloads) > 0 || desired.Spec.Sandbox.Policy != nil || desired.Spec.Sandbox.TTY {
+		return false
+	}
+	image := resolveSandboxImagePath(desired.Spec.Sandbox.Image, workflow.BaseDir)
+	return !filepath.IsAbs(image)
 }
 
 // verifySandboxProviders checks capabilities attached directly to the sandbox.
@@ -179,11 +200,7 @@ func canonicalRunRequest(workflow *canonicalWorkflow, retrySleep time.Duration) 
 		uploads = append(uploads, upload)
 	}
 
-	contentDir, err := os.MkdirTemp("", "harness-v1alpha-payload-")
-	if err != nil {
-		return fail(fmt.Errorf("creating payload directory: %w", err))
-	}
-	cleanups = append(cleanups, func() { _ = os.RemoveAll(contentDir) })
+	contentDir := ""
 	for i, payload := range desired.Spec.Payloads {
 		if payload.Destination == "" {
 			return fail(fmt.Errorf("spec.payloads[%d].destination is required", i))
@@ -201,6 +218,14 @@ func canonicalRunRequest(workflow *canonicalWorkflow, retrySleep time.Duration) 
 			}
 			uploads = append(uploads, gateway.Upload{Src: source, Dst: payload.Destination})
 		case payload.Content != "":
+			if contentDir == "" {
+				stagedDir, err := os.MkdirTemp("", "harness-v1alpha-payload-")
+				if err != nil {
+					return fail(fmt.Errorf("creating payload directory: %w", err))
+				}
+				contentDir = stagedDir
+				cleanups = append(cleanups, func() { _ = os.RemoveAll(contentDir) })
+			}
 			source := filepath.Join(contentDir, fmt.Sprintf("payload-%d", i))
 			if err := os.WriteFile(source, []byte(payload.Content), 0o600); err != nil {
 				return fail(fmt.Errorf("staging spec.payloads[%d].content: %w", i, err))

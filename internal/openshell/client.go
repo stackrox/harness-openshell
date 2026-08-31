@@ -7,7 +7,10 @@
 // internal/openshell/sdkclient (production) and internal/testutil (tests).
 package openshell
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 // Client is the harness-owned view of a single (gateway, workspace) target.
 //
@@ -57,6 +60,16 @@ type Client interface {
 	DeleteInferenceRoute(ctx context.Context, route string) error
 	// Close releases any resources held by the client.
 	Close() error
+}
+
+// SandboxExecutionClient is the narrow SDK-native execution surface. It is
+// separate from Client so read/reconcile fakes do not need to implement runtime
+// operations they never use.
+type SandboxExecutionClient interface {
+	CreateSandbox(ctx context.Context, desired SandboxCreate) (Sandbox, error)
+	WaitSandboxReady(ctx context.Context, name string) (Sandbox, error)
+	ExecSandbox(ctx context.Context, name string, command []string, stdout, stderr io.Writer) (int, error)
+	DeleteSandbox(ctx context.Context, name string) error
 }
 
 // Factory constructs a Client for a Target.

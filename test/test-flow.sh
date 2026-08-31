@@ -166,6 +166,27 @@ sandbox_verify() {
   step "sandbox: claude responds" "$CLI" sandbox exec --name "$name" -- bash -c 'echo "respond with ok" | claude --print 2>&1 | head -1'
 }
 
+canonical_sdk_smoke() {
+  local gateway="$1"
+  local output
+  output=$(harness apply \
+    --file test/ci-workflow.yaml \
+    --gateway "$gateway" \
+    --workspace default 2>&1) || {
+      echo "$output" >&2
+      return 1
+    }
+  echo "$output" | grep -q 'canonical-sdk-ok' || {
+    echo "  ERROR: canonical SDK output missing" >&2
+    echo "$output" >&2
+    return 1
+  }
+  if "$CLI" sandbox list 2>/dev/null | strip_ansi | awk '$1=="sdk-smoke" {found=1} END {exit !found}'; then
+    echo "  ERROR: SDK smoke sandbox was not deleted" >&2
+    return 1
+  fi
+}
+
 summary() {
   local total=$(( PASS + FAIL ))
   local elapsed=$(( $(date +%s) - TOTAL_START ))
@@ -263,15 +284,15 @@ test_kind() {
   step "provision" provision_kind
   step "gateway reachable" "$CLI" inference get
 
-  local sandbox_name="test-kind"
-  step "sandbox create" harness apply --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
-  sandbox_verify "$sandbox_name"
-
-  if ! $NO_PROVIDERS; then
+  if $NO_PROVIDERS; then
+    step "canonical SDK lifecycle" canonical_sdk_smoke openshell-kind
+  else
+    local sandbox_name="test-kind"
+    step "sandbox create" harness apply --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
+    sandbox_verify "$sandbox_name"
     test_gws "$sandbox_name"
+    step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
   fi
-
-  step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
   step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
   step "teardown (cluster)" teardown_cluster openshell-kind
