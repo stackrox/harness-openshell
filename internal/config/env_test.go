@@ -199,6 +199,23 @@ func TestResolve_DefaultsEmptyManagementToReferenced(t *testing.T) {
 	}
 }
 
+func TestResolve_RejectsDuplicateProviderNames(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec: Spec{Providers: []Provider{
+			{Name: "github", Management: "referenced"},
+			{Name: "github", Management: "referenced"},
+		}},
+	}
+
+	_, err := Resolve(h, func(string) string { return "" })
+	if err == nil || !strings.Contains(err.Error(), "duplicate provider") {
+		t.Fatalf("error = %v, want duplicate provider", err)
+	}
+}
+
 func TestResolve_RejectsMalformedRoute(t *testing.T) {
 	h := &Harness{
 		APIVersion: "harness.openshell.dev/v1alpha1",

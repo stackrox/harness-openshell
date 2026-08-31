@@ -386,8 +386,7 @@ spec:
 }
 
 // TestPlanCmd_TargetTierPrecedence tests flag > env > config precedence for target resolution.
-// Verifies that the Factory is called with the correctly-resolved gateway (the resolved target
-// is used only for connecting to the gateway, not for the plan's TARGET resource).
+// Verifies that the Factory and rendered plan use the same resolved gateway.
 func TestPlanCmd_TargetTierPrecedence(t *testing.T) {
 	tests := []struct {
 		name        string

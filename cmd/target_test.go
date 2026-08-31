@@ -3,13 +3,15 @@ package cmd
 import (
 	"strings"
 	"testing"
+
+	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
 func TestResolveApplyTarget_FromActiveGateway(t *testing.T) {
 	t.Setenv("OPENSHELL_GATEWAY", "") // isolate from the caller's environment
 	gw := &mockGW{activeGateway: "prod-gw"}
 
-	target, err := resolveApplyTarget(gw)
+	target, err := resolveApplyTarget(gw, "", "")
 	if err != nil {
 		t.Fatalf("resolveApplyTarget: %v", err)
 	}
@@ -21,13 +23,27 @@ func TestResolveApplyTarget_FromActiveGateway(t *testing.T) {
 	}
 }
 
+func TestResolveApplyTarget_FlagsOverrideEnvironmentAndActive(t *testing.T) {
+	t.Setenv(openshell.EnvGateway, "env-gw")
+	t.Setenv(openshell.EnvWorkspace, "env-ws")
+	gw := &mockGW{activeGateway: "active-gw"}
+
+	target, err := resolveApplyTarget(gw, "flag-gw", "flag-ws")
+	if err != nil {
+		t.Fatalf("resolveApplyTarget: %v", err)
+	}
+	if target != (openshell.Target{Gateway: "flag-gw", Workspace: "flag-ws"}) {
+		t.Errorf("target = %+v", target)
+	}
+}
+
 // $OPENSHELL_GATEWAY changes OpenShell's request target without moving the
 // active-gateway marker, so apply must honor it over ActiveGateway().
 func TestResolveApplyTarget_EnvOverridesActiveGateway(t *testing.T) {
 	t.Setenv("OPENSHELL_GATEWAY", "env-gw")
 	gw := &mockGW{activeGateway: "active-gw"}
 
-	target, err := resolveApplyTarget(gw)
+	target, err := resolveApplyTarget(gw, "", "")
 	if err != nil {
 		t.Fatalf("resolveApplyTarget: %v", err)
 	}
@@ -41,7 +57,7 @@ func TestResolveApplyTarget_EnvWithNoActiveGateway(t *testing.T) {
 	t.Setenv("OPENSHELL_GATEWAY", "env-gw")
 	gw := &mockGW{activeGateway: ""}
 
-	target, err := resolveApplyTarget(gw)
+	target, err := resolveApplyTarget(gw, "", "")
 	if err != nil {
 		t.Fatalf("resolveApplyTarget: %v", err)
 	}
@@ -54,7 +70,7 @@ func TestResolveApplyTarget_EmptyActiveGatewayErrors(t *testing.T) {
 	t.Setenv("OPENSHELL_GATEWAY", "") // no env override, no active gateway
 	gw := &mockGW{activeGateway: ""}
 
-	_, err := resolveApplyTarget(gw)
+	_, err := resolveApplyTarget(gw, "", "")
 	if err == nil {
 		t.Fatal("expected error for empty active gateway, got nil")
 	}
