@@ -4,10 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"path"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/stackrox/harness-openshell/internal/agent"
@@ -18,6 +15,7 @@ import (
 	"github.com/stackrox/harness-openshell/internal/plan"
 	"github.com/stackrox/harness-openshell/internal/reconcile"
 	"github.com/stackrox/harness-openshell/internal/run"
+	"github.com/stackrox/harness-openshell/internal/source"
 	"github.com/stackrox/harness-openshell/internal/status"
 )
 
@@ -31,17 +29,17 @@ const reconcileTimeout = 60 * time.Second
 var DefaultAgentConfig []byte
 
 type upLocalOpts struct {
-	harnessDir      string
-	gw              gateway.Gateway
-	target          openshell.Target
-	agentCfg        *agent.AgentConfig
-	agentPath       string
-	sandboxName     string
-	noTTY           bool
-	setupOnly       bool
-	harness         *agent.Harness
-	newClient       openshell.Factory
-	retrySleep      time.Duration
+	harnessDir  string
+	gw          gateway.Gateway
+	target      openshell.Target
+	agentCfg    *agent.AgentConfig
+	agentPath   string
+	sandboxName string
+	noTTY       bool
+	setupOnly   bool
+	harness     *agent.Harness
+	newClient   openshell.Factory
+	retrySleep  time.Duration
 }
 
 func upLocal(opts upLocalOpts) error {
@@ -94,7 +92,11 @@ func upLocal(opts upLocalOpts) error {
 	// Clone repo outside the sandbox so git credentials never enter it.
 	var repoUpload *gateway.Upload
 	if agentCfg.Repo != "" {
-		upload, cleanup, err := cloneRepo(agentCfg.Repo, agentCfg.RepoRef)
+		runID, err := source.NewRunID()
+		if err != nil {
+			return err
+		}
+		upload, cleanup, err := cloneRepo(agentCfg.Repo, agentCfg.RepoRef, runID)
 		if err != nil {
 			return fmt.Errorf("cloning repo: %w", err)
 		}
@@ -201,116 +203,35 @@ func upLocal(opts upLocalOpts) error {
 	})
 }
 
-// cloneRepo clones or updates a cached git repository and returns an Upload
-// that places it at /sandbox/<repo-name>. Repos are cached in
-// ~/.cache/harness-openshell/repos/<repo-name>/ so subsequent runs only fetch
-// deltas. The clone happens outside the sandbox so git credentials never enter
-// it. Returns a cleanup function (no-op since the cache is persistent).
-func cloneRepo(repo, ref string) (gateway.Upload, func(), error) {
-	repoName := strings.TrimSuffix(path.Base(repo), ".git")
-
+// cloneRepo prepares an isolated per-run checkout of repo at ref and returns an
+// Upload that places it at /sandbox/<repo-name>, plus a cleanup that removes the
+// checkout. The mirror + checkout are built on the host so git credentials never
+// enter the sandbox; see internal/source for the URL-hashed mirror + per-run
+// checkout layout that keeps distinct same-basename repos and concurrent runs
+// from colliding.
+func cloneRepo(repo, ref, runID string) (gateway.Upload, func(), error) {
 	if ref != "" {
 		status.Infof("Repo:  %s (ref: %s)", repo, ref)
 	} else {
 		status.Infof("Repo:  %s", repo)
 	}
 
-	cacheDir, err := repoCacheDir(repoName)
+	cache, err := source.DefaultCache()
 	if err != nil {
 		return gateway.Upload{}, nil, err
 	}
-
-	if isGitRepo(cacheDir) {
-		if err := fetchRepo(cacheDir, ref); err != nil {
-			return gateway.Upload{}, nil, err
-		}
-		status.OKf("Updated %s (cached)", repoName)
-	} else {
-		if err := freshClone(repo, ref, cacheDir); err != nil {
-			return gateway.Upload{}, nil, fmt.Errorf("git clone %s: %w", repo, err)
-		}
-		status.OKf("Cloned %s", repoName)
-	}
-
-	return gateway.Upload{Src: cacheDir, Dst: "/sandbox"}, func() {}, nil
-}
-
-func repoCacheDir(repoName string) (string, error) {
-	home, err := os.UserHomeDir()
+	prepared, err := cache.Prepare(repo, ref, runID)
 	if err != nil {
-		return "", fmt.Errorf("determining home dir: %w", err)
+		return gateway.Upload{}, nil, fmt.Errorf("preparing repo %s: %w", repo, err)
 	}
-	dir := filepath.Join(home, ".cache", "harness-openshell", "repos", repoName)
-	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
-		return "", fmt.Errorf("creating cache dir: %w", err)
-	}
-	return dir, nil
-}
+	status.OKf("Prepared %s", source.RepoName(repo))
 
-func isGitRepo(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, ".git"))
-	return err == nil
-}
-
-func freshClone(repo, ref, dest string) error {
-	args := []string{"clone", "--depth", "1"}
-	if ref != "" {
-		args = append(args, "--branch", ref)
+	cleanup := func() {
+		if cerr := prepared.Cleanup(); cerr != nil {
+			status.Warnf("cleaning up repo checkout: %v", cerr)
+		}
 	}
-	args = append(args, repo, dest)
-	cmd := exec.Command("git", args...)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return initSubmodules(dest)
-}
-
-func fetchRepo(dir, ref string) error {
-	fetchArgs := []string{"-C", dir, "fetch", "--depth", "1", "origin"}
-	if ref != "" {
-		fetchArgs = append(fetchArgs, ref)
-	}
-	cmd := exec.Command("git", fetchArgs...)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git fetch: %w", err)
-	}
-
-	target := "FETCH_HEAD"
-	if ref == "" {
-		target = "origin/HEAD"
-	}
-	cmd = exec.Command("git", "-C", dir, "checkout", target, "--force")
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git checkout %s: %w", target, err)
-	}
-
-	if err := initSubmodules(dir); err != nil {
-		return err
-	}
-
-	// Clean untracked files from previous runs
-	cmd = exec.Command("git", "-C", dir, "clean", "-fdx")
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	cmd.Run()
-
-	return nil
-}
-
-func initSubmodules(dir string) error {
-	cmd := exec.Command("git", "-C", dir, "submodule", "update", "--init", "--depth", "1")
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git submodule update: %w", err)
-	}
-	return nil
+	return gateway.Upload{Src: prepared.Dir, Dst: "/sandbox"}, cleanup, nil
 }
 
 // reconcileGateway drives the gateway's providers and inference route to match
