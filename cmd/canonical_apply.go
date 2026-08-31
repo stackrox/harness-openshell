@@ -207,7 +207,7 @@ func canonicalRunRequest(workflow *canonicalWorkflow, retrySleep time.Duration) 
 		}
 		runID, err := source.NewRunID()
 		if err != nil {
-			return fail(err)
+			return fail(fmt.Errorf("generating run ID: %w", err))
 		}
 		upload, sourceCleanup, err := cloneRepo(desired.Spec.Source.Repo, desired.Spec.Source.Ref, runID)
 		if err != nil {

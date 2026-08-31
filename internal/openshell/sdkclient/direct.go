@@ -80,10 +80,17 @@ func oidcTokenSource(ctx context.Context, oidc openshell.OIDCConnection, secret 
 		return nil, fmt.Errorf("%w: OIDC discovery returned HTTP %d", openshell.ErrUnauthenticated, response.StatusCode)
 	}
 	var metadata struct {
+		Issuer        string `json:"issuer"`
 		TokenEndpoint string `json:"token_endpoint"`
 	}
 	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&metadata); err != nil {
 		return nil, fmt.Errorf("%w: decode OIDC discovery metadata: %v", openshell.ErrConfig, err)
+	}
+	// OIDC Discovery requires the advertised issuer to equal the one used to
+	// fetch the document; a mismatch signals a substituted provider (mix-up
+	// attack), so reject before trusting its token endpoint.
+	if metadata.Issuer != oidc.Issuer {
+		return nil, fmt.Errorf("%w: OIDC discovery issuer %q does not match configured issuer %q", openshell.ErrConfig, metadata.Issuer, oidc.Issuer)
 	}
 	if err := requireHTTPS("OIDC token endpoint", metadata.TokenEndpoint); err != nil {
 		return nil, err

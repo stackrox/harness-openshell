@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -24,7 +25,10 @@ func TestOIDCTokenSourceDiscoversAndSendsAudience(t *testing.T) {
 		switch r.URL.Path {
 		case "/issuer/.well-known/openid-configuration":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]string{"token_endpoint": server.URL + "/token"})
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"issuer":         server.URL + "/issuer",
+				"token_endpoint": server.URL + "/token",
+			})
 		case "/token":
 			tokenRequests.Add(1)
 			// t.Fatalf here would call runtime.Goexit on the server goroutine,
@@ -85,6 +89,33 @@ func TestOIDCTokenSourceRejectsInsecureIssuer(t *testing.T) {
 	}, "secret", &http.Client{Timeout: time.Second})
 	if err == nil {
 		t.Fatal("expected insecure issuer to be rejected")
+	}
+}
+
+func TestOIDCTokenSourceRejectsIssuerMismatch(t *testing.T) {
+	var server *httptest.Server
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/issuer/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			// Advertise a different issuer than the one used to fetch the doc.
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"issuer":         "https://evil.example.com",
+				"token_endpoint": server.URL + "/token",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	_, err := oidcTokenSource(context.Background(), openshell.OIDCConnection{
+		Issuer: server.URL + "/issuer", ClientID: "ci", Audience: "gateway",
+	}, "secret", server.Client())
+	if err == nil {
+		t.Fatal("expected discovery issuer mismatch to be rejected")
+	}
+	if !strings.Contains(err.Error(), "does not match configured issuer") {
+		t.Errorf("error = %v, want issuer mismatch", err)
 	}
 }
 
