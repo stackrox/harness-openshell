@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -61,6 +62,15 @@ func expand(raw string, getenv func(string) string) (string, []string) {
 		}
 	}
 	return out.String(), missing
+}
+
+// destinationHasTraversal reports whether a sandbox destination path contains a
+// ".." segment — the one traversal vector with no legitimate use in a
+// destination. Absolute paths are deliberately allowed: sandbox destinations are
+// conventionally absolute (e.g. "/sandbox/review.md"), and the openshell runtime
+// remains the authority on where an upload actually lands.
+func destinationHasTraversal(p string) bool {
+	return slices.Contains(strings.Split(p, "/"), "..")
 }
 
 // Resolve returns a copy of h with every non-secret string field interpolated
@@ -139,6 +149,14 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 				// valid
 			default:
 				errs = append(errs, fmt.Sprintf("%s.management: %q is invalid (want \"managed\" or \"referenced\")", base, np.Management))
+			}
+			// Credentials are never expanded (only their source is described), but
+			// the source string must name a supported kind. Catch a typo here at
+			// load time rather than accepting it silently.
+			if np.Credentials != nil {
+				if err := np.Credentials.Validate(); err != nil {
+					errs = append(errs, fmt.Sprintf("%s.credentials.source: %v", base, err))
+				}
 			}
 			if len(p.Config) > 0 {
 				np.Config = make(map[string]string, len(p.Config))
@@ -219,16 +237,23 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	s.Source.Repo = exp("spec.source.repo", h.Spec.Source.Repo)
 	s.Source.Ref = exp("spec.source.ref", h.Spec.Source.Ref)
 	s.Source.Destination = exp("spec.source.destination", h.Spec.Source.Destination)
+	if destinationHasTraversal(s.Source.Destination) {
+		errs = append(errs, `spec.source.destination: must not contain a ".." path segment`)
+	}
 	s.Source.Submodules = exp("spec.source.submodules", h.Spec.Source.Submodules)
 
 	if len(h.Spec.Payloads) > 0 {
 		s.Payloads = make([]Payload, len(h.Spec.Payloads))
 		for i, p := range h.Spec.Payloads {
 			base := fmt.Sprintf("spec.payloads[%d]", i)
+			dest := exp(base+".destination", p.Destination)
+			if destinationHasTraversal(dest) {
+				errs = append(errs, base+`.destination: must not contain a ".." path segment`)
+			}
 			s.Payloads[i] = Payload{
 				Source:      exp(base+".source", p.Source),
 				Content:     exp(base+".content", p.Content),
-				Destination: exp(base+".destination", p.Destination),
+				Destination: dest,
 			}
 		}
 	}

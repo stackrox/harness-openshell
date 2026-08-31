@@ -199,6 +199,83 @@ func TestResolve_DefaultsEmptyManagementToReferenced(t *testing.T) {
 	}
 }
 
+func TestResolve_RejectsBadCredentialSource(t *testing.T) {
+	for _, tc := range []struct{ name, source string }{
+		{"typo", "gcloud-adcc"},
+		{"unknown", "vault"},
+		{"env-no-var", "environment:"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := &Harness{
+				APIVersion: "harness.openshell.dev/v1alpha1",
+				Kind:       "Harness",
+				Metadata:   Metadata{Name: "test"},
+				Spec: Spec{Providers: []Provider{
+					{Name: "gh", Type: "github", Management: "managed", Credentials: &SecretRef{Source: tc.source}},
+				}},
+			}
+			_, err := Resolve(h, func(string) string { return "" })
+			if err == nil {
+				t.Fatalf("expected Resolve to reject credential source %q", tc.source)
+			}
+			if !strings.Contains(err.Error(), "credentials.source") {
+				t.Errorf("error should name the field: %v", err)
+			}
+		})
+	}
+}
+
+func TestResolve_AcceptsValidCredentialSources(t *testing.T) {
+	for _, source := range []string{"gcloud-adc", "environment:OPENSHELL_OIDC_CLIENT_SECRET"} {
+		h := &Harness{
+			APIVersion: "harness.openshell.dev/v1alpha1",
+			Kind:       "Harness",
+			Metadata:   Metadata{Name: "test"},
+			Spec: Spec{Providers: []Provider{
+				{Name: "gh", Type: "github", Management: "managed", Credentials: &SecretRef{Source: source}},
+			}},
+		}
+		if _, err := Resolve(h, func(string) string { return "" }); err != nil {
+			t.Errorf("Resolve rejected valid credential source %q: %v", source, err)
+		}
+	}
+}
+
+func TestResolve_RejectsDestinationTraversal(t *testing.T) {
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec: Spec{
+			Source:   Source{Repo: "https://example.com/x.git", Destination: "../escape"},
+			Payloads: []Payload{{Content: "x", Destination: "/sandbox/../../etc/passwd"}},
+		},
+	}
+	_, err := Resolve(h, func(string) string { return "" })
+	if err == nil {
+		t.Fatal("expected Resolve to reject destinations containing \"..\"")
+	}
+	if !strings.Contains(err.Error(), "spec.source.destination") || !strings.Contains(err.Error(), "spec.payloads[0].destination") {
+		t.Errorf("error should name both offending fields: %v", err)
+	}
+}
+
+func TestResolve_AllowsAbsoluteDestination(t *testing.T) {
+	// Sandbox destinations are conventionally absolute; only ".." is rejected.
+	h := &Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   Metadata{Name: "test"},
+		Spec: Spec{
+			Source:   Source{Repo: "https://example.com/x.git", Destination: "/sandbox/src"},
+			Payloads: []Payload{{Content: "x", Destination: "/sandbox/review.md"}},
+		},
+	}
+	if _, err := Resolve(h, func(string) string { return "" }); err != nil {
+		t.Errorf("Resolve rejected valid absolute destinations: %v", err)
+	}
+}
+
 func TestResolve_RejectsDuplicateProviderNames(t *testing.T) {
 	h := &Harness{
 		APIVersion: "harness.openshell.dev/v1alpha1",
