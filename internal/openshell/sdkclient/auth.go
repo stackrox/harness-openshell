@@ -10,39 +10,25 @@ import (
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
-// EnvLookup is an injectable environment variable lookup function.
-// Production code passes os.Getenv; tests inject a closure.
-type EnvLookup func(string) string
-
 // connBranch represents the auth mode branch decision for connection setup.
 type connBranch int
 
 const (
-	branchDefault connBranch = iota // none/plaintext/cloudflare_jwt/oidc (no client secret) → gateway.NewClient(name)
+	branchDefault connBranch = iota // none/plaintext/token-backed auth → gateway.NewClient(name)
 	branchMTLS                      // WithAuth(NoAuth()) + WithTLS(certs derived from cfg.Dir)
-	branchSAOIDC                    // oidc + OPENSHELL_OIDC_CLIENT_SECRET present
 )
 
-// connPlan holds the connection setup parameters resolved from auth mode and environment.
+// connPlan holds the connection setup parameters resolved from auth mode.
 type connPlan struct {
-	name         string
-	address      string
-	mode         gw.AuthMode
-	branch       connBranch
-	tls          *types.TLSConfig // set ONLY for branchMTLS; nil otherwise
-	oidcIssuer   string           // set for oidc modes; non-secret
-	oidcClientID string           // set for oidc modes; non-secret
+	name   string
+	branch connBranch
+	tls    *types.TLSConfig // set ONLY for branchMTLS; nil otherwise
 }
 
 // planConnection determines which auth branch and TLS configuration to use.
-// It is pure: no disk access, no network I/O, and no secret material in its
-// output or error messages. Environment lookups are injected for testability.
-func planConnection(cfg *gw.Config, env EnvLookup) (connPlan, error) {
-	plan := connPlan{
-		name:    cfg.Name,
-		address: cfg.Endpoint,
-		mode:    cfg.AuthMode,
-	}
+// It is pure: no disk access, network I/O, or secret material.
+func planConnection(cfg *gw.Config) (connPlan, error) {
+	plan := connPlan{name: cfg.Name}
 
 	switch cfg.AuthMode {
 	case gw.AuthModeMTLS:
@@ -54,23 +40,9 @@ func planConnection(cfg *gw.Config, env EnvLookup) (connPlan, error) {
 			CAFile:   filepath.Join(mtlsDir, "ca.crt"),
 		}
 
-	case gw.AuthModeNone, gw.AuthModePlaintext, gw.AuthModeCloudflareJWT:
+	case gw.AuthModeNone, gw.AuthModePlaintext, gw.AuthModeCloudflareJWT, gw.AuthModeOIDC:
 		plan.branch = branchDefault
 		plan.tls = nil
-
-	case gw.AuthModeOIDC:
-		plan.oidcIssuer = cfg.OIDCIssuer
-		plan.oidcClientID = cfg.OIDCClientID
-		secret := env("OPENSHELL_OIDC_CLIENT_SECRET")
-		if secret == "" {
-			plan.branch = branchDefault
-			plan.tls = nil
-		} else {
-			// Service-account client-credentials. The live dial is untested —
-			// no OIDC gateway is available to verify audience/scopes against.
-			plan.branch = branchSAOIDC
-			plan.tls = nil
-		}
 
 	default:
 		return connPlan{}, fmt.Errorf("%w: unsupported auth mode %q", openshell.ErrConfig, cfg.AuthMode)

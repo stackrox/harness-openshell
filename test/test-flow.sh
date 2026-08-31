@@ -80,6 +80,7 @@ source "$SCRIPT_DIR/test/lib/provision.sh"
 
 PASS=0
 FAIL=0
+SKIP=0
 TOTAL_START=$(date +%s)
 
 step() {
@@ -108,6 +109,29 @@ step_fail() {
     printf "  ✗ %-35s (should have failed, %ds)\n" "$label" "$elapsed"
     ((FAIL++))
   fi
+}
+
+skip_step() {
+  local label="$1" reason="$2"
+  printf "  - %-35s (skip: %s)\n" "$label" "$reason"
+  ((SKIP++))
+}
+
+gateway_reachable() {
+  "$CLI" inference get >/dev/null 2>&1
+}
+
+cleanup_resources_if_reachable() {
+  local label="$1"
+  if gateway_reachable; then
+    step "$label" harness delete --sandboxes --providers
+  else
+    skip_step "$label" "no reachable gateway"
+  fi
+}
+
+provider_exists() {
+  "$CLI" provider list --names 2>/dev/null | grep -Fxq "$1"
 }
 
 check_providers() {
@@ -159,11 +183,21 @@ sandbox_verify() {
     return
   fi
 
-  step "sandbox: env vars" "$CLI" sandbox exec --name "$name" -- bash -c 'test -n "$ANTHROPIC_BASE_URL"'
-  step "sandbox: gws token placeholder" "$CLI" sandbox exec --name "$name" -- bash -c 'echo "$GOOGLE_WORKSPACE_CLI_TOKEN" | grep -q "openshell:resolve:env"'
-  step "sandbox: gws api call" "$CLI" sandbox exec --name "$name" -- bash -c 'for i in 1 2 3; do curl -sf https://gmail.googleapis.com/gmail/v1/users/me/profile -H "Authorization: Bearer $GOOGLE_WORKSPACE_CLI_TOKEN" -o /dev/null && exit 0; sleep 3; done; exit 1'
+  if provider_exists google-vertex-ai; then
+    step "sandbox: inference env" "$CLI" sandbox exec --name "$name" -- bash -c 'test -n "$ANTHROPIC_BASE_URL"'
+    step "sandbox: claude responds" "$CLI" sandbox exec --name "$name" -- bash -c 'echo "respond with ok" | claude --print 2>&1 | head -1'
+  else
+    skip_step "sandbox: inference" "google-vertex-ai provider unavailable"
+  fi
+
+  if provider_exists gws; then
+    step "sandbox: gws token placeholder" "$CLI" sandbox exec --name "$name" -- bash -c 'echo "$GOOGLE_WORKSPACE_CLI_TOKEN" | grep -q "openshell:resolve:env"'
+    step "sandbox: gws api call" "$CLI" sandbox exec --name "$name" -- bash -c 'for i in 1 2 3; do curl -sf https://gmail.googleapis.com/gmail/v1/users/me/profile -H "Authorization: Bearer $GOOGLE_WORKSPACE_CLI_TOKEN" -o /dev/null && exit 0; sleep 3; done; exit 1'
+  else
+    skip_step "sandbox: GWS integration" "gws provider unavailable"
+  fi
+
   step "sandbox: mcp config" "$CLI" sandbox exec --name "$name" -- test -f /sandbox/.mcp.json
-  step "sandbox: claude responds" "$CLI" sandbox exec --name "$name" -- bash -c 'echo "respond with ok" | claude --print 2>&1 | head -1'
 }
 
 canonical_sdk_smoke() {
@@ -192,9 +226,9 @@ summary() {
   local elapsed=$(( $(date +%s) - TOTAL_START ))
   echo ""
   if [[ $FAIL -eq 0 ]]; then
-    echo "${PASS}/${total} passed (${elapsed}s)"
+    echo "${PASS}/${total} passed, ${SKIP} skipped (${elapsed}s)"
   else
-    echo "${PASS}/${total} passed, ${FAIL} failed (${elapsed}s)"
+    echo "${PASS}/${total} passed, ${FAIL} failed, ${SKIP} skipped (${elapsed}s)"
   fi
 }
 
@@ -205,10 +239,11 @@ test_errors() {
 
   step_fail "nonexistent profile" harness apply --agent nonexistent
 
-  # Best-effort sandbox/provider cleanup (skips cleanly if no active gateway).
+  # Exercise idempotent cleanup when a gateway is available. A target may not
+  # have provisioned its gateway yet, so absence is not a test failure here.
   # Cluster teardown lives in each target's flow via teardown_cluster.
-  step "teardown (first)" harness delete --sandboxes --providers
-  step "teardown (second)" harness delete --sandboxes --providers
+  cleanup_resources_if_reachable "teardown (first)"
+  cleanup_resources_if_reachable "teardown (second)"
 
   echo ""
 }
@@ -220,7 +255,7 @@ test_local() {
   $NO_PROVIDERS && mode="$mode, no-providers"
   echo "=== test-flow: local-container ($mode) ==="
 
-  step "teardown" harness delete --sandboxes --providers
+  cleanup_resources_if_reachable "teardown"
   step "provision" provision_local
   step "gateway reachable" "$CLI" inference get
 
@@ -290,7 +325,11 @@ test_kind() {
     local sandbox_name="test-kind"
     step "sandbox create" harness apply --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
     sandbox_verify "$sandbox_name"
-    test_gws "$sandbox_name"
+    if provider_exists gws; then
+      test_gws "$sandbox_name"
+    else
+      skip_step "GWS token lifecycle" "gws provider unavailable"
+    fi
     step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
   fi
 
@@ -317,7 +356,7 @@ test_ocp() {
       step "gateway reachable" "$CLI" inference get
     fi
   else
-    step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
+    cleanup_resources_if_reachable "teardown (sandboxes+providers)"
     step "teardown (cluster)" teardown_cluster openshell-remote-ocp
     step "provision" provision_ocp
   fi
@@ -335,7 +374,7 @@ test_ocp() {
   step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
 
   if $REUSE_GATEWAY; then
-    step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
+    cleanup_resources_if_reachable "teardown (sandboxes+providers)"
   else
     step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
     step "teardown (cluster)" teardown_cluster openshell-remote-ocp

@@ -1,0 +1,122 @@
+name: HyperShell
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hypershell-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  canonical-remote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      XDG_CONFIG_HOME: /tmp/hypershell-config
+      HYPERSHELL_WORKSPACE: harness-ci-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install OpenShell
+        run: |
+          ver="$(cat .openshell-version)"
+          test -n "$ver" || { echo "error: .openshell-version is empty"; exit 1; }
+          installer="$(mktemp)"
+          curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$installer"
+          OPENSHELL_VERSION="$ver" sh "$installer"
+
+      # Authentication bootstrap stays in the OpenShell CLI because it sends
+      # the configured OIDC audience and persists a token the Go SDK can read.
+      # The administrator token is removed before repository code executes.
+      - name: Authenticate gateway administrator
+        env:
+          GATEWAY: ${{ secrets.HYPERSHELL_GATEWAY }}
+          OIDC_ISSUER: ${{ secrets.HYPERSHELL_OIDC_ISSUER }}
+          OIDC_AUDIENCE: ${{ secrets.HYPERSHELL_OIDC_AUDIENCE }}
+          OIDC_CLIENT_ID: ${{ secrets.HYPERSHELL_SA_ID }}
+          OPENSHELL_OIDC_CLIENT_SECRET: ${{ secrets.HYPERSHELL_SA_SECRET }}
+        run: |
+          openshell gateway add "$GATEWAY" \
+            --name hypershell-admin \
+            --oidc-issuer "$OIDC_ISSUER" \
+            --oidc-client-id "$OIDC_CLIENT_ID" \
+            --oidc-audience "$OIDC_AUDIENCE"
+          openshell whoami --gateway hypershell-admin --output json >/dev/null
+
+      - name: Authenticate sandbox user
+        env:
+          GATEWAY: ${{ secrets.HYPERSHELL_GATEWAY }}
+          OIDC_ISSUER: ${{ secrets.HYPERSHELL_OIDC_ISSUER }}
+          OIDC_AUDIENCE: ${{ secrets.HYPERSHELL_OIDC_AUDIENCE }}
+          OIDC_CLIENT_ID: ${{ secrets.HYPERSHELL_SANDBOX_SA_ID }}
+          OPENSHELL_OIDC_CLIENT_SECRET: ${{ secrets.HYPERSHELL_SANDBOX_SA_SECRET }}
+        run: |
+          openshell gateway add "$GATEWAY" \
+            --name hypershell-user \
+            --oidc-issuer "$OIDC_ISSUER" \
+            --oidc-client-id "$OIDC_CLIENT_ID" \
+            --oidc-audience "$OIDC_AUDIENCE"
+          subject="$(openshell whoami --gateway hypershell-user --output json | jq -er .subject)"
+          echo "HYPERSHELL_USER_SUBJECT=$subject" >> "$GITHUB_ENV"
+
+      - name: Create isolated workspace
+        run: |
+          openshell workspace create \
+            --gateway hypershell-admin \
+            --name "$HYPERSHELL_WORKSPACE"
+          openshell workspace member add \
+            --gateway hypershell-admin \
+            --workspace "$HYPERSHELL_WORKSPACE" \
+            --subject "$HYPERSHELL_USER_SUBJECT" \
+            --role user
+          openshell gateway remove hypershell-admin
+
+      - name: Build harness
+        run: CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=ci' -o harness .
+
+      # Only the persisted user token is available here. Neither service-account
+      # client secret is present in the harness or sandbox process environment.
+      - name: Run canonical remote lifecycle
+        env:
+          OPENSHELL_GATEWAY: hypershell-user
+          OPENSHELL_WORKSPACE: ${{ env.HYPERSHELL_WORKSPACE }}
+        run: |
+          output="$(./harness apply \
+            --file test/ci-workflow.yaml \
+            --gateway "$OPENSHELL_GATEWAY" \
+            --workspace "$OPENSHELL_WORKSPACE")"
+          echo "$output"
+          grep -q 'canonical-sdk-ok' <<<"$output"
+          if openshell sandbox list --names | grep -Fxq sdk-smoke; then
+            echo "canonical SDK smoke sandbox was not deleted" >&2
+            exit 1
+          fi
+
+      - name: Remove isolated resources
+        if: always()
+        env:
+          GATEWAY: ${{ secrets.HYPERSHELL_GATEWAY }}
+          OIDC_ISSUER: ${{ secrets.HYPERSHELL_OIDC_ISSUER }}
+          OIDC_AUDIENCE: ${{ secrets.HYPERSHELL_OIDC_AUDIENCE }}
+          OIDC_CLIENT_ID: ${{ secrets.HYPERSHELL_SA_ID }}
+          OPENSHELL_OIDC_CLIENT_SECRET: ${{ secrets.HYPERSHELL_SA_SECRET }}
+          OPENSHELL_GATEWAY: hypershell-user
+          OPENSHELL_WORKSPACE: ${{ env.HYPERSHELL_WORKSPACE }}
+        run: |
+          openshell sandbox delete sdk-smoke >/dev/null 2>&1 || true
+          openshell gateway add "$GATEWAY" \
+            --name hypershell-admin \
+            --oidc-issuer "$OIDC_ISSUER" \
+            --oidc-client-id "$OIDC_CLIENT_ID" \
+            --oidc-audience "$OIDC_AUDIENCE"
+          openshell workspace delete \
+            --gateway hypershell-admin \
+            "$HYPERSHELL_WORKSPACE" >/dev/null 2>&1 || true

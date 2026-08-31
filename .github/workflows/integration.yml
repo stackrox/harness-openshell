@@ -33,11 +33,19 @@ jobs:
 
       - name: Wait for gateway
         run: |
-          for i in $(seq 1 30); do
-            openshell inference get &>/dev/null && break
+          ready=false
+          for _ in $(seq 1 30); do
+            if openshell inference get &>/dev/null; then
+              ready=true
+              break
+            fi
             sleep 1
           done
-          openshell gateway list
+          if [[ "$ready" != true ]]; then
+            openshell gateway list || true
+            echo "OpenShell gateway did not become ready" >&2
+            exit 1
+          fi
 
       - name: Run local integration
         run: |
@@ -87,11 +95,19 @@ jobs:
 
       - name: Wait for gateway
         run: |
-          for i in $(seq 1 30); do
-            openshell inference get &>/dev/null && break
+          ready=false
+          for _ in $(seq 1 30); do
+            if openshell inference get &>/dev/null; then
+              ready=true
+              break
+            fi
             sleep 1
           done
-          openshell gateway list
+          if [[ "$ready" != true ]]; then
+            openshell gateway list || true
+            echo "OpenShell gateway did not become ready" >&2
+            exit 1
+          fi
 
       # install_only: kind-lifecycle.sh creates its own cluster with an
       # isolated kubeconfig — only the kind binary is needed here.
