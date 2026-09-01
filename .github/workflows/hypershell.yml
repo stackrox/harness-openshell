@@ -38,9 +38,11 @@ jobs:
           HYPERSHELL_OIDC_AUDIENCE: ${{ secrets.HYPERSHELL_OIDC_AUDIENCE }}
           HYPERSHELL_SANDBOX_SA_ID: ${{ secrets.HYPERSHELL_SANDBOX_SA_ID }}
           OPENSHELL_OIDC_CLIENT_SECRET: ${{ secrets.HYPERSHELL_SANDBOX_SA_SECRET }}
-          HYPERSHELL_SANDBOX_NAME: sdk-smoke-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          output="$(./harness apply "$HYPERSHELL_SANDBOX_NAME" \
+          # Gateway caps sandbox names at 19 chars; run_id is ~11 digits, so
+          # take its last 9 to stay bounded regardless of run_id growth.
+          name="sm-${GITHUB_RUN_ID: -9}-${GITHUB_RUN_ATTEMPT}"
+          output="$(./harness apply "$name" \
             --file test/hypershell-workflow.yaml)"
           echo "$output"
           grep -q 'canonical-sdk-ok' <<<"$output"
