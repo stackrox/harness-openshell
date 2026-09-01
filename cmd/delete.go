@@ -62,10 +62,13 @@ Examples:
 				}
 			}
 
-			// target.Gateway is empty when resolved from the active-gateway
-			// marker by the SDK; only banner an explicitly pinned gateway.
-			if target.Gateway != "" {
-				status.Infof("Active gateway: %s", target.Gateway)
+			// Banner the gateway we're sweeping. target.Gateway is empty when
+			// resolved from the active-gateway marker by the SDK, so ask the
+			// client for the resolved name (GatewayInfo carries what
+			// LoadConfig resolved). Best-effort: a banner must never block the
+			// sweep, so fall back to the pinned name on any error.
+			if gwName := resolvedGatewayName(ctx, client, target); gwName != "" {
+				status.Infof("Active gateway: %s", gwName)
 				fmt.Println()
 			}
 
@@ -89,6 +92,21 @@ Examples:
 	gatewayName, workspace = registerTargetFlags(cmd)
 
 	return cmd
+}
+
+// resolvedGatewayName reports the gateway name to banner. When --gateway or
+// $OPENSHELL_GATEWAY pinned one, target.Gateway holds it directly; otherwise the
+// SDK resolved the active gateway and only the client knows the resolved name
+// (via GatewayInfo). It is best-effort — the banner is cosmetic, so a failed
+// GatewayInfo lookup yields "" and the caller simply skips the banner.
+func resolvedGatewayName(ctx context.Context, client openshell.Client, target openshell.Target) string {
+	if target.Gateway != "" {
+		return target.Gateway
+	}
+	if info, err := client.GatewayInfo(ctx); err == nil {
+		return info.Name
+	}
+	return ""
 }
 
 // deleteSandboxesSDK sweeps every sandbox in the target workspace over the
