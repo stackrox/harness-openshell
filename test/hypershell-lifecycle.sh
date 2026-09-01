@@ -25,6 +25,15 @@ set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 WORKFLOW_FILE="$ROOT_DIR/test/hypershell-workflow.yaml"
 
+# CI-safe path: this test is deliberately VPN- and credential-gated (see the
+# header) and has no runnable CI mode — a public runner cannot reach the OIDC
+# issuer. When CI is set, skip cleanly with a zero exit instead of failing on
+# the missing SA env below, so a generic test/**.sh runner stays green.
+if [[ -n "${CI:-}" ]]; then
+  echo "SKIP: hypershell-lifecycle is VPN/credential-gated and does not run in CI."
+  exit 0
+fi
+
 : "${HYPERSHELL_SA_ENV:?set HYPERSHELL_SA_ENV=path/to/sa.env (git-excluded SA credentials)}"
 [[ -f "$HYPERSHELL_SA_ENV" ]] || { echo "ERROR: SA env file not found: $HYPERSHELL_SA_ENV" >&2; exit 1; }
 [[ -f "$WORKFLOW_FILE" ]]     || { echo "ERROR: workflow file not found: $WORKFLOW_FILE" >&2; exit 1; }
@@ -66,16 +75,25 @@ if ! curl -fsS --max-time 8 -o /dev/null "$well_known" 2>/dev/null; then
 fi
 echo "  issuer reachable: yes"
 
-# Build the CLI if it isn't already present at the repo root.
+# Always rebuild the CLI from the checked-out source so this run never validates
+# a stale harness binary left at the repo root by a prior build.
 HARNESS_BIN="$ROOT_DIR/harness"
-if [[ ! -x "$HARNESS_BIN" ]]; then
-  echo "building harness ..."
-  ( cd "$ROOT_DIR" && CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=dev' -o harness . ) \
-    || { echo "ERROR: harness build failed" >&2; exit 1; }
-fi
+echo "building harness ..."
+( cd "$ROOT_DIR" && CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=dev' -o harness . ) \
+  || { echo "ERROR: harness build failed" >&2; exit 1; }
 
-# Gateway caps sandbox names at 19 chars; keep it short.
-name="hsl-$(date +%s)"
+# Gateway caps sandbox names at 19 chars. "hsl-" (4) + epoch (10) + "-" (1) +
+# 3 hex (3) = 18, staying under the cap while adding a random suffix so
+# concurrent runs don't collide on one-second timestamp resolution.
+name="hsl-$(date +%s)-$(printf '%03x' $((RANDOM % 4096)))"
+
+# keep:false means the gateway auto-deletes the sandbox on normal completion,
+# but a Ctrl-C (SIGINT/SIGTERM) kills harness before its deferred delete runs
+# and would leak the sandbox. Trap those signals and delete it ourselves.
+# shellcheck disable=SC2329  # invoked indirectly via the trap below
+cleanup() { echo "interrupted; deleting $name ..." >&2; "$HARNESS_BIN" delete "$name" >/dev/null 2>&1 || true; exit 130; }
+trap cleanup INT TERM
+
 echo "=== apply $name ==="
 out="$("$HARNESS_BIN" apply "$name" --file "$WORKFLOW_FILE" 2>&1)"; rc=$?
 echo "$out"
