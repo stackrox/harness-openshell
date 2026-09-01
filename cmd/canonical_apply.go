@@ -89,7 +89,7 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 		// The CLI run path binds to a named CLI gateway and cannot use the
 		// direct connection's endpoint and OIDC. Reject rather than silently
 		// run against unrelated CLI state.
-		return fmt.Errorf("this workflow needs the CLI run path (source, payloads, policy, an interactive terminal, or a local image), which a direct registration target does not support; use spec.target.gateway")
+		return fmt.Errorf("local sandbox images need the CLI run path, which a direct registration target does not support; use a registry image")
 	}
 	return run.RunSandbox(ctx, gw, req)
 }
@@ -104,15 +104,10 @@ func targetDescription(target openshell.Target) string {
 }
 
 // canonicalSDKRunEligible selects the lifecycle the pinned SDK implements
-// end-to-end. The SDK exposes file transfer methods, but its shipped transport
-// is unavailable, so uploads remain on the CLI path. Local image builds likewise
-// stay on the CLI until they have a tested SDK-native implementation.
+// end-to-end. Local image builds stay on the CLI until they have a tested
+// SDK-native implementation.
 func canonicalSDKRunEligible(workflow *canonicalWorkflow) bool {
-	desired := workflow.Desired
-	if desired.Spec.Source.Repo != "" || len(desired.Spec.Payloads) > 0 {
-		return false
-	}
-	image := resolveSandboxImagePath(desired.Spec.Sandbox.Image, workflow.BaseDir)
+	image := resolveSandboxImagePath(workflow.Desired.Spec.Sandbox.Image, workflow.BaseDir)
 	return !filepath.IsAbs(image)
 }
 

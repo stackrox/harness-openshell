@@ -35,8 +35,7 @@ type SandboxRunRequest struct {
 	// Command is the argv to execute inside the sandbox (adapter-produced).
 	Command []string
 
-	// Uploads are additional uploads to stage in the sandbox (caller pre-stages
-	// payload dir; S5 owns temp dirs).
+	// Uploads are local paths and their destinations in the sandbox.
 	Uploads []gateway.Upload
 
 	// TTY, when true, preserves native TTY streaming (invariant 31).

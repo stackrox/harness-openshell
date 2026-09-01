@@ -209,6 +209,8 @@ func (c *recordingCanonicalSDK) WaitSandboxReady(_ context.Context, name string)
 	return openshell.Sandbox{Name: name, Phase: "Ready"}, nil
 }
 
+func (*recordingCanonicalSDK) UploadPath(_ context.Context, _, _, _ string) error { return nil }
+
 func (c *recordingCanonicalSDK) ExecSandbox(_ context.Context, _ string, command []string, _, _ io.Writer) (int, error) {
 	c.command = append([]string(nil), command...)
 	return 0, nil
@@ -233,10 +235,15 @@ func TestCanonicalSDKRunEligibility(t *testing.T) {
 	}
 
 	desired.Spec.Payloads = []config.Payload{{Content: "review", Destination: "/sandbox/review.md"}}
-	if canonicalSDKRunEligible(workflow) {
-		t.Fatal("payload upload must retain CLI fallback")
+	if !canonicalSDKRunEligible(workflow) {
+		t.Fatal("payload upload should use SDK")
 	}
 	desired.Spec.Payloads = nil
+	desired.Spec.Source.Repo = "https://example.com/repo.git"
+	if !canonicalSDKRunEligible(workflow) {
+		t.Fatal("source upload should use SDK")
+	}
+	desired.Spec.Source.Repo = ""
 	desired.Spec.Sandbox.Policy = &config.PolicyRef{File: "policy.yaml"}
 	if !canonicalSDKRunEligible(workflow) {
 		t.Fatal("policy-bearing workflow should use SDK")

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
@@ -26,6 +27,15 @@ type recordingSDKRunner struct {
 	interactiveCommand []string
 	cols               uint32
 	rows               uint32
+	uploads            []gateway.Upload
+	uploadErr          error
+	events             []string
+}
+
+func (r *recordingSDKRunner) UploadPath(_ context.Context, _ string, sourcePath, destinationPath string) error {
+	r.events = append(r.events, "upload")
+	r.uploads = append(r.uploads, gateway.Upload{Src: sourcePath, Dst: destinationPath})
+	return r.uploadErr
 }
 
 func (r *recordingSDKRunner) ExecInteractive(_ context.Context, _ string, command []string, cols, rows uint32) (openshell.InteractiveSession, error) {
@@ -35,16 +45,19 @@ func (r *recordingSDKRunner) ExecInteractive(_ context.Context, _ string, comman
 }
 
 func (r *recordingSDKRunner) CreateSandbox(_ context.Context, desired openshell.SandboxCreate) (openshell.Sandbox, error) {
+	r.events = append(r.events, "create")
 	r.created = desired
 	return openshell.Sandbox{Name: desired.Name, Phase: "Provisioning"}, nil
 }
 
 func (r *recordingSDKRunner) WaitSandboxReady(_ context.Context, name string) (openshell.Sandbox, error) {
+	r.events = append(r.events, "wait")
 	r.waited = true
 	return openshell.Sandbox{Name: name, Phase: "Ready"}, nil
 }
 
 func (r *recordingSDKRunner) ExecSandbox(_ context.Context, _ string, command []string, stdout, stderr io.Writer) (int, error) {
+	r.events = append(r.events, "exec")
 	r.executed = append([]string(nil), command...)
 	_, _ = io.WriteString(stdout, r.stdout)
 	_, _ = io.WriteString(stderr, r.stderr)
@@ -52,6 +65,7 @@ func (r *recordingSDKRunner) ExecSandbox(_ context.Context, _ string, command []
 }
 
 func (r *recordingSDKRunner) DeleteSandbox(_ context.Context, _ string) error {
+	r.events = append(r.events, "delete")
 	r.deleted = true
 	return nil
 }
@@ -82,6 +96,9 @@ func TestRunSandboxSDKLifecycle(t *testing.T) {
 	}
 	if !reflect.DeepEqual(runner.executed, req.Command) {
 		t.Errorf("command = %v, want %v", runner.executed, req.Command)
+	}
+	if want := []string{"create", "wait", "exec", "delete"}; !reflect.DeepEqual(runner.events, want) {
+		t.Errorf("events = %v, want %v", runner.events, want)
 	}
 	if stdout.String() != "result\n" || stderr.String() != "warning\n" {
 		t.Errorf("stdout=%q stderr=%q", stdout.String(), stderr.String())
@@ -128,6 +145,51 @@ func TestRunSandboxSDKInteractiveExitStatus(t *testing.T) {
 	}
 	if !session.closed {
 		t.Fatal("interactive session was not closed")
+	}
+}
+
+func TestRunSandboxSDKUploadsBeforeExec(t *testing.T) {
+	runner := &recordingSDKRunner{}
+	req := SandboxRunRequest{
+		Name: "review", Image: "reviewer", Command: []string{"reviewer"},
+		Uploads: []gateway.Upload{{Src: "/host/repo", Dst: "/sandbox"}, {Src: "/host/task", Dst: "/sandbox/task.md"}},
+	}
+	if err := RunSandboxSDK(context.Background(), runner, req, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("RunSandboxSDK: %v", err)
+	}
+	if !reflect.DeepEqual(runner.uploads, req.Uploads) {
+		t.Errorf("uploads = %+v, want %+v", runner.uploads, req.Uploads)
+	}
+	if !reflect.DeepEqual(runner.executed, req.Command) {
+		t.Errorf("command = %v, want %v", runner.executed, req.Command)
+	}
+	if want := []string{"create", "wait", "upload", "upload", "exec", "delete"}; !reflect.DeepEqual(runner.events, want) {
+		t.Errorf("events = %v, want %v", runner.events, want)
+	}
+}
+
+func TestRunSandboxSDKUploadsWithoutCommand(t *testing.T) {
+	runner := &recordingSDKRunner{}
+	req := SandboxRunRequest{Name: "review", Image: "reviewer", Uploads: []gateway.Upload{{Src: "/host/task", Dst: "/sandbox/task.md"}}}
+	if err := RunSandboxSDK(context.Background(), runner, req, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("RunSandboxSDK: %v", err)
+	}
+	if !reflect.DeepEqual(runner.uploads, req.Uploads) || len(runner.executed) != 0 {
+		t.Errorf("uploads = %+v, command = %v", runner.uploads, runner.executed)
+	}
+}
+
+func TestRunSandboxSDKUploadFailureCleansUp(t *testing.T) {
+	runner := &recordingSDKRunner{uploadErr: errors.New("transport failed")}
+	err := RunSandboxSDK(context.Background(), runner, SandboxRunRequest{
+		Name: "review", Image: "reviewer", Command: []string{"reviewer"},
+		Uploads: []gateway.Upload{{Src: "/host/task", Dst: "/sandbox/task.md"}},
+	}, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "transport failed") {
+		t.Fatalf("error = %v", err)
+	}
+	if !runner.deleted || len(runner.executed) != 0 || len(runner.uploads) != 1 {
+		t.Errorf("deleted=%v uploads=%v command=%v", runner.deleted, runner.uploads, runner.executed)
 	}
 }
 

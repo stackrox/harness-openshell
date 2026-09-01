@@ -68,6 +68,7 @@ type Client interface {
 type SandboxExecutionClient interface {
 	CreateSandbox(ctx context.Context, desired SandboxCreate) (Sandbox, error)
 	WaitSandboxReady(ctx context.Context, name string) (Sandbox, error)
+	UploadPath(ctx context.Context, name, sourcePath, destinationPath string) error
 	ExecSandbox(ctx context.Context, name string, command []string, stdout, stderr io.Writer) (int, error)
 	ExecInteractive(ctx context.Context, name string, command []string, cols, rows uint32) (InteractiveSession, error)
 	DeleteSandbox(ctx context.Context, name string) error

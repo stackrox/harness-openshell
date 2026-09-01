@@ -43,6 +43,11 @@ func RunSandboxSDK(ctx context.Context, client openshell.SandboxExecutionClient,
 	if _, err := client.WaitSandboxReady(ctx, req.Name); err != nil {
 		return fmt.Errorf("waiting for sandbox %q: %w", req.Name, err)
 	}
+	for _, upload := range req.Uploads {
+		if err := client.UploadPath(ctx, req.Name, upload.Src, upload.Dst); err != nil {
+			return fmt.Errorf("uploading %q to %q: %w", upload.Src, upload.Dst, err)
+		}
+	}
 	if len(req.Command) == 0 {
 		return nil
 	}

@@ -17,9 +17,9 @@ type Gateway interface {
 	ProviderRefreshConfigure(name string, opts ProviderRefreshOpts) error
 	ProviderRefreshRotate(name, credentialKey string) error
 
-	// Sandboxes. Create covers the cases the SDK run path cannot yet handle
-	// (uploads/policy/TTY/local-image build); Delete backs the CLI create retry
-	// cleanup. Reachability, get/describe/delete are on the SDK.
+	// Sandboxes. Create backs the legacy front-end and canonical local-image
+	// builds; Delete backs the CLI create retry cleanup. Reachability,
+	// get/describe/delete are on the SDK.
 	SandboxCreate(opts SandboxCreateOpts) error
 	SandboxDelete(name string) error
 }

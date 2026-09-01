@@ -115,12 +115,10 @@ Managed providers may be updated or explicitly adopted, but apply does not creat
 credentialed providers; platform bootstrap owns their creation. Relative payload
 and policy paths resolve from the workflow file's directory.
 
-Remote-image, non-interactive workflows use the OpenShell SDK for sandbox
-creation, policy application, readiness, execution, and cleanup. Source or
-payload uploads and local image builds currently select the OpenShell CLI path
-because those capabilities do not yet have complete SDK-native implementations.
-Otherwise, interactive TTY workflows use the SDK with host terminal resize and
-raw-mode handling.
+Remote-image workflows use the OpenShell SDK for sandbox creation, policy
+application, readiness, source and payload uploads, execution, and cleanup.
+Interactive workflows also use the SDK with host terminal resize and raw-mode
+handling. Local image builds currently select the OpenShell CLI path.
 
 ## The Agent YAML
 
