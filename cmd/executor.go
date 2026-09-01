@@ -69,8 +69,10 @@ func upLocal(opts upLocalOpts) error {
 
 	// The harness no longer provisions gateways: apply runs against a gateway
 	// OpenShell already stood up and the user selected. Fail up front — before
-	// touching providers or creating a sandbox — if none is reachable.
-	if err := gw.InferenceGet(); err != nil {
+	// touching providers or creating a sandbox — if none is reachable. The SDK
+	// health check doubles as the active-gateway resolution probe: an unset
+	// target surfaces ErrNoActiveGateway here.
+	if err := checkGatewayReachable(context.Background(), opts.newClient, opts.target); err != nil {
 		return fmt.Errorf("no active gateway is reachable — provision one with the OpenShell installer or 'helm install openshell', then select it with 'openshell gateway select <name>': %w", err)
 	}
 

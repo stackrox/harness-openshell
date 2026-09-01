@@ -13,11 +13,11 @@ import (
 )
 
 // vertexGW returns a mockGW that has all of setupTestAgent's providers already
-// registered and an active gateway, so upLocal reaches inference reconcile.
+// registered, so upLocal reaches inference reconcile. Gateway reachability and
+// active-gateway resolution are the SDK Factory's job now, not the mock's.
 func vertexGW() *mockGW {
 	return &mockGW{
-		providers:     map[string]bool{"github": true, "google-vertex-ai": true, "atlassian": true},
-		activeGateway: "test-gw",
+		providers: map[string]bool{"github": true, "google-vertex-ai": true, "atlassian": true},
 	}
 }
 
@@ -100,7 +100,11 @@ func TestUpLocal_InferenceReconcile_ModelChange(t *testing.T) {
 	}
 }
 
-func TestUpLocal_InferenceReconcile_ClientFailureDegrades(t *testing.T) {
+// An unreachable gateway (client construction fails) must abort apply at the
+// reachability preflight — the harness never provisions a gateway, so there is
+// nothing to create a sandbox on. The preflight and reconcile now share the SDK
+// Factory, so a construction failure fails fast rather than degrading.
+func TestUpLocal_UnreachableGateway_FailsFast(t *testing.T) {
 	dir := setupTestAgent(t)
 	gw := vertexGW()
 
@@ -116,13 +120,15 @@ func TestUpLocal_InferenceReconcile_ClientFailureDegrades(t *testing.T) {
 		noTTY:      true,
 		newClient:  errFactory,
 	})
-	// A client-construction failure must not abort apply: provider registration
-	// already happened and the sandbox must still be created.
-	if err != nil {
-		t.Fatalf("upLocal should degrade on client failure, got: %v", err)
+	if err == nil {
+		t.Fatal("upLocal should fail fast when the gateway is unreachable")
 	}
-	if gw.createCalls != 1 {
-		t.Errorf("createCalls = %d, want 1 (sandbox created despite inference failure)", gw.createCalls)
+	if !contains(err.Error(), "no active gateway is reachable") {
+		t.Errorf("unexpected error: %v", err)
+	}
+	// The preflight runs before provider registration and sandbox creation.
+	if gw.createCalls != 0 {
+		t.Errorf("createCalls = %d, want 0 (aborted before sandbox creation)", gw.createCalls)
 	}
 }
 

@@ -7,19 +7,37 @@ import (
 	"strings"
 	"testing"
 
+	fake "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/fake"
+	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
+
 	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/stackrox/harness-openshell/internal/gateway"
+	"github.com/stackrox/harness-openshell/internal/openshell"
+	"github.com/stackrox/harness-openshell/internal/testutil"
 )
 
+// healthyFactory returns an SDK Factory whose client reports a healthy gateway,
+// so upLocal's reachability preflight passes. Reachability is the Factory's job
+// now (client.Health), not the mockGW's.
+func healthyFactory() openshell.Factory {
+	return keepOpenFactory(testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true})))
+}
+
+// A gateway that answers but is unhealthy must abort apply at the reachability
+// preflight — the harness runs only against a healthy, already-provisioned
+// gateway.
 func TestUpLocal_NoGateway(t *testing.T) {
 	dir := setupTestAgent(t)
-	gw := &mockGW{inferenceErr: fmt.Errorf("connection refused")}
+	gw := &mockGW{}
+
+	unhealthy := keepOpenFactory(testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: false})))
 
 	err := upLocal(upLocalOpts{
 		harnessDir: dir,
 		gw:         gw,
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
+		newClient:  unhealthy,
 	})
 	if err == nil {
 		t.Fatal("expected error")
@@ -32,8 +50,7 @@ func TestUpLocal_NoGateway(t *testing.T) {
 func TestUpLocal_NoProviders_RegistersProviders(t *testing.T) {
 	dir := setupTestAgent(t)
 	gw := &mockGW{
-		providerList: nil,
-		providers:    map[string]bool{},
+		providers: map[string]bool{},
 	}
 
 	err := upLocal(upLocalOpts{
@@ -41,6 +58,7 @@ func TestUpLocal_NoProviders_RegistersProviders(t *testing.T) {
 		gw:         gw,
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
+		newClient:  healthyFactory(),
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)
@@ -50,8 +68,7 @@ func TestUpLocal_NoProviders_RegistersProviders(t *testing.T) {
 func TestUpLocal_MissingProviders(t *testing.T) {
 	dir := setupTestAgent(t)
 	gw := &mockGW{
-		providerList: []string{"github"},
-		providers:    map[string]bool{"github": true},
+		providers: map[string]bool{"github": true},
 	}
 
 	err := upLocal(upLocalOpts{
@@ -59,6 +76,7 @@ func TestUpLocal_MissingProviders(t *testing.T) {
 		gw:         gw,
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
+		newClient:  healthyFactory(),
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)
@@ -75,8 +93,7 @@ func TestUpLocal_MissingProviders(t *testing.T) {
 func TestUpLocal_AllProvidersMissing(t *testing.T) {
 	dir := setupTestAgent(t)
 	gw := &mockGW{
-		providerList: []string{"github"},
-		providers:    map[string]bool{},
+		providers: map[string]bool{},
 	}
 
 	err := upLocal(upLocalOpts{
@@ -84,6 +101,7 @@ func TestUpLocal_AllProvidersMissing(t *testing.T) {
 		gw:         gw,
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
+		newClient:  healthyFactory(),
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)
@@ -96,8 +114,10 @@ func TestUpLocal_AllProvidersMissing(t *testing.T) {
 
 func TestUpLocal_AgentNotFound(t *testing.T) {
 	dir := setupTestAgent(t)
-	gw := &mockGW{providerList: []string{"github"}}
+	gw := &mockGW{}
 
+	// Agent config is parsed before the reachability preflight, so a missing
+	// config fails here without needing a client factory.
 	err := upLocal(upLocalOpts{
 		harnessDir: dir,
 		gw:         gw,
@@ -112,9 +132,8 @@ func TestUpLocal_AgentNotFound(t *testing.T) {
 func TestUpLocal_SandboxCreateRetry(t *testing.T) {
 	dir := setupTestAgent(t)
 	gw := &mockGW{
-		providerList: []string{"github"},
-		providers:    map[string]bool{"github": true},
-		createErr:    fmt.Errorf("supervisor race"),
+		providers: map[string]bool{"github": true},
+		createErr: fmt.Errorf("supervisor race"),
 	}
 
 	err := upLocal(upLocalOpts{
@@ -123,6 +142,7 @@ func TestUpLocal_SandboxCreateRetry(t *testing.T) {
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
 		retrySleep: 0,
+		newClient:  healthyFactory(),
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)
@@ -139,8 +159,7 @@ func TestUpLocal_SandboxCreateOpts(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := setupTestAgent(t)
 	gw := &mockGW{
-		providerList: []string{"github", "google-vertex-ai"},
-		providers:    map[string]bool{"github": true, "google-vertex-ai": true},
+		providers: map[string]bool{"github": true, "google-vertex-ai": true},
 	}
 
 	err := upLocal(upLocalOpts{
@@ -149,6 +168,7 @@ func TestUpLocal_SandboxCreateOpts(t *testing.T) {
 		agentPath:   filepath.Join(dir, "agents", "default.yaml"),
 		sandboxName: "custom-name",
 		noTTY:       true,
+		newClient:   healthyFactory(),
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)
@@ -272,6 +292,7 @@ func TestUpLocal_InlineContentPayloadPathSurvivesRename(t *testing.T) {
 		agentPath:  filepath.Join(dir, "agents", "default.yaml"),
 		noTTY:      true,
 		harness:    harness,
+		newClient:  healthyFactory(),
 	})
 	if err != nil {
 		t.Fatalf("upLocal: %v", err)

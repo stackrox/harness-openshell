@@ -7,12 +7,11 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/status"
 )
 
-func NewDeleteCmd(gw gateway.Gateway, newClient openshell.Factory) *cobra.Command {
+func NewDeleteCmd(newClient openshell.Factory) *cobra.Command {
 	var (
 		all       bool
 		sandboxes bool
@@ -38,22 +37,11 @@ Examples:
 
 			ctx := cmd.Context()
 			target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
-			// Fall back to the CLI's active-gateway marker (set by `openshell
-			// gateway select`) when neither --gateway nor $OPENSHELL_GATEWAY
-			// pins one — the same selection apply runs against. An empty target
-			// does NOT mean "the active gateway": ResolveTarget never consults
-			// the marker, so without this delete would ignore a selected gateway
-			// entirely and either error or silently sweep nothing.
-			if target.Gateway == "" {
-				target.Gateway = gw.ActiveGateway()
-			}
-			// The harness only ever acts on an already-selected gateway. Without
-			// one there is nothing to delete from, and the bulk sweeps would
-			// otherwise silently skip and still report success.
-			if target.Gateway == "" {
-				return fmt.Errorf("no active openshell gateway — run 'openshell gateway select <name>' first (provision one with the OpenShell installer or 'helm install openshell')")
-			}
-
+			// When neither --gateway nor $OPENSHELL_GATEWAY pins a gateway, the
+			// SDK resolves the active gateway from openshell config
+			// (gateway.LoadConfig("") in sdkclient.New), surfacing
+			// ErrNoActiveGateway if none is selected — the same selection apply
+			// runs against.
 			client, err := newClient(ctx, target)
 			if err != nil {
 				return fmt.Errorf("create OpenShell client: %w", err)
@@ -74,8 +62,12 @@ Examples:
 				}
 			}
 
-			status.Infof("Active gateway: %s", target.Gateway)
-			fmt.Println()
+			// target.Gateway is empty when resolved from the active-gateway
+			// marker by the SDK; only banner an explicitly pinned gateway.
+			if target.Gateway != "" {
+				status.Infof("Active gateway: %s", target.Gateway)
+				fmt.Println()
+			}
 
 			if all || sandboxes {
 				deleteSandboxesSDK(ctx, client)

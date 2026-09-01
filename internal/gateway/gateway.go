@@ -1,39 +1,25 @@
 package gateway
 
-// Gateway abstracts all openshell CLI operations.
+// Gateway abstracts the openshell CLI operations the harness still shells out
+// for: credentialed provider bootstrap and sandbox create/delete for the rich
+// (upload/policy/TTY/local-image) cases. Everything else — read, reconcile,
+// inference, health, and get/describe/delete — is on the SDK
+// (internal/openshell/sdkclient); no CLI stdout/table parsing remains here.
 type Gateway interface {
-	// Providers
+	// Providers. Credentialed create + profile import + refresh stay on the CLI
+	// because the firewall Provider type cannot carry a secret (invariant 26);
+	// once a provider exists the SDK reconcile owns verify/update/adoption.
 	ProviderGet(name string) error
 	ProviderCreate(name, providerType string, opts ProviderCreateOpts) error
-	ProviderDelete(name string) error
-	ProviderList() ([]string, error)
 	ProviderProfileImport(dir string) error
-	ProviderProfileDelete(id string) error
 	ProviderRefreshConfigure(name string, opts ProviderRefreshOpts) error
 	ProviderRefreshRotate(name, credentialKey string) error
 
-	// Sandboxes
-	SandboxList() ([]string, error)
-	SandboxStatus() ([]SandboxInfo, error)
+	// Sandboxes. Create covers the cases the SDK run path cannot yet handle
+	// (uploads/policy/TTY/local-image build); Delete backs the CLI create retry
+	// cleanup. Reachability, get/describe/delete are on the SDK.
 	SandboxCreate(opts SandboxCreateOpts) error
 	SandboxDelete(name string) error
-
-	// Inference
-	//
-	// The inference route is owned by the SDK reconcile path
-	// (reconcile.ReconcileInference), which sets it (PR4a S5). Teardown no longer
-	// clears it — an orphaned route is inert and overwritten on the next apply.
-	// Only the reachability check remains on the CLI bridge.
-	InferenceGet() error
-
-	// Gateway management
-	CLIVersion() string
-	CLIPath() string
-	ActiveGateway() string
-	GatewayAdd(endpoint, name string, local, insecure bool) error
-	GatewayRemove(name string) error
-	GatewayList() ([]GatewayInfo, error)
-	GatewaySelect(name string) error
 }
 
 // ProviderChecker is the subset of Gateway needed to check provider registration.
@@ -66,17 +52,6 @@ type ProviderRefreshOpts struct {
 	Strategy         string
 	Material         []string // KEY=VALUE pairs
 	SecretMaterialKeys []string // keys within Material that are secret
-}
-
-type GatewayInfo struct {
-	Name     string
-	Endpoint string
-	Active   bool
-}
-
-type SandboxInfo struct {
-	Name  string
-	Phase string
 }
 
 type Upload struct {

@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
@@ -39,14 +38,34 @@ func openClient(ctx context.Context, newClient openshell.Factory, gatewayName, w
 	return newClient(ctx, target)
 }
 
-// resolveApplyTarget preserves legacy apply's active-gateway fallback while
-// adopting the standard explicit flag > env > active resolution order. New
-// v1alpha1 workflows use loadCanonicalWorkflow, where config is the final
-// fallback instead of ambient CLI state.
-func resolveApplyTarget(gw gateway.Gateway, flagGateway, flagWorkspace string) (openshell.Target, error) {
-	target := openshell.ResolveTarget(flagGateway, flagWorkspace, gw.ActiveGateway(), "", os.Getenv)
-	if target.Gateway == "" {
-		return openshell.Target{}, fmt.Errorf("no active openshell gateway — run 'openshell gateway select <name>' first (provision one with the OpenShell installer or 'helm install openshell')")
+// resolveApplyTarget resolves apply's target with the standard explicit
+// flag > env order. When neither pins a gateway the target's Gateway stays
+// empty and the SDK resolves the active gateway from openshell config
+// (gateway.LoadConfig("") in sdkclient.New), surfacing ErrNoActiveGateway if
+// none is selected — no self-parsed CLI marker. New v1alpha1 workflows use
+// loadCanonicalWorkflow, where config is the final fallback instead of ambient
+// CLI state.
+func resolveApplyTarget(flagGateway, flagWorkspace string) openshell.Target {
+	return openshell.ResolveTarget(flagGateway, flagWorkspace, "", "", os.Getenv)
+}
+
+// checkGatewayReachable constructs an SDK client for the target and confirms the
+// gateway answers a health check. It is the shared reachability preflight for
+// the apply/run paths, replacing the old CLI inference probe: any dial, active-
+// gateway resolution (ErrNoActiveGateway), or health failure surfaces here
+// before the workflow does real work.
+func checkGatewayReachable(ctx context.Context, newClient openshell.Factory, target openshell.Target) error {
+	client, err := newClient(ctx, target)
+	if err != nil {
+		return err
 	}
-	return target, nil
+	defer client.Close()
+	health, err := client.Health(ctx)
+	if err != nil {
+		return err
+	}
+	if !health.Healthy {
+		return fmt.Errorf("gateway is not healthy")
+	}
+	return nil
 }
