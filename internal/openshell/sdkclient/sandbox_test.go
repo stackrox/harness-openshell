@@ -201,6 +201,15 @@ func TestCreateSandboxRejectsMalformedPolicy(t *testing.T) {
 	}
 }
 
+func TestDecodeSandboxPolicyTreatsEmptyAsAbsent(t *testing.T) {
+	for _, data := range [][]byte{nil, {}, []byte(" \n\t")} {
+		policy, err := decodeSandboxPolicy(data)
+		if err != nil || policy != nil {
+			t.Errorf("decodeSandboxPolicy(%q) = (%v, %v), want (nil, nil)", data, policy, err)
+		}
+	}
+}
+
 type clientWithExec struct {
 	v1.ClientInterface
 	exec v1.ExecInterface

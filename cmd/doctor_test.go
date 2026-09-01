@@ -122,6 +122,7 @@ spec:
 	}
 	t.Setenv("PATH", t.TempDir())
 	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv(openshell.EnvGateway, "")
 	client, raw := testutil.NewFakeClient("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
 	raw.AddProvider("default", &types.Provider{Name: "github"})
 	factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {

@@ -78,7 +78,7 @@ func (c *client) CreateSandbox(ctx context.Context, desired openshell.SandboxCre
 }
 
 func decodeSandboxPolicy(data []byte) (*types.SandboxPolicy, error) {
-	if data == nil {
+	if strings.TrimSpace(string(data)) == "" {
 		return nil, nil
 	}
 	var document yaml.Node

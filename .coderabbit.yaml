@@ -71,9 +71,9 @@ reviews:
       instructions: |
         CI workflows. images.yml pushes to quay.io/rcochran/openshell
         using REGISTRY_QUAY_USER/REGISTRY_QUAY_PASSWORD secrets.
-        integration.yml runs test-local (Dockerfile path for image),
-        test-kind (Docker build + kind load), and config suite.
-        The local job uses the published community base image; Kind builds and
-        preloads the repository sandbox image under a registry-style reference.
+        integration.yml runs test/test-flow.sh local-container, test-kind
+        (Docker build + kind load), and config suite. The local job uses the
+        published community base image; Kind builds and preloads the repository
+        sandbox image under a registry-style reference.
 chat:
   auto_reply: true

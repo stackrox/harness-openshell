@@ -333,6 +333,7 @@ func TestInitRun_GoldenAndPlanRoundTrip(t *testing.T) {
 }
 
 func TestInitOutputAppliesThroughActiveGateway(t *testing.T) {
+	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "harness.yaml")
 	defaultConfig, err := os.ReadFile("../profiles/harness-basic.yaml")

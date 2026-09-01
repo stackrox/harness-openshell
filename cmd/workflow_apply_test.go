@@ -213,7 +213,7 @@ spec:
   sandbox:
     image: reviewer
   agent:
-    type: true
+    type: "true"
 `)
 	base := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
 	client := &recordingSDK{Client: base}

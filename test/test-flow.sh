@@ -9,10 +9,12 @@ WORKFLOW="$ROOT/test/lifecycle-workflow.yaml"
 AUTO_WORKFLOW="$ROOT/test/ci-workflow.yaml"
 TARGET=""
 REUSE_GATEWAY=false
+NO_PROVIDERS=false
+[[ "${CI:-}" == "true" ]] && NO_PROVIDERS=true
 
 for arg in "$@"; do
   case "$arg" in
-    --ci|--no-providers) ;;
+    --ci|--no-providers) NO_PROVIDERS=true ;;
     --reuse-gateway) REUSE_GATEWAY=true ;;
     --workflow=*) WORKFLOW="${arg#--workflow=}" ;;
     -*) echo "Unknown flag: $arg"; exit 1 ;;
@@ -96,6 +98,11 @@ exercise_provider() {
 
 exercise_providers() {
   local gateway="$1"
+  if $NO_PROVIDERS; then
+    printf "  - %-35s (skip: ci mode)\n" "provider capabilities"
+    ((SKIP++))
+    return
+  fi
   exercise_provider "$gateway" github 'curl -sf https://api.github.com/user -H "Authorization: Bearer $GITHUB_TOKEN" >/dev/null'
   exercise_provider "$gateway" gws 'curl -sf https://gmail.googleapis.com/gmail/v1/users/me/profile -H "Authorization: Bearer $GOOGLE_WORKSPACE_CLI_TOKEN" >/dev/null'
   exercise_provider "$gateway" google-vertex-ai 'test -n "$GOOGLE_VERTEX_AI_TOKEN"'
