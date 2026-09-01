@@ -67,9 +67,12 @@ func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 
 	// newClient is the single owner of the "" -> defaultWorkspace default; pass
 	// t.Workspace straight through. Capture the connection facts the SDK never
-	// reports (gateway name and endpoint) so GatewayInfo can merge them.
+	// reports (gateway name and endpoint) so GatewayInfo can merge them. Use the
+	// name LoadConfig resolved (cfg.Name), not t.Gateway: when t.Gateway is empty
+	// the SDK resolves the active gateway, and cfg.Name carries that resolved
+	// name — so GatewayInfo reports the real gateway, not "".
 	c := newClient(raw, t.Workspace)
-	c.gatewayName = t.Gateway
+	c.gatewayName = cfg.Name
 	c.gatewayEndpoint = cfg.Endpoint
 	return c, nil
 }

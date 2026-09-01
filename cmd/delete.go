@@ -7,12 +7,11 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/status"
 )
 
-func NewDeleteCmd(gw gateway.Gateway, newClient openshell.Factory) *cobra.Command {
+func NewDeleteCmd(newClient openshell.Factory) *cobra.Command {
 	var (
 		all       bool
 		sandboxes bool
@@ -38,22 +37,11 @@ Examples:
 
 			ctx := cmd.Context()
 			target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
-			// Fall back to the CLI's active-gateway marker (set by `openshell
-			// gateway select`) when neither --gateway nor $OPENSHELL_GATEWAY
-			// pins one — the same selection apply runs against. An empty target
-			// does NOT mean "the active gateway": ResolveTarget never consults
-			// the marker, so without this delete would ignore a selected gateway
-			// entirely and either error or silently sweep nothing.
-			if target.Gateway == "" {
-				target.Gateway = gw.ActiveGateway()
-			}
-			// The harness only ever acts on an already-selected gateway. Without
-			// one there is nothing to delete from, and the bulk sweeps would
-			// otherwise silently skip and still report success.
-			if target.Gateway == "" {
-				return fmt.Errorf("no active openshell gateway — run 'openshell gateway select <name>' first (provision one with the OpenShell installer or 'helm install openshell')")
-			}
-
+			// When neither --gateway nor $OPENSHELL_GATEWAY pins a gateway, the
+			// SDK resolves the active gateway from openshell config
+			// (gateway.LoadConfig("") in sdkclient.New), surfacing
+			// ErrNoActiveGateway if none is selected — the same selection apply
+			// runs against.
 			client, err := newClient(ctx, target)
 			if err != nil {
 				return fmt.Errorf("create OpenShell client: %w", err)
@@ -74,8 +62,15 @@ Examples:
 				}
 			}
 
-			status.Infof("Active gateway: %s", target.Gateway)
-			fmt.Println()
+			// Banner the gateway we're sweeping. target.Gateway is empty when
+			// resolved from the active-gateway marker by the SDK, so ask the
+			// client for the resolved name (GatewayInfo carries what
+			// LoadConfig resolved). Best-effort: a banner must never block the
+			// sweep, so fall back to the pinned name on any error.
+			if gwName := resolvedGatewayName(ctx, client, target); gwName != "" {
+				status.Infof("Active gateway: %s", gwName)
+				fmt.Println()
+			}
 
 			if all || sandboxes {
 				deleteSandboxesSDK(ctx, client)
@@ -97,6 +92,25 @@ Examples:
 	gatewayName, workspace = registerTargetFlags(cmd)
 
 	return cmd
+}
+
+// resolvedGatewayName reports the gateway name to banner. When --gateway or
+// $OPENSHELL_GATEWAY pinned one, target.Gateway holds it directly; otherwise the
+// SDK resolved the active gateway and only the client knows the resolved name
+// (via GatewayInfo). It is best-effort — the banner is cosmetic, so a failed
+// GatewayInfo lookup yields "" and the caller simply skips the banner. A lookup
+// failure is surfaced as a warning rather than swallowed, so it stays
+// distinguishable from a gateway that legitimately reports no name.
+func resolvedGatewayName(ctx context.Context, client openshell.Client, target openshell.Target) string {
+	if target.Gateway != "" {
+		return target.Gateway
+	}
+	info, err := client.GatewayInfo(ctx)
+	if err != nil {
+		status.Warnf("could not resolve active gateway name for banner: %v", err)
+		return ""
+	}
+	return info.Name
 }
 
 // deleteSandboxesSDK sweeps every sandbox in the target workspace over the

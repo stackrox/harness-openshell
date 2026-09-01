@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/cmd"
-	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell/sdkclient"
 	"github.com/stackrox/harness-openshell/internal/status"
 )
@@ -52,7 +51,7 @@ func main() {
 		cmd.NewApplyCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewGetCmd(sdkclient.New),
 		cmd.NewDescribeCmd(sdkclient.New),
-		cmd.NewDeleteCmd(gateway.New(cli), sdkclient.New),
+		cmd.NewDeleteCmd(sdkclient.New),
 		cmd.NewDoctorCmd(harnessDir, cli, sdkclient.New),
 		cmd.NewInitCmd(),
 		cmd.NewMigrateCmd(),

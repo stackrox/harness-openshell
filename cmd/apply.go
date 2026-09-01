@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -164,16 +165,12 @@ Use --dry-run to render the v1alpha1 action plan without mutating anything, or
 			// The harness runs against a gateway OpenShell already provisioned;
 			// it never provisions one. Resolve the target once here — this is the
 			// single owner of apply's gateway selection ($OPENSHELL_GATEWAY >
-			// active marker) — and thread it through so reconcile and
-			// sandbox-create act on the same gateway. Fail clearly here if none is
-			// selected instead of deep in reconcile/run.
-			target, err := resolveApplyTarget(gw, *gatewayName, *workspace)
-			if err != nil {
-				return err
-			}
+			// active marker, the latter owned by the SDK) — and thread it through
+			// so reconcile and sandbox-create act on the same gateway.
+			target := resolveApplyTarget(*gatewayName, *workspace)
 
 			if dryRun {
-				return dryRunApply(gw, target, agentCfg)
+				return dryRunApply(cmd.Context(), gw, newClient, target, agentCfg)
 			}
 
 			return upLocal(upLocalOpts{
@@ -250,7 +247,7 @@ func mapKeys(m map[string][]byte) []string {
 	return keys
 }
 
-func dryRunApply(gw gateway.Gateway, target openshell.Target, agentCfg *agent.AgentConfig) error {
+func dryRunApply(ctx context.Context, gw gateway.Gateway, newClient openshell.Factory, target openshell.Target, agentCfg *agent.AgentConfig) error {
 	status.Header("Dry Run")
 	allPass := true
 
@@ -259,10 +256,14 @@ func dryRunApply(gw gateway.Gateway, target openshell.Target, agentCfg *agent.Ag
 	image := resolveSandboxImage(agentCfg.Image)
 	status.OKf("image: %s", image)
 
-	// Report the resolved target — the same gateway apply will act on — not the
-	// raw active marker, so a $OPENSHELL_GATEWAY-targeted dry run matches apply.
+	// Report the resolved target — the same gateway apply will act on. An empty
+	// name means the SDK will resolve the active gateway. Probe reachability
+	// over the SDK health check, the same preflight apply's run path uses.
 	gwName := target.Gateway
-	if gw.InferenceGet() != nil {
+	if gwName == "" {
+		gwName = "(active)"
+	}
+	if checkGatewayReachable(ctx, newClient, target) != nil {
 		status.Failf("gateway: %s (not reachable)", gwName)
 		allPass = false
 	} else {

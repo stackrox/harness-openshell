@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,8 +26,6 @@ var ErrVersionBelowMinimum = errors.New("openshell version below minimum")
 // together.
 const MinOpenShellVersion = "0.0.110"
 
-var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-
 // CLI implements Gateway by shelling out to the openshell binary.
 type CLI struct {
 	bin string // path or name of the openshell binary
@@ -44,14 +41,6 @@ func (c *CLI) CLIVersion() string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
-}
-
-func (c *CLI) CLIPath() string {
-	path, err := exec.LookPath(c.bin)
-	if err != nil {
-		return ""
-	}
-	return path
 }
 
 func ParseCLIVersion(raw string) string {
@@ -106,27 +95,6 @@ func (c *CLI) CheckMinVersion(minVersion string) error {
 	return nil
 }
 
-func (c *CLI) InferenceGet() error {
-	return c.silent("inference", "get")
-}
-
-func (c *CLI) ActiveGateway() string {
-	out, err := c.output("gateway", "list")
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		cleaned := ansiRE.ReplaceAllString(line, "")
-		if strings.HasPrefix(cleaned, "*") {
-			fields := strings.Fields(cleaned)
-			if len(fields) > 1 {
-				return fields[1]
-			}
-		}
-	}
-	return ""
-}
-
 func (c *CLI) ProviderGet(name string) error {
 	return c.silent("provider", "get", name)
 }
@@ -145,10 +113,6 @@ func (c *CLI) ProviderCreate(name, providerType string, opts ProviderCreateOpts)
 		args = append(args, "--config", cfg)
 	}
 	return c.passthrough(args...)
-}
-
-func (c *CLI) ProviderDelete(name string) error {
-	return c.silent("provider", "delete", name)
 }
 
 func (c *CLI) ProviderProfileImport(dir string) error {
@@ -171,71 +135,6 @@ func (c *CLI) ProviderRefreshConfigure(name string, opts ProviderRefreshOpts) er
 
 func (c *CLI) ProviderRefreshRotate(name, credentialKey string) error {
 	return c.silent("provider", "refresh", "rotate", name, "--credential-key", credentialKey)
-}
-
-func (c *CLI) ProviderProfileDelete(id string) error {
-	return c.silent("provider", "profile", "delete", id)
-}
-
-func (c *CLI) ProviderList() ([]string, error) {
-	out, err := c.output("provider", "list")
-	if err != nil {
-		return nil, err
-	}
-	return parseFirstColumn(out), nil
-}
-
-func (c *CLI) SandboxList() ([]string, error) {
-	out, err := c.output("sandbox", "list")
-	if err != nil {
-		return nil, err
-	}
-	return parseFirstColumn(out), nil
-}
-
-func (c *CLI) GatewayList() ([]GatewayInfo, error) {
-	out, err := c.output("gateway", "list")
-	if err != nil {
-		return nil, err
-	}
-	var gateways []GatewayInfo
-	for i, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if i == 0 || strings.TrimSpace(line) == "" {
-			continue
-		}
-		cleaned := strings.TrimSpace(ansiRE.ReplaceAllString(line, ""))
-		active := strings.HasPrefix(cleaned, "*")
-		fields := strings.Fields(strings.TrimPrefix(cleaned, "*"))
-		if len(fields) >= 2 {
-			gateways = append(gateways, GatewayInfo{
-				Name:     fields[0],
-				Endpoint: fields[1],
-				Active:   active,
-			})
-		}
-	}
-	return gateways, nil
-}
-
-func (c *CLI) GatewayAdd(endpoint, name string, local, insecure bool) error {
-	args := []string{"gateway", "add", endpoint, "--name", name}
-	if local {
-		args = append(args, "--local")
-	}
-	if insecure {
-		// The per-command --insecure flag was removed; openshell now exposes
-		// this as the global --gateway-insecure flag (verified against v0.0.85).
-		args = append(args, "--gateway-insecure")
-	}
-	return c.silent(args...)
-}
-
-func (c *CLI) GatewayRemove(name string) error {
-	return c.silent("gateway", "remove", name)
-}
-
-func (c *CLI) GatewaySelect(name string) error {
-	return c.silent("gateway", "select", name)
 }
 
 func sandboxCreateArgs(opts SandboxCreateOpts) []string {
@@ -304,43 +203,8 @@ func (c *CLI) SandboxCreate(opts SandboxCreateOpts) error {
 	return c.passthrough(args...)
 }
 
-func (c *CLI) SandboxStatus() ([]SandboxInfo, error) {
-	out, err := c.output("sandbox", "list")
-	if err != nil {
-		return nil, err
-	}
-	var infos []SandboxInfo
-	for i, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if i == 0 || strings.TrimSpace(line) == "" {
-			continue
-		}
-		cleaned := ansiRE.ReplaceAllString(line, "")
-		fields := strings.Fields(cleaned)
-		if len(fields) >= 2 {
-			infos = append(infos, SandboxInfo{Name: fields[0], Phase: fields[1]})
-		} else if len(fields) == 1 {
-			infos = append(infos, SandboxInfo{Name: fields[0]})
-		}
-	}
-	return infos, nil
-}
-
 func (c *CLI) SandboxDelete(name string) error {
 	return c.silent("sandbox", "delete", name)
-}
-
-func parseFirstColumn(out []byte) []string {
-	var names []string
-	for i, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if i == 0 || strings.TrimSpace(line) == "" {
-			continue
-		}
-		cleaned := ansiRE.ReplaceAllString(line, "")
-		if fields := strings.Fields(cleaned); len(fields) > 0 {
-			names = append(names, fields[0])
-		}
-	}
-	return names
 }
 
 // passthrough runs the CLI with stdin/stdout/stderr connected.
