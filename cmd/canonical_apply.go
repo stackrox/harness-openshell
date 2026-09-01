@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/gateway"
@@ -21,16 +20,15 @@ import (
 )
 
 type canonicalApplyOptions struct {
-	SetupOnly  bool
-	DryRun     bool
-	Output     string
-	RetrySleep time.Duration
+	SetupOnly bool
+	DryRun    bool
+	Output    string
 }
 
 // applyCanonical executes a resolved v1alpha1 workflow. The caller supplies the
 // same plan snapshot that it may render for --dry-run; writes are delegated to
 // reconcilers that share plan's provider and inference action functions.
-func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Plan, current plan.CurrentState, client openshell.Client, gw gateway.Gateway, opts canonicalApplyOptions) error {
+func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Plan, current plan.CurrentState, client openshell.Client, opts canonicalApplyOptions) error {
 	if opts.DryRun {
 		return renderPlan(p, opts.Output)
 	}
@@ -53,7 +51,7 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 			cleanup func()
 			err     error
 		)
-		req, cleanup, err = canonicalRunRequest(workflow, opts.RetrySleep)
+		req, cleanup, err = canonicalRunRequest(workflow)
 		if err != nil {
 			return err
 		}
@@ -78,20 +76,11 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 		status.OK("Reconciliation complete: workflow declares no sandbox run")
 		return nil
 	}
-	if canonicalSDKRunEligible(workflow) {
-		executor, ok := client.(openshell.SandboxExecutionClient)
-		if !ok {
-			return fmt.Errorf("configured OpenShell client does not support SDK sandbox execution")
-		}
-		return run.RunSandboxSDK(ctx, executor, req, os.Stdin, os.Stdout, os.Stderr)
+	executor, ok := client.(openshell.SandboxExecutionClient)
+	if !ok {
+		return fmt.Errorf("configured OpenShell client does not support SDK sandbox execution")
 	}
-	if workflow.Target.Direct != nil {
-		// The CLI run path binds to a named CLI gateway and cannot use the
-		// direct connection's endpoint and OIDC. Reject rather than silently
-		// run against unrelated CLI state.
-		return fmt.Errorf("local sandbox images need the CLI run path, which a direct registration target does not support; use a registry image")
-	}
-	return run.RunSandbox(ctx, gw, req)
+	return run.RunSandboxSDK(ctx, executor, req, os.Stdin, os.Stdout, os.Stderr)
 }
 
 // targetDescription names a target for error messages: direct registrations
@@ -101,14 +90,6 @@ func targetDescription(target openshell.Target) string {
 		return "direct target"
 	}
 	return fmt.Sprintf("gateway %q", target.Gateway)
-}
-
-// canonicalSDKRunEligible selects the lifecycle the pinned SDK implements
-// end-to-end. Local image builds stay on the CLI until they have a tested
-// SDK-native implementation.
-func canonicalSDKRunEligible(workflow *canonicalWorkflow) bool {
-	image := resolveSandboxImagePath(workflow.Desired.Spec.Sandbox.Image, workflow.BaseDir)
-	return !filepath.IsAbs(image)
 }
 
 // verifySandboxProviders checks capabilities attached directly to the sandbox.
@@ -181,7 +162,7 @@ func canonicalInferenceConfigured(inf config.Inference) bool {
 	return inf.Route != "" || inf.Provider != "" || inf.Model != "" || inf.Timeout != ""
 }
 
-func canonicalRunRequest(workflow *canonicalWorkflow, retrySleep time.Duration) (run.SandboxRunRequest, func(), error) {
+func canonicalRunRequest(workflow *canonicalWorkflow) (run.SandboxRunRequest, func(), error) {
 	desired := workflow.Desired
 	cleanups := []func(){}
 	cleanup := func() {
@@ -192,6 +173,10 @@ func canonicalRunRequest(workflow *canonicalWorkflow, retrySleep time.Duration) 
 	fail := func(err error) (run.SandboxRunRequest, func(), error) {
 		cleanup()
 		return run.SandboxRunRequest{}, func() {}, err
+	}
+	image := resolveSandboxImagePath(desired.Spec.Sandbox.Image, workflow.BaseDir)
+	if filepath.IsAbs(image) {
+		return fail(fmt.Errorf("local sandbox images are unsupported; use a registry image reference"))
 	}
 
 	var uploads []gateway.Upload
@@ -250,10 +235,9 @@ func canonicalRunRequest(workflow *canonicalWorkflow, retrySleep time.Duration) 
 		}
 	}
 
-	policyPath := ""
 	var policyBytes []byte
 	if policy := desired.Spec.Sandbox.Policy; policy != nil && policy.File != "" {
-		policyPath = policy.File
+		policyPath := policy.File
 		if !filepath.IsAbs(policyPath) {
 			policyPath = filepath.Join(workflow.BaseDir, policyPath)
 		}
@@ -270,20 +254,15 @@ func canonicalRunRequest(workflow *canonicalWorkflow, retrySleep time.Duration) 
 	}
 
 	return run.SandboxRunRequest{
-		Name:            desired.Metadata.Name,
-		Gateway:         workflow.Target.Gateway,
-		Workspace:       workflow.Target.Workspace,
-		Image:           resolveSandboxImagePath(desired.Spec.Sandbox.Image, workflow.BaseDir),
-		Providers:       append([]string(nil), desired.Spec.Sandbox.Providers...),
-		NoAutoProviders: true,
-		Env:             desired.Spec.Sandbox.Env,
-		Command:         command,
-		Uploads:         uploads,
-		TTY:             desired.Spec.Sandbox.TTY,
-		Keep:            desired.Spec.Sandbox.Keep,
-		PolicyPath:      policyPath,
-		Policy:          policyBytes,
-		RetrySleep:      retrySleep,
+		Name:      desired.Metadata.Name,
+		Image:     image,
+		Providers: append([]string(nil), desired.Spec.Sandbox.Providers...),
+		Env:       desired.Spec.Sandbox.Env,
+		Command:   command,
+		Uploads:   uploads,
+		TTY:       desired.Spec.Sandbox.TTY,
+		Keep:      desired.Spec.Sandbox.Keep,
+		Policy:    policyBytes,
 	}, cleanup, nil
 }
 

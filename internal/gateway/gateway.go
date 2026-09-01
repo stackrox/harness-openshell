@@ -1,10 +1,10 @@
 package gateway
 
 // Gateway abstracts the openshell CLI operations the harness still shells out
-// for: credentialed provider bootstrap and sandbox create/delete for the rich
-// (upload/policy/TTY/local-image) cases. Everything else — read, reconcile,
-// inference, health, and get/describe/delete — is on the SDK
-// (internal/openshell/sdkclient); no CLI stdout/table parsing remains here.
+// for: credentialed provider bootstrap and legacy sandbox create/delete.
+// Canonical execution, read, reconcile, inference, health, and
+// get/describe/delete are on the SDK (internal/openshell/sdkclient); no CLI
+// stdout/table parsing remains here.
 type Gateway interface {
 	// Providers. Reference (--from-existing) create, gws OAuth refresh, and
 	// profile import stay on the CLI bridge; the gcloud-ADC create is SDK-native
@@ -17,9 +17,8 @@ type Gateway interface {
 	ProviderRefreshConfigure(name string, opts ProviderRefreshOpts) error
 	ProviderRefreshRotate(name, credentialKey string) error
 
-	// Sandboxes. Create backs the legacy front-end and canonical local-image
-	// builds; Delete backs the CLI create retry cleanup. Reachability,
-	// get/describe/delete are on the SDK.
+	// Sandboxes. Create backs the legacy front-end; Delete backs its CLI create
+	// retry cleanup. Reachability and get/describe/delete are on the SDK.
 	SandboxCreate(opts SandboxCreateOpts) error
 	SandboxDelete(name string) error
 }

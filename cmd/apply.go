@@ -68,17 +68,6 @@ Use --dry-run to render the v1alpha1 action plan without mutating anything, or
 					if output != "" && !dryRun {
 						return renderCanonicalWorkflow(workflow, output)
 					}
-					gw := gateway.New(cli)
-					// The CLI version gate only matters for the CLI run path. A
-					// direct target never uses the CLI, so skip it there and let
-					// applyCanonical reject any CLI-only run configuration with a
-					// clear message.
-					if !dryRun && workflow.Target.Direct == nil && !canonicalSDKRunEligible(workflow) {
-						if err := checkOpenShellVersion(gw); err != nil {
-							return err
-						}
-					}
-
 					// A direct target carries its own connection with no CLI
 					// gateway name, so connect on that too — otherwise apply
 					// fails the gateway guard for a reachable direct registration.
@@ -102,8 +91,8 @@ Use --dry-run to render the v1alpha1 action plan without mutating anything, or
 					if err != nil {
 						return err
 					}
-					return applyCanonical(cmd.Context(), workflow, planned, current, client, gw, canonicalApplyOptions{
-						SetupOnly: setupOnly, DryRun: dryRun, Output: output, RetrySleep: 5 * time.Second,
+					return applyCanonical(cmd.Context(), workflow, planned, current, client, canonicalApplyOptions{
+						SetupOnly: setupOnly, DryRun: dryRun, Output: output,
 					})
 				}
 			}

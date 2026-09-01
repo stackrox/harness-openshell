@@ -64,12 +64,8 @@ spec:
 	}
 
 	sdk := &recordingCanonicalSDK{Client: client}
-	gw := &mockGW{}
-	if err := applyCanonical(context.Background(), workflow, planned, current, sdk, gw, canonicalApplyOptions{}); err != nil {
+	if err := applyCanonical(context.Background(), workflow, planned, current, sdk, canonicalApplyOptions{}); err != nil {
 		t.Fatalf("applyCanonical: %v", err)
-	}
-	if gw.createCalls != 0 {
-		t.Fatalf("CLI sandbox create calls = %d, want 0", gw.createCalls)
 	}
 	if sdk.createCalls != 1 || sdk.created.Name != "review" || sdk.created.Image != "quay.io/test/reviewer:latest" {
 		t.Errorf("SDK create calls=%d request=%+v", sdk.createCalls, sdk.created)
@@ -113,12 +109,8 @@ spec:
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	gw := &mockGW{}
-	if err := applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{}); err != nil {
+	if err := applyCanonical(context.Background(), workflow, planned, current, client, canonicalApplyOptions{}); err != nil {
 		t.Fatalf("applyCanonical: %v", err)
-	}
-	if gw.createCalls != 0 {
-		t.Fatalf("sandbox create calls = %d, want 0", gw.createCalls)
 	}
 }
 
@@ -227,34 +219,6 @@ func (c *recordingCanonicalSDK) DeleteSandbox(_ context.Context, _ string) error
 	return nil
 }
 
-func TestCanonicalSDKRunEligibility(t *testing.T) {
-	desired := &config.Harness{Spec: config.Spec{Sandbox: config.Sandbox{Image: "quay.io/example/reviewer:v1"}}}
-	workflow := &canonicalWorkflow{Desired: desired, BaseDir: t.TempDir()}
-	if !canonicalSDKRunEligible(workflow) {
-		t.Fatal("remote-image non-interactive workflow should use SDK")
-	}
-
-	desired.Spec.Payloads = []config.Payload{{Content: "review", Destination: "/sandbox/review.md"}}
-	if !canonicalSDKRunEligible(workflow) {
-		t.Fatal("payload upload should use SDK")
-	}
-	desired.Spec.Payloads = nil
-	desired.Spec.Source.Repo = "https://example.com/repo.git"
-	if !canonicalSDKRunEligible(workflow) {
-		t.Fatal("source upload should use SDK")
-	}
-	desired.Spec.Source.Repo = ""
-	desired.Spec.Sandbox.Policy = &config.PolicyRef{File: "policy.yaml"}
-	if !canonicalSDKRunEligible(workflow) {
-		t.Fatal("policy-bearing workflow should use SDK")
-	}
-	desired.Spec.Sandbox.Policy = nil
-	desired.Spec.Sandbox.TTY = true
-	if !canonicalSDKRunEligible(workflow) {
-		t.Fatal("interactive workflow should use SDK")
-	}
-}
-
 func TestCanonicalApplyUsesSDKForTTY(t *testing.T) {
 	desired := &config.Harness{
 		Metadata: config.Metadata{Name: "interactive"},
@@ -275,12 +239,11 @@ func TestCanonicalApplyUsesSDKForTTY(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	gw := &mockGW{}
-	if err := applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{}); err != nil {
+	if err := applyCanonical(context.Background(), workflow, planned, current, client, canonicalApplyOptions{}); err != nil {
 		t.Fatalf("applyCanonical: %v", err)
 	}
-	if !client.interactive || !reflect.DeepEqual(client.command, []string{"reviewer"}) || gw.createCalls != 0 {
-		t.Errorf("interactive=%v command=%v CLI create calls=%d", client.interactive, client.command, gw.createCalls)
+	if !client.interactive || !reflect.DeepEqual(client.command, []string{"reviewer"}) {
+		t.Errorf("interactive=%v command=%v", client.interactive, client.command)
 	}
 }
 
@@ -303,12 +266,11 @@ func TestCanonicalApplyUsesSDKTTYForDirectTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	gw := &mockGW{}
-	if err := applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{}); err != nil {
+	if err := applyCanonical(context.Background(), workflow, planned, current, client, canonicalApplyOptions{}); err != nil {
 		t.Fatalf("applyCanonical: %v", err)
 	}
-	if !client.interactive || gw.createCalls != 0 {
-		t.Errorf("interactive=%v CLI create calls=%d", client.interactive, gw.createCalls)
+	if !client.interactive {
+		t.Error("interactive SDK call was not made")
 	}
 }
 
@@ -383,13 +345,13 @@ func TestCanonicalApplyMissingReferencedProviderFailsBeforeSandbox(t *testing.T)
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	gw := &mockGW{}
-	err = applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{})
+	sdk := &recordingCanonicalSDK{Client: client}
+	err = applyCanonical(context.Background(), workflow, planned, current, sdk, canonicalApplyOptions{})
 	if err == nil || !strings.Contains(err.Error(), "referenced provider") {
 		t.Fatalf("error = %v, want missing referenced provider", err)
 	}
-	if gw.createCalls != 0 {
-		t.Fatalf("sandbox create calls = %d, want 0", gw.createCalls)
+	if sdk.createCalls != 0 {
+		t.Fatalf("SDK sandbox create calls = %d, want 0", sdk.createCalls)
 	}
 }
 
@@ -409,13 +371,13 @@ func TestCanonicalApplyMissingSandboxProviderFailsBeforeSandbox(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	gw := &mockGW{}
-	err = applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{})
+	sdk := &recordingCanonicalSDK{Client: client}
+	err = applyCanonical(context.Background(), workflow, planned, current, sdk, canonicalApplyOptions{})
 	if err == nil || !strings.Contains(err.Error(), `verifying sandbox provider "github-read"`) {
 		t.Fatalf("error = %v, want missing sandbox provider", err)
 	}
-	if gw.createCalls != 0 {
-		t.Fatalf("sandbox create calls = %d, want 0", gw.createCalls)
+	if sdk.createCalls != 0 {
+		t.Fatalf("SDK sandbox create calls = %d, want 0", sdk.createCalls)
 	}
 }
 
@@ -442,14 +404,11 @@ func TestCanonicalRunRequestResolvesConfigRelativeArtifacts(t *testing.T) {
 		BaseDir: dir,
 	}
 
-	req, cleanup, err := canonicalRunRequest(workflow, 0)
+	req, cleanup, err := canonicalRunRequest(workflow)
 	if err != nil {
 		t.Fatalf("canonicalRunRequest: %v", err)
 	}
 	defer cleanup()
-	if req.PolicyPath != policyPath {
-		t.Errorf("policy = %q, want %q", req.PolicyPath, policyPath)
-	}
 	if string(req.Policy) != "version: 1\n" {
 		t.Errorf("policy bytes = %q", req.Policy)
 	}
