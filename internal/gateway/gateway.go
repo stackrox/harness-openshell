@@ -6,9 +6,11 @@ package gateway
 // inference, health, and get/describe/delete — is on the SDK
 // (internal/openshell/sdkclient); no CLI stdout/table parsing remains here.
 type Gateway interface {
-	// Providers. Credentialed create + profile import + refresh stay on the CLI
-	// because the firewall Provider type cannot carry a secret (invariant 26);
-	// once a provider exists the SDK reconcile owns verify/update/adoption.
+	// Providers. Reference (--from-existing) create, gws OAuth refresh, and
+	// profile import stay on the CLI bridge; the gcloud-ADC create is SDK-native
+	// (sdkclient.CreateVertexProviderFromADC — the refresh token rides the
+	// gateway's refresh config, never the firewall Provider type). Once a
+	// provider exists the SDK reconcile owns verify/update/adoption.
 	ProviderGet(name string) error
 	ProviderCreate(name, providerType string, opts ProviderCreateOpts) error
 	ProviderProfileImport(dir string) error
@@ -43,7 +45,6 @@ func ValidateProviders(providers []string, gw ProviderChecker) (registered, miss
 type ProviderCreateOpts struct {
 	Credentials  []string
 	Configs      []string
-	FromADC      bool
 	FromExisting bool
 }
 

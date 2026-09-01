@@ -272,6 +272,10 @@ printf '%s\n' "$*" > `+argsFile+`
 	}
 }
 
+// TestProviderCreate_Args covers the bridge's credential+config passthrough
+// (the shape gws uses: a placeholder credential and config, no --from-* flag).
+// The gcloud-ADC create is no longer a bridge concern — it is SDK-native
+// (sdkclient.CreateVertexProviderFromADC), so no --from-gcloud-adc flag exists.
 func TestProviderCreate_Args(t *testing.T) {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")
@@ -279,17 +283,15 @@ func TestProviderCreate_Args(t *testing.T) {
 printf '%s\n' "$*" > `+argsFile+`
 `)
 	gw := New(bin)
-	gw.ProviderCreate("google-vertex-ai", "google-vertex-ai", ProviderCreateOpts{
-		FromADC:     true,
+	gw.ProviderCreate("google-workspace", "google-workspace", ProviderCreateOpts{
 		Credentials: []string{"TOKEN=abc"},
 		Configs:     []string{"PROJECT=my-proj", "REGION=us-east5"},
 	})
 	data, _ := os.ReadFile(argsFile)
 	args := strings.TrimSpace(string(data))
 	for _, want := range []string{
-		"--name google-vertex-ai",
-		"--type google-vertex-ai",
-		"--from-gcloud-adc",
+		"--name google-workspace",
+		"--type google-workspace",
 		"--credential TOKEN=abc",
 		"--config PROJECT=my-proj",
 		"--config REGION=us-east5",
@@ -297,6 +299,9 @@ printf '%s\n' "$*" > `+argsFile+`
 		if !strings.Contains(args, want) {
 			t.Errorf("missing %q in: %s", want, args)
 		}
+	}
+	if strings.Contains(args, "--from-gcloud-adc") {
+		t.Errorf("bridge must not emit --from-gcloud-adc (ADC is SDK-native): %s", args)
 	}
 }
 

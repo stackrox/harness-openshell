@@ -1,19 +1,33 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/gateway"
+	"github.com/stackrox/harness-openshell/internal/openshell"
+	"github.com/stackrox/harness-openshell/internal/openshell/sdkclient"
 	"github.com/stackrox/harness-openshell/internal/status"
 	"gopkg.in/yaml.v3"
 )
+
+// vertexADCCreate is the SDK-native gcloud-ADC provider create, injected as a
+// package var so tests can substitute it without a live gateway. Production
+// binds it to sdkclient.CreateVertexProviderFromADC — the sole credentialed
+// create path, which reads the ADC refresh token and hands it to the gateway
+// (Create carries no secret; the refresh token rides Refresh().Configure). The
+// ADC flow is the one credentialed create the harness now owns directly rather
+// than shelling to the CLI bridge; gws OAuth and reference (--from-existing)
+// still bootstrap on the bridge.
+var vertexADCCreate = sdkclient.CreateVertexProviderFromADC
 
 // createStrategy names how a not-yet-existing provider is bootstrapped on the CLI
 // bridge. Credentialed creation (ADC/OAuth) has to stay on the bridge — the
@@ -56,7 +70,7 @@ func providerCreatePlan(p config.Provider) createStrategy {
 // adoption are the SDK reconcile's job (reconcile.ReconcileProviders, run from
 // upLocal after this). The register* helpers each no-op when their provider
 // already exists, so this is safe to call on every apply.
-func registerProviders(harnessDir string, gw gateway.Gateway, desired []config.Provider) error {
+func registerProviders(harnessDir string, gw gateway.Gateway, target openshell.Target, desired []config.Provider) error {
 	status.Header("Providers")
 
 	profilesDir := filepath.Join(harnessDir, "profiles", "providers")
@@ -65,7 +79,7 @@ func registerProviders(harnessDir string, gw gateway.Gateway, desired []config.P
 	}
 
 	for _, p := range desired {
-		if err := bootstrapProvider(harnessDir, gw, p); err != nil {
+		if err := bootstrapProvider(harnessDir, gw, target, p); err != nil {
 			return err
 		}
 	}
@@ -73,10 +87,10 @@ func registerProviders(harnessDir string, gw gateway.Gateway, desired []config.P
 }
 
 // bootstrapProvider creates one absent provider via its create strategy.
-func bootstrapProvider(harnessDir string, gw gateway.Gateway, p config.Provider) error {
+func bootstrapProvider(harnessDir string, gw gateway.Gateway, target openshell.Target, p config.Provider) error {
 	switch providerCreatePlan(p) {
 	case strategyADC:
-		return registerADC(p.Name, p.Type, gw, adcConfigs())
+		return registerADC(gw, target, p.Name, adcConfigs())
 	case strategyOAuth:
 		return registerGWS(harnessDir, gw)
 	default:
@@ -87,21 +101,20 @@ func bootstrapProvider(harnessDir string, gw gateway.Gateway, p config.Provider)
 // adcConfigs resolves the Vertex project/region config passed to the ADC create,
 // preserving the legacy resolution order: explicit env overrides first, then the
 // ADC file's quota project, then a "global" region default.
-func adcConfigs() []string {
+func adcConfigs() map[string]string {
 	home, _ := os.UserHomeDir()
 	adcPath := envOr("GOOGLE_APPLICATION_CREDENTIALS",
 		filepath.Join(home, ".config", "gcloud", "application_default_credentials.json"))
 	project := envOr("ANTHROPIC_VERTEX_PROJECT_ID", readADCProject(adcPath))
 	region := envOr("CLOUD_ML_REGION", "global")
-	var configs []string
+	configs := map[string]string{"VERTEX_AI_REGION": region}
 	if project != "" {
-		configs = append(configs, "VERTEX_AI_PROJECT_ID="+project)
+		configs["VERTEX_AI_PROJECT_ID"] = project
 	}
-	configs = append(configs, "VERTEX_AI_REGION="+region)
 	return configs
 }
 
-func ensureProviders(harnessDir string, gw gateway.Gateway, agentCfg *agent.AgentConfig, h *agent.Harness) []string {
+func ensureProviders(harnessDir string, gw gateway.Gateway, target openshell.Target, agentCfg *agent.AgentConfig, h *agent.Harness) []string {
 	providerNames := agentCfg.ProviderNames()
 	if len(providerNames) == 0 {
 		return nil
@@ -123,7 +136,7 @@ func ensureProviders(harnessDir string, gw gateway.Gateway, agentCfg *agent.Agen
 	registered, missing := gateway.ValidateProviders(providerNames, gw)
 	if len(missing) > 0 {
 		desired, _ := desiredFromAgent(agentCfg, os.Getenv)
-		if err := registerProviders(harnessDir, gw, desired); err != nil {
+		if err := registerProviders(harnessDir, gw, target, desired); err != nil {
 			status.Warnf("provider registration: %v", err)
 		}
 		registered, missing = gateway.ValidateProviders(providerNames, gw)
@@ -153,19 +166,25 @@ func registerStandard(name, profileType string, gw gateway.Gateway, configs []st
 	return nil
 }
 
-// registerADC creates a provider from gcloud Application Default Credentials.
-// It no longer sets the inference route: that write moved to the SDK reconcile
-// path (reconcileGateway in executor.go) as part of PR4a S5/S6, so provider
-// registration and inference reconciliation are now separate concerns.
-func registerADC(name, profileType string, gw gateway.Gateway, configs []string) error {
+// registerADC creates a google-vertex-ai provider from gcloud Application
+// Default Credentials via the SDK (sdkclient.CreateVertexProviderFromADC),
+// replacing the former `openshell provider create --from-gcloud-adc` shell-out.
+// It reads the ADC refresh token and the gateway mints/rotates the Vertex access
+// token server-side. It does not set the inference route: that write is the SDK
+// reconcile path's job (reconcileGateway in executor.go), so provider
+// registration and inference reconciliation stay separate concerns.
+func registerADC(gw gateway.Gateway, target openshell.Target, name string, configs map[string]string) error {
 	if gw.ProviderGet(name) == nil {
 		status.Infof("%s: exists", name)
 		return nil
 	}
-	if err := gw.ProviderCreate(name, profileType, gateway.ProviderCreateOpts{
-		FromADC: true,
-		Configs: configs,
-	}); err != nil {
+	adc, err := sdkclient.ReadGcloudADC("")
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := vertexADCCreate(ctx, target, name, configs, adc); err != nil {
 		return fmt.Errorf("%s: registration failed: %w", name, err)
 	}
 	status.OKf("%s: registered", name)

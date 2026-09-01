@@ -76,7 +76,7 @@ func upLocal(opts upLocalOpts) error {
 		return fmt.Errorf("no active gateway is reachable — provision one with the OpenShell installer or 'helm install openshell', then select it with 'openshell gateway select <name>': %w", err)
 	}
 
-	registered := ensureProviders(opts.harnessDir, gw, agentCfg, opts.harness)
+	registered := ensureProviders(opts.harnessDir, gw, opts.target, agentCfg, opts.harness)
 
 	if needsInference(agentCfg.EffectiveEntrypoint()) && !hasInferenceProvider(agentCfg.Providers) {
 		status.Warn("No inference provider configured — the agent will not be able to authenticate. Add google-vertex-ai to providers.")
