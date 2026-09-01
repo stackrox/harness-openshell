@@ -17,6 +17,9 @@ var version = "dev"
 //go:embed profiles/agent-basic.yaml
 var defaultAgentConfig []byte
 
+//go:embed profiles/harness-basic.yaml
+var defaultHarnessConfig []byte
+
 func main() {
 	harnessDir := detectHarnessDir()
 
@@ -52,8 +55,8 @@ func main() {
 		cmd.NewGetCmd(sdkclient.New),
 		cmd.NewDescribeCmd(sdkclient.New),
 		cmd.NewDeleteCmd(sdkclient.New),
-		cmd.NewDoctorCmd(harnessDir, cli, sdkclient.New),
-		cmd.NewInitCmd(),
+		cmd.NewDoctorCmd(harnessDir, cli, defaultHarnessConfig, sdkclient.New),
+		cmd.NewInitCmd(defaultHarnessConfig),
 		cmd.NewMigrateCmd(),
 		cmd.NewPlanCmd(harnessDir, sdkclient.New),
 	)

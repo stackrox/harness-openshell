@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/stackrox/harness-openshell/internal/agent"
 	"github.com/spf13/cobra"
+	"github.com/stackrox/harness-openshell/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
@@ -27,7 +27,7 @@ var defaultProviders = []availableProvider{
 	{ID: "google-workspace", DisplayName: "Google Workspace", Category: "knowledge"},
 }
 
-func NewInitCmd() *cobra.Command {
+func NewInitCmd(defaultCfg []byte) *cobra.Command {
 	var (
 		outputPath     string
 		force          bool
@@ -42,7 +42,7 @@ The generated config is yours to version, share, and customize.
 
 Use --non-interactive to write the embedded default config without prompts.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return initRun(os.Stdin, os.Stdout, outputPath, force, nonInteractive, DefaultAgentConfig)
+			return initRun(os.Stdin, os.Stdout, outputPath, force, nonInteractive, defaultCfg)
 		},
 	}
 
@@ -58,7 +58,7 @@ func initRun(in io.Reader, out io.Writer, outputPath string, force, nonInteracti
 		return fmt.Errorf("%s already exists (use --force to overwrite)", outputPath)
 	}
 
-	cfg, err := agent.Parse(defaultCfg)
+	cfg, err := config.Parse(defaultCfg)
 	if err != nil {
 		return fmt.Errorf("parsing default config: %w", err)
 	}
@@ -70,13 +70,14 @@ func initRun(in io.Reader, out io.Writer, outputPath string, force, nonInteracti
 		if err != nil {
 			return err
 		}
-		cfg.Entrypoint = entrypoint
+		cfg.Spec.Agent.Type = entrypoint
 
 		providers, err := promptProviders(scanner, out)
 		if err != nil {
 			return err
 		}
-		cfg.Providers = providers
+		cfg.Spec.Providers = providers
+		cfg.Spec.Sandbox.Providers = selectedProviderNames(providers)
 	}
 
 	data, err := yaml.Marshal(cfg)
@@ -88,7 +89,7 @@ func initRun(in io.Reader, out io.Writer, outputPath string, force, nonInteracti
 		return fmt.Errorf("writing %s: %w", outputPath, err)
 	}
 
-	fmt.Fprintf(out, "Config written to %s.\nRun `harness doctor` to validate your environment, then `harness apply -f %s` to launch.\n", outputPath, outputPath)
+	fmt.Fprintf(out, "Config written to %s.\nRun `harness doctor -f %s` to validate your environment, then `harness apply -f %s` to launch.\n", outputPath, outputPath, outputPath)
 	return nil
 }
 
@@ -104,7 +105,7 @@ func promptEntrypoint(scanner *bufio.Scanner, out io.Writer) (string, error) {
 	return input, nil
 }
 
-func promptProviders(scanner *bufio.Scanner, out io.Writer) ([]agent.ProviderRef, error) {
+func promptProviders(scanner *bufio.Scanner, out io.Writer) ([]config.Provider, error) {
 	available := discoverProviders()
 
 	fmt.Fprintln(out, "Available providers:")
@@ -116,12 +117,12 @@ func promptProviders(scanner *bufio.Scanner, out io.Writer) ([]agent.ProviderRef
 	fmt.Fprintf(out, "Select (comma-separated, or 'none') [%s]: ", defaults)
 
 	if !scanner.Scan() {
-		return buildProviderRefs(available, parseSelection(defaults, len(available))), nil
+		return buildProviders(available, parseSelection(defaults, len(available))), nil
 	}
 
 	input := strings.TrimSpace(scanner.Text())
 	if input == "" {
-		return buildProviderRefs(available, parseSelection(defaults, len(available))), nil
+		return buildProviders(available, parseSelection(defaults, len(available))), nil
 	}
 	if strings.ToLower(input) == "none" {
 		return nil, nil
@@ -132,7 +133,7 @@ func promptProviders(scanner *bufio.Scanner, out io.Writer) ([]agent.ProviderRef
 		return nil, fmt.Errorf("invalid provider selection: %q", input)
 	}
 
-	return buildProviderRefs(available, indices), nil
+	return buildProviders(available, indices), nil
 }
 
 func discoverProviders() []availableProvider {
@@ -239,12 +240,20 @@ func parseSelection(input string, max int) []int {
 	return indices
 }
 
-func buildProviderRefs(available []availableProvider, indices []int) []agent.ProviderRef {
-	var refs []agent.ProviderRef
+func buildProviders(available []availableProvider, indices []int) []config.Provider {
+	var refs []config.Provider
 	for _, i := range indices {
 		if i < len(available) {
-			refs = append(refs, agent.ProviderRef{Profile: available[i].ID})
+			refs = append(refs, config.Provider{Name: available[i].ID, Management: "referenced"})
 		}
 	}
 	return refs
+}
+
+func selectedProviderNames(providers []config.Provider) []string {
+	names := make([]string, len(providers))
+	for i, provider := range providers {
+		names[i] = provider.Name
+	}
+	return names
 }

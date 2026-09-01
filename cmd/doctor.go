@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/stackrox/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"gopkg.in/yaml.v3"
 )
@@ -22,13 +22,12 @@ type CheckResult struct {
 	Message string `json:"message"`
 }
 
-type CheckFunc func(cfg *agent.AgentConfig, cli, harnessDir string) []CheckResult
+type CheckFunc func(cfg *config.Harness, cli, harnessDir string) []CheckResult
 
-func NewDoctorCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Command {
+func NewDoctorCmd(harnessDir, cli string, defaultCfg []byte, newClient openshell.Factory) *cobra.Command {
 	var (
-		agentFile string
-		agentName string
-		output    string
+		file   string
+		output string
 	)
 	// Assigned by registerTargetFlags below; RunE reads them at execution time.
 	var gatewayName, workspace *string
@@ -48,9 +47,25 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 				return err
 			}
 
-			h, err := resolveHarness(harnessDir, agentName, agentFile)
-			if err != nil {
-				return fmt.Errorf("resolving config: %w", err)
+			var h *config.Harness
+			var target openshell.Target
+			if file != "" {
+				workflow, err := loadCanonicalWorkflow(file, *gatewayName, *workspace, canonicalOverrides{})
+				if err != nil {
+					return err
+				}
+				h = workflow.Desired
+				target = workflow.Target
+			} else {
+				h, err = config.Parse(defaultCfg)
+				if err != nil {
+					return fmt.Errorf("parsing default config: %w", err)
+				}
+				h, err = config.Resolve(h, os.Getenv)
+				if err != nil {
+					return fmt.Errorf("resolving default config: %w", err)
+				}
+				target = openshell.ResolveTarget(*gatewayName, *workspace, h.Spec.Target.Gateway, h.Spec.Target.Workspace, os.Getenv)
 			}
 
 			checks := []CheckFunc{
@@ -60,19 +75,15 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 
 			var results []CheckResult
 			for _, fn := range checks {
-				results = append(results, fn(h.Agent, cli, harnessDir)...)
+				results = append(results, fn(h, cli, harnessDir)...)
 			}
 
-			providerProfiles := make([]string, 0, len(h.Agent.Providers))
-			for _, p := range h.Agent.Providers {
-				providerProfiles = append(providerProfiles, p.Profile)
+			providers := configuredProviders(h)
+			providerNames := make([]string, len(providers))
+			for i, provider := range providers {
+				providerNames[i] = provider.Name
 			}
-			// Flag/env precedence (flag > env > config > empty) is owned by
-			// openshell.ResolveTarget; an unset gateway (flag and env both empty)
-			// skips Phase 2. Doctor does not load v1alpha1 config, so the config
-			// parameters are empty.
-			target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
-			results = append(results, runOnlineChecks(cmd.Context(), newClient, target, providerProfiles)...)
+			results = append(results, runOnlineChecks(cmd.Context(), newClient, target, providerNames)...)
 
 			if format != formatTable {
 				return printStructured(format, results)
@@ -89,15 +100,14 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 		},
 	}
 
-	cmd.Flags().StringVarP(&agentFile, "file", "f", "", "Path to harness YAML")
-	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name")
+	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to harness YAML")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format (table, json, yaml)")
 	gatewayName, workspace = registerTargetFlags(cmd)
 
 	return cmd
 }
 
-func checkOpenShell(cfg *agent.AgentConfig, cli, _ string) []CheckResult {
+func checkOpenShell(_ *config.Harness, cli, _ string) []CheckResult {
 	path, err := exec.LookPath(cli)
 	if err != nil {
 		return []CheckResult{{
@@ -142,18 +152,19 @@ type providerCredential struct {
 	} `yaml:"refresh,omitempty"`
 }
 
-func checkProviderEnvVars(cfg *agent.AgentConfig, cli, harnessDir string) []CheckResult {
-	if len(cfg.Providers) == 0 {
+func checkProviderEnvVars(cfg *config.Harness, cli, harnessDir string) []CheckResult {
+	providers := configuredProviders(cfg)
+	if len(providers) == 0 {
 		return nil
 	}
 
 	var results []CheckResult
-	for _, p := range cfg.Providers {
-		profile := loadProviderProfile(p.Profile, cli, harnessDir)
+	for _, provider := range providers {
+		profile := loadProviderProfile(provider.Profile, cli, harnessDir)
 		if profile == nil {
 			results = append(results, CheckResult{
 				Group:   "provider",
-				Name:    p.Profile,
+				Name:    provider.Name,
 				Status:  "warn",
 				Message: "no profile found, cannot check credentials",
 			})
@@ -187,19 +198,20 @@ func checkProviderEnvVars(cfg *agent.AgentConfig, cli, harnessDir string) []Chec
 		}
 
 		if allGatewayManaged {
-			r := checkGatewayManagedProvider(p.Profile)
+			r := checkGatewayManagedProvider(provider.Profile)
+			r.Name = provider.Name
 			results = append(results, r)
 		} else if allSet {
 			results = append(results, CheckResult{
 				Group:   "provider",
-				Name:    p.Profile,
+				Name:    provider.Name,
 				Status:  "pass",
 				Message: "credentials set",
 			})
 		} else {
 			results = append(results, CheckResult{
 				Group:   "provider",
-				Name:    p.Profile,
+				Name:    provider.Name,
 				Status:  "fail",
 				Message: "missing: " + strings.Join(missing, ", "),
 			})
@@ -207,6 +219,32 @@ func checkProviderEnvVars(cfg *agent.AgentConfig, cli, harnessDir string) []Chec
 	}
 
 	return results
+}
+
+type configuredProvider struct {
+	Name    string
+	Profile string
+}
+
+func configuredProviders(cfg *config.Harness) []configuredProvider {
+	providers := make([]configuredProvider, 0, len(cfg.Spec.Providers)+len(cfg.Spec.Sandbox.Providers))
+	seen := make(map[string]struct{}, cap(providers))
+	for _, provider := range cfg.Spec.Providers {
+		profile := provider.Type
+		if profile == "" {
+			profile = provider.Name
+		}
+		providers = append(providers, configuredProvider{Name: provider.Name, Profile: profile})
+		seen[provider.Name] = struct{}{}
+	}
+	for _, name := range cfg.Spec.Sandbox.Providers {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		providers = append(providers, configuredProvider{Name: name, Profile: name})
+		seen[name] = struct{}{}
+	}
+	return providers
 }
 
 func checkGatewayManagedProvider(name string) CheckResult {
@@ -282,12 +320,12 @@ func loadProfileFromDisk(name, harnessDir string) *providerProfile {
 // failure yields a single warn (Phase 2 skipped), never a fail, preserving
 // doctor's long-standing "online failures don't break the build" contract.
 func runOnlineChecks(ctx context.Context, newClient openshell.Factory, target openshell.Target, providers []string) []CheckResult {
-	if target.Gateway == "" {
+	if target.Gateway == "" && target.Direct == nil {
 		return []CheckResult{{
 			Group:   "gateway",
 			Name:    "status",
 			Status:  "warn",
-			Message: "Phase 2 (online) checks skipped: no --gateway specified",
+			Message: "Phase 2 (online) checks skipped: no gateway specified",
 		}}
 	}
 

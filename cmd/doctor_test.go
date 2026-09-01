@@ -8,13 +8,13 @@ import (
 
 	fake "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/fake"
 	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
-	"github.com/stackrox/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/testutil"
 )
 
 func TestCheckOpenShell_Found(t *testing.T) {
-	cfg := testAgentConfig(t)
+	cfg := testHarnessConfig(t)
 	results := checkOpenShell(cfg, "openshell", "")
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -31,7 +31,7 @@ func TestCheckOpenShell_Found(t *testing.T) {
 }
 
 func TestCheckOpenShell_NotFound(t *testing.T) {
-	cfg := testAgentConfig(t)
+	cfg := testHarnessConfig(t)
 	results := checkOpenShell(cfg, "nonexistent-binary-xyz", "")
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -55,8 +55,8 @@ credentials:
 `)
 	t.Setenv("GITHUB_TOKEN", "test-value")
 
-	cfg := testAgentConfig(t)
-	cfg.Providers = []agent.ProviderRef{{Profile: "github"}}
+	cfg := testHarnessConfig(t)
+	cfg.Spec.Providers = []config.Provider{{Name: "github", Management: "referenced"}}
 
 	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
 	if len(results) != 1 {
@@ -78,8 +78,8 @@ credentials:
 `)
 	t.Setenv("GITHUB_TOKEN", "")
 
-	cfg := testAgentConfig(t)
-	cfg.Providers = []agent.ProviderRef{{Profile: "github"}}
+	cfg := testHarnessConfig(t)
+	cfg.Spec.Providers = []config.Provider{{Name: "github", Management: "referenced"}}
 
 	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
 	if len(results) != 1 {
@@ -91,8 +91,8 @@ credentials:
 }
 
 func TestCheckProviderEnvVars_NoProviders(t *testing.T) {
-	cfg := testAgentConfig(t)
-	cfg.Providers = nil
+	cfg := testHarnessConfig(t)
+	cfg.Spec.Providers = nil
 
 	results := checkProviderEnvVars(cfg, "nonexistent-cli", "")
 	if len(results) != 0 {
@@ -101,8 +101,8 @@ func TestCheckProviderEnvVars_NoProviders(t *testing.T) {
 }
 
 func TestCheckProviderEnvVars_NoProfile(t *testing.T) {
-	cfg := testAgentConfig(t)
-	cfg.Providers = []agent.ProviderRef{{Profile: "unknown-provider"}}
+	cfg := testHarnessConfig(t)
+	cfg.Spec.Providers = []config.Provider{{Name: "unknown-provider", Management: "referenced"}}
 
 	results := checkProviderEnvVars(cfg, "nonexistent-cli", "")
 	if len(results) != 1 {
@@ -123,8 +123,8 @@ credentials:
     required: false
 `)
 
-	cfg := testAgentConfig(t)
-	cfg.Providers = []agent.ProviderRef{{Profile: "vertex"}}
+	cfg := testHarnessConfig(t)
+	cfg.Spec.Providers = []config.Provider{{Name: "vertex", Management: "referenced"}}
 
 	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
 	if len(results) != 1 {
@@ -159,8 +159,8 @@ credentials:
 	secretValue := "ghp_secret123456789"
 	t.Setenv("GITHUB_TOKEN", secretValue)
 
-	cfg := testAgentConfig(t)
-	cfg.Providers = []agent.ProviderRef{{Profile: "github"}}
+	cfg := testHarnessConfig(t)
+	cfg.Spec.Providers = []config.Provider{{Name: "github", Management: "referenced"}}
 
 	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
 	for _, r := range results {
@@ -182,8 +182,8 @@ credentials:
       strategy: oauth2_refresh_token
 `)
 
-	cfg := testAgentConfig(t)
-	cfg.Providers = []agent.ProviderRef{{Profile: "myoauth"}}
+	cfg := testHarnessConfig(t)
+	cfg.Spec.Providers = []config.Provider{{Name: "myoauth", Management: "referenced"}}
 
 	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
 	if len(results) != 1 {
@@ -191,6 +191,53 @@ credentials:
 	}
 	if results[0].Status == "fail" {
 		t.Errorf("gateway-managed credential should not fail env var check, got: %s", results[0].Message)
+	}
+}
+
+func TestCheckProviderEnvVars_UsesProviderTypeAsProfile(t *testing.T) {
+	dir := t.TempDir()
+	writeProviderProfile(t, dir, "google-vertex-ai", `
+id: google-vertex-ai
+credentials:
+  - name: access_token
+    env_vars: [VERTEX_TOKEN]
+    required: true
+`)
+	t.Setenv("VERTEX_TOKEN", "test-value")
+
+	cfg := testHarnessConfig(t)
+	cfg.Spec.Providers = []config.Provider{{
+		Name:       "team-vertex",
+		Type:       "google-vertex-ai",
+		Management: "managed",
+	}}
+
+	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Name != "team-vertex" || results[0].Status != "pass" {
+		t.Errorf("result = %+v, want team-vertex pass", results[0])
+	}
+}
+
+func TestConfiguredProviders_IncludesSandboxOnlyWithoutDuplicates(t *testing.T) {
+	cfg := testHarnessConfig(t)
+	cfg.Spec.Providers = []config.Provider{{Name: "declared", Type: "github"}}
+	cfg.Spec.Sandbox.Providers = []string{"declared", "platform-owned", "platform-owned"}
+
+	got := configuredProviders(cfg)
+	want := []configuredProvider{
+		{Name: "declared", Profile: "github"},
+		{Name: "platform-owned", Profile: "platform-owned"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("configured providers = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("configured provider %d = %+v, want %+v", i, got[i], want[i])
+		}
 	}
 }
 
@@ -214,11 +261,6 @@ func TestDoctorCmd_TargetFlagWiring(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// doctor's offline phase resolves a harness config; provide an
-			// embedded default so RunE reaches the online path we are testing.
-			DefaultAgentConfig = []byte("name: wiring-test\nentrypoint: claude\n")
-			t.Cleanup(func() { DefaultAgentConfig = nil })
-
 			if tt.env != "" {
 				t.Setenv(openshell.EnvGateway, tt.env)
 			}
@@ -231,7 +273,7 @@ func TestDoctorCmd_TargetFlagWiring(t *testing.T) {
 				return c, nil
 			}
 
-			cmd := NewDoctorCmd(t.TempDir(), "nonexistent-cli", recording)
+			cmd := NewDoctorCmd(t.TempDir(), "nonexistent-cli", testDefaultConfig, recording)
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true
 			cmd.SetArgs(append(tt.args, "--output", "json"))
@@ -250,13 +292,53 @@ func TestDoctorCmd_TargetFlagWiring(t *testing.T) {
 	}
 }
 
+func TestDoctorCmd_UsesCanonicalConfigTargetAndProviders(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "harness.yaml")
+	if err := os.WriteFile(configPath, []byte(`apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: doctor-test
+spec:
+  target:
+    gateway: from-config
+    workspace: team
+  providers:
+    - name: github-team
+      management: referenced
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	c, raw := testutil.NewFakeClient("team", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	raw.AddProvider("team", &types.Provider{Name: "github-team", Type: "github"})
+	var gotTarget openshell.Target
+	recording := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
+		gotTarget = target
+		return c, nil
+	}
+
+	cmd := NewDoctorCmd(dir, "nonexistent-cli", testDefaultConfig, recording)
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	cmd.SetArgs([]string{"--file", configPath, "--output", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	if gotTarget.Gateway != "from-config" || gotTarget.Workspace != "team" {
+		t.Errorf("factory target = %+v, want gateway from-config, workspace team", gotTarget)
+	}
+}
+
 // --- helpers ---
 
-func testAgentConfig(t *testing.T) *agent.AgentConfig {
+func testHarnessConfig(t *testing.T) *config.Harness {
 	t.Helper()
-	return &agent.AgentConfig{
-		Name:       "test-agent",
-		Entrypoint: "claude",
+	return &config.Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   config.Metadata{Name: "test-agent"},
+		Spec:       config.Spec{Agent: config.Agent{Type: "claude"}},
 	}
 }
 

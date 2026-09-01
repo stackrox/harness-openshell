@@ -69,11 +69,12 @@ workflow for headless CI. Legacy configs can continue to use `--task @skill.md`
 during migration. The goal is for the same versioned workflow declaration to be
 sharable, forkable, and executable in both environments.
 
-**Current schema transition**: `harness plan` and `harness apply` now share strict
-parsing, environment resolution, target resolution, and action decisions for
-`harness.openshell.dev/v1alpha1`. Legacy agent files remain accepted by `apply`
-through a compatibility path; use `harness migrate` to produce the canonical
-format. New fields are added only to v1alpha1.
+**Current schema transition**: `harness init`, `harness doctor`, `harness plan`,
+and `harness apply` use `harness.openshell.dev/v1alpha1`. Plan and apply share
+strict parsing, environment resolution, target resolution, and action decisions.
+Legacy agent files remain accepted by `apply` through a compatibility path; use
+`harness migrate` to produce the canonical format. New fields are added only to
+v1alpha1.
 
 OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that with a developer mindset from local machine to cluster.
 
@@ -308,6 +309,7 @@ platform/bootstrap responsibility.
 
 | File | Purpose |
 |------|---------|
+| `profiles/harness-basic.yaml` | Canonical v1alpha1 scaffold used by `harness init` and default `doctor` checks |
 | `profiles/agent-*.yaml` | Agent configs |
 | `profiles/providers/` | Provider profiles (imported to gateway) |
 | `profiles/images/sandbox-default/` | Sandbox image defaults (overridable via payloads) |

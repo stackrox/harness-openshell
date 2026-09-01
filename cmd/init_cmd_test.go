@@ -7,17 +7,25 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackrox/harness-openshell/internal/agent"
-	"gopkg.in/yaml.v3"
+	"github.com/stackrox/harness-openshell/internal/config"
 )
 
-var testDefaultConfig = []byte(`name: test-agent
-entrypoint: claude
-tty: true
-providers:
-  - profile: google-vertex-ai
-env:
-  ANTHROPIC_BASE_URL: https://inference.local
+var testDefaultConfig = []byte(`apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: test-agent
+spec:
+  target: {}
+  providers:
+    - name: google-vertex-ai
+      management: referenced
+  sandbox:
+    providers: [google-vertex-ai]
+    env:
+      ANTHROPIC_BASE_URL: https://inference.local
+    tty: true
+  agent:
+    type: claude
 `)
 
 func TestInitRun_NonInteractive(t *testing.T) {
@@ -35,15 +43,18 @@ func TestInitRun_NonInteractive(t *testing.T) {
 		t.Fatalf("ReadFile: %v", err)
 	}
 
-	var cfg agent.AgentConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
+	cfg, err := config.Parse(data)
+	if err != nil {
+		t.Fatalf("generated config does not parse: %v", err)
 	}
-	if cfg.Name != "test-agent" {
-		t.Errorf("Name = %q, want test-agent", cfg.Name)
+	if _, err := config.Resolve(cfg, os.Getenv); err != nil {
+		t.Fatalf("generated config does not validate: %v", err)
 	}
-	if cfg.Entrypoint != "claude" {
-		t.Errorf("Entrypoint = %q, want claude", cfg.Entrypoint)
+	if cfg.Metadata.Name != "test-agent" {
+		t.Errorf("metadata.name = %q, want test-agent", cfg.Metadata.Name)
+	}
+	if cfg.Spec.Agent.Type != "claude" {
+		t.Errorf("spec.agent.type = %q, want claude", cfg.Spec.Agent.Type)
 	}
 }
 
@@ -99,12 +110,12 @@ func TestInitRun_InteractiveDefaults(t *testing.T) {
 		t.Fatalf("ReadFile: %v", err)
 	}
 
-	var cfg agent.AgentConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
+	cfg, err := config.Parse(data)
+	if err != nil {
+		t.Fatalf("generated config does not parse: %v", err)
 	}
-	if cfg.Entrypoint != "claude" {
-		t.Errorf("Entrypoint = %q, want claude (default)", cfg.Entrypoint)
+	if cfg.Spec.Agent.Type != "claude" {
+		t.Errorf("spec.agent.type = %q, want claude (default)", cfg.Spec.Agent.Type)
 	}
 }
 
@@ -119,11 +130,9 @@ func TestInitRun_InteractiveOpenCode(t *testing.T) {
 		t.Fatalf("initRun: %v", err)
 	}
 
-	data, _ := os.ReadFile(outPath)
-	var cfg agent.AgentConfig
-	yaml.Unmarshal(data, &cfg)
-	if cfg.Entrypoint != "opencode" {
-		t.Errorf("Entrypoint = %q, want opencode", cfg.Entrypoint)
+	cfg := readGeneratedConfig(t, outPath)
+	if cfg.Spec.Agent.Type != "opencode" {
+		t.Errorf("spec.agent.type = %q, want opencode", cfg.Spec.Agent.Type)
 	}
 }
 
@@ -138,11 +147,12 @@ func TestInitRun_InteractiveProvidersSingle(t *testing.T) {
 		t.Fatalf("initRun: %v", err)
 	}
 
-	data, _ := os.ReadFile(outPath)
-	var cfg agent.AgentConfig
-	yaml.Unmarshal(data, &cfg)
-	if len(cfg.Providers) != 1 {
-		t.Fatalf("Providers count = %d, want 1", len(cfg.Providers))
+	cfg := readGeneratedConfig(t, outPath)
+	if len(cfg.Spec.Providers) != 1 || len(cfg.Spec.Sandbox.Providers) != 1 {
+		t.Fatalf("provider counts = desired %d, sandbox %d; want 1 each", len(cfg.Spec.Providers), len(cfg.Spec.Sandbox.Providers))
+	}
+	if cfg.Spec.Providers[0].Name != "github" || cfg.Spec.Sandbox.Providers[0] != "github" {
+		t.Fatalf("provider values = desired %q, sandbox %q; want github", cfg.Spec.Providers[0].Name, cfg.Spec.Sandbox.Providers[0])
 	}
 }
 
@@ -157,11 +167,14 @@ func TestInitRun_InteractiveProvidersMultiple(t *testing.T) {
 		t.Fatalf("initRun: %v", err)
 	}
 
-	data, _ := os.ReadFile(outPath)
-	var cfg agent.AgentConfig
-	yaml.Unmarshal(data, &cfg)
-	if len(cfg.Providers) != 2 {
-		t.Fatalf("Providers count = %d, want 2", len(cfg.Providers))
+	cfg := readGeneratedConfig(t, outPath)
+	if len(cfg.Spec.Providers) != 2 || len(cfg.Spec.Sandbox.Providers) != 2 {
+		t.Fatalf("provider counts = desired %d, sandbox %d; want 2 each", len(cfg.Spec.Providers), len(cfg.Spec.Sandbox.Providers))
+	}
+	for i, want := range []string{"github", "atlassian"} {
+		if cfg.Spec.Providers[i].Name != want || cfg.Spec.Sandbox.Providers[i] != want {
+			t.Errorf("provider %d = desired %q, sandbox %q; want %q", i, cfg.Spec.Providers[i].Name, cfg.Spec.Sandbox.Providers[i], want)
+		}
 	}
 }
 
@@ -176,11 +189,9 @@ func TestInitRun_InteractiveProvidersNone(t *testing.T) {
 		t.Fatalf("initRun: %v", err)
 	}
 
-	data, _ := os.ReadFile(outPath)
-	var cfg agent.AgentConfig
-	yaml.Unmarshal(data, &cfg)
-	if len(cfg.Providers) != 0 {
-		t.Errorf("Providers count = %d, want 0 for 'none'", len(cfg.Providers))
+	cfg := readGeneratedConfig(t, outPath)
+	if len(cfg.Spec.Providers) != 0 || len(cfg.Spec.Sandbox.Providers) != 0 {
+		t.Errorf("provider counts = desired %d, sandbox %d; want 0 for 'none'", len(cfg.Spec.Providers), len(cfg.Spec.Sandbox.Providers))
 	}
 }
 
@@ -197,6 +208,9 @@ func TestInitRun_OutputContainsNextSteps(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "harness doctor") {
 		t.Error("output should mention 'harness doctor'")
+	}
+	if !strings.Contains(output, "harness doctor -f "+outPath) {
+		t.Error("output should tell doctor to check the generated config")
 	}
 	if !strings.Contains(output, "harness apply") {
 		t.Error("output should mention 'harness apply'")
@@ -273,4 +287,51 @@ func TestInitNoCredentialLeak(t *testing.T) {
 	if strings.Contains(content, "sk-secret-key-12345") {
 		t.Error("credential value leaked into generated YAML")
 	}
+}
+
+func TestInitRun_GoldenAndPlanRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "harness.yaml")
+	var out bytes.Buffer
+	defaultConfig, err := os.ReadFile("../profiles/harness-basic.yaml")
+	if err != nil {
+		t.Fatalf("ReadFile default scaffold: %v", err)
+	}
+
+	if err := initRun(strings.NewReader(""), &out, outPath, false, true, defaultConfig); err != nil {
+		t.Fatalf("initRun: %v", err)
+	}
+
+	got, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("ReadFile generated config: %v", err)
+	}
+	want, err := os.ReadFile("testdata/init.golden.yaml")
+	if err != nil {
+		t.Fatalf("ReadFile golden: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("generated config differs from golden\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+
+	workflow, err := loadCanonicalWorkflow(outPath, "", "", canonicalOverrides{})
+	if err != nil {
+		t.Fatalf("canonical plan/apply loader rejected init output: %v", err)
+	}
+	if workflow.Desired.Metadata.Name != "agent" {
+		t.Errorf("loaded metadata.name = %q, want agent", workflow.Desired.Metadata.Name)
+	}
+}
+
+func readGeneratedConfig(t *testing.T, path string) *config.Harness {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	cfg, err := config.Parse(data)
+	if err != nil {
+		t.Fatalf("generated config does not parse: %v", err)
+	}
+	return cfg
 }
