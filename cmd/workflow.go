@@ -41,7 +41,8 @@ func loadWorkflow(path, flagGateway, flagWorkspace string, overrides applyOverri
 	}
 
 	target := openshell.ResolveTarget(flagGateway, flagWorkspace, resolved.Spec.Target.Gateway, resolved.Spec.Target.Workspace, os.Getenv)
-	if registration := resolved.Spec.Target.Registration; registration != nil {
+	externalGateway := flagGateway != "" || os.Getenv(openshell.EnvGateway) != ""
+	if registration := resolved.Spec.Target.Registration; registration != nil && !externalGateway {
 		target.Direct = &openshell.DirectConnection{
 			Endpoint: registration.Endpoint,
 			OIDC: openshell.OIDCConnection{
