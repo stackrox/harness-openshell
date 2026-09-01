@@ -126,6 +126,7 @@ func TestApplyCommandExecutesV1alphaWorkflow(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := t.TempDir()
 	workflowPath := filepath.Join(dir, "workflow.yaml")
+	writeTestFile(t, filepath.Join(dir, "policy.yaml"), "version: 1\n")
 	writeTestFile(t, workflowPath, `apiVersion: harness.openshell.dev/v1alpha1
 kind: Harness
 metadata:
@@ -141,6 +142,8 @@ spec:
     image: reviewer
     providers: [github]
     keep: false
+    policy:
+      file: policy.yaml
   agent:
     type: reviewer
     args: [--strict]
@@ -181,6 +184,9 @@ printf '%%s\n' "$@" > %s
 	}
 	if sdk.createCalls != 1 || !reflect.DeepEqual(sdk.command, []string{"reviewer", "--strict"}) {
 		t.Errorf("SDK create calls=%d command=%v", sdk.createCalls, sdk.command)
+	}
+	if string(sdk.created.Policy) != "version: 1\n" {
+		t.Errorf("SDK policy = %q", sdk.created.Policy)
 	}
 }
 
@@ -224,6 +230,11 @@ func TestCanonicalSDKRunEligibility(t *testing.T) {
 		t.Fatal("payload upload must retain CLI fallback")
 	}
 	desired.Spec.Payloads = nil
+	desired.Spec.Sandbox.Policy = &config.PolicyRef{File: "policy.yaml"}
+	if !canonicalSDKRunEligible(workflow) {
+		t.Fatal("policy-bearing workflow should use SDK")
+	}
+	desired.Spec.Sandbox.Policy = nil
 	desired.Spec.Sandbox.TTY = true
 	if canonicalSDKRunEligible(workflow) {
 		t.Fatal("interactive workflow must retain CLI fallback")
@@ -418,6 +429,9 @@ func TestCanonicalRunRequestResolvesConfigRelativeArtifacts(t *testing.T) {
 	defer cleanup()
 	if req.PolicyPath != policyPath {
 		t.Errorf("policy = %q, want %q", req.PolicyPath, policyPath)
+	}
+	if string(req.Policy) != "version: 1\n" {
+		t.Errorf("policy bytes = %q", req.Policy)
 	}
 	if len(req.Uploads) != 2 || req.Uploads[0].Src != payloadPath {
 		t.Fatalf("uploads = %+v", req.Uploads)

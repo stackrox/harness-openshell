@@ -48,6 +48,9 @@ type SandboxRunRequest struct {
 	// PolicyPath is the staged policy file path ("" → omit --policy).
 	PolicyPath string
 
+	// Policy is the policy file content passed to SDK-native sandbox creation.
+	Policy []byte
+
 	// Labels are arbitrary key-value labels to attach to the sandbox.
 	Labels map[string]string
 

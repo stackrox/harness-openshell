@@ -20,6 +20,7 @@ func RunSandboxSDK(ctx context.Context, client openshell.SandboxExecutionClient,
 		Providers: req.Providers,
 		Env:       req.Env,
 		Labels:    req.Labels,
+		Policy:    req.Policy,
 	})
 	if err != nil {
 		return fmt.Errorf("creating sandbox %q: %w", req.Name, err)

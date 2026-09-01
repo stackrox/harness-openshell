@@ -54,6 +54,7 @@ func TestRunSandboxSDKLifecycle(t *testing.T) {
 		Providers: []string{"github-read"},
 		Env:       map[string]string{"MODE": "strict"},
 		Command:   []string{"codex", "exec", "review"},
+		Policy:    []byte("version: 1\n"),
 	}
 	var stdout, stderr bytes.Buffer
 
@@ -62,6 +63,9 @@ func TestRunSandboxSDKLifecycle(t *testing.T) {
 	}
 	if runner.created.Name != req.Name || runner.created.Image != req.Image || !reflect.DeepEqual(runner.created.Providers, req.Providers) {
 		t.Errorf("create = %+v", runner.created)
+	}
+	if !bytes.Equal(runner.created.Policy, req.Policy) {
+		t.Errorf("policy = %q, want %q", runner.created.Policy, req.Policy)
 	}
 	if !runner.waited || !runner.deleted {
 		t.Errorf("waited=%v deleted=%v", runner.waited, runner.deleted)

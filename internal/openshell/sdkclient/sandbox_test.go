@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"strings"
 	"testing"
 
 	v1 "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1"
@@ -114,6 +115,30 @@ func TestCreateAndWaitSandbox(t *testing.T) {
 		Providers: []string{"github-read"},
 		Env:       map[string]string{"MODE": "strict"},
 		Labels:    map[string]string{"workflow": "security-review"},
+		Policy: []byte(`version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr]
+  read_write: [/sandbox]
+landlock:
+  compatibility: best_effort
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+network_policies:
+  github_read:
+    name: github-read
+    endpoints:
+      - host: github.com
+        port: 443
+        allow_encoded_slash: true
+        rules:
+          - allow:
+              method: GET
+              path: "/**"
+    binaries:
+      - path: /usr/bin/git
+`),
 	}
 
 	if _, err := executor.CreateSandbox(ctx, desired); err != nil {
@@ -132,6 +157,23 @@ func TestCreateAndWaitSandbox(t *testing.T) {
 	if !reflect.DeepEqual(stored.Labels, desired.Labels) {
 		t.Errorf("labels = %v", stored.Labels)
 	}
+	policy := stored.Spec.Policy
+	if policy == nil || policy.Version != 1 || policy.Filesystem == nil || !policy.Filesystem.IncludeWorkdir ||
+		!reflect.DeepEqual(policy.Filesystem.ReadOnly, []string{"/usr"}) ||
+		!reflect.DeepEqual(policy.Filesystem.ReadWrite, []string{"/sandbox"}) {
+		t.Fatalf("filesystem policy = %+v", policy)
+	}
+	if policy.Landlock == nil || policy.Landlock.Compatibility != "best_effort" ||
+		policy.Process == nil || policy.Process.RunAsUser != "sandbox" || policy.Process.RunAsGroup != "sandbox" {
+		t.Errorf("landlock/process policy = %+v", policy)
+	}
+	rule, ok := policy.NetworkPolicies["github_read"]
+	if !ok || rule.Name != "github-read" || len(rule.Endpoints) != 1 ||
+		rule.Endpoints[0].Host != "github.com" || rule.Endpoints[0].Port != 443 || !rule.Endpoints[0].AllowEncodedSlash ||
+		len(rule.Endpoints[0].Rules) != 1 || rule.Endpoints[0].Rules[0].Allow == nil || rule.Endpoints[0].Rules[0].Allow.Method != "GET" ||
+		len(rule.Binaries) != 1 || rule.Binaries[0].Path != "/usr/bin/git" {
+		t.Errorf("network policy = %+v", policy.NetworkPolicies)
+	}
 
 	raw.AddSandbox("team", &types.Sandbox{Name: "ready", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 	ready, err := executor.WaitSandboxReady(ctx, "ready")
@@ -140,6 +182,22 @@ func TestCreateAndWaitSandbox(t *testing.T) {
 	}
 	if ready.Phase != "Ready" {
 		t.Errorf("phase = %q", ready.Phase)
+	}
+}
+
+func TestCreateSandboxRejectsMalformedPolicy(t *testing.T) {
+	raw := fake.NewClient()
+	executor := NewFromClient(raw, "team").(openshell.SandboxExecutionClient)
+
+	_, err := executor.CreateSandbox(context.Background(), openshell.SandboxCreate{
+		Name: "review", Image: "reviewer", Policy: []byte("unknown_field: true\n"),
+	})
+	if err == nil || !strings.Contains(err.Error(), `parsing sandbox policy: unknown policy field "unknown_field"`) {
+		t.Fatalf("error = %v, want clear unknown policy field error", err)
+	}
+	sandboxes, err := raw.Sandboxes().List(context.Background(), "team")
+	if err != nil || len(sandboxes) != 0 {
+		t.Fatalf("sandbox created despite invalid policy: sandboxes=%v err=%v", sandboxes, err)
 	}
 }
 

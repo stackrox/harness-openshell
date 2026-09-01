@@ -116,9 +116,10 @@ credentialed providers; platform bootstrap owns their creation. Relative payload
 and policy paths resolve from the workflow file's directory.
 
 Remote-image, non-interactive workflows use the OpenShell SDK for sandbox
-creation, readiness, execution, and cleanup. Source or payload uploads, local
-image builds, policy files, and interactive TTYs currently use the OpenShell CLI
-because those paths do not yet have complete SDK-native implementations.
+creation, policy application, readiness, execution, and cleanup. Source or
+payload uploads, local image builds, and interactive TTYs currently use the
+OpenShell CLI because those paths do not yet have complete SDK-native
+implementations.
 
 ## The Agent YAML
 

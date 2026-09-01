@@ -105,12 +105,12 @@ func targetDescription(target openshell.Target) string {
 
 // canonicalSDKRunEligible selects the lifecycle the pinned SDK implements
 // end-to-end. The SDK exposes file transfer methods, but its shipped transport
-// is unavailable, so uploads remain on the CLI path. Policy files, local image
-// builds, and interactive terminals likewise stay on the CLI until each has a
-// tested SDK-native implementation.
+// is unavailable, so uploads remain on the CLI path. Local image builds and
+// interactive terminals likewise stay on the CLI until each has a tested
+// SDK-native implementation.
 func canonicalSDKRunEligible(workflow *canonicalWorkflow) bool {
 	desired := workflow.Desired
-	if desired.Spec.Source.Repo != "" || len(desired.Spec.Payloads) > 0 || desired.Spec.Sandbox.Policy != nil || desired.Spec.Sandbox.TTY {
+	if desired.Spec.Source.Repo != "" || len(desired.Spec.Payloads) > 0 || desired.Spec.Sandbox.TTY {
 		return false
 	}
 	image := resolveSandboxImagePath(desired.Spec.Sandbox.Image, workflow.BaseDir)
@@ -257,12 +257,15 @@ func canonicalRunRequest(workflow *canonicalWorkflow, retrySleep time.Duration) 
 	}
 
 	policyPath := ""
+	var policyBytes []byte
 	if policy := desired.Spec.Sandbox.Policy; policy != nil && policy.File != "" {
 		policyPath = policy.File
 		if !filepath.IsAbs(policyPath) {
 			policyPath = filepath.Join(workflow.BaseDir, policyPath)
 		}
-		if _, err := os.Stat(policyPath); err != nil {
+		var err error
+		policyBytes, err = os.ReadFile(policyPath)
+		if err != nil {
 			return fail(fmt.Errorf("reading spec.sandbox.policy.file: %w", err))
 		}
 	}
@@ -285,6 +288,7 @@ func canonicalRunRequest(workflow *canonicalWorkflow, retrySleep time.Duration) 
 		TTY:             desired.Spec.Sandbox.TTY,
 		Keep:            desired.Spec.Sandbox.Keep,
 		PolicyPath:      policyPath,
+		Policy:          policyBytes,
 		RetrySleep:      retrySleep,
 	}, cleanup, nil
 }
