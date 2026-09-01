@@ -100,11 +100,12 @@ func bootstrapProvider(harnessDir string, gw gateway.Gateway, target openshell.T
 
 // adcConfigs resolves the Vertex project/region config passed to the ADC create,
 // preserving the legacy resolution order: explicit env overrides first, then the
-// ADC file's quota project, then a "global" region default.
+// ADC file's quota project, then a "global" region default. The ADC file is
+// resolved via the same path resolver ReadGcloudADC uses (which honors
+// CLOUDSDK_CONFIG), so the quota project is read from the same file the refresh
+// material comes from.
 func adcConfigs() map[string]string {
-	home, _ := os.UserHomeDir()
-	adcPath := envOr("GOOGLE_APPLICATION_CREDENTIALS",
-		filepath.Join(home, ".config", "gcloud", "application_default_credentials.json"))
+	adcPath, _ := sdkclient.DefaultADCPath()
 	project := envOr("ANTHROPIC_VERTEX_PROJECT_ID", readADCProject(adcPath))
 	region := envOr("CLOUD_ML_REGION", "global")
 	configs := map[string]string{"VERTEX_AI_REGION": region}

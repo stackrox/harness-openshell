@@ -3,6 +3,7 @@ package sdkclient
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -147,11 +148,13 @@ func TestCreateVertexProviderFromADC_Validation(t *testing.T) {
 
 // The SDK fake persists Create but returns Unimplemented for Refresh().Configure
 // (refresh needs a real server). This test rides that: it proves the flow (a)
-// creates the provider with the right non-secret Type/Config and NO credential,
-// and (b) proceeds past Create into Configure — surfaced as the fake's
-// Unimplemented, mapped to ErrUnsupported. The end-to-end Configure/Rotate proof
-// lives in the live gate below.
-func TestCreateVertexProviderFromADC_CreatesThenConfigures(t *testing.T) {
+// proceeds past Create into Configure — surfaced as the fake's Unimplemented,
+// mapped to ErrUnsupported — and (b) rolls the Create back when Configure fails,
+// so no half-registered provider is left behind for registerADC to skip over.
+// The Create's non-secret Type/Config and empty-credential shape are pinned by
+// TestVertexADCProvider_NoCredential; the end-to-end Configure/Rotate success
+// proof lives in the live gate below.
+func TestCreateVertexProviderFromADC_RollsBackOnConfigureFailure(t *testing.T) {
 	ctx := context.Background()
 	fc := fake.NewClient()
 
@@ -160,18 +163,11 @@ func TestCreateVertexProviderFromADC_CreatesThenConfigures(t *testing.T) {
 		t.Fatalf("err = %v, want ErrUnsupported (fake Configure is Unimplemented, proving Create succeeded and Configure ran)", err)
 	}
 
-	got, err := fc.Providers().Get(ctx, "default", "vertex-sdk")
-	if err != nil {
-		t.Fatalf("provider was not created: %v", err)
-	}
-	if got.Type != vertexProviderType {
-		t.Errorf("stored Type = %q, want %q", got.Type, vertexProviderType)
-	}
-	if len(got.Spec.Credentials) != 0 {
-		t.Errorf("stored Credentials = %v, want empty (Create must not carry a secret)", got.Spec.Credentials)
-	}
-	if got.Spec.Config[vertexProjectConfigKey] != "proj" {
-		t.Errorf("stored Config = %v, want project set", got.Spec.Config)
+	// Configure failed, so the provider Create must have been rolled back: a
+	// lingering provider would make registerADC's ProviderGet short-circuit and
+	// never repair it.
+	if _, gerr := fc.Providers().Get(ctx, "default", "vertex-sdk"); !errors.Is(translate(gerr), openshell.ErrNotFound) {
+		t.Fatalf("provider still present after Configure failure: get err = %v, want NotFound (rollback did not delete it)", gerr)
 	}
 }
 
@@ -199,9 +195,12 @@ func TestLiveVertexProviderFromADC(t *testing.T) {
 	if project == "" || region == "" {
 		t.Skip("set HARNESS_E2E_VERTEX_PROJECT and HARNESS_E2E_VERTEX_REGION to run the SDK-native ADC create gate")
 	}
+	// Default to a run-unique name so the probe never collides with a real
+	// provider: the cleanup below deletes this name unconditionally, so it must
+	// be one this test owns, not a shared "vertex-sdk" that could pre-exist.
 	name := os.Getenv("HARNESS_E2E_VERTEX_PROVIDER")
 	if name == "" {
-		name = "vertex-sdk"
+		name = fmt.Sprintf("vertex-sdk-probe-%d", time.Now().UnixNano())
 	}
 
 	adc, err := ReadGcloudADC(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))

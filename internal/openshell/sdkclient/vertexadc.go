@@ -102,6 +102,12 @@ func ReadGcloudADC(path string) (ADC, error) {
 	return adc, nil
 }
 
+// DefaultADCPath resolves the conventional gcloud ADC location without reading
+// it, so callers that need the ADC file for something other than the refresh
+// material (e.g. reading quota_project_id) resolve the exact same path
+// ReadGcloudADC("") would. See defaultADCPath for the resolution order.
+func DefaultADCPath() (string, error) { return defaultADCPath() }
+
 // defaultADCPath resolves the conventional gcloud ADC location without reading
 // it. GOOGLE_APPLICATION_CREDENTIALS wins when set (gcloud and the Google
 // libraries honor it first), then $CLOUDSDK_CONFIG/application_default_credentials.json,
@@ -193,13 +199,28 @@ func createVertexProviderFromADC(ctx context.Context, raw v1.ClientInterface, wo
 	if _, err := raw.Providers().Create(ctx, workspace, vertexADCProvider(name, config)); err != nil {
 		return fmt.Errorf("create provider %q: %w", name, translate(err))
 	}
+	// Create persists the provider before it has a working credential. If
+	// Configure or Rotate fails, roll the Create back so the provider does not
+	// linger half-registered: registerADC's ProviderGet would otherwise see it
+	// as existing and skip re-registration, leaving an unusable provider no
+	// later run can repair.
 	if _, err := raw.Providers().Refresh().Configure(ctx, workspace, vertexADCRefreshConfig(name, adc)); err != nil {
-		return fmt.Errorf("configure refresh for %q: %w", name, translate(err))
+		return rollbackVertexProvider(ctx, raw, workspace, name, fmt.Errorf("configure refresh for %q: %w", name, translate(err)))
 	}
 	if _, err := raw.Providers().Refresh().Rotate(ctx, workspace, name, vertexADCCredentialKey); err != nil {
-		return fmt.Errorf("rotate initial credential for %q: %w", name, translate(err))
+		return rollbackVertexProvider(ctx, raw, workspace, name, fmt.Errorf("rotate initial credential for %q: %w", name, translate(err)))
 	}
 	return nil
+}
+
+// rollbackVertexProvider deletes a provider whose refresh setup failed and
+// returns the original cause. The delete is best-effort: its failure is
+// appended but never masks the setup error the caller needs to see.
+func rollbackVertexProvider(ctx context.Context, raw v1.ClientInterface, workspace, name string, cause error) error {
+	if err := raw.Providers().Delete(ctx, workspace, name); err != nil {
+		return fmt.Errorf("%w (rollback delete of %q also failed: %v)", cause, name, translate(err))
+	}
+	return cause
 }
 
 // dialRaw resolves and dials the raw SDK client for a CLI-managed gateway,
