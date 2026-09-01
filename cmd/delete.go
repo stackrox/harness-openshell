@@ -98,15 +98,19 @@ Examples:
 // $OPENSHELL_GATEWAY pinned one, target.Gateway holds it directly; otherwise the
 // SDK resolved the active gateway and only the client knows the resolved name
 // (via GatewayInfo). It is best-effort — the banner is cosmetic, so a failed
-// GatewayInfo lookup yields "" and the caller simply skips the banner.
+// GatewayInfo lookup yields "" and the caller simply skips the banner. A lookup
+// failure is surfaced as a warning rather than swallowed, so it stays
+// distinguishable from a gateway that legitimately reports no name.
 func resolvedGatewayName(ctx context.Context, client openshell.Client, target openshell.Target) string {
 	if target.Gateway != "" {
 		return target.Gateway
 	}
-	if info, err := client.GatewayInfo(ctx); err == nil {
-		return info.Name
+	info, err := client.GatewayInfo(ctx)
+	if err != nil {
+		status.Warnf("could not resolve active gateway name for banner: %v", err)
+		return ""
 	}
-	return ""
+	return info.Name
 }
 
 // deleteSandboxesSDK sweeps every sandbox in the target workspace over the
