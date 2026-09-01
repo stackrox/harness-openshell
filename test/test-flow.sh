@@ -58,7 +58,7 @@ step_fail() {
 }
 
 active_gateway() {
-  "$CLI" gateway list 2>/dev/null | strip_ansi | awk '/^\*/ {gsub(/^\*/, "", $1); print $1; exit}'
+  "$CLI" gateway list 2>/dev/null | strip_ansi | awk '{for (i = 1; i <= NF; i++) if ($i == "*") {print $(i + 1); exit}}'
 }
 
 cleanup_gateway() {
