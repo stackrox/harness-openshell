@@ -28,6 +28,8 @@ type recordingSDKRunner struct {
 	rows               uint32
 	uploads            []Upload
 	uploadErr          error
+	waitErr            error
+	deleteContextErr   error
 	events             []string
 }
 
@@ -52,7 +54,7 @@ func (r *recordingSDKRunner) CreateSandbox(_ context.Context, desired openshell.
 func (r *recordingSDKRunner) WaitSandboxReady(_ context.Context, name string) (openshell.Sandbox, error) {
 	r.events = append(r.events, "wait")
 	r.waited = true
-	return openshell.Sandbox{Name: name, Phase: "Ready"}, nil
+	return openshell.Sandbox{Name: name, Phase: "Ready"}, r.waitErr
 }
 
 func (r *recordingSDKRunner) ExecSandbox(_ context.Context, _ string, command []string, stdout, stderr io.Writer) (int, error) {
@@ -63,10 +65,24 @@ func (r *recordingSDKRunner) ExecSandbox(_ context.Context, _ string, command []
 	return r.exitCode, r.execErr
 }
 
-func (r *recordingSDKRunner) DeleteSandbox(_ context.Context, _ string) error {
+func (r *recordingSDKRunner) DeleteSandbox(ctx context.Context, _ string) error {
 	r.events = append(r.events, "delete")
 	r.deleted = true
+	r.deleteContextErr = ctx.Err()
 	return nil
+}
+
+func TestRunCancellationStillUsesLiveCleanupContext(t *testing.T) {
+	runner := &recordingSDKRunner{waitErr: context.Canceled}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := Run(ctx, runner, SandboxRunRequest{Name: "review", Image: "reviewer"}, bytes.NewBuffer(nil), io.Discard, io.Discard)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context canceled", err)
+	}
+	if !runner.deleted || runner.deleteContextErr != nil {
+		t.Fatalf("deleted=%v cleanup context error=%v", runner.deleted, runner.deleteContextErr)
+	}
 }
 
 func TestRunLifecycle(t *testing.T) {

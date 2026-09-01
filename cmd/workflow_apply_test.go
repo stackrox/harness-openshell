@@ -203,6 +203,82 @@ func TestApplyRequiresCanonicalFile(t *testing.T) {
 	}
 }
 
+func TestApplyUsesActiveGatewayWhenTargetIsEmpty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflow.yaml")
+	writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: active
+spec:
+  sandbox:
+    image: reviewer
+  agent:
+    type: true
+`)
+	base := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	client := &recordingSDK{Client: base}
+	called := false
+	factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
+		called = true
+		if target != (openshell.Target{}) {
+			t.Fatalf("target = %+v, want active gateway", target)
+		}
+		return client, nil
+	}
+	command := NewApplyCmd(factory)
+	command.SetArgs([]string{"-f", path})
+	if _, err := captureStdout(t, command.Execute); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if !called || client.createCalls != 1 {
+		t.Fatalf("factory called=%v create calls=%d", called, client.createCalls)
+	}
+}
+
+func TestApplyStructuredOutputRedactsCredentialBearingMaps(t *testing.T) {
+	secret := "secret-value-that-must-not-leak"
+	t.Setenv("WORKFLOW_SECRET", secret)
+	path := filepath.Join(t.TempDir(), "workflow.yaml")
+	writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: redacted
+spec:
+  providers:
+    - name: existing
+      management: referenced
+      config:
+        API_TOKEN: ${WORKFLOW_SECRET}
+  sandbox:
+    env:
+      API_TOKEN: ${WORKFLOW_SECRET}
+  agent:
+    type: sh
+    args: [-c, '${WORKFLOW_SECRET}']
+  source:
+    repo: ${WORKFLOW_SECRET}
+  payloads:
+    - content: ${WORKFLOW_SECRET}
+      destination: /sandbox/secret
+`)
+	for _, format := range []string{"yaml", "json"} {
+		t.Run(format, func(t *testing.T) {
+			command := NewApplyCmd(testutil.FakeFactory(nil))
+			command.SetArgs([]string{"-f", path, "-o", format})
+			output, err := captureStdout(t, command.Execute)
+			if err != nil {
+				t.Fatalf("apply -o %s: %v", format, err)
+			}
+			if strings.Contains(output, secret) {
+				t.Fatalf("secret leaked in %s output: %s", format, output)
+			}
+			if strings.Count(output, "redacted") < 5 {
+				t.Errorf("output does not redact every host-derived value: %s", output)
+			}
+		})
+	}
+}
+
 func TestApplyRejectsUnversionedConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
 	writeTestFile(t, path, "name: old-config\nentrypoint: claude\n")
@@ -338,7 +414,7 @@ spec:
 		return testutil.FakeFactory(client)
 	}
 
-	planCommand := NewPlanCmd(dir, newFactory())
+	planCommand := NewPlanCmd(newFactory())
 	planCommand.SetArgs([]string{"-f", workflowPath, "-o", "json"})
 	planOutput, err := captureStdout(t, planCommand.Execute)
 	if err != nil {

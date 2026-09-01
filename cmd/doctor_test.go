@@ -14,224 +14,13 @@ import (
 	"github.com/stackrox/harness-openshell/internal/testutil"
 )
 
-func TestCheckOpenShell_Found(t *testing.T) {
-	cfg := testHarnessConfig(t)
-	results := checkOpenShell(cfg, "openshell", "")
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	r := results[0]
-	if r.Group != "openshell" {
-		t.Errorf("Group = %q, want openshell", r.Group)
-	}
-	// On machines with openshell installed, this should pass.
-	// On machines without it, it should fail.
-	if r.Status != "pass" && r.Status != "fail" {
-		t.Errorf("Status = %q, want pass or fail", r.Status)
-	}
-}
-
-func TestCheckOpenShell_NotFound(t *testing.T) {
-	cfg := testHarnessConfig(t)
-	results := checkOpenShell(cfg, "nonexistent-binary-xyz", "")
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Status != "fail" {
-		t.Errorf("Status = %q, want fail", results[0].Status)
-	}
-	if results[0].Name != "binary" {
-		t.Errorf("Name = %q, want binary", results[0].Name)
-	}
-}
-
-func TestCheckProviderEnvVars_AllSet(t *testing.T) {
-	dir := t.TempDir()
-	writeProviderProfile(t, dir, "github", `
-id: github
-credentials:
-  - name: token
-    env_vars: [GITHUB_TOKEN]
-    required: true
-`)
-	t.Setenv("GITHUB_TOKEN", "test-value")
-
-	cfg := testHarnessConfig(t)
-	cfg.Spec.Providers = []config.Provider{{Name: "github", Management: "referenced"}}
-
-	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Status != "pass" {
-		t.Errorf("Status = %q, want pass", results[0].Status)
-	}
-}
-
-func TestCheckProviderEnvVars_Missing(t *testing.T) {
-	dir := t.TempDir()
-	writeProviderProfile(t, dir, "github", `
-id: github
-credentials:
-  - name: token
-    env_vars: [GITHUB_TOKEN]
-    required: true
-`)
-	t.Setenv("GITHUB_TOKEN", "")
-
-	cfg := testHarnessConfig(t)
-	cfg.Spec.Providers = []config.Provider{{Name: "github", Management: "referenced"}}
-
-	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Status != "fail" {
-		t.Errorf("Status = %q, want fail", results[0].Status)
-	}
-}
-
-func TestCheckProviderEnvVars_NoProviders(t *testing.T) {
-	cfg := testHarnessConfig(t)
-	cfg.Spec.Providers = nil
-
-	results := checkProviderEnvVars(cfg, "nonexistent-cli", "")
-	if len(results) != 0 {
-		t.Errorf("expected 0 results for no providers, got %d", len(results))
-	}
-}
-
-func TestCheckProviderEnvVars_NoProfile(t *testing.T) {
-	cfg := testHarnessConfig(t)
-	cfg.Spec.Providers = []config.Provider{{Name: "unknown-provider", Management: "referenced"}}
-
-	results := checkProviderEnvVars(cfg, "nonexistent-cli", "")
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Status != "warn" {
-		t.Errorf("Status = %q, want warn for unknown provider", results[0].Status)
-	}
-}
-
-func TestCheckProviderEnvVars_OptionalCredential(t *testing.T) {
-	dir := t.TempDir()
-	writeProviderProfile(t, dir, "vertex", `
-id: google-vertex-ai
-credentials:
-  - name: service_account_key
-    env_vars: [GOOGLE_SERVICE_ACCOUNT_KEY]
-    required: false
-`)
-
-	cfg := testHarnessConfig(t)
-	cfg.Spec.Providers = []config.Provider{{Name: "vertex", Management: "referenced"}}
-
-	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Status != "pass" {
-		t.Errorf("Status = %q, want pass (all credentials optional)", results[0].Status)
-	}
-}
-
-func TestDoctorOutputJSON(t *testing.T) {
-	results := []CheckResult{
-		{Group: "openshell", Name: "binary", Status: "pass", Message: "v0.0.63"},
-		{Group: "target", Name: "local-container", Status: "pass", Message: "podman running"},
-	}
-
-	err := printStructured(formatJSON, results)
-	if err != nil {
-		t.Fatalf("printStructured(json): %v", err)
-	}
-}
-
-func TestDoctorNoCredentialValues(t *testing.T) {
-	dir := t.TempDir()
-	writeProviderProfile(t, dir, "github", `
-id: github
-credentials:
-  - name: token
-    env_vars: [GITHUB_TOKEN]
-    required: true
-`)
-	secretValue := "ghp_secret123456789"
-	t.Setenv("GITHUB_TOKEN", secretValue)
-
-	cfg := testHarnessConfig(t)
-	cfg.Spec.Providers = []config.Provider{{Name: "github", Management: "referenced"}}
-
-	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
-	for _, r := range results {
-		if r.Message == secretValue || r.Name == secretValue {
-			t.Errorf("credential value leaked in output: %+v", r)
-		}
-	}
-}
-
-func TestCheckProviderEnvVars_GatewayManagedSkipsEnvCheck(t *testing.T) {
-	dir := t.TempDir()
-	writeProviderProfile(t, dir, "myoauth", `
-id: myoauth
-credentials:
-  - name: access_token
-    env_vars: [MY_TOKEN]
-    required: true
-    refresh:
-      strategy: oauth2_refresh_token
-`)
-
-	cfg := testHarnessConfig(t)
-	cfg.Spec.Providers = []config.Provider{{Name: "myoauth", Management: "referenced"}}
-
-	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Status == "fail" {
-		t.Errorf("gateway-managed credential should not fail env var check, got: %s", results[0].Message)
-	}
-}
-
-func TestCheckProviderEnvVars_UsesProviderTypeAsProfile(t *testing.T) {
-	dir := t.TempDir()
-	writeProviderProfile(t, dir, "google-vertex-ai", `
-id: google-vertex-ai
-credentials:
-  - name: access_token
-    env_vars: [VERTEX_TOKEN]
-    required: true
-`)
-	t.Setenv("VERTEX_TOKEN", "test-value")
-
-	cfg := testHarnessConfig(t)
-	cfg.Spec.Providers = []config.Provider{{
-		Name:       "team-vertex",
-		Type:       "google-vertex-ai",
-		Management: "managed",
+func TestConfiguredProvidersIncludesSandboxOnlyWithoutDuplicates(t *testing.T) {
+	cfg := &config.Harness{Spec: config.Spec{
+		Providers: []config.Provider{{Name: "declared"}},
+		Sandbox:   config.Sandbox{Providers: []string{"declared", "platform-owned", "platform-owned"}},
 	}}
-
-	results := checkProviderEnvVars(cfg, "nonexistent-cli", dir)
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Name != "team-vertex" || results[0].Status != "pass" {
-		t.Errorf("result = %+v, want team-vertex pass", results[0])
-	}
-}
-
-func TestConfiguredProviders_IncludesSandboxOnlyWithoutDuplicates(t *testing.T) {
-	cfg := testHarnessConfig(t)
-	cfg.Spec.Providers = []config.Provider{{Name: "declared", Type: "github"}}
-	cfg.Spec.Sandbox.Providers = []string{"declared", "platform-owned", "platform-owned"}
-
 	got := configuredProviders(cfg)
-	want := []configuredProvider{
-		{Name: "declared", Profile: "github"},
-		{Name: "platform-owned", Profile: "platform-owned"},
-	}
+	want := []configuredProvider{{Name: "declared"}, {Name: "platform-owned"}}
 	if len(got) != len(want) {
 		t.Fatalf("configured providers = %+v, want %+v", got, want)
 	}
@@ -242,61 +31,44 @@ func TestConfiguredProviders_IncludesSandboxOnlyWithoutDuplicates(t *testing.T) 
 	}
 }
 
-// TestDoctorCmd_TargetFlagWiring exercises the full flag-pointer path through
-// cobra: registerTargetFlags populates the *string pointers on Parse, and the
-// RunE closure feeds them to openshell.ResolveTarget. It guards the plumbing at
-// doctor.go's flag registration and dereference that the direct runOnlineChecks
-// tests never touch. Offline checks may fail against the test env; we assert
-// only which gateway the Factory was constructed for.
-func TestDoctorCmd_TargetFlagWiring(t *testing.T) {
+func TestDoctorCmdTargetResolutionAndActiveDefault(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        []string
-		env         string // value for $OPENSHELL_GATEWAY ("" = unset)
+		env         string
 		wantGateway string
 	}{
+		{name: "active default"},
 		{name: "flag", args: []string{"--gateway", "from-flag"}, wantGateway: "from-flag"},
-		{name: "env fallback", args: nil, env: "from-env", wantGateway: "from-env"},
-		{name: "flag wins over env", args: []string{"--gateway", "from-flag"}, env: "from-env", wantGateway: "from-flag"},
+		{name: "env fallback", env: "from-env", wantGateway: "from-env"},
+		{name: "flag wins", args: []string{"--gateway", "from-flag"}, env: "from-env", wantGateway: "from-flag"},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.env != "" {
-				t.Setenv(openshell.EnvGateway, tt.env)
+			t.Setenv(openshell.EnvGateway, tt.env)
+			client, raw := testutil.NewFakeClient("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+			raw.AddProvider("default", &types.Provider{Name: "google-vertex-ai"})
+			var got openshell.Target
+			factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
+				got = target
+				return client, nil
 			}
-			c := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
-			var gotGateway string
-			factoryCalled := false
-			recording := func(_ context.Context, tgt openshell.Target) (openshell.Client, error) {
-				factoryCalled = true
-				gotGateway = tgt.Gateway
-				return c, nil
+			command := NewDoctorCmd(testDefaultConfig, factory)
+			command.SetArgs(append(tt.args, "--output", "json"))
+			if err := command.Execute(); err != nil {
+				t.Fatalf("doctor: %v", err)
 			}
-
-			cmd := NewDoctorCmd(t.TempDir(), "nonexistent-cli", testDefaultConfig, recording)
-			cmd.SilenceUsage = true
-			cmd.SilenceErrors = true
-			cmd.SetArgs(append(tt.args, "--output", "json"))
-			// Offline checks may report failures in the test environment; RunE
-			// then returns a non-nil error after the online path has run. We only
-			// care that the Factory saw the resolved gateway.
-			_ = cmd.Execute()
-
-			if !factoryCalled {
-				t.Fatal("Factory was never called; online path did not run")
-			}
-			if gotGateway != tt.wantGateway {
-				t.Errorf("Factory got gateway %q, want %q", gotGateway, tt.wantGateway)
+			if got.Gateway != tt.wantGateway {
+				t.Errorf("factory gateway = %q, want %q", got.Gateway, tt.wantGateway)
 			}
 		})
 	}
 }
 
-func TestDoctorCmd_UsesCanonicalConfigTargetAndProviders(t *testing.T) {
+func TestDoctorCmdUsesCanonicalConfigTargetAndRegisteredProviders(t *testing.T) {
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, "harness.yaml")
-	if err := os.WriteFile(configPath, []byte(`apiVersion: harness.openshell.dev/v1alpha1
+	path := filepath.Join(dir, "harness.yaml")
+	if err := os.WriteFile(path, []byte(`apiVersion: harness.openshell.dev/v1alpha1
 kind: Harness
 metadata:
   name: doctor-test
@@ -307,137 +79,112 @@ spec:
   providers:
     - name: github-team
       management: referenced
-`), 0o644); err != nil {
+`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-
-	c, raw := testutil.NewFakeClient("team", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	client, raw := testutil.NewFakeClient("team", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
 	raw.AddProvider("team", &types.Provider{Name: "github-team", Type: "github"})
-	var gotTarget openshell.Target
-	recording := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
-		gotTarget = target
-		return c, nil
+	var got openshell.Target
+	factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
+		got = target
+		return client, nil
 	}
-
-	cmd := NewDoctorCmd(dir, "nonexistent-cli", testDefaultConfig, recording)
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-	cmd.SetArgs([]string{"--file", configPath, "--output", "json"})
-	if err := cmd.Execute(); err != nil {
+	command := NewDoctorCmd(testDefaultConfig, factory)
+	command.SetArgs([]string{"--file", path})
+	if _, err := captureStdout(t, command.Execute); err != nil {
 		t.Fatalf("doctor: %v", err)
 	}
-	if gotTarget.Gateway != "from-config" || gotTarget.Workspace != "team" {
-		t.Errorf("factory target = %+v, want gateway from-config, workspace team", gotTarget)
+	if got.Gateway != "from-config" || got.Workspace != "team" {
+		t.Errorf("factory target = %+v", got)
 	}
 }
 
-// --- helpers ---
-
-func testHarnessConfig(t *testing.T) *config.Harness {
-	t.Helper()
-	return &config.Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   config.Metadata{Name: "test-agent"},
-		Spec:       config.Spec{Agent: config.Agent{Type: "claude"}},
-	}
-}
-
-func writeProviderProfile(t *testing.T, harnessDir, name, content string) {
-	t.Helper()
-	dir := filepath.Join(harnessDir, "profiles", "providers")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+func TestDoctorDirectTargetDoesNotNeedCLIOrLocalProviderCredentials(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "harness.yaml")
+	if err := os.WriteFile(path, []byte(`apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: direct
+spec:
+  target:
+    registration:
+      endpoint: https://gateway.example.com
+      oidc:
+        issuer: https://issuer.example.com
+        clientId: user
+        audience: gateway
+  providers:
+    - name: github
+      management: referenced
+`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, name+".yaml"), []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestCheckOnlineSDK_Healthy(t *testing.T) {
-	c := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "1.0.0"}))
-	results := checkOnlineSDK(context.Background(), c, nil)
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Group != "gateway" || results[0].Name != "status" || results[0].Status != "pass" {
-		t.Errorf("unexpected status result: %+v", results[0])
-	}
-}
-
-func TestCheckOnlineSDK_ProviderRegistered(t *testing.T) {
-	c, raw := testutil.NewFakeClient("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
-	raw.AddProvider("default", &types.Provider{Name: "github", Type: "git"})
-	results := checkOnlineSDK(context.Background(), c, []string{"github"})
-	// results[0] is gateway/status pass; results[1] is the provider row.
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results, got %d: %+v", len(results), results)
-	}
-	if results[1].Name != "github" || results[1].Status != "pass" || results[1].Message != "registered" {
-		t.Errorf("expected github registered pass, got %+v", results[1])
-	}
-}
-
-func TestCheckOnlineSDK_ProviderNotRegistered(t *testing.T) {
-	c := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
-	results := checkOnlineSDK(context.Background(), c, []string{"github"})
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results, got %d: %+v", len(results), results)
-	}
-	if results[1].Name != "github" || results[1].Status != "warn" || !strings.Contains(results[1].Message, "platform bootstrap") {
-		t.Errorf("expected github not-registered warn, got %+v", results[1])
-	}
-}
-
-func TestRunOnlineChecks_NoGateway(t *testing.T) {
-	// No --gateway: single non-fatal warn, factory never called.
-	called := false
-	f := func(ctx context.Context, tgt openshell.Target) (openshell.Client, error) {
-		called = true
-		return nil, nil
-	}
-	results := runOnlineChecks(context.Background(), f, openshell.Target{}, nil)
-	if len(results) != 1 || results[0].Status != "warn" {
-		t.Fatalf("expected 1 warn result, got %+v", results)
-	}
-	if called {
-		t.Error("factory should not be called when --gateway is empty")
-	}
-}
-
-func TestRunOnlineChecks_HealthyViaFactory(t *testing.T) {
-	c := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "1.0.0"}))
-	f := testutil.FakeFactory(c)
-	results := runOnlineChecks(context.Background(), f, openshell.Target{Gateway: "some-gateway", Workspace: "default"}, nil)
-	if len(results) != 1 || results[0].Status != "pass" {
-		t.Fatalf("expected 1 pass result, got %+v", results)
-	}
-}
-
-// TestRunOnlineChecks_GatewayIsolation is the plan's acceptance test: naming one
-// gateway never constructs or queries another. A recording Factory captures every
-// Target.Gateway it is asked to build; doctor's online path is run with gateway A
-// and the recorder must show exactly one construction, for A only — B is never
-// touched.
-func TestRunOnlineChecks_GatewayIsolation(t *testing.T) {
-	fakeA := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
-	fakeB := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
-	clients := map[string]openshell.Client{"A": fakeA, "B": fakeB}
-
-	var constructed []string
-	recording := func(_ context.Context, tgt openshell.Target) (openshell.Client, error) {
-		constructed = append(constructed, tgt.Gateway)
-		c, ok := clients[tgt.Gateway]
-		if !ok {
-			t.Fatalf("factory asked for unknown gateway %q", tgt.Gateway)
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("GITHUB_TOKEN", "")
+	client, raw := testutil.NewFakeClient("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	raw.AddProvider("default", &types.Provider{Name: "github"})
+	factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
+		if target.Direct == nil {
+			t.Fatal("direct target not propagated")
 		}
-		return c, nil
+		return client, nil
 	}
+	command := NewDoctorCmd(testDefaultConfig, factory)
+	command.SetArgs([]string{"--file", path})
+	if _, err := captureStdout(t, command.Execute); err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+}
 
-	runOnlineChecks(context.Background(), recording,
-		openshell.Target{Gateway: "A", Workspace: "default"}, nil)
+func TestCheckOnlineSDKProviderRegistration(t *testing.T) {
+	client, raw := testutil.NewFakeClient("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	raw.AddProvider("default", &types.Provider{Name: "present"})
+	results := checkOnlineSDK(context.Background(), client, []string{"present", "missing"})
+	if len(results) != 3 || results[0].Status != "pass" || results[1].Status != "pass" || results[2].Status != "fail" {
+		t.Fatalf("results = %+v", results)
+	}
+	if !strings.Contains(results[2].Message, "platform bootstrap") {
+		t.Errorf("missing provider message = %q", results[2].Message)
+	}
+}
 
+func TestRunOnlineChecksAlwaysUsesFactory(t *testing.T) {
+	client := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	called := false
+	factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
+		called = true
+		if target != (openshell.Target{}) {
+			t.Fatalf("target = %+v, want active default", target)
+		}
+		return client, nil
+	}
+	results := runOnlineChecks(context.Background(), factory, openshell.Target{}, nil)
+	if !called || len(results) != 1 || results[0].Status != "pass" {
+		t.Fatalf("called=%v results=%+v", called, results)
+	}
+}
+
+func TestRunOnlineChecksFailsAuthenticationAndConfigurationErrors(t *testing.T) {
+	for _, sentinel := range []error{openshell.ErrConfig, openshell.ErrUnauthenticated} {
+		results := runOnlineChecks(context.Background(), func(context.Context, openshell.Target) (openshell.Client, error) {
+			return nil, sentinel
+		}, openshell.Target{}, nil)
+		if len(results) != 1 || results[0].Status != "fail" {
+			t.Errorf("error %v: results = %+v, want fail", sentinel, results)
+		}
+	}
+}
+
+func TestRunOnlineChecksGatewayIsolation(t *testing.T) {
+	client := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	var constructed []string
+	factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
+		constructed = append(constructed, target.Gateway)
+		return client, nil
+	}
+	runOnlineChecks(context.Background(), factory, openshell.Target{Gateway: "A"}, nil)
 	if len(constructed) != 1 || constructed[0] != "A" {
-		t.Fatalf("expected exactly one construction for gateway A, got %v", constructed)
+		t.Fatalf("constructed = %v", constructed)
 	}
 }

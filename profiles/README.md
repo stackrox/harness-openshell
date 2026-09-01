@@ -1,8 +1,8 @@
 # Profiles
 
 `harness-basic.yaml` is the canonical `harness.openshell.dev/v1alpha1`
-scaffold embedded by `harness init` and used by `harness doctor` when no local
-config exists.
+scaffold embedded by `harness init` and used by `harness doctor` when `-f` is
+omitted. Doctor does not search the current directory for a workflow.
 
 `images/sandbox-default/` contains the default sandbox image inputs. The
 workflow refers to the published image; local build contexts are not accepted

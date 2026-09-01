@@ -10,8 +10,6 @@ spec:
     - name: my-gcp
       type: google-vertex-ai
       management: managed
-      credentials:
-        source: gcloud-adc
       config:
         VERTEX_AI_PROJECT_ID: my-project
         VERTEX_AI_REGION: global

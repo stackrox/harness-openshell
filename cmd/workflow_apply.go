@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/stackrox/harness-openshell/internal/config"
@@ -30,9 +31,6 @@ type applyOptions struct {
 func applyWorkflow(ctx context.Context, workflow *resolvedWorkflow, p *plan.Plan, current plan.CurrentState, client openshell.Client, opts applyOptions) error {
 	if opts.DryRun {
 		return renderPlan(p, opts.Output)
-	}
-	if workflow.Target.Gateway == "" && workflow.Target.Direct == nil {
-		return fmt.Errorf("spec.target.gateway or spec.target.registration is required for apply (or set --gateway or %s)", openshell.EnvGateway)
 	}
 	if client == nil || !current.Reachable {
 		return fmt.Errorf("%s is not reachable or authenticated", targetDescription(workflow.Target))
@@ -87,6 +85,9 @@ func applyWorkflow(ctx context.Context, workflow *resolvedWorkflow, p *plan.Plan
 func targetDescription(target openshell.Target) string {
 	if target.Direct != nil {
 		return "direct target"
+	}
+	if target.Gateway == "" {
+		return "active gateway"
 	}
 	return fmt.Sprintf("gateway %q", target.Gateway)
 }
@@ -310,16 +311,17 @@ func renderPlan(p *plan.Plan, output string) error {
 }
 
 func renderWorkflow(workflow *resolvedWorkflow, output string) error {
+	desired := redactedWorkflow(workflow.Desired, workflow.Input)
 	switch output {
 	case "yaml":
-		data, err := yaml.Marshal(workflow.Desired)
+		data, err := yaml.Marshal(desired)
 		if err != nil {
 			return fmt.Errorf("marshaling resolved config: %w", err)
 		}
 		_, err = os.Stdout.Write(data)
 		return err
 	case "json":
-		data, err := yaml.Marshal(workflow.Desired)
+		data, err := yaml.Marshal(desired)
 		if err != nil {
 			return fmt.Errorf("marshaling resolved config: %w", err)
 		}
@@ -331,4 +333,93 @@ func renderWorkflow(workflow *resolvedWorkflow, output string) error {
 	default:
 		return errors.New("v1alpha1 apply output must be json or yaml")
 	}
+}
+
+// redactedWorkflow keeps the resolved document shape while exposing only keys
+// for maps whose values cross a credential boundary. Provider config and
+// sandbox environment values may originate in the host environment and must
+// never be serialized by -o yaml/json.
+func redactedWorkflow(resolved, input *config.Harness) *config.Harness {
+	out := cloneRedactingInterpolated(reflect.ValueOf(resolved), reflect.ValueOf(input)).Interface().(*config.Harness)
+	for i := range out.Spec.Providers {
+		out.Spec.Providers[i].Config = redactedStringMap(out.Spec.Providers[i].Config)
+	}
+	out.Spec.Sandbox.Env = redactedStringMap(out.Spec.Sandbox.Env)
+	return out
+}
+
+func redactedStringMap(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key := range in {
+		out[key] = "<redacted>"
+	}
+	return out
+}
+
+// cloneRedactingInterpolated deep-copies a resolved config while replacing any
+// string derived from host interpolation. The raw input supplies only shape and
+// sensitivity information; its values are never copied into output.
+func cloneRedactingInterpolated(resolved, input reflect.Value) reflect.Value {
+	if !resolved.IsValid() {
+		return resolved
+	}
+	if resolved.Kind() == reflect.Pointer {
+		if resolved.IsNil() {
+			return reflect.Zero(resolved.Type())
+		}
+		var raw reflect.Value
+		if input.IsValid() && input.Kind() == reflect.Pointer && !input.IsNil() {
+			raw = input.Elem()
+		}
+		out := reflect.New(resolved.Type().Elem())
+		out.Elem().Set(cloneRedactingInterpolated(resolved.Elem(), raw))
+		return out
+	}
+	if resolved.Kind() == reflect.String {
+		if input.IsValid() && input.Kind() == reflect.String && strings.Contains(input.String(), "$") {
+			return reflect.ValueOf("<redacted>").Convert(resolved.Type())
+		}
+		return resolved
+	}
+
+	out := reflect.New(resolved.Type()).Elem()
+	switch resolved.Kind() {
+	case reflect.Struct:
+		for i := 0; i < resolved.NumField(); i++ {
+			var raw reflect.Value
+			if input.IsValid() && input.Kind() == reflect.Struct {
+				raw = input.Field(i)
+			}
+			out.Field(i).Set(cloneRedactingInterpolated(resolved.Field(i), raw))
+		}
+	case reflect.Slice:
+		out = reflect.MakeSlice(resolved.Type(), resolved.Len(), resolved.Len())
+		for i := 0; i < resolved.Len(); i++ {
+			var raw reflect.Value
+			if input.IsValid() && input.Kind() == reflect.Slice && i < input.Len() {
+				raw = input.Index(i)
+			}
+			out.Index(i).Set(cloneRedactingInterpolated(resolved.Index(i), raw))
+		}
+	case reflect.Map:
+		if resolved.IsNil() {
+			return reflect.Zero(resolved.Type())
+		}
+		out = reflect.MakeMapWithSize(resolved.Type(), resolved.Len())
+		iter := resolved.MapRange()
+		for iter.Next() {
+			key, value := iter.Key(), iter.Value()
+			var raw reflect.Value
+			if input.IsValid() && input.Kind() == reflect.Map {
+				raw = input.MapIndex(key)
+			}
+			out.SetMapIndex(key, cloneRedactingInterpolated(value, raw))
+		}
+	default:
+		out.Set(resolved)
+	}
+	return out
 }

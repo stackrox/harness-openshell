@@ -77,9 +77,7 @@ func destinationHasTraversal(p string) bool {
 	return slices.Contains(strings.Split(p, "/"), "..")
 }
 
-// Resolve returns a copy of h with every non-secret string field interpolated
-// via Expand. Secret-bearing fields (Provider.Credentials) are copied through
-// untouched — their values are never resolved, only their source is described.
+// Resolve returns a copy of h with every string field interpolated via Expand.
 // Missing variables across all fields are aggregated into one error that names
 // each variable and its field path.
 func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
@@ -132,7 +130,7 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 		s.Providers = make([]Provider, len(h.Spec.Providers))
 		providerNames := make(map[string]struct{}, len(h.Spec.Providers))
 		for i, p := range h.Spec.Providers {
-			np := p // copies Credentials (*SecretRef) through untouched
+			np := p
 			base := fmt.Sprintf("spec.providers[%d]", i)
 			np.Name = exp(base+".name", p.Name)
 			if np.Name == "" {
@@ -153,14 +151,6 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 				// valid
 			default:
 				errs = append(errs, fmt.Sprintf("%s.management: %q is invalid (want \"managed\" or \"referenced\")", base, np.Management))
-			}
-			// Credentials are never expanded (only their source is described), but
-			// the source string must name a supported kind. Catch a typo here at
-			// load time rather than accepting it silently.
-			if np.Credentials != nil {
-				if err := np.Credentials.Validate(); err != nil {
-					errs = append(errs, fmt.Sprintf("%s.credentials.source: %v", base, err))
-				}
 			}
 			if len(p.Config) > 0 {
 				np.Config = make(map[string]string, len(p.Config))

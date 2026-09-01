@@ -2,12 +2,18 @@ package cmd
 
 import (
 	"bytes"
+	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	fake "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/fake"
+	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
 	"github.com/stackrox/harness-openshell/internal/config"
+	"github.com/stackrox/harness-openshell/internal/openshell"
+	"github.com/stackrox/harness-openshell/internal/testutil"
 )
 
 var testDefaultConfig = []byte(`apiVersion: harness.openshell.dev/v1alpha1
@@ -259,14 +265,17 @@ func TestParseListProfiles(t *testing.T) {
 		t.Fatalf("expected at least 3 providers, got %d: %+v", len(providers), providers)
 	}
 
-	found := make(map[string]bool)
+	found := make(map[string]availableProvider)
 	for _, p := range providers {
-		found[p.ID] = true
+		found[p.ID] = p
 	}
 	for _, id := range []string{"google-vertex-ai", "github", "atlassian"} {
-		if !found[id] {
+		if _, ok := found[id]; !ok {
 			t.Errorf("missing provider %q in parsed output", id)
 		}
+	}
+	if got := found["github"].Category; got != "source-control" {
+		t.Errorf("github category = %q, want source-control", got)
 	}
 }
 
@@ -320,6 +329,35 @@ func TestInitRun_GoldenAndPlanRoundTrip(t *testing.T) {
 	}
 	if workflow.Desired.Metadata.Name != "agent" {
 		t.Errorf("loaded metadata.name = %q, want agent", workflow.Desired.Metadata.Name)
+	}
+}
+
+func TestInitOutputAppliesThroughActiveGateway(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "harness.yaml")
+	defaultConfig, err := os.ReadFile("../profiles/harness-basic.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initRun(strings.NewReader(""), io.Discard, path, false, true, defaultConfig); err != nil {
+		t.Fatalf("initRun: %v", err)
+	}
+	base, raw := testutil.NewFakeClient("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	raw.AddProvider("default", &types.Provider{Name: "google-vertex-ai"})
+	client := &recordingSDK{Client: base}
+	factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
+		if target != (openshell.Target{}) {
+			t.Fatalf("target = %+v, want active gateway", target)
+		}
+		return client, nil
+	}
+	command := NewApplyCmd(factory)
+	command.SetArgs([]string{"-f", path})
+	if _, err := captureStdout(t, command.Execute); err != nil {
+		t.Fatalf("generated workflow apply: %v", err)
+	}
+	if client.createCalls != 1 {
+		t.Fatalf("create calls = %d", client.createCalls)
 	}
 }
 

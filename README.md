@@ -8,7 +8,7 @@ Declarative workflow layer for OpenShell AI agent sandboxes.
 
 ```bash
 harness init                        # generate a config
-harness doctor                      # check your environment
+harness doctor -f harness.yaml      # check your environment
 harness apply -f harness.yaml       # launch a sandbox
 ```
 
@@ -23,7 +23,8 @@ harness apply -f harness.yaml --attach --entrypoint opencode  # override the exe
 
 `harness apply` uses `spec.target`, `--gateway`, and `--workspace` with flag,
 environment, then config precedence. Provisioning the gateway is OpenShell's or
-HyperShell's job, not the harness's (see [Install](#install)).
+HyperShell's job, not the harness's (see [Install](#install)). When none is
+declared, apply uses the active OpenShell gateway registration.
 
 ### One-shot tasks
 
@@ -129,8 +130,8 @@ contexts are rejected.
 harness apply -f config.yaml
     |
     +-> Verify/reconcile declared providers and inference
-    +-> Upload payloads (CLAUDE.md, MCP config, skills)
     +-> Create sandbox (isolated container, deny-by-default network)
+    +-> Upload payloads (CLAUDE.md, MCP config, skills)
     +-> Run task (agent executes, outputs results)
 ```
 
@@ -205,11 +206,11 @@ removes the gateway.
 | Command | What it does |
 |---------|--------------|
 | `harness init` | Generate a harness.yaml (interactive or `--non-interactive`) |
-| `harness doctor` | Validate environment (offline + online checks) |
+| `harness doctor` | Validate gateway reachability and referenced providers |
 | `harness apply -f FILE` | Deploy a sandbox from config |
 | `harness apply -f FILE --attach` | Interactive TTY mode |
-| `harness apply --dry-run` | Render the v1alpha1 action plan without mutating |
-| `harness apply -f FILE -o yaml` | Output resolved config |
+| `harness apply -f FILE --dry-run` | Render the v1alpha1 action plan without mutating |
+| `harness apply -f FILE -o yaml` | Output resolved config with interpolated and credential-bearing map values redacted |
 | `harness get agents\|providers\|gateways` | List resources |
 | `harness describe <name>` | Sandbox details |
 | `harness delete <name> [--all]` | Tear down |
@@ -218,14 +219,9 @@ removes the gateway.
 ### Credentials
 
 Apply is strict: referenced providers must already exist, and credentialed
-provider creation is a separate platform/bootstrap responsibility.
-
-| Provider | Required |
-|----------|----------|
-| `github` | `GITHUB_TOKEN` env var |
-| `google-vertex-ai` | `gcloud auth application-default login` + `ANTHROPIC_VERTEX_PROJECT_ID` |
-| `atlassian` | `JIRA_API_TOKEN` + `JIRA_URL` + `JIRA_USERNAME` |
-| `google-workspace` | `gws auth login` ([gws CLI](https://github.com/googleworkspace/cli)) |
+provider creation is a separate platform/bootstrap responsibility. The harness
+does not read local provider credentials; `doctor` verifies that each referenced
+provider is registered on the selected gateway.
 
 ### Config Files
 
@@ -259,6 +255,11 @@ pre-registered provider capabilities, and tears down the resources it created.
 `test-remote` requires `KUBECONFIG` pointing at an OCP cluster and pushes the image automatically. Use `--reuse-gateway` to skip gateway provisioning/teardown when iterating.
 
 Each integration target builds (and pushes, for remote) the sandbox image automatically.
+
+Interactive TTY behavior is covered by unit and race tests but remains a manual
+terminal check: run `harness apply -f harness.yaml --attach`, resize the terminal,
+then exit and confirm the terminal mode is restored. CI has no stable controlling
+TTY, so it does not claim a live interactive proof.
 
 ## Documentation
 

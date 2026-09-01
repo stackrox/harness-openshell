@@ -148,6 +148,20 @@ unknown_key: value
 	}
 }
 
+func TestRemovedCredentialAndAutoProviderFieldsAreRejected(t *testing.T) {
+	for name, field := range map[string]string{
+		"provider credentials":       "  providers:\n    - name: github\n      credentials: {source: gcloud-adc}\n",
+		"registration autoProviders": "  target:\n    registration:\n      autoProviders: true\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			data := "apiVersion: harness.openshell.dev/v1alpha1\nkind: Harness\nmetadata: {name: test}\nspec:\n" + field
+			if _, err := Parse([]byte(data)); err == nil {
+				t.Fatal("removed field was accepted")
+			}
+		})
+	}
+}
+
 func TestProvidersAndSandboxProviders(t *testing.T) {
 	// Verify that spec.providers[] is []Provider and spec.sandbox.providers[] is []string
 	data, err := os.ReadFile("testdata/fact-dev.v1alpha1.yaml")
@@ -271,28 +285,6 @@ func TestLoadNonexistent(t *testing.T) {
 	_, err := Load("testdata/nonexistent.yaml")
 	if err == nil {
 		t.Fatal("expected error for nonexistent file")
-	}
-}
-
-func TestSecretRefDescribe(t *testing.T) {
-	testCases := []struct {
-		source   string
-		expected string
-	}{
-		{"gcloud-adc", "gcloud ADC"},
-		{"environment:OPENSHELL_OIDC_CLIENT_SECRET", "environment OPENSHELL_OIDC_CLIENT_SECRET"},
-		{"environment:MY_VAR", "environment MY_VAR"},
-		{"unknown-source", "unknown-source"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.source, func(t *testing.T) {
-			ref := SecretRef{Source: tc.source}
-			got := ref.Describe()
-			if got != tc.expected {
-				t.Errorf("Describe: got %q, want %q", got, tc.expected)
-			}
-		})
 	}
 }
 

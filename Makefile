@@ -19,8 +19,7 @@ VERSION       := $(shell git describe --tags --always 2>/dev/null || echo dev)
 LDFLAGS       := -s -w -X main.version=$(VERSION)
 
 # Pinned OpenShell CLI/gateway version — single source of truth for `make
-# openshell`, CI (.github/workflows/integration.yml), and the runtime min-version
-# check (the pinned release used by local and CI installation).
+# openshell` and CI (.github/workflows/integration.yml).
 OPENSHELL_VERSION := $(shell cat .openshell-version 2>/dev/null)
 
 IMAGE  := $(REGISTRY):sandbox-$(VERSION)

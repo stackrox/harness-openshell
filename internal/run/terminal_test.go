@@ -9,6 +9,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestPumpInteractiveSessionCopiesInputOutputAndResizes(t *testing.T) {
@@ -28,6 +29,27 @@ func TestPumpInteractiveSessionCopiesInputOutputAndResizes(t *testing.T) {
 	}
 	if !reflect.DeepEqual(sizes, [][2]uint32{{120, 40}}) {
 		t.Errorf("sizes = %+v", sizes)
+	}
+}
+
+func TestCopyInteractiveFileStopsOnCancellation(t *testing.T) {
+	input, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer input.Close()
+	defer writer.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- copyInteractiveFile(ctx, io.Discard, input) }()
+	cancel()
+	select {
+	case err := <-done:
+		if err != context.Canceled {
+			t.Fatalf("error = %v, want context canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("interactive input remained blocked after cancellation")
 	}
 }
 

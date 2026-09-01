@@ -11,7 +11,7 @@ import (
 // NewPlanCmd constructs the "harness plan" command.
 // It reads a config file, resolves environment variables, connects to the gateway
 // (if specified), reads the current state, builds a reconciliation plan, and renders it.
-func NewPlanCmd(harnessDir string, newClient openshell.Factory) *cobra.Command {
+func NewPlanCmd(newClient openshell.Factory) *cobra.Command {
 	var (
 		file   string
 		output string

@@ -75,7 +75,7 @@ run_test_fail "delete: arguments required" "$HARNESS" delete
 
 echo "=== Init and doctor ==="
 run_test "init: canonical scaffold" bash -c 'd=$(mktemp -d); "$1" init --non-interactive -o "$d/harness.yaml" >/dev/null && grep -q "apiVersion: harness.openshell.dev/v1alpha1" "$d/harness.yaml"; rc=$?; rm -rf "$d"; exit $rc' _ "$HARNESS"
-run_test "doctor: canonical file accepted" "$HARNESS" doctor -f "$ROOT/profiles/harness-basic.yaml" -o json
+run_test "doctor: canonical file accepted" "$HARNESS" doctor -f "$ROOT/test/ci-workflow.yaml" -o json
 
 if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
   echo "=== Live SDK lifecycle ==="

@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HARNESS="$ROOT/harness"
 CLI="${OPENSHELL_CLI:-openshell}"
 WORKFLOW="$ROOT/test/lifecycle-workflow.yaml"
+AUTO_WORKFLOW="$ROOT/test/ci-workflow.yaml"
 TARGET=""
 REUSE_GATEWAY=false
 
@@ -108,6 +109,9 @@ exercise_lifecycle() {
   step "sandbox listed" bash -c '"$1" get agents --gateway "$2" | grep -q "$3"' _ "$HARNESS" "$gateway" "$sandbox"
   step "sandbox exec" "$CLI" sandbox exec --name "$sandbox" -- bash -c 'test "$STATIC_VAR" = hello-world'
   step "sandbox delete" harness delete --gateway "$gateway" "$sandbox"
+  local auto_sandbox="${sandbox}-auto"
+  step "automatic cleanup apply" harness apply -f "$AUTO_WORKFLOW" --gateway "$gateway" --name "$auto_sandbox"
+  step_fail "automatic cleanup verified" harness describe --gateway "$gateway" "$auto_sandbox"
 }
 
 test_errors() {

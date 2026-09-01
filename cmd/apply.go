@@ -18,7 +18,8 @@ func NewApplyCmd(newClient openshell.Factory) *cobra.Command {
 		Long: `Resolve a harness.openshell.dev/v1alpha1 workflow and execute its
 planned reconciliation and sandbox run. Provision the gateway and referenced
 providers with OpenShell first. Use --dry-run to render the action plan without
-mutating anything, or -o yaml to output the fully resolved configuration.`,
+mutating anything, or -o yaml to output the resolved configuration with
+host-interpolated and credential-bearing map values redacted.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if file == "" {
@@ -39,7 +40,10 @@ mutating anything, or -o yaml to output the fully resolved configuration.`,
 			}
 
 			var client openshell.Client
-			if workflow.Target.Direct != nil || workflow.Target.Gateway != "" {
+			// A non-dry-run apply always asks the SDK factory to resolve its target.
+			// An empty target means the active CLI-compatible gateway registration;
+			// dry-run remains fully offline when no target was requested.
+			if !dryRun || workflow.Target.Direct != nil || workflow.Target.Gateway != "" {
 				client, err = newClient(cmd.Context(), workflow.Target)
 				if err != nil {
 					desc := targetDescription(workflow.Target)

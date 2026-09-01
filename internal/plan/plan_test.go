@@ -225,47 +225,6 @@ func TestBuild_ProviderTypeUpdate(t *testing.T) {
 	}
 }
 
-func TestBuild_ProviderDetailIncludesCredentials(t *testing.T) {
-	desired := &config.Harness{
-		Spec: config.Spec{
-			Target: config.Target{Gateway: "test-gateway"},
-			Providers: []config.Provider{
-				{
-					Name:       "gcp",
-					Type:       "google-vertex-ai",
-					Management: "managed",
-					Credentials: &config.SecretRef{
-						Source: "gcloud-adc",
-					},
-				},
-			},
-		},
-	}
-	current := CurrentState{
-		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
-		Providers: []openshell.Provider{},
-	}
-
-	plan := Build(desired, current)
-
-	var provGroup *Group
-	for i := range plan.Groups {
-		if plan.Groups[i].Section == SectionProviders {
-			provGroup = &plan.Groups[i]
-			break
-		}
-	}
-
-	detail := provGroup.Resources[0].Detail
-	if !strings.Contains(detail, "credential source:") {
-		t.Errorf("expected credential source in detail: %s", detail)
-	}
-	if !strings.Contains(detail, "gcloud ADC") {
-		t.Errorf("expected 'gcloud ADC' in detail: %s", detail)
-	}
-}
-
 // TestProviderAction is the single-owner diff-rule table (invariant 22). It
 // pins every branch of the create/adopt/update/noop rule, including the
 // ownership gate that keeps reconcile from overwriting a provider it does not

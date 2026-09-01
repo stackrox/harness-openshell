@@ -167,25 +167,18 @@ func parseListProfiles(output string) []availableProvider {
 			continue
 		}
 
-		// Category headers are indented with bold markers or all caps
+		// Category headers and provider rows are indented.
 		if !strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "\t") {
 			continue
 		}
 
-		// Lines with 2+ spaces of indent and containing actual provider data
-		// Format: "    name          Display Name           endpoints: N  category"
 		fields := strings.Fields(trimmed)
-		if len(fields) < 2 {
+		if len(fields) == 0 {
 			continue
 		}
 
-		// Skip category header lines (like "INFERENCE", "AGENT", etc.)
-		if len(fields) == 1 {
-			currentCategory = strings.ToLower(fields[0])
-			continue
-		}
-
-		// Check if this looks like a provider line (has "endpoints:" somewhere)
+		// Provider rows contain "endpoints:"; other indented lines are category
+		// headings, including multi-word headings such as "SOURCE CONTROL".
 		epIdx := -1
 		for i, f := range fields {
 			if f == "endpoints:" {
@@ -194,6 +187,7 @@ func parseListProfiles(output string) []availableProvider {
 			}
 		}
 		if epIdx < 0 {
+			currentCategory = strings.ToLower(strings.Join(fields, "-"))
 			continue
 		}
 

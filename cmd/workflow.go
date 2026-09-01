@@ -17,6 +17,7 @@ import (
 // the same desired object.
 type resolvedWorkflow struct {
 	Desired *config.Harness
+	Input   *config.Harness
 	Target  openshell.Target
 	BaseDir string
 }
@@ -72,6 +73,7 @@ func loadWorkflow(path, flagGateway, flagWorkspace string, overrides applyOverri
 
 	return &resolvedWorkflow{
 		Desired: resolved,
+		Input:   h,
 		Target:  target,
 		BaseDir: filepath.Dir(path),
 	}, nil

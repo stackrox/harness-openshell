@@ -6,8 +6,13 @@ spec:
   sandbox:
     image: ghcr.io/nvidia/openshell-community/sandboxes/base:latest
     keep: true
+    policy:
+      file: lifecycle-policy.yaml
     env:
       STATIC_VAR: hello-world
   agent:
     type: sh
-    args: [-c, "printf 'canonical-sdk-ok\\n'"]
+    args: [-c, "test \"$(cat /sandbox/proof.txt)\" = upload-ok && ! touch /var/tmp/harness-policy-denied && printf 'canonical-sdk-ok\\n'"]
+  payloads:
+    - content: upload-ok
+      destination: /sandbox/proof.txt

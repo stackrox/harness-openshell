@@ -226,10 +226,6 @@ func buildProviderDetail(prov *config.Provider) string {
 	}
 	detail += "; management: " + prov.Management
 
-	if prov.Credentials != nil {
-		detail += "; credential source: " + prov.Credentials.Describe()
-	}
-
 	return detail
 }
 

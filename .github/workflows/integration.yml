@@ -19,8 +19,7 @@ jobs:
 
       - name: Install openshell
         # Version is pinned in .openshell-version (the single source of truth,
-        # also read by `make openshell` and asserted against
-        # internal/gateway.MinOpenShellVersion). The install script otherwise
+        # also read by `make openshell`). The install script otherwise
         # grabs the latest tagged release, which can drift past the chart's
         # supervisor image and break the sandbox ssh/tar relay with
         # "supervisor session not found".
@@ -81,8 +80,7 @@ jobs:
 
       - name: Install openshell
         # Version is pinned in .openshell-version (the single source of truth,
-        # also read by `make openshell` and asserted against
-        # internal/gateway.MinOpenShellVersion). The install script otherwise
+        # also read by `make openshell`). The install script otherwise
         # grabs the latest tagged release, which can drift past the chart's
         # supervisor image and break the sandbox ssh/tar relay with
         # "supervisor session not found".

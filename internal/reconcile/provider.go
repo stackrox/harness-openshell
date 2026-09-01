@@ -16,7 +16,7 @@ import (
 // Provider holds: the gateway's response on Update; the current provider on Noop
 // and on AdoptionRequired (read at diff time); and a bare {Name, Type} echo on
 // Create, which reconcile deliberately does NOT write (invariant 26 — credentialed
-// creation is the CLI bridge's job, done upstream by providerCreatePlan).
+// creation belongs to platform bootstrap).
 type ProviderResult struct {
 	Name     string
 	Action   plan.Action
@@ -35,9 +35,8 @@ type ProviderResult struct {
 // write error, is returned so the caller learns the reconcile did not complete.
 //
 // It never creates a credentialed provider and never deletes (invariant 26):
-//   - Create (managed absent) is reported without writing; providerCreatePlan
-//     (the CLI bridge, S6) does the credentialed create, after which a re-run
-//     sees the provider present.
+//   - Create (managed absent) is reported without writing; platform bootstrap
+//     performs credentialed creation, after which a re-run sees it present.
 //   - AdoptionRequired for an existing-but-unowned provider is reported without
 //     writing (drift the operator must resolve with `adopt: true`).
 //   - AdoptionRequired for an ABSENT referenced provider is a hard error: a

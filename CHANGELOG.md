@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Changed
+- `harness apply` now accepts only strict `harness.openshell.dev/v1alpha1`
+  workflows and executes every sandbox lifecycle through the OpenShell Go SDK,
+  including uploads, policy, interactive TTY, and cleanup. Local image build
+  contexts are rejected; use a registry image reference.
+- `harness init` and `harness doctor` use the canonical workflow model. Doctor
+  verifies gateway provider registration and no longer requires local provider
+  credentials or an OpenShell executable for direct SDK/OIDC targets.
+- `apply -o yaml|json` redacts interpolated values and values in provider config
+  and sandbox environment maps.
 - Cloned repos now use URL-hashed bare mirrors (`~/.cache/harness-openshell/mirrors/`)
   plus per-run, self-contained checkouts (`~/.cache/harness-openshell/checkouts/`)
   instead of the basename-keyed `repos/` cache. Distinct repositories that share a
@@ -11,6 +20,12 @@
   git keeps working inside the sandbox after upload. The old
   `~/.cache/harness-openshell/repos/` directory is orphaned and safe to delete
   manually.
+
+### Removed
+- The unversioned agent config model, compatibility adapter, `migrate` command,
+  legacy task/agent flags, CLI sandbox execution bridge, and harness-owned
+  credentialed-provider bootstrap were removed in a hard cutover. Providers
+  must be provisioned by the target platform before apply.
 
 ## [0.3.0] - 2026-06-17
 
