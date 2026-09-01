@@ -19,7 +19,7 @@
 - Multi-document harness YAML (`---` separated agent/provider/gateway/policy docs)
 - `harness init` and `harness doctor` commands
 - `kind: config` embeds sandbox files directly in harness YAML
-- `repo` field with `base_agent` inheritance and an inference warning
+- Repository checkout support and an inference warning
 - Cloned repos cached in `~/.cache/harness-openshell/repos/`
 - Configuration test suite with multi-config and free-API support
 - Headless tasks, policy applied via the CLI, and multi-upload payloads
@@ -38,7 +38,6 @@
 
 ### Added
 - `--gateway NAME` and `--gateway-profile FILE` flags on `harness up` for gateway selection
-- `--agent-profile` (`-f`) flag replaces `--file` on `harness up` and `harness create`
 - Gateway profiles support inline Helm values and addon manifests (single self-contained YAML per target)
 - Gateway profiles are embedded in the binary with fallback: `profiles/gateways/` → `gateways/` → embedded
 - `LoadConfigFromBytes` and `LoadProfile` for flexible gateway config loading
@@ -61,7 +60,7 @@
 - Provider registration messages standardized to `%s: registered`
 - All sandbox headers use noun form (`Sandbox`, not `Creating sandbox`)
 - `ensureProviders` helper deduplicates validate-register-revalidate pattern
-- Shared resolve functions moved to `cmd/resolve.go`
+- Shared config resolution was consolidated
 - Environment variables renamed: `SANDBOX_IMAGE` → `HARNESS_OS_IMAGE`, `HARNESS_DIR` → `HARNESS_OS_DIR`, `GATEWAY_NAME` → `HARNESS_OS_GATEWAY`, `PULL_SECRET` → `HARNESS_OS_PULL_SECRET`
 
 ### Removed

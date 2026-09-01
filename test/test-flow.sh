@@ -1,401 +1,170 @@
 #!/usr/bin/env bash
-# End-to-end validation for harness CLI.
-#
-# CI mode auto-detects from the CI env var (set by GitHub Actions).
-# Override with --ci or --no-providers.
-#
-# Usage:
-#   ./test-flow.sh local-container              # full test with credentials
-#   ./test-flow.sh helm                # full test on kind cluster
-#   ./test-flow.sh openshift         # full test on OCP
-#   ./test-flow.sh openshift --reuse-gateway   # skip deploy/teardown
-#   ./test-flow.sh all                          # all gateways
+# End-to-end validation of the canonical SDK sandbox lifecycle.
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-HARNESS="$SCRIPT_DIR/harness"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+HARNESS="$ROOT/harness"
 CLI="${OPENSHELL_CLI:-openshell}"
-
-if [[ ! -x "$HARNESS" ]]; then
-  echo "ERROR: Go binary not found at $HARNESS"
-  echo "  Build it first: make cli"
-  exit 1
-fi
-
-# ── Parse args ──────────────────────────────────────────────────────
+WORKFLOW="$ROOT/test/lifecycle-workflow.yaml"
 TARGET=""
 REUSE_GATEWAY=false
-NO_PROVIDERS=false
-DEBUG=false
-PROFILE="default"
-AGENT_FLAG="--agent"
-
-# Auto-detect CI mode
-if [[ "${CI:-}" == "true" ]]; then
-  NO_PROVIDERS=true
-  PROFILE="test/ci-agent.yaml"
-  AGENT_FLAG="--file"
-fi
 
 for arg in "$@"; do
   case "$arg" in
-    --ci)             NO_PROVIDERS=true; PROFILE="test/ci-agent.yaml"; AGENT_FLAG="--file" ;;
-    --reuse-gateway)  REUSE_GATEWAY=true ;;
-    --no-providers)   NO_PROVIDERS=true ;;
-    --debug)          DEBUG=true ;;
-    --agent=*)        PROFILE="${arg#--agent=}" ;;
-    -*)               echo "Unknown flag: $arg"; exit 1 ;;
-    *)                [[ -z "$TARGET" ]] && TARGET="$arg" ;;
+    --ci|--no-providers) ;;
+    --reuse-gateway) REUSE_GATEWAY=true ;;
+    --workflow=*) WORKFLOW="${arg#--workflow=}" ;;
+    -*) echo "Unknown flag: $arg"; exit 1 ;;
+    *) [[ -z "$TARGET" ]] && TARGET="$arg" ;;
   esac
 done
 
-if [[ -z "$TARGET" ]]; then
-  echo "Usage: $0 <local-container|helm|openshift|all> [--ci] [--reuse-gateway] [--debug]"
+if [[ -z "$TARGET" || ! -x "$HARNESS" ]]; then
+  echo "Usage: $0 <local-container|helm|openshift|all> [--ci] [--reuse-gateway]"
   exit 1
 fi
 
-HARNESS_FLAGS=(--verbose)
-if $DEBUG; then
-  HARNESS_FLAGS+=(--show-commands)
-fi
-
-LOG_FILE="${TEST_LOG_FILE:-}"
-if [[ -n "$LOG_FILE" ]]; then
-  mkdir -p "$(dirname "$LOG_FILE")"
-  exec > >(sed -u 's/\x1b\[[0-9;]*m//g' | tee -a "$LOG_FILE") 2>&1
-fi
-
-harness() {
-  "$HARNESS" "${HARNESS_FLAGS[@]}" "$@"
-}
-
-# ── Helpers ──────────────────────────────────────────────────────────
-
-strip_ansi() {
-  sed 's/\x1b\[[0-9;]*m//g'
-}
-
-# Upstream gateway provisioning (the harness no longer provisions — PR7b).
-source "$SCRIPT_DIR/test/lib/provision.sh"
+harness() { "$HARNESS" "$@"; }
+strip_ansi() { sed 's/\x1b\[[0-9;]*m//g'; }
+source "$ROOT/test/lib/provision.sh"
 
 PASS=0
 FAIL=0
 SKIP=0
-TOTAL_START=$(date +%s)
+START=$(date +%s)
 
 step() {
   local label="$1"; shift
-  local start=$(date +%s)
+  local started=$SECONDS
   if "$@"; then
-    local elapsed=$(( $(date +%s) - start ))
-    printf "  ✓ %-35s (%ds)\n" "$label" "$elapsed"
+    printf "  ✓ %-35s (%ds)\n" "$label" "$((SECONDS-started))"
     ((PASS++))
   else
-    local elapsed=$(( $(date +%s) - start ))
-    printf "  ✗ %-35s (%ds)\n" "$label" "$elapsed"
+    printf "  ✗ %-35s (%ds)\n" "$label" "$((SECONDS-started))"
     ((FAIL++))
   fi
 }
 
 step_fail() {
   local label="$1"; shift
-  local start=$(date +%s)
-  if ! "$@"; then
-    local elapsed=$(( $(date +%s) - start ))
-    printf "  ✓ %-35s (expected failure, %ds)\n" "$label" "$elapsed"
+  if ! "$@" >/dev/null 2>&1; then
+    printf "  ✓ %-35s (expected failure)\n" "$label"
     ((PASS++))
   else
-    local elapsed=$(( $(date +%s) - start ))
-    printf "  ✗ %-35s (should have failed, %ds)\n" "$label" "$elapsed"
+    printf "  ✗ %-35s (should have failed)\n" "$label"
     ((FAIL++))
   fi
 }
 
-skip_step() {
-  local label="$1" reason="$2"
-  printf "  - %-35s (skip: %s)\n" "$label" "$reason"
-  ((SKIP++))
+active_gateway() {
+  "$CLI" gateway list 2>/dev/null | strip_ansi | awk '/^\*/ {gsub(/^\*/, "", $1); print $1; exit}'
 }
 
-gateway_reachable() {
-  "$CLI" inference get >/dev/null 2>&1
-}
-
-cleanup_resources_if_reachable() {
-  local label="$1"
-  if gateway_reachable; then
-    step "$label" harness delete --sandboxes --providers
-  else
-    skip_step "$label" "no reachable gateway"
-  fi
+cleanup_gateway() {
+  local gateway="$1"
+  harness delete --gateway "$gateway" --sandboxes >/dev/null 2>&1 || true
 }
 
 provider_exists() {
   "$CLI" provider list --names 2>/dev/null | grep -Fxq "$1"
 }
 
-check_providers() {
-  local count
-  count=$("$CLI" provider list 2>/dev/null | awk 'NR>1' | wc -l | tr -d ' ')
-  if [[ "$count" -gt 0 ]]; then
-    printf "  ✓ %-35s (%s)\n" "providers registered" "${count} providers"
-    ((PASS++))
-  else
-    printf "  ✗ %-35s\n" "providers registered (0)"
-    ((FAIL++))
-  fi
-}
-
-sandbox_wait() {
-  local name="$1"
-  for i in $(seq 1 60); do
-    local phase
-    phase=$("$CLI" sandbox list 2>/dev/null | strip_ansi | awk -v n="$name" '$1==n {print $NF}')
-    [[ "$phase" == "Ready" ]] && return 0
-
-    if kubectl get pods -n openshell 2>/dev/null | grep -q "ImagePullBackOff\|ErrImagePull\|CrashLoopBackOff"; then
-      local bad
-      bad=$(kubectl get pods -n openshell 2>/dev/null | grep "ImagePullBackOff\|ErrImagePull\|CrashLoopBackOff" | awk '{print $1, $3}' | head -3)
-      echo "  ERROR: k8s pod in bad state: $bad" >&2
-      return 1
-    fi
-    sleep 2
-  done
-  return 1
-}
-
-sandbox_verify() {
-  local name="$1"
-  local phase
-  if ! sandbox_wait "$name"; then
-    phase=$("$CLI" sandbox list 2>/dev/null | strip_ansi | awk -v n="$name" '$1==n {print $NF}')
-    printf "  ✗ %-35s %s\n" "sandbox ready" "(phase: ${phase:-not found})"
-    ((FAIL++))
+exercise_provider() {
+  local gateway="$1" provider="$2" check="$3"
+  if ! provider_exists "$provider"; then
+    printf "  - %-35s (skip: not provisioned)\n" "provider: $provider"
+    ((SKIP++))
     return
   fi
-  printf "  ✓ %-35s\n" "sandbox ready"
-  ((PASS++))
-
-  sleep 2
-  step "sandbox: exec" "$CLI" sandbox exec --name "$name" -- echo "hello"
-
-  if $NO_PROVIDERS; then
-    return
-  fi
-
-  if provider_exists google-vertex-ai; then
-    step "sandbox: inference env" "$CLI" sandbox exec --name "$name" -- bash -c 'test -n "$ANTHROPIC_BASE_URL"'
-    step "sandbox: claude responds" "$CLI" sandbox exec --name "$name" -- bash -c 'echo "respond with ok" | claude --print 2>&1 | head -1'
-  else
-    skip_step "sandbox: inference" "google-vertex-ai provider unavailable"
-  fi
-
-  if provider_exists gws; then
-    step "sandbox: gws token placeholder" "$CLI" sandbox exec --name "$name" -- bash -c 'echo "$GOOGLE_WORKSPACE_CLI_TOKEN" | grep -q "openshell:resolve:env"'
-    step "sandbox: gws api call" "$CLI" sandbox exec --name "$name" -- bash -c 'for i in 1 2 3; do curl -sf https://gmail.googleapis.com/gmail/v1/users/me/profile -H "Authorization: Bearer $GOOGLE_WORKSPACE_CLI_TOKEN" -o /dev/null && exit 0; sleep 3; done; exit 1'
-  else
-    skip_step "sandbox: GWS integration" "gws provider unavailable"
-  fi
-
-  step "sandbox: mcp config" "$CLI" sandbox exec --name "$name" -- test -f /sandbox/.mcp.json
+  local workflow sandbox image
+  workflow=$(mktemp)
+  sandbox="test-${provider//[^a-zA-Z0-9]/-}"
+  image="${HARNESS_OS_IMAGE:-ghcr.io/nvidia/openshell-community/sandboxes/base:latest}"
+  printf '%s\n' \
+    'apiVersion: harness.openshell.dev/v1alpha1' \
+    'kind: Harness' \
+    'metadata:' "  name: $sandbox" \
+    'spec:' '  sandbox:' "    image: $image" '    keep: true' \
+    '    providers:' "      - $provider" \
+    '  agent:' '    type: sh' '    args: [-c, "true"]' >"$workflow"
+  step "provider: $provider attach" harness apply -f "$workflow" --gateway "$gateway"
+  step "provider: $provider capability" "$CLI" sandbox exec --name "$sandbox" -- bash -c "$check"
+  harness delete --gateway "$gateway" "$sandbox" >/dev/null 2>&1 || true
+  rm -f "$workflow"
 }
 
-canonical_sdk_smoke() {
+exercise_providers() {
   local gateway="$1"
-  local output
-  output=$(harness apply \
-    --file test/ci-workflow.yaml \
-    --gateway "$gateway" \
-    --workspace default 2>&1) || {
-      echo "$output" >&2
-      return 1
-    }
-  echo "$output" | grep -q 'canonical-sdk-ok' || {
-    echo "  ERROR: canonical SDK output missing" >&2
-    echo "$output" >&2
-    return 1
-  }
-  if "$CLI" sandbox list 2>/dev/null | strip_ansi | awk '$1=="sdk-smoke" {found=1} END {exit !found}'; then
-    echo "  ERROR: SDK smoke sandbox was not deleted" >&2
-    return 1
-  fi
+  exercise_provider "$gateway" github 'curl -sf https://api.github.com/user -H "Authorization: Bearer $GITHUB_TOKEN" >/dev/null'
+  exercise_provider "$gateway" gws 'curl -sf https://gmail.googleapis.com/gmail/v1/users/me/profile -H "Authorization: Bearer $GOOGLE_WORKSPACE_CLI_TOKEN" >/dev/null'
+  exercise_provider "$gateway" google-vertex-ai 'test -n "$GOOGLE_VERTEX_AI_TOKEN"'
 }
 
-summary() {
-  local total=$(( PASS + FAIL ))
-  local elapsed=$(( $(date +%s) - TOTAL_START ))
-  echo ""
-  if [[ $FAIL -eq 0 ]]; then
-    echo "${PASS}/${total} passed, ${SKIP} skipped (${elapsed}s)"
-  else
-    echo "${PASS}/${total} passed, ${FAIL} failed, ${SKIP} skipped (${elapsed}s)"
-  fi
+exercise_lifecycle() {
+  local gateway="$1" sandbox="$2"
+  cleanup_gateway "$gateway"
+  step "canonical apply" harness apply -f "$WORKFLOW" --gateway "$gateway" --name "$sandbox"
+  step "sandbox describe" harness describe --gateway "$gateway" "$sandbox"
+  step "sandbox listed" bash -c '"$1" get agents --gateway "$2" | grep -q "$3"' _ "$HARNESS" "$gateway" "$sandbox"
+  step "sandbox exec" "$CLI" sandbox exec --name "$sandbox" -- bash -c 'test "$STATIC_VAR" = hello-world'
+  step "sandbox delete" harness delete --gateway "$gateway" "$sandbox"
 }
-
-# ── Error scenarios ─────────────────────────────────────────────────
 
 test_errors() {
-  echo "=== test: error scenarios ==="
-
-  step_fail "nonexistent profile" harness apply --agent nonexistent
-
-  # Exercise idempotent cleanup when a gateway is available. A target may not
-  # have provisioned its gateway yet, so absence is not a test failure here.
-  # Cluster teardown lives in each target's flow via teardown_cluster.
-  cleanup_resources_if_reachable "teardown (first)"
-  cleanup_resources_if_reachable "teardown (second)"
-
-  echo ""
+  echo "=== canonical errors ==="
+  step_fail "missing workflow" harness apply
+  step_fail "unversioned workflow" bash -c 'f=$(mktemp); printf "name: old\n" >"$f"; "$1" apply -f "$f"; rc=$?; rm -f "$f"; exit $rc' _ "$HARNESS"
+  echo
 }
-
-# ── Local flow ───────────────────────────────────────────────────────
 
 test_local() {
-  local mode="full"
-  $NO_PROVIDERS && mode="$mode, no-providers"
-  echo "=== test-flow: local-container ($mode) ==="
-
-  cleanup_resources_if_reachable "teardown"
+  echo "=== local container ==="
   step "provision" provision_local
-  step "gateway reachable" "$CLI" inference get
-
-  # up auto-registers providers when missing
-  local sandbox_name="test-agent"
-  step "sandbox create (up)" harness apply --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
-  sandbox_verify "$sandbox_name"
-  step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
-
-  local create_name="test-create"
-  step "sandbox create (create)" harness apply --name "$create_name" --file test/ci-agent.yaml
-  step "sandbox verify (create)" "$CLI" sandbox exec --name "$create_name" -- echo "hello"
-  step "sandbox delete (create)" "$CLI" sandbox delete "$create_name"
-
-  if ! $NO_PROVIDERS; then
-    echo ""
-    echo "=== test: missing providers ==="
-    step "teardown providers" harness delete --providers
-    step "up with no providers" harness apply --name test-noprov
-    step "cleanup" harness delete --sandboxes
-  fi
-
-  step "teardown (clean)" harness delete --sandboxes --providers
+  local gateway
+  gateway=$(active_gateway)
+  if [[ -z "$gateway" ]]; then echo "  ERROR: active gateway not found"; ((FAIL++)); return; fi
+  exercise_lifecycle "$gateway" test-local-sdk
+  exercise_providers "$gateway"
+  cleanup_gateway "$gateway"
 }
-
-# ── GWS lifecycle test ───────────────────────────────────────────────
-
-test_gws() {
-  local sandbox_name="$1"
-  echo "=== test: GWS token lifecycle ==="
-
-  step "gws: token is placeholder" \
-    "$CLI" sandbox exec --name "$sandbox_name" -- bash -c \
-      'echo "$GOOGLE_WORKSPACE_CLI_TOKEN" | grep -q "openshell:resolve:env"'
-
-  step "gws: Gmail API via proxy" \
-    "$CLI" sandbox exec --name "$sandbox_name" -- bash -c 'curl -sf https://gmail.googleapis.com/gmail/v1/users/me/profile -H "Authorization: Bearer $GOOGLE_WORKSPACE_CLI_TOKEN" -o /dev/null'
-
-  openshell provider refresh rotate gws \
-    --credential-key GOOGLE_WORKSPACE_CLI_TOKEN &>/dev/null
-  step "gws: works after rotation" \
-    "$CLI" sandbox exec --name "$sandbox_name" -- bash -c 'curl -sf https://gmail.googleapis.com/gmail/v1/users/me/profile -H "Authorization: Bearer $GOOGLE_WORKSPACE_CLI_TOKEN" -o /dev/null'
-
-  echo ""
-}
-
-# ── kind flow ────────────────────────────────────────────────────────
 
 test_kind() {
-  local mode="full"
-  $NO_PROVIDERS && mode="$mode, no-providers"
-  echo "=== test-flow: helm ($mode) ==="
-
-  if ! kubectl get nodes &>/dev/null; then
-    echo "  ERROR: no kind cluster — run: kind create cluster --name openshell"
-    ((FAIL++))
-    return
-  fi
-
-  step "teardown" teardown_cluster openshell-kind
+  echo "=== kind ==="
+  if ! kubectl get nodes >/dev/null 2>&1; then echo "  ERROR: no kind cluster"; ((FAIL++)); return; fi
+  teardown_cluster openshell-kind
   step "provision" provision_kind
-  step "gateway reachable" "$CLI" inference get
-
-  if $NO_PROVIDERS; then
-    step "canonical SDK lifecycle" canonical_sdk_smoke openshell-kind
-  else
-    local sandbox_name="test-kind"
-    step "sandbox create" harness apply --name "$sandbox_name" $AGENT_FLAG "$PROFILE"
-    sandbox_verify "$sandbox_name"
-    if provider_exists gws; then
-      test_gws "$sandbox_name"
-    else
-      skip_step "GWS token lifecycle" "gws provider unavailable"
-    fi
-    step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
-  fi
-
-  step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
-  step "teardown (cluster)" teardown_cluster openshell-kind
-  echo ""
+  exercise_lifecycle openshell-kind test-kind-sdk
+  exercise_providers openshell-kind
+  cleanup_gateway openshell-kind
+  step "cluster teardown" teardown_cluster openshell-kind
 }
-
-# ── OCP flow ─────────────────────────────────────────────────────────
 
 test_ocp() {
-  local mode="full"
-  $REUSE_GATEWAY && mode="$mode, reuse-gateway"
-  echo "=== test-flow: openshift ($mode) ==="
-
+  echo "=== OpenShift ==="
+  local gateway=openshell-remote-ocp
   if $REUSE_GATEWAY; then
-    OCP_GW=$("$CLI" gateway list 2>/dev/null | strip_ansi | awk '/-remote-/ {gsub(/^\*/, ""); print $1; exit}')
-    [[ -n "$OCP_GW" ]] && "$CLI" gateway select "$OCP_GW" 2>/dev/null || true
-
-    step "teardown sandboxes+providers" harness delete --sandboxes --providers
-    if ! "$CLI" inference get &>/dev/null; then
-      step "provision" provision_ocp
-    else
-      step "gateway reachable" "$CLI" inference get
-    fi
+    "$CLI" gateway select "$gateway" >/dev/null 2>&1 || step "provision" provision_ocp
   else
-    cleanup_resources_if_reachable "teardown (sandboxes+providers)"
-    step "teardown (cluster)" teardown_cluster openshell-remote-ocp
+    teardown_cluster "$gateway"
     step "provision" provision_ocp
   fi
-
-  local sandbox_name
-  if $NO_PROVIDERS; then
-    sandbox_name="test-ocp"
-    step "sandbox create" harness apply -f test/ci-agent.yaml --name "$sandbox_name"
-  else
-    sandbox_name="agent"
-    step "sandbox create (up)" harness apply --name "$sandbox_name"
-  fi
-
-  sandbox_verify "$sandbox_name"
-  step "sandbox delete" "$CLI" sandbox delete "$sandbox_name"
-
-  if $REUSE_GATEWAY; then
-    cleanup_resources_if_reachable "teardown (sandboxes+providers)"
-  else
-    step "teardown (sandboxes+providers)" harness delete --sandboxes --providers
-    step "teardown (cluster)" teardown_cluster openshell-remote-ocp
-  fi
+  exercise_lifecycle "$gateway" test-ocp-sdk
+  exercise_providers "$gateway"
+  cleanup_gateway "$gateway"
+  $REUSE_GATEWAY || step "cluster teardown" teardown_cluster "$gateway"
 }
 
-# ── Main ─────────────────────────────────────────────────────────────
-
 test_errors
-
 case "$TARGET" in
   local-container|local|podman) test_local ;;
-  helm|kind)           test_kind ;;
-  openshift|ocp)     test_ocp ;;
-  all)    test_local; echo ""; test_kind; echo ""; test_ocp ;;
-  *)
-    echo "Unknown target: $TARGET"
-    echo "Usage: $0 <local-container|helm|openshift|all> [--ci] [--reuse-gateway]"
-    exit 1
-    ;;
+  helm|kind) test_kind ;;
+  openshift|ocp) test_ocp ;;
+  all) test_local; test_kind; test_ocp ;;
+  *) echo "Unknown target: $TARGET"; exit 1 ;;
 esac
 
-summary
-exit $FAIL
+TOTAL=$((PASS + FAIL))
+ELAPSED=$(( $(date +%s) - START ))
+echo
+echo "$PASS/$TOTAL passed, $FAIL failed, $SKIP skipped (${ELAPSED}s)"
+exit "$FAIL"

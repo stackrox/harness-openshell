@@ -148,7 +148,7 @@ credentials are reported as skips instead of causing unrelated checks to fail.
 Runs in GitHub Actions on every PR.
 
 ```
---ci flag  =  --no-providers --agent=ci
+--ci flag  =  --no-providers
 ```
 
 CI mode also auto-activates when the `CI` env var is `true` (set by GitHub Actions).

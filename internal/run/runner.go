@@ -10,10 +10,10 @@ import (
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
-// RunSandboxSDK executes the SDK-native sandbox lifecycle. It intentionally
+// Run executes the SDK-native sandbox lifecycle. It intentionally
 // has no retry loop: the SDK owns transport retries, while invalid requests,
 // authentication failures, and agent failures must not be repeated blindly.
-func RunSandboxSDK(ctx context.Context, client openshell.SandboxExecutionClient, req SandboxRunRequest, stdin io.Reader, stdout, stderr io.Writer) (runErr error) {
+func Run(ctx context.Context, client openshell.SandboxExecutionClient, req SandboxRunRequest, stdin io.Reader, stdout, stderr io.Writer) (runErr error) {
 	_, err := client.CreateSandbox(ctx, openshell.SandboxCreate{
 		Name:      req.Name,
 		Image:     req.Image,

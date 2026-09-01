@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
@@ -27,14 +26,14 @@ type recordingSDKRunner struct {
 	interactiveCommand []string
 	cols               uint32
 	rows               uint32
-	uploads            []gateway.Upload
+	uploads            []Upload
 	uploadErr          error
 	events             []string
 }
 
 func (r *recordingSDKRunner) UploadPath(_ context.Context, _ string, sourcePath, destinationPath string) error {
 	r.events = append(r.events, "upload")
-	r.uploads = append(r.uploads, gateway.Upload{Src: sourcePath, Dst: destinationPath})
+	r.uploads = append(r.uploads, Upload{Src: sourcePath, Dst: destinationPath})
 	return r.uploadErr
 }
 
@@ -70,7 +69,7 @@ func (r *recordingSDKRunner) DeleteSandbox(_ context.Context, _ string) error {
 	return nil
 }
 
-func TestRunSandboxSDKLifecycle(t *testing.T) {
+func TestRunLifecycle(t *testing.T) {
 	runner := &recordingSDKRunner{stdout: "result\n", stderr: "warning\n"}
 	req := SandboxRunRequest{
 		Name:      "review",
@@ -82,8 +81,8 @@ func TestRunSandboxSDKLifecycle(t *testing.T) {
 	}
 	var stdout, stderr bytes.Buffer
 
-	if err := RunSandboxSDK(context.Background(), runner, req, bytes.NewBuffer(nil), &stdout, &stderr); err != nil {
-		t.Fatalf("RunSandboxSDK: %v", err)
+	if err := Run(context.Background(), runner, req, bytes.NewBuffer(nil), &stdout, &stderr); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 	if runner.created.Name != req.Name || runner.created.Image != req.Image || !reflect.DeepEqual(runner.created.Providers, req.Providers) {
 		t.Errorf("create = %+v", runner.created)
@@ -105,9 +104,9 @@ func TestRunSandboxSDKLifecycle(t *testing.T) {
 	}
 }
 
-func TestRunSandboxSDKFailsOnceAndCleansUp(t *testing.T) {
+func TestRunFailsOnceAndCleansUp(t *testing.T) {
 	runner := &recordingSDKRunner{execErr: errors.New("permission denied")}
-	err := RunSandboxSDK(context.Background(), runner, SandboxRunRequest{
+	err := Run(context.Background(), runner, SandboxRunRequest{
 		Name: "review", Image: "reviewer", Command: []string{"reviewer"},
 	}, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "permission denied") {
@@ -118,9 +117,9 @@ func TestRunSandboxSDKFailsOnceAndCleansUp(t *testing.T) {
 	}
 }
 
-func TestRunSandboxSDKKeepAndExitStatus(t *testing.T) {
+func TestRunKeepAndExitStatus(t *testing.T) {
 	runner := &recordingSDKRunner{exitCode: 7}
-	err := RunSandboxSDK(context.Background(), runner, SandboxRunRequest{
+	err := Run(context.Background(), runner, SandboxRunRequest{
 		Name: "review", Image: "reviewer", Command: []string{"reviewer"}, Keep: true,
 	}, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "status 7") {
@@ -131,10 +130,10 @@ func TestRunSandboxSDKKeepAndExitStatus(t *testing.T) {
 	}
 }
 
-func TestRunSandboxSDKInteractiveExitStatus(t *testing.T) {
+func TestRunInteractiveExitStatus(t *testing.T) {
 	session := &testInteractiveSession{exitCode: 7}
 	runner := &recordingSDKRunner{interactive: session}
-	err := RunSandboxSDK(context.Background(), runner, SandboxRunRequest{
+	err := Run(context.Background(), runner, SandboxRunRequest{
 		Name: "review", Image: "reviewer", Command: []string{"bash", "-i"}, TTY: true,
 	}, strings.NewReader("exit\n"), &bytes.Buffer{}, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "status 7") {
@@ -148,14 +147,14 @@ func TestRunSandboxSDKInteractiveExitStatus(t *testing.T) {
 	}
 }
 
-func TestRunSandboxSDKUploadsBeforeExec(t *testing.T) {
+func TestRunUploadsBeforeExec(t *testing.T) {
 	runner := &recordingSDKRunner{}
 	req := SandboxRunRequest{
 		Name: "review", Image: "reviewer", Command: []string{"reviewer"},
-		Uploads: []gateway.Upload{{Src: "/host/repo", Dst: "/sandbox"}, {Src: "/host/task", Dst: "/sandbox/task.md"}},
+		Uploads: []Upload{{Src: "/host/repo", Dst: "/sandbox"}, {Src: "/host/task", Dst: "/sandbox/task.md"}},
 	}
-	if err := RunSandboxSDK(context.Background(), runner, req, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
-		t.Fatalf("RunSandboxSDK: %v", err)
+	if err := Run(context.Background(), runner, req, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 	if !reflect.DeepEqual(runner.uploads, req.Uploads) {
 		t.Errorf("uploads = %+v, want %+v", runner.uploads, req.Uploads)
@@ -168,22 +167,22 @@ func TestRunSandboxSDKUploadsBeforeExec(t *testing.T) {
 	}
 }
 
-func TestRunSandboxSDKUploadsWithoutCommand(t *testing.T) {
+func TestRunUploadsWithoutCommand(t *testing.T) {
 	runner := &recordingSDKRunner{}
-	req := SandboxRunRequest{Name: "review", Image: "reviewer", Uploads: []gateway.Upload{{Src: "/host/task", Dst: "/sandbox/task.md"}}}
-	if err := RunSandboxSDK(context.Background(), runner, req, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
-		t.Fatalf("RunSandboxSDK: %v", err)
+	req := SandboxRunRequest{Name: "review", Image: "reviewer", Uploads: []Upload{{Src: "/host/task", Dst: "/sandbox/task.md"}}}
+	if err := Run(context.Background(), runner, req, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("Run: %v", err)
 	}
 	if !reflect.DeepEqual(runner.uploads, req.Uploads) || len(runner.executed) != 0 {
 		t.Errorf("uploads = %+v, command = %v", runner.uploads, runner.executed)
 	}
 }
 
-func TestRunSandboxSDKUploadFailureCleansUp(t *testing.T) {
+func TestRunUploadFailureCleansUp(t *testing.T) {
 	runner := &recordingSDKRunner{uploadErr: errors.New("transport failed")}
-	err := RunSandboxSDK(context.Background(), runner, SandboxRunRequest{
+	err := Run(context.Background(), runner, SandboxRunRequest{
 		Name: "review", Image: "reviewer", Command: []string{"reviewer"},
-		Uploads: []gateway.Upload{{Src: "/host/task", Dst: "/sandbox/task.md"}},
+		Uploads: []Upload{{Src: "/host/task", Dst: "/sandbox/task.md"}},
 	}, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "transport failed") {
 		t.Fatalf("error = %v", err)

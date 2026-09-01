@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/openshell"
+	"github.com/stackrox/harness-openshell/internal/status"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,6 +21,13 @@ type CheckResult struct {
 	Name    string `json:"name"`
 	Status  string `json:"status"`
 	Message string `json:"message"`
+}
+
+func envOr(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
 
 type CheckFunc func(cfg *config.Harness, cli, harnessDir string) []CheckResult
@@ -50,7 +58,7 @@ Phase 2 (online): if the gateway is reachable, checks provider registration.`,
 			var h *config.Harness
 			var target openshell.Target
 			if file != "" {
-				workflow, err := loadCanonicalWorkflow(file, *gatewayName, *workspace, canonicalOverrides{})
+				workflow, err := loadWorkflow(file, *gatewayName, *workspace, applyOverrides{})
 				if err != nil {
 					return err
 				}
@@ -118,6 +126,7 @@ func checkOpenShell(_ *config.Harness, cli, _ string) []CheckResult {
 		}}
 	}
 
+	status.Cmd(path, "--version")
 	out, err := exec.Command(path, "--version").Output()
 	if err != nil {
 		return []CheckResult{{
@@ -254,6 +263,7 @@ func checkGatewayManagedProvider(name string) CheckResult {
 		if gwsPath == "" {
 			return CheckResult{Group: "provider", Name: name, Status: "fail", Message: "gws CLI not installed (brew install googleworkspace/cli/gws)"}
 		}
+		status.Cmd(gwsPath, "auth", "export", "--unmasked")
 		if err := exec.Command(gwsPath, "auth", "export", "--unmasked").Run(); err != nil {
 			return CheckResult{Group: "provider", Name: name, Status: "fail", Message: "not authenticated (run: gws auth login)"}
 		}
@@ -283,6 +293,7 @@ func loadProfileFromOpenShell(name, cli string) *providerProfile {
 	if err != nil {
 		return nil
 	}
+	status.Cmd(path, "provider", "profile", "export", name)
 	out, err := exec.Command(path, "provider", "profile", "export", name).Output()
 	if err != nil {
 		return nil
@@ -417,7 +428,7 @@ func checkOnlineSDK(ctx context.Context, client openshell.Client, providers []st
 				Group:   "gateway",
 				Name:    name,
 				Status:  "warn",
-				Message: "not registered (will be registered on apply)",
+				Message: "not registered (create through platform bootstrap before apply)",
 			})
 		}
 	}

@@ -348,14 +348,14 @@ spec:
 	}
 }
 
-// TestPlanCmd_LegacyConfigInput tests that a config without apiVersion produces a migrate-hint error.
-func TestPlanCmd_LegacyConfigInput(t *testing.T) {
+// TestPlanCmd_UnversionedConfigInput checks that an unversioned file is rejected.
+func TestPlanCmd_UnversionedConfigInput(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	configPath := filepath.Join(tmpDir, "legacy.yaml")
+	configPath := filepath.Join(tmpDir, "unversioned.yaml")
 	configContent := `kind: Harness
 metadata:
-  name: legacy-config
+  name: unversioned-config
 spec:
   target:
     gateway: test-gateway
@@ -379,9 +379,8 @@ spec:
 		t.Fatal("expected error for missing apiVersion, got nil")
 	}
 
-	// Verify the error message mentions migrate.
-	if !contains(err.Error(), "migrate") {
-		t.Errorf("error does not mention migrate: %v", err)
+	if !contains(err.Error(), "harness.openshell.dev/v1alpha1") {
+		t.Errorf("error does not name the supported apiVersion: %v", err)
 	}
 }
 

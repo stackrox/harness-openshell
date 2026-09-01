@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/internal/config"
+	"github.com/stackrox/harness-openshell/internal/status"
 	"gopkg.in/yaml.v3"
 )
 
@@ -148,6 +149,7 @@ func discoverFromOpenShell() []availableProvider {
 	if err != nil {
 		return nil
 	}
+	status.Cmd(path, "provider", "list-profiles")
 	out, err := exec.Command(path, "provider", "list-profiles").Output()
 	if err != nil {
 		return nil

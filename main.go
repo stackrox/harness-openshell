@@ -14,17 +14,12 @@ import (
 
 var version = "dev"
 
-//go:embed profiles/agent-basic.yaml
-var defaultAgentConfig []byte
-
 //go:embed profiles/harness-basic.yaml
 var defaultHarnessConfig []byte
 
 func main() {
 	harnessDir := detectHarnessDir()
-
-	var verbose bool
-	var showCommands bool
+	var verbose, showCommands bool
 
 	root := &cobra.Command{
 		Use:           "harness",
@@ -37,9 +32,8 @@ func main() {
 			status.ShowCommands = showCommands
 		},
 	}
-
-	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show kubectl/helm/openshell commands")
-	root.PersistentFlags().BoolVar(&showCommands, "show-commands", false, "Show openshell commands being executed")
+	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show external commands")
+	root.PersistentFlags().BoolVar(&showCommands, "show-commands", false, "Show external commands on stdout")
 
 	cli := os.Getenv("OPENSHELL_CLI")
 	if cli == "" {
@@ -47,17 +41,15 @@ func main() {
 	}
 
 	cmd.Version = version
-	cmd.DefaultAgentConfig = defaultAgentConfig
 	root.CompletionOptions.HiddenDefaultCmd = true
 
 	root.AddCommand(
-		cmd.NewApplyCmd(harnessDir, cli, sdkclient.New),
+		cmd.NewApplyCmd(sdkclient.New),
 		cmd.NewGetCmd(sdkclient.New),
 		cmd.NewDescribeCmd(sdkclient.New),
 		cmd.NewDeleteCmd(sdkclient.New),
 		cmd.NewDoctorCmd(harnessDir, cli, defaultHarnessConfig, sdkclient.New),
 		cmd.NewInitCmd(defaultHarnessConfig),
-		cmd.NewMigrateCmd(),
 		cmd.NewPlanCmd(harnessDir, sdkclient.New),
 	)
 
@@ -84,10 +76,10 @@ func detectHarnessDir() string {
 	for _, root := range roots {
 		dir := root
 		for range 5 {
-			if _, err := os.Stat(filepath.Join(dir, "agent-default.yaml")); err == nil {
+			if _, err := os.Stat(filepath.Join(dir, "harness-basic.yaml")); err == nil {
 				return dir
 			}
-			if _, err := os.Stat(filepath.Join(dir, "profiles", "agent-default.yaml")); err == nil {
+			if _, err := os.Stat(filepath.Join(dir, "profiles", "harness-basic.yaml")); err == nil {
 				return dir
 			}
 			dir = filepath.Dir(dir)

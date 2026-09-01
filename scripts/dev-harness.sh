@@ -9,8 +9,8 @@ set -euo pipefail
 #
 # Usage:
 #   ./scripts/dev-harness.sh apply
-#   ./scripts/dev-harness.sh apply --task "review this code"
-#   ./scripts/dev-harness.sh apply --agent opencode
+#   ./scripts/dev-harness.sh apply -f harness.yaml --attach
+#   ./scripts/dev-harness.sh apply -f harness.yaml --entrypoint opencode
 #
 # Env overrides:
 #   HARNESS_OS_IMAGE=...   use a specific image tag

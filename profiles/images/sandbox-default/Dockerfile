@@ -64,7 +64,7 @@ COPY policy.yaml /etc/openshell/policy.yaml
 # Agent instructions + config (Claude Code + OpenCode)
 # These are defaults. Override any file via payloads: in the agent YAML:
 #   payloads:
-#     - sandbox_path: /sandbox/.claude/CLAUDE.md
+#     - destination: /sandbox/.claude/CLAUDE.md
 #       content: |
 #         Custom instructions here.
 COPY CLAUDE.md /sandbox/.claude/CLAUDE.md

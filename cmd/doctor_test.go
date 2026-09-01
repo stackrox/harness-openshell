@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	fake "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/fake"
@@ -383,7 +384,7 @@ func TestCheckOnlineSDK_ProviderNotRegistered(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("expected 2 results, got %d: %+v", len(results), results)
 	}
-	if results[1].Name != "github" || results[1].Status != "warn" {
+	if results[1].Name != "github" || results[1].Status != "warn" || !strings.Contains(results[1].Message, "platform bootstrap") {
 		t.Errorf("expected github not-registered warn, got %+v", results[1])
 	}
 }

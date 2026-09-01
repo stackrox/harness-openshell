@@ -314,7 +314,7 @@ func TestInitRun_GoldenAndPlanRoundTrip(t *testing.T) {
 		t.Fatalf("generated config differs from golden\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 
-	workflow, err := loadCanonicalWorkflow(outPath, "", "", canonicalOverrides{})
+	workflow, err := loadWorkflow(outPath, "", "", applyOverrides{})
 	if err != nil {
 		t.Fatalf("canonical plan/apply loader rejected init output: %v", err)
 	}

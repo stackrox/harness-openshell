@@ -184,9 +184,8 @@ type Source struct {
 }
 
 // Payload represents a file or content to be placed in the sandbox.
-// This replaces the legacy sandbox_path/local_path fields.
 type Payload struct {
-	Source      string `yaml:"source,omitempty"`  // local path (was local_path)
+	Source      string `yaml:"source,omitempty"`  // local path
 	Content     string `yaml:"content,omitempty"` // inline content
-	Destination string `yaml:"destination"`       // target path in sandbox (was sandbox_path)
+	Destination string `yaml:"destination"`       // target path in sandbox
 }

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -45,9 +44,9 @@ spec:
     args: [--format, sarif]
 `)
 
-	workflow, err := loadCanonicalWorkflow(file, "flag-gateway", "flag-workspace", canonicalOverrides{})
+	workflow, err := loadWorkflow(file, "flag-gateway", "flag-workspace", applyOverrides{})
 	if err != nil {
-		t.Fatalf("loadCanonicalWorkflow: %v", err)
+		t.Fatalf("loadWorkflow: %v", err)
 	}
 	if workflow.Target != (openshell.Target{Gateway: "flag-gateway", Workspace: "flag-workspace"}) {
 		t.Fatalf("target = %+v", workflow.Target)
@@ -63,9 +62,9 @@ spec:
 		t.Fatalf("plan target = %+v, workflow target = %+v", planned.Target, workflow.Target)
 	}
 
-	sdk := &recordingCanonicalSDK{Client: client}
-	if err := applyCanonical(context.Background(), workflow, planned, current, sdk, canonicalApplyOptions{}); err != nil {
-		t.Fatalf("applyCanonical: %v", err)
+	sdk := &recordingSDK{Client: client}
+	if err := applyWorkflow(context.Background(), workflow, planned, current, sdk, applyOptions{}); err != nil {
+		t.Fatalf("applyWorkflow: %v", err)
 	}
 	if sdk.createCalls != 1 || sdk.created.Name != "review" || sdk.created.Image != "quay.io/test/reviewer:latest" {
 		t.Errorf("SDK create calls=%d request=%+v", sdk.createCalls, sdk.created)
@@ -96,9 +95,9 @@ spec:
     - name: github
       management: referenced
 `)
-	workflow, err := loadCanonicalWorkflow(file, "", "", canonicalOverrides{})
+	workflow, err := loadWorkflow(file, "", "", applyOverrides{})
 	if err != nil {
-		t.Fatalf("loadCanonicalWorkflow: %v", err)
+		t.Fatalf("loadWorkflow: %v", err)
 	}
 	if workflow.Desired.Spec.Sandbox.Image != "" {
 		t.Fatalf("provider-only workflow image = %q, want empty", workflow.Desired.Spec.Sandbox.Image)
@@ -109,8 +108,36 @@ spec:
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	if err := applyCanonical(context.Background(), workflow, planned, current, client, canonicalApplyOptions{}); err != nil {
-		t.Fatalf("applyCanonical: %v", err)
+	if err := applyWorkflow(context.Background(), workflow, planned, current, client, applyOptions{}); err != nil {
+		t.Fatalf("applyWorkflow: %v", err)
+	}
+}
+
+func TestApplySetupOnlySkipsSandbox(t *testing.T) {
+	desired := &config.Harness{
+		Metadata: config.Metadata{Name: "setup"},
+		Spec: config.Spec{
+			Target:  config.Target{Gateway: "acs"},
+			Sandbox: config.Sandbox{Image: "reviewer"},
+			Agent:   config.Agent{Type: "reviewer"},
+		},
+	}
+	workflow := &resolvedWorkflow{
+		Desired: desired,
+		Target:  openshell.Target{Gateway: "acs"},
+		BaseDir: t.TempDir(),
+	}
+	client := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	planned, current, err := workflow.buildPlan(context.Background(), client)
+	if err != nil {
+		t.Fatalf("buildPlan: %v", err)
+	}
+	sdk := &recordingSDK{Client: client}
+	if err := applyWorkflow(context.Background(), workflow, planned, current, sdk, applyOptions{SetupOnly: true}); err != nil {
+		t.Fatalf("applyWorkflow: %v", err)
+	}
+	if sdk.createCalls != 0 {
+		t.Fatalf("sandbox create calls = %d, want 0", sdk.createCalls)
 	}
 }
 
@@ -141,38 +168,22 @@ spec:
     args: [--strict]
 `)
 
-	argsLog := filepath.Join(dir, "openshell.args")
-	cliPath := filepath.Join(dir, "openshell")
-	writeTestFile(t, cliPath, fmt.Sprintf(`#!/bin/sh
-if [ "$1" = "--version" ]; then
-  echo "openshell v0.0.110"
-  exit 0
-fi
-printf '%%s\n' "$@" > %s
-`, argsLog))
-	if err := os.Chmod(cliPath, 0o700); err != nil {
-		t.Fatalf("chmod fake openshell: %v", err)
-	}
-
 	client, raw := testutil.NewFakeClient("cli-workspace", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
 	raw.AddProvider("cli-workspace", &types.Provider{Name: "github", Type: "github"})
-	sdk := &recordingCanonicalSDK{Client: client}
+	sdk := &recordingSDK{Client: client}
 	var factoryTarget openshell.Target
 	factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
 		factoryTarget = target
 		return sdk, nil
 	}
 
-	command := NewApplyCmd(dir, cliPath, factory)
+	command := NewApplyCmd(factory)
 	command.SetArgs([]string{"-f", workflowPath, "--gateway", "cli-gateway", "--workspace", "cli-workspace"})
 	if _, err := captureStdout(t, command.Execute); err != nil {
 		t.Fatalf("apply command: %v", err)
 	}
 	if factoryTarget != (openshell.Target{Gateway: "cli-gateway", Workspace: "cli-workspace"}) {
 		t.Fatalf("factory target = %+v", factoryTarget)
-	}
-	if _, err := os.Stat(argsLog); !os.IsNotExist(err) {
-		t.Fatalf("openshell CLI was invoked on SDK-native path: %v", err)
 	}
 	if sdk.createCalls != 1 || !reflect.DeepEqual(sdk.command, []string{"reviewer", "--strict"}) {
 		t.Errorf("SDK create calls=%d command=%v", sdk.createCalls, sdk.command)
@@ -182,7 +193,29 @@ printf '%%s\n' "$@" > %s
 	}
 }
 
-type recordingCanonicalSDK struct {
+func TestApplyRequiresCanonicalFile(t *testing.T) {
+	command := NewApplyCmd(testutil.FakeFactory(nil))
+	command.SetArgs(nil)
+	command.SilenceErrors = true
+	command.SilenceUsage = true
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "-f/--file is required") {
+		t.Fatalf("error = %v, want required file", err)
+	}
+}
+
+func TestApplyRejectsUnversionedConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflow.yaml")
+	writeTestFile(t, path, "name: old-config\nentrypoint: claude\n")
+	command := NewApplyCmd(testutil.FakeFactory(nil))
+	command.SetArgs([]string{"-f", path})
+	command.SilenceErrors = true
+	command.SilenceUsage = true
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "harness.openshell.dev/v1alpha1") {
+		t.Fatalf("error = %v, want supported apiVersion", err)
+	}
+}
+
+type recordingSDK struct {
 	openshell.Client
 	createCalls int
 	created     openshell.SandboxCreate
@@ -191,30 +224,30 @@ type recordingCanonicalSDK struct {
 	interactive bool
 }
 
-func (c *recordingCanonicalSDK) CreateSandbox(_ context.Context, desired openshell.SandboxCreate) (openshell.Sandbox, error) {
+func (c *recordingSDK) CreateSandbox(_ context.Context, desired openshell.SandboxCreate) (openshell.Sandbox, error) {
 	c.createCalls++
 	c.created = desired
 	return openshell.Sandbox{Name: desired.Name, Phase: "Provisioning"}, nil
 }
 
-func (c *recordingCanonicalSDK) WaitSandboxReady(_ context.Context, name string) (openshell.Sandbox, error) {
+func (c *recordingSDK) WaitSandboxReady(_ context.Context, name string) (openshell.Sandbox, error) {
 	return openshell.Sandbox{Name: name, Phase: "Ready"}, nil
 }
 
-func (*recordingCanonicalSDK) UploadPath(_ context.Context, _, _, _ string) error { return nil }
+func (*recordingSDK) UploadPath(_ context.Context, _, _, _ string) error { return nil }
 
-func (c *recordingCanonicalSDK) ExecSandbox(_ context.Context, _ string, command []string, _, _ io.Writer) (int, error) {
+func (c *recordingSDK) ExecSandbox(_ context.Context, _ string, command []string, _, _ io.Writer) (int, error) {
 	c.command = append([]string(nil), command...)
 	return 0, nil
 }
 
-func (c *recordingCanonicalSDK) ExecInteractive(_ context.Context, _ string, command []string, _, _ uint32) (openshell.InteractiveSession, error) {
+func (c *recordingSDK) ExecInteractive(_ context.Context, _ string, command []string, _, _ uint32) (openshell.InteractiveSession, error) {
 	c.interactive = true
 	c.command = append([]string(nil), command...)
-	return canonicalInteractiveSession{}, nil
+	return interactiveSession{}, nil
 }
 
-func (c *recordingCanonicalSDK) DeleteSandbox(_ context.Context, _ string) error {
+func (c *recordingSDK) DeleteSandbox(_ context.Context, _ string) error {
 	c.deleted = true
 	return nil
 }
@@ -228,19 +261,19 @@ func TestCanonicalApplyUsesSDKForTTY(t *testing.T) {
 			Agent:   config.Agent{Type: "reviewer"},
 		},
 	}
-	workflow := &canonicalWorkflow{
+	workflow := &resolvedWorkflow{
 		Desired: desired,
 		Target:  openshell.Target{Gateway: "acs", Workspace: "team"},
 		BaseDir: t.TempDir(),
 	}
 	base := testutil.NewFake("team", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
-	client := &recordingCanonicalSDK{Client: base}
+	client := &recordingSDK{Client: base}
 	planned, current, err := workflow.buildPlan(context.Background(), client)
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	if err := applyCanonical(context.Background(), workflow, planned, current, client, canonicalApplyOptions{}); err != nil {
-		t.Fatalf("applyCanonical: %v", err)
+	if err := applyWorkflow(context.Background(), workflow, planned, current, client, applyOptions{}); err != nil {
+		t.Fatalf("applyWorkflow: %v", err)
 	}
 	if !client.interactive || !reflect.DeepEqual(client.command, []string{"reviewer"}) {
 		t.Errorf("interactive=%v command=%v", client.interactive, client.command)
@@ -255,32 +288,32 @@ func TestCanonicalApplyUsesSDKTTYForDirectTarget(t *testing.T) {
 			Agent:   config.Agent{Type: "reviewer"},
 		},
 	}
-	workflow := &canonicalWorkflow{
+	workflow := &resolvedWorkflow{
 		Desired: desired,
 		Target:  openshell.Target{Direct: &openshell.DirectConnection{Endpoint: "https://gateway.example.com"}},
 		BaseDir: t.TempDir(),
 	}
 	base := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
-	client := &recordingCanonicalSDK{Client: base}
+	client := &recordingSDK{Client: base}
 	planned, current, err := workflow.buildPlan(context.Background(), client)
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	if err := applyCanonical(context.Background(), workflow, planned, current, client, canonicalApplyOptions{}); err != nil {
-		t.Fatalf("applyCanonical: %v", err)
+	if err := applyWorkflow(context.Background(), workflow, planned, current, client, applyOptions{}); err != nil {
+		t.Fatalf("applyWorkflow: %v", err)
 	}
 	if !client.interactive {
 		t.Error("interactive SDK call was not made")
 	}
 }
 
-type canonicalInteractiveSession struct{}
+type interactiveSession struct{}
 
-func (canonicalInteractiveSession) Read([]byte) (int, error)    { return 0, io.EOF }
-func (canonicalInteractiveSession) Write(p []byte) (int, error) { return len(p), nil }
-func (canonicalInteractiveSession) Resize(uint32, uint32) error { return nil }
-func (canonicalInteractiveSession) ExitCode() (int, error)      { return 0, nil }
-func (canonicalInteractiveSession) Close() error                { return nil }
+func (interactiveSession) Read([]byte) (int, error)    { return 0, io.EOF }
+func (interactiveSession) Write(p []byte) (int, error) { return len(p), nil }
+func (interactiveSession) Resize(uint32, uint32) error { return nil }
+func (interactiveSession) ExitCode() (int, error)      { return 0, nil }
+func (interactiveSession) Close() error                { return nil }
 
 func TestPlanAndApplyDryRunRenderSameCanonicalPlan(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
@@ -300,11 +333,6 @@ spec:
     type: reviewer
     args: [--strict]
 `)
-	cliPath := filepath.Join(dir, "openshell")
-	writeTestFile(t, cliPath, "#!/bin/sh\necho 'openshell v0.0.110'\n")
-	if err := os.Chmod(cliPath, 0o700); err != nil {
-		t.Fatalf("chmod fake openshell: %v", err)
-	}
 	newFactory := func() openshell.Factory {
 		client := testutil.NewFake("team", fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "test"}))
 		return testutil.FakeFactory(client)
@@ -317,7 +345,7 @@ spec:
 		t.Fatalf("plan: %v", err)
 	}
 
-	applyCommand := NewApplyCmd(dir, cliPath, newFactory())
+	applyCommand := NewApplyCmd(newFactory())
 	applyCommand.SetArgs([]string{"-f", workflowPath, "--dry-run", "-o", "json"})
 	applyOutput, err := captureStdout(t, applyCommand.Execute)
 	if err != nil {
@@ -330,7 +358,7 @@ spec:
 
 func TestCanonicalApplyMissingReferencedProviderFailsBeforeSandbox(t *testing.T) {
 	client := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
-	workflow := &canonicalWorkflow{
+	workflow := &resolvedWorkflow{
 		Desired: &config.Harness{
 			Metadata: config.Metadata{Name: "review"},
 			Spec: config.Spec{
@@ -345,8 +373,8 @@ func TestCanonicalApplyMissingReferencedProviderFailsBeforeSandbox(t *testing.T)
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	sdk := &recordingCanonicalSDK{Client: client}
-	err = applyCanonical(context.Background(), workflow, planned, current, sdk, canonicalApplyOptions{})
+	sdk := &recordingSDK{Client: client}
+	err = applyWorkflow(context.Background(), workflow, planned, current, sdk, applyOptions{})
 	if err == nil || !strings.Contains(err.Error(), "referenced provider") {
 		t.Fatalf("error = %v, want missing referenced provider", err)
 	}
@@ -357,7 +385,7 @@ func TestCanonicalApplyMissingReferencedProviderFailsBeforeSandbox(t *testing.T)
 
 func TestCanonicalApplyMissingSandboxProviderFailsBeforeSandbox(t *testing.T) {
 	client := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
-	workflow := &canonicalWorkflow{
+	workflow := &resolvedWorkflow{
 		Desired: &config.Harness{
 			Metadata: config.Metadata{Name: "review"},
 			Spec: config.Spec{
@@ -371,8 +399,8 @@ func TestCanonicalApplyMissingSandboxProviderFailsBeforeSandbox(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	sdk := &recordingCanonicalSDK{Client: client}
-	err = applyCanonical(context.Background(), workflow, planned, current, sdk, canonicalApplyOptions{})
+	sdk := &recordingSDK{Client: client}
+	err = applyWorkflow(context.Background(), workflow, planned, current, sdk, applyOptions{})
 	if err == nil || !strings.Contains(err.Error(), `verifying sandbox provider "github-read"`) {
 		t.Fatalf("error = %v, want missing sandbox provider", err)
 	}
@@ -388,7 +416,7 @@ func TestCanonicalRunRequestResolvesConfigRelativeArtifacts(t *testing.T) {
 	writeTestFile(t, payloadPath, "review carefully\n")
 	writeTestFile(t, policyPath, "version: 1\n")
 
-	workflow := &canonicalWorkflow{
+	workflow := &resolvedWorkflow{
 		Desired: &config.Harness{
 			Metadata: config.Metadata{Name: "review"},
 			Spec: config.Spec{
@@ -404,9 +432,9 @@ func TestCanonicalRunRequestResolvesConfigRelativeArtifacts(t *testing.T) {
 		BaseDir: dir,
 	}
 
-	req, cleanup, err := canonicalRunRequest(workflow)
+	req, cleanup, err := buildRunRequest(workflow)
 	if err != nil {
-		t.Fatalf("canonicalRunRequest: %v", err)
+		t.Fatalf("buildRunRequest: %v", err)
 	}
 	defer cleanup()
 	if string(req.Policy) != "version: 1\n" {

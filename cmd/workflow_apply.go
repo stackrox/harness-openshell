@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/stackrox/harness-openshell/internal/config"
-	"github.com/stackrox/harness-openshell/internal/gateway"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/plan"
 	"github.com/stackrox/harness-openshell/internal/reconcile"
@@ -19,16 +18,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type canonicalApplyOptions struct {
+type applyOptions struct {
 	SetupOnly bool
 	DryRun    bool
 	Output    string
 }
 
-// applyCanonical executes a resolved v1alpha1 workflow. The caller supplies the
+// applyWorkflow executes a resolved v1alpha1 workflow. The caller supplies the
 // same plan snapshot that it may render for --dry-run; writes are delegated to
 // reconcilers that share plan's provider and inference action functions.
-func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Plan, current plan.CurrentState, client openshell.Client, opts canonicalApplyOptions) error {
+func applyWorkflow(ctx context.Context, workflow *resolvedWorkflow, p *plan.Plan, current plan.CurrentState, client openshell.Client, opts applyOptions) error {
 	if opts.DryRun {
 		return renderPlan(p, opts.Output)
 	}
@@ -38,7 +37,7 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 	if client == nil || !current.Reachable {
 		return fmt.Errorf("%s is not reachable or authenticated", targetDescription(workflow.Target))
 	}
-	if err := preflightCanonicalPlan(workflow.Desired, p); err != nil {
+	if err := preflightPlan(workflow.Desired, p); err != nil {
 		return err
 	}
 	if err := verifySandboxProviders(ctx, client, workflow.Desired); err != nil {
@@ -46,22 +45,22 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 	}
 
 	var req run.SandboxRunRequest
-	if !opts.SetupOnly && canonicalRunConfigured(workflow.Desired) {
+	if !opts.SetupOnly && runConfigured(workflow.Desired) {
 		var (
 			cleanup func()
 			err     error
 		)
-		req, cleanup, err = canonicalRunRequest(workflow)
+		req, cleanup, err = buildRunRequest(workflow)
 		if err != nil {
 			return err
 		}
 		defer cleanup()
 	}
 
-	if err := reconcileCanonicalProviders(ctx, client, workflow.Desired.Spec.Providers); err != nil {
+	if err := reconcileProviders(ctx, client, workflow.Desired.Spec.Providers); err != nil {
 		return err
 	}
-	if canonicalInferenceConfigured(workflow.Desired.Spec.Inference) {
+	if inferenceConfigured(workflow.Desired.Spec.Inference) {
 		result, err := reconcile.ReconcileInference(ctx, client, workflow.Desired.Spec.Inference)
 		if err != nil {
 			return fmt.Errorf("reconciling inference: %w", err)
@@ -72,7 +71,7 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 		status.OK("Setup complete (--setup-only): skipping sandbox creation")
 		return nil
 	}
-	if !canonicalRunConfigured(workflow.Desired) {
+	if !runConfigured(workflow.Desired) {
 		status.OK("Reconciliation complete: workflow declares no sandbox run")
 		return nil
 	}
@@ -80,7 +79,7 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 	if !ok {
 		return fmt.Errorf("configured OpenShell client does not support SDK sandbox execution")
 	}
-	return run.RunSandboxSDK(ctx, executor, req, os.Stdin, os.Stdout, os.Stderr)
+	return run.Run(ctx, executor, req, os.Stdin, os.Stdout, os.Stderr)
 }
 
 // targetDescription names a target for error messages: direct registrations
@@ -112,10 +111,10 @@ func verifySandboxProviders(ctx context.Context, client openshell.Client, desire
 	return nil
 }
 
-// preflightCanonicalPlan rejects actions this execution path cannot safely
+// preflightPlan rejects actions this execution path cannot safely
 // realize before any provider or inference write occurs. Reconcile repeats its
 // reads to remain race-safe, but it uses the same action functions.
-func preflightCanonicalPlan(desired *config.Harness, p *plan.Plan) error {
+func preflightPlan(desired *config.Harness, p *plan.Plan) error {
 	management := make(map[string]string, len(desired.Spec.Providers))
 	for _, provider := range desired.Spec.Providers {
 		management[provider.Name] = provider.Management
@@ -140,7 +139,7 @@ func preflightCanonicalPlan(desired *config.Harness, p *plan.Plan) error {
 	return nil
 }
 
-func reconcileCanonicalProviders(ctx context.Context, client openshell.Client, desired []config.Provider) error {
+func reconcileProviders(ctx context.Context, client openshell.Client, desired []config.Provider) error {
 	results, err := reconcile.ReconcileProviders(ctx, client, desired)
 	if err != nil {
 		return fmt.Errorf("reconciling providers: %w", err)
@@ -158,11 +157,11 @@ func reconcileCanonicalProviders(ctx context.Context, client openshell.Client, d
 	return nil
 }
 
-func canonicalInferenceConfigured(inf config.Inference) bool {
+func inferenceConfigured(inf config.Inference) bool {
 	return inf.Route != "" || inf.Provider != "" || inf.Model != "" || inf.Timeout != ""
 }
 
-func canonicalRunRequest(workflow *canonicalWorkflow) (run.SandboxRunRequest, func(), error) {
+func buildRunRequest(workflow *resolvedWorkflow) (run.SandboxRunRequest, func(), error) {
 	desired := workflow.Desired
 	cleanups := []func(){}
 	cleanup := func() {
@@ -179,7 +178,7 @@ func canonicalRunRequest(workflow *canonicalWorkflow) (run.SandboxRunRequest, fu
 		return fail(fmt.Errorf("local sandbox images are unsupported; use a registry image reference"))
 	}
 
-	var uploads []gateway.Upload
+	var uploads []run.Upload
 	if desired.Spec.Source.Repo != "" {
 		if mode := desired.Spec.Source.Submodules; mode != "" && mode != "shallow" {
 			return fail(fmt.Errorf("spec.source.submodules %q is not supported; use shallow or omit it", mode))
@@ -215,7 +214,7 @@ func canonicalRunRequest(workflow *canonicalWorkflow) (run.SandboxRunRequest, fu
 			if _, err := os.Stat(source); err != nil {
 				return fail(fmt.Errorf("reading spec.payloads[%d].source: %w", i, err))
 			}
-			uploads = append(uploads, gateway.Upload{Src: source, Dst: payload.Destination})
+			uploads = append(uploads, run.Upload{Src: source, Dst: payload.Destination})
 		case payload.Content != "":
 			if contentDir == "" {
 				stagedDir, err := os.MkdirTemp("", "harness-v1alpha-payload-")
@@ -229,7 +228,7 @@ func canonicalRunRequest(workflow *canonicalWorkflow) (run.SandboxRunRequest, fu
 			if err := os.WriteFile(source, []byte(payload.Content), 0o600); err != nil {
 				return fail(fmt.Errorf("staging spec.payloads[%d].content: %w", i, err))
 			}
-			uploads = append(uploads, gateway.Upload{Src: source, Dst: payload.Destination})
+			uploads = append(uploads, run.Upload{Src: source, Dst: payload.Destination})
 		default:
 			return fail(fmt.Errorf("spec.payloads[%d] requires source or content", i))
 		}
@@ -266,6 +265,31 @@ func canonicalRunRequest(workflow *canonicalWorkflow) (run.SandboxRunRequest, fu
 	}, cleanup, nil
 }
 
+// cloneRepo prepares an isolated checkout on the host so repository credentials
+// never enter the sandbox.
+func cloneRepo(repo, ref, runID string) (run.Upload, func(), error) {
+	if ref != "" {
+		status.Infof("Repo:  %s (ref: %s)", repo, ref)
+	} else {
+		status.Infof("Repo:  %s", repo)
+	}
+	cache, err := source.DefaultCache()
+	if err != nil {
+		return run.Upload{}, nil, err
+	}
+	prepared, err := cache.Prepare(repo, ref, runID)
+	if err != nil {
+		return run.Upload{}, nil, fmt.Errorf("preparing repo %s: %w", repo, err)
+	}
+	status.OKf("Prepared %s", source.RepoName(repo))
+	cleanup := func() {
+		if err := prepared.Cleanup(); err != nil {
+			status.Warnf("cleaning up repo checkout: %v", err)
+		}
+	}
+	return run.Upload{Src: prepared.Dir, Dst: "/sandbox"}, cleanup, nil
+}
+
 func renderPlan(p *plan.Plan, output string) error {
 	format := formatTable
 	if output != "" {
@@ -285,7 +309,7 @@ func renderPlan(p *plan.Plan, output string) error {
 	return nil
 }
 
-func renderCanonicalWorkflow(workflow *canonicalWorkflow, output string) error {
+func renderWorkflow(workflow *resolvedWorkflow, output string) error {
 	switch output {
 	case "yaml":
 		data, err := yaml.Marshal(workflow.Desired)

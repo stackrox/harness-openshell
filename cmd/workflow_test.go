@@ -31,9 +31,9 @@ spec:
 		t.Fatalf("write workflow: %v", err)
 	}
 
-	workflow, err := loadCanonicalWorkflow(path, "", "", canonicalOverrides{})
+	workflow, err := loadWorkflow(path, "", "", applyOverrides{})
 	if err != nil {
-		t.Fatalf("loadCanonicalWorkflow: %v", err)
+		t.Fatalf("loadWorkflow: %v", err)
 	}
 	if workflow.Target.Workspace != "" {
 		t.Fatalf("workspace=%q, want implicit default", workflow.Target.Workspace)
