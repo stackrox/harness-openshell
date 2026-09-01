@@ -26,7 +26,7 @@ OPENSHELL_VERSION := $(shell cat .openshell-version 2>/dev/null)
 IMAGE  := $(REGISTRY):sandbox-$(VERSION)
 
 .PHONY: all cli openshell \
-        vet lint test test-local test-kind test-remote test-all \
+        vet lint test test-local test-kind test-remote test-hypershell test-all \
         dev-sandbox dev-push tag clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
@@ -101,6 +101,13 @@ test-remote: cli dev-push
 	@test -n "$${KUBECONFIG}" || { echo "ERROR: Set KUBECONFIG for OCP (e.g. export KUBECONFIG=infracluster/kubeconfig)"; exit 1; }
 	@echo ""
 	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh openshift
+
+## Managed HyperShell: canonical remote lifecycle against the real gateway.
+## Runs LOCALLY only (the OIDC issuer is VPN-only, unreachable from CI runners).
+## Point HYPERSHELL_SA_ENV at a git-excluded SA env file; must be on the RH VPN.
+test-hypershell: cli
+	@test -n "$${HYPERSHELL_SA_ENV}" || { echo "ERROR: set HYPERSHELL_SA_ENV=path/to/sa.env"; exit 1; }
+	./test/hypershell-lifecycle.sh
 
 ## All: unit + local + kind + remote
 test-all: test test-local test-kind test-remote
