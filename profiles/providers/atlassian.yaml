@@ -16,13 +16,21 @@ credentials:
     auth_style: basic
 discovery:
   credentials: [api_token]
+# Atlassian's API endpoints terminate TLS at their edge, so the gateway
+# cannot L7-inspect this traffic; the credential (JIRA_API_TOKEN) rides an
+# opaque HTTPS tunnel. allow_uninspected_credentials acknowledges that and
+# is required for credentialed L4-only endpoints on gateways >= the L7
+# validation change (older gateways accepted the bare host/port form).
 endpoints:
   - host: "*.atlassian.net"
     port: 443
+    allow_uninspected_credentials: true
   - host: "*.atl-paas.net"
     port: 443
+    allow_uninspected_credentials: true
   - host: "*.atlassian.com"
     port: 443
+    allow_uninspected_credentials: true
 binaries:
   - /sandbox/.venv/bin/python
   - /sandbox/.venv/bin/python3
