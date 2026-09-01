@@ -83,7 +83,7 @@ func applyCanonical(ctx context.Context, workflow *canonicalWorkflow, p *plan.Pl
 		if !ok {
 			return fmt.Errorf("configured OpenShell client does not support SDK sandbox execution")
 		}
-		return run.RunSandboxSDK(ctx, executor, req, os.Stdout, os.Stderr)
+		return run.RunSandboxSDK(ctx, executor, req, os.Stdin, os.Stdout, os.Stderr)
 	}
 	if workflow.Target.Direct != nil {
 		// The CLI run path binds to a named CLI gateway and cannot use the
@@ -105,12 +105,11 @@ func targetDescription(target openshell.Target) string {
 
 // canonicalSDKRunEligible selects the lifecycle the pinned SDK implements
 // end-to-end. The SDK exposes file transfer methods, but its shipped transport
-// is unavailable, so uploads remain on the CLI path. Local image builds and
-// interactive terminals likewise stay on the CLI until each has a tested
-// SDK-native implementation.
+// is unavailable, so uploads remain on the CLI path. Local image builds likewise
+// stay on the CLI until they have a tested SDK-native implementation.
 func canonicalSDKRunEligible(workflow *canonicalWorkflow) bool {
 	desired := workflow.Desired
-	if desired.Spec.Source.Repo != "" || len(desired.Spec.Payloads) > 0 || desired.Spec.Sandbox.TTY {
+	if desired.Spec.Source.Repo != "" || len(desired.Spec.Payloads) > 0 {
 		return false
 	}
 	image := resolveSandboxImagePath(desired.Spec.Sandbox.Image, workflow.BaseDir)

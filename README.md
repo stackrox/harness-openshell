@@ -117,9 +117,10 @@ and policy paths resolve from the workflow file's directory.
 
 Remote-image, non-interactive workflows use the OpenShell SDK for sandbox
 creation, policy application, readiness, execution, and cleanup. Source or
-payload uploads, local image builds, and interactive TTYs currently use the
-OpenShell CLI because those paths do not yet have complete SDK-native
-implementations.
+payload uploads and local image builds currently select the OpenShell CLI path
+because those capabilities do not yet have complete SDK-native implementations.
+Otherwise, interactive TTY workflows use the SDK with host terminal resize and
+raw-mode handling.
 
 ## The Agent YAML
 

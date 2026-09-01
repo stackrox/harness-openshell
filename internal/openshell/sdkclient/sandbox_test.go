@@ -210,9 +210,21 @@ func (c *clientWithExec) Exec() v1.ExecInterface { return c.exec }
 
 type recordingExec struct {
 	v1.ExecInterface
-	workspace string
-	sandbox   string
-	command   []string
+	workspace   string
+	sandbox     string
+	command     []string
+	cols        uint32
+	rows        uint32
+	interactive v1.InteractiveSession
+}
+
+func (e *recordingExec) Interactive(_ context.Context, workspace, sandbox string, command []string, cols, rows uint32, _ ...v1.ExecOptions) (v1.InteractiveSession, error) {
+	e.workspace = workspace
+	e.sandbox = sandbox
+	e.command = append([]string(nil), command...)
+	e.cols = cols
+	e.rows = rows
+	return e.interactive, nil
 }
 
 func (e *recordingExec) Stream(_ context.Context, workspace, sandbox string, command []string, _ ...v1.ExecOptions) (v1.ExecStream, error) {
@@ -261,3 +273,27 @@ func TestExecSandbox(t *testing.T) {
 		t.Errorf("exit=%d stdout=%q stderr=%q", exitCode, stdout.String(), stderr.String())
 	}
 }
+
+func TestExecInteractive(t *testing.T) {
+	session := &recordingInteractiveSession{}
+	recorder := &recordingExec{interactive: session}
+	raw := &clientWithExec{ClientInterface: fake.NewClient(), exec: recorder}
+	executor := NewFromClient(raw, "team").(openshell.SandboxExecutionClient)
+
+	got, err := executor.ExecInteractive(context.Background(), "review", []string{"bash", "-i"}, 132, 43)
+	if err != nil {
+		t.Fatalf("ExecInteractive: %v", err)
+	}
+	if got != session || recorder.workspace != "team" || recorder.sandbox != "review" ||
+		!reflect.DeepEqual(recorder.command, []string{"bash", "-i"}) || recorder.cols != 132 || recorder.rows != 43 {
+		t.Errorf("session=%p target=%s/%s command=%v size=%dx%d", got, recorder.workspace, recorder.sandbox, recorder.command, recorder.cols, recorder.rows)
+	}
+}
+
+type recordingInteractiveSession struct{}
+
+func (*recordingInteractiveSession) Read([]byte) (int, error)    { return 0, io.EOF }
+func (*recordingInteractiveSession) Write(p []byte) (int, error) { return len(p), nil }
+func (*recordingInteractiveSession) Resize(uint32, uint32) error { return nil }
+func (*recordingInteractiveSession) ExitCode() (int, error)      { return 0, nil }
+func (*recordingInteractiveSession) Close() error                { return nil }

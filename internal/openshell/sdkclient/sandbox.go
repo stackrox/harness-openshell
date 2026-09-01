@@ -205,6 +205,15 @@ func (c *client) ExecSandbox(ctx context.Context, name string, command []string,
 	return exitCode, nil
 }
 
+// ExecInteractive opens an SDK-native bidirectional terminal session.
+func (c *client) ExecInteractive(ctx context.Context, name string, command []string, cols, rows uint32) (openshell.InteractiveSession, error) {
+	session, err := c.raw.Exec().Interactive(ctx, c.workspace, name, append([]string(nil), command...), cols, rows)
+	if err != nil {
+		return nil, translate(err)
+	}
+	return session, nil
+}
+
 func copySandboxStrings(in map[string]string) map[string]string {
 	if in == nil {
 		return nil

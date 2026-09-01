@@ -196,6 +196,7 @@ type recordingCanonicalSDK struct {
 	created     openshell.SandboxCreate
 	command     []string
 	deleted     bool
+	interactive bool
 }
 
 func (c *recordingCanonicalSDK) CreateSandbox(_ context.Context, desired openshell.SandboxCreate) (openshell.Sandbox, error) {
@@ -211,6 +212,12 @@ func (c *recordingCanonicalSDK) WaitSandboxReady(_ context.Context, name string)
 func (c *recordingCanonicalSDK) ExecSandbox(_ context.Context, _ string, command []string, _, _ io.Writer) (int, error) {
 	c.command = append([]string(nil), command...)
 	return 0, nil
+}
+
+func (c *recordingCanonicalSDK) ExecInteractive(_ context.Context, _ string, command []string, _, _ uint32) (openshell.InteractiveSession, error) {
+	c.interactive = true
+	c.command = append([]string(nil), command...)
+	return canonicalInteractiveSession{}, nil
 }
 
 func (c *recordingCanonicalSDK) DeleteSandbox(_ context.Context, _ string) error {
@@ -236,12 +243,12 @@ func TestCanonicalSDKRunEligibility(t *testing.T) {
 	}
 	desired.Spec.Sandbox.Policy = nil
 	desired.Spec.Sandbox.TTY = true
-	if canonicalSDKRunEligible(workflow) {
-		t.Fatal("interactive workflow must retain CLI fallback")
+	if !canonicalSDKRunEligible(workflow) {
+		t.Fatal("interactive workflow should use SDK")
 	}
 }
 
-func TestCanonicalApplyRetainsCLIFallbackForTTY(t *testing.T) {
+func TestCanonicalApplyUsesSDKForTTY(t *testing.T) {
 	desired := &config.Harness{
 		Metadata: config.Metadata{Name: "interactive"},
 		Spec: config.Spec{
@@ -255,7 +262,8 @@ func TestCanonicalApplyRetainsCLIFallbackForTTY(t *testing.T) {
 		Target:  openshell.Target{Gateway: "acs", Workspace: "team"},
 		BaseDir: t.TempDir(),
 	}
-	client := testutil.NewFake("team", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	base := testutil.NewFake("team", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	client := &recordingCanonicalSDK{Client: base}
 	planned, current, err := workflow.buildPlan(context.Background(), client)
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
@@ -264,15 +272,12 @@ func TestCanonicalApplyRetainsCLIFallbackForTTY(t *testing.T) {
 	if err := applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{}); err != nil {
 		t.Fatalf("applyCanonical: %v", err)
 	}
-	if gw.createCalls != 1 || !gw.createOpts[0].TTY || !gw.createOpts[0].NoAutoProviders {
-		t.Errorf("CLI create calls=%d options=%+v", gw.createCalls, gw.createOpts)
+	if !client.interactive || !reflect.DeepEqual(client.command, []string{"reviewer"}) || gw.createCalls != 0 {
+		t.Errorf("interactive=%v command=%v CLI create calls=%d", client.interactive, client.command, gw.createCalls)
 	}
 }
 
-func TestCanonicalApplyRejectsCLIFallbackForDirectTarget(t *testing.T) {
-	// A direct registration carries its own endpoint and OIDC but no CLI
-	// gateway name. A CLI-only run configuration (here, TTY) must be rejected
-	// rather than silently run against unrelated CLI state.
+func TestCanonicalApplyUsesSDKTTYForDirectTarget(t *testing.T) {
 	desired := &config.Harness{
 		Metadata: config.Metadata{Name: "interactive"},
 		Spec: config.Spec{
@@ -285,20 +290,28 @@ func TestCanonicalApplyRejectsCLIFallbackForDirectTarget(t *testing.T) {
 		Target:  openshell.Target{Direct: &openshell.DirectConnection{Endpoint: "https://gateway.example.com"}},
 		BaseDir: t.TempDir(),
 	}
-	client := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	base := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	client := &recordingCanonicalSDK{Client: base}
 	planned, current, err := workflow.buildPlan(context.Background(), client)
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
 	gw := &mockGW{}
-	err = applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{})
-	if err == nil || !strings.Contains(err.Error(), "direct registration target does not support") {
-		t.Fatalf("error = %v, want direct-target CLI-path rejection", err)
+	if err := applyCanonical(context.Background(), workflow, planned, current, client, gw, canonicalApplyOptions{}); err != nil {
+		t.Fatalf("applyCanonical: %v", err)
 	}
-	if gw.createCalls != 0 {
-		t.Fatalf("CLI sandbox create calls = %d, want 0", gw.createCalls)
+	if !client.interactive || gw.createCalls != 0 {
+		t.Errorf("interactive=%v CLI create calls=%d", client.interactive, gw.createCalls)
 	}
 }
+
+type canonicalInteractiveSession struct{}
+
+func (canonicalInteractiveSession) Read([]byte) (int, error)    { return 0, io.EOF }
+func (canonicalInteractiveSession) Write(p []byte) (int, error) { return len(p), nil }
+func (canonicalInteractiveSession) Resize(uint32, uint32) error { return nil }
+func (canonicalInteractiveSession) ExitCode() (int, error)      { return 0, nil }
+func (canonicalInteractiveSession) Close() error                { return nil }
 
 func TestPlanAndApplyDryRunRenderSameCanonicalPlan(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")

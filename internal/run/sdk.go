@@ -13,7 +13,7 @@ import (
 // RunSandboxSDK executes the SDK-native sandbox lifecycle. It intentionally
 // has no retry loop: the SDK owns transport retries, while invalid requests,
 // authentication failures, and agent failures must not be repeated blindly.
-func RunSandboxSDK(ctx context.Context, client openshell.SandboxExecutionClient, req SandboxRunRequest, stdout, stderr io.Writer) (runErr error) {
+func RunSandboxSDK(ctx context.Context, client openshell.SandboxExecutionClient, req SandboxRunRequest, stdin io.Reader, stdout, stderr io.Writer) (runErr error) {
 	_, err := client.CreateSandbox(ctx, openshell.SandboxCreate{
 		Name:      req.Name,
 		Image:     req.Image,
@@ -47,7 +47,12 @@ func RunSandboxSDK(ctx context.Context, client openshell.SandboxExecutionClient,
 		return nil
 	}
 
-	exitCode, err := client.ExecSandbox(ctx, req.Name, req.Command, stdout, stderr)
+	var exitCode int
+	if req.TTY {
+		exitCode, err = runInteractive(ctx, client, req.Name, req.Command, stdin, stdout)
+	} else {
+		exitCode, err = client.ExecSandbox(ctx, req.Name, req.Command, stdout, stderr)
+	}
 	if err != nil {
 		return fmt.Errorf("executing command in sandbox %q: %w", req.Name, err)
 	}
