@@ -148,7 +148,7 @@ credentials are reported as skips instead of causing unrelated checks to fail.
 Runs in GitHub Actions on every PR.
 
 ```
---ci flag  =  --no-providers --agent=ci
+--ci flag  =  --no-providers
 ```
 
 CI mode also auto-activates when the `CI` env var is `true` (set by GitHub Actions).
@@ -168,7 +168,7 @@ See `make help` for the full list. The test entry points:
 Or directly:
 ```bash
 ./test/test-flow.sh local-container        # local Podman (see: make test-local)
-./test/test-flow.sh local-container --ci   # ci mode (no providers, ci-agent.yaml)
+./test/test-flow.sh local-container --ci   # ci mode (no providers)
 ./test/test-flow.sh openshift              # OCP (see: make test-remote)
 ./test/kind-lifecycle.sh                   # kind cluster (see: make test-kind, used in CI)
 ```

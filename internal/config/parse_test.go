@@ -90,11 +90,8 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-func TestLegacyConfigError(t *testing.T) {
-	// A real legacy v1 config carries top-level keys unknown to the v1alpha1
-	// schema (name, gateway, entrypoint, ...). It must still surface the
-	// migration hint, not a cryptic unknown-field error.
-	legacy := `
+func TestUnversionedConfigError(t *testing.T) {
+	unversioned := `
 name: test-agent
 gateway: rc-dev
 entrypoint: claude
@@ -102,12 +99,12 @@ repo: https://github.com/example/repo
 providers:
   - profile: github
 `
-	_, err := Parse([]byte(legacy))
+	_, err := Parse([]byte(unversioned))
 	if err == nil {
-		t.Fatal("expected error for legacy config (missing apiVersion)")
+		t.Fatal("expected error for unversioned config")
 	}
-	if !bytes.Contains([]byte(err.Error()), []byte("harness migrate")) {
-		t.Errorf("error should mention 'harness migrate', got: %v", err)
+	if !bytes.Contains([]byte(err.Error()), []byte("harness.openshell.dev/v1alpha1")) {
+		t.Errorf("error should name the supported apiVersion, got: %v", err)
 	}
 }
 
@@ -148,6 +145,20 @@ unknown_key: value
 	}
 	if !bytes.Contains([]byte(err.Error()), []byte("unknown")) {
 		t.Errorf("error should mention 'unknown', got: %v", err)
+	}
+}
+
+func TestRemovedCredentialAndAutoProviderFieldsAreRejected(t *testing.T) {
+	for name, field := range map[string]string{
+		"provider credentials":       "  providers:\n    - name: github\n      credentials: {source: gcloud-adc}\n",
+		"registration autoProviders": "  target:\n    registration:\n      autoProviders: true\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			data := "apiVersion: harness.openshell.dev/v1alpha1\nkind: Harness\nmetadata: {name: test}\nspec:\n" + field
+			if _, err := Parse([]byte(data)); err == nil {
+				t.Fatal("removed field was accepted")
+			}
+		})
 	}
 }
 
@@ -197,8 +208,8 @@ spec:
 	if err == nil {
 		t.Fatal("expected error for missing apiVersion")
 	}
-	if !bytes.Contains([]byte(err.Error()), []byte("harness migrate")) {
-		t.Errorf("error should mention 'harness migrate', got: %v", err)
+	if !bytes.Contains([]byte(err.Error()), []byte("harness.openshell.dev/v1alpha1")) {
+		t.Errorf("error should name the supported apiVersion, got: %v", err)
 	}
 }
 
@@ -216,8 +227,8 @@ spec:
 	if err == nil {
 		t.Fatal("expected error for wrong apiVersion")
 	}
-	if !bytes.Contains([]byte(err.Error()), []byte("harness migrate")) {
-		t.Errorf("error should mention 'harness migrate', got: %v", err)
+	if !bytes.Contains([]byte(err.Error()), []byte("harness.openshell.dev/v1alpha1")) {
+		t.Errorf("error should name the supported apiVersion, got: %v", err)
 	}
 }
 
@@ -277,31 +288,7 @@ func TestLoadNonexistent(t *testing.T) {
 	}
 }
 
-func TestSecretRefDescribe(t *testing.T) {
-	testCases := []struct {
-		source   string
-		expected string
-	}{
-		{"gcloud-adc", "gcloud ADC"},
-		{"environment:OPENSHELL_OIDC_CLIENT_SECRET", "environment OPENSHELL_OIDC_CLIENT_SECRET"},
-		{"environment:MY_VAR", "environment MY_VAR"},
-		{"unknown-source", "unknown-source"},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.source, func(t *testing.T) {
-			ref := SecretRef{Source: tc.source}
-			got := ref.Describe()
-			if got != tc.expected {
-				t.Errorf("Describe: got %q, want %q", got, tc.expected)
-			}
-		})
-	}
-}
-
-func TestPayloadFieldRename(t *testing.T) {
-	// Test that legacy field names (sandbox_path/local_path) are mapped correctly to
-	// destination/source as per the locked decision #6
+func TestPayloadSourceAndDestination(t *testing.T) {
 	fixture := "testdata/fact-dev.v1alpha1.yaml"
 	data, err := os.ReadFile(fixture)
 	if err != nil {
@@ -317,7 +304,6 @@ func TestPayloadFieldRename(t *testing.T) {
 		t.Fatal("expected at least one payload")
 	}
 
-	// First payload should have both source and destination
 	p0 := h.Spec.Payloads[0]
 	if p0.Source != ".agents/skills/fact" {
 		t.Errorf("payload[0].source: got %q, want %q", p0.Source, ".agents/skills/fact")

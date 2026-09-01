@@ -199,48 +199,6 @@ func TestResolve_DefaultsEmptyManagementToReferenced(t *testing.T) {
 	}
 }
 
-func TestResolve_RejectsBadCredentialSource(t *testing.T) {
-	for _, tc := range []struct{ name, source string }{
-		{"typo", "gcloud-adcc"},
-		{"unknown", "vault"},
-		{"env-no-var", "environment:"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			h := &Harness{
-				APIVersion: "harness.openshell.dev/v1alpha1",
-				Kind:       "Harness",
-				Metadata:   Metadata{Name: "test"},
-				Spec: Spec{Providers: []Provider{
-					{Name: "gh", Type: "github", Management: "managed", Credentials: &SecretRef{Source: tc.source}},
-				}},
-			}
-			_, err := Resolve(h, func(string) string { return "" })
-			if err == nil {
-				t.Fatalf("expected Resolve to reject credential source %q", tc.source)
-			}
-			if !strings.Contains(err.Error(), "credentials.source") {
-				t.Errorf("error should name the field: %v", err)
-			}
-		})
-	}
-}
-
-func TestResolve_AcceptsValidCredentialSources(t *testing.T) {
-	for _, source := range []string{"gcloud-adc", "environment:OPENSHELL_OIDC_CLIENT_SECRET"} {
-		h := &Harness{
-			APIVersion: "harness.openshell.dev/v1alpha1",
-			Kind:       "Harness",
-			Metadata:   Metadata{Name: "test"},
-			Spec: Spec{Providers: []Provider{
-				{Name: "gh", Type: "github", Management: "managed", Credentials: &SecretRef{Source: source}},
-			}},
-		}
-		if _, err := Resolve(h, func(string) string { return "" }); err != nil {
-			t.Errorf("Resolve rejected valid credential source %q: %v", source, err)
-		}
-	}
-}
-
 func TestResolve_RejectsDestinationTraversal(t *testing.T) {
 	h := &Harness{
 		APIVersion: "harness.openshell.dev/v1alpha1",
@@ -388,52 +346,6 @@ func TestResolveNonSecretField(t *testing.T) {
 	// Original should be unchanged
 	if h.Spec.Target.Gateway != "${GATEWAY_VAR}" {
 		t.Errorf("original should be unchanged, got %q", h.Spec.Target.Gateway)
-	}
-}
-
-func TestResolveSecretRefUntouched(t *testing.T) {
-	// Verify Provider.Credentials is passed through untouched
-	secretSource := "environment:OPENSHELL_SECRET"
-	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
-		Spec: Spec{
-			Providers: []Provider{
-				{
-					Name:        "my-provider",
-					Type:        "vertex",
-					Management:  "managed",
-					Credentials: &SecretRef{Source: secretSource},
-				},
-			},
-		},
-	}
-
-	getenv := func(name string) string {
-		if name == "OPENSHELL_SECRET" {
-			return "actual-secret-value-12345"
-		}
-		return ""
-	}
-
-	resolved, err := Resolve(h, getenv)
-	if err != nil {
-		t.Fatalf("Resolve failed: %v", err)
-	}
-
-	// Assert Credentials.Source is unchanged
-	if resolved.Spec.Providers[0].Credentials == nil {
-		t.Fatal("Credentials should not be nil")
-	}
-	if resolved.Spec.Providers[0].Credentials.Source != secretSource {
-		t.Errorf("Credentials.Source should be untouched: got %q, want %q", resolved.Spec.Providers[0].Credentials.Source, secretSource)
-	}
-
-	// Assert Describe() output contains no injected value
-	describeOutput := resolved.Spec.Providers[0].Credentials.Describe()
-	if strings.Contains(describeOutput, "actual-secret-value") {
-		t.Errorf("Describe() output should not contain secret value, got: %q", describeOutput)
 	}
 }
 

@@ -14,15 +14,14 @@ const apiVersionV1alpha1 = "harness.openshell.dev/v1alpha1"
 //
 // It validates:
 //   - apiVersion must equal "harness.openshell.dev/v1alpha1"; a missing or wrong
-//     apiVersion (including any legacy v1 config) yields a "harness migrate" hint
+//     apiVersion is rejected with the supported version in the error
 //   - unknown fields within a v1alpha1 document are errors (this rejects
 //     spec.context, the dead terminology whose replacement is spec.target)
 //   - kind must equal "Harness"
 //   - metadata.name must be non-empty
 func Parse(data []byte) (*Harness, error) {
-	// Detect apiVersion with a lenient pass first. Strict decoding would reject a
-	// legacy config on its unknown top-level keys before the version check runs,
-	// hiding the migration hint behind a cryptic unknown-field error.
+	// Detect apiVersion with a lenient pass first so an unversioned document gets
+	// the version error before strict unknown-field validation.
 	var probe struct {
 		APIVersion string `yaml:"apiVersion"`
 	}
@@ -30,7 +29,7 @@ func Parse(data []byte) (*Harness, error) {
 		return nil, fmt.Errorf("parsing YAML: %w", err)
 	}
 	if probe.APIVersion != apiVersionV1alpha1 {
-		return nil, fmt.Errorf("unsupported or missing apiVersion %q; expected %s (run 'harness migrate' to convert a legacy config)", probe.APIVersion, apiVersionV1alpha1)
+		return nil, fmt.Errorf("unsupported or missing apiVersion %q; expected %s", probe.APIVersion, apiVersionV1alpha1)
 	}
 
 	// Strict decode: unknown fields within a v1alpha1 document are errors.

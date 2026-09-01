@@ -8,7 +8,7 @@ Declarative workflow layer for OpenShell AI agent sandboxes.
 
 ```bash
 harness init                        # generate a config
-harness doctor                      # check your environment
+harness doctor -f harness.yaml      # check your environment
 harness apply -f harness.yaml       # launch a sandbox
 ```
 
@@ -17,41 +17,48 @@ harness apply -f harness.yaml       # launch a sandbox
 Launch an interactive coding session with Claude Code or OpenCode.
 
 ```bash
-harness apply --attach                                        # built-in default agent
-harness apply -f harness.yaml --attach                        # agent config in harness.yaml
-harness apply -f harness.yaml --attach --entrypoint opencode  # OpenCode
+harness apply -f harness.yaml --attach                        # interactive agent
+harness apply -f harness.yaml --attach --entrypoint opencode  # override the executable
 ```
 
-For a v1alpha1 workflow, `harness apply` uses `spec.target`, `--gateway` and
-`--workspace` (flag, environment, then config precedence). Legacy configs retain
-the selected-gateway fallback. Provisioning the gateway is OpenShell's or
-HyperShell's job, not the harness's (see [Install](#install)).
+`harness apply` uses `spec.target`, `--gateway`, and `--workspace` with flag,
+environment, then config precedence. Provisioning the gateway is OpenShell's or
+HyperShell's job, not the harness's (see [Install](#install)). When none is
+declared, apply uses the active OpenShell gateway registration.
 
 ### One-shot tasks
 
 Run a task headlessly -- the agent executes in a sandbox and outputs results.
 
-```bash
-harness apply -f harness.yaml --task "review this codebase for security issues"
-harness apply -f harness.yaml --task @skills/cpp-pro/SKILL.md
-```
+Declare the command in `spec.agent.type` and `spec.agent.args`, then run
+`harness apply -f harness.yaml`. Payload files can carry longer instructions.
 
 ### Clone a repo into the sandbox
 
-Use `base_agent` to inherit providers and inference routing from an existing config. The `repo` field clones the repository outside the sandbox and uploads it -- OpenShell sandboxes have no host mounts by design.
+Set `spec.source.repo`. The harness clones outside the sandbox and uploads the
+checkout; OpenShell sandboxes have no host mounts by design.
 
 ```yaml
-name: reviewer
-base_agent: default
-repo: https://github.com/stackrox/collector
-task: "identify the highest-priority C++ remediation"
+apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: reviewer
+spec:
+  source:
+    repo: https://github.com/stackrox/collector
+  sandbox:
+    image: quay.io/example/reviewer:v1
+  agent:
+    type: claude
+    args: [--print, "identify the highest-priority C++ remediation"]
 ```
 
 ```bash
 harness apply -f reviewer.yaml
 ```
 
-To get results out: `--task` mode outputs to stdout, `openshell sandbox exec` pulls files, or attach a `github` provider so the agent can push directly via the scoped proxy token.
+The command writes results to stdout. For retained sandboxes, use
+`openshell sandbox exec`; a referenced GitHub provider can allow a scoped push.
 
 ## Why this exists
 
@@ -63,17 +70,13 @@ Without a shared harness layer, every team building on OpenShell independently s
 
 **The core design constraint**: if the developer harness isn't running and live-tested in CI, the developer experience can't be maintained. OpenShell, agent CLIs, and provider APIs all change frequently — often multiple times per week. A harness that works today and isn't continuously validated will silently break. CI exercises the workflow against local and Kind gateways on Linux. OpenShift remains a manually credentialed integration target.
 
-**The path from local to automated**: a developer runs `harness apply --attach`
-for interactive work, then checks agent arguments and payloads into the v1alpha1
-workflow for headless CI. Legacy configs can continue to use `--task @skill.md`
-during migration. The goal is for the same versioned workflow declaration to be
-sharable, forkable, and executable in both environments.
+**The path from local to automated**: a developer runs
+`harness apply -f harness.yaml --attach` for interactive work, then checks agent
+arguments and payloads into the same workflow for headless CI.
 
-**Current schema transition**: `harness plan` and `harness apply` now share strict
-parsing, environment resolution, target resolution, and action decisions for
-`harness.openshell.dev/v1alpha1`. Legacy agent files remain accepted by `apply`
-through a compatibility path; use `harness migrate` to produce the canonical
-format. New fields are added only to v1alpha1.
+Every config command uses `harness.openshell.dev/v1alpha1`. Plan and apply share
+strict parsing, environment resolution, target resolution, and action decisions.
+Unversioned files are rejected.
 
 OpenShell's upstream direction is toward a [Kubernetes Operator](https://github.com/NVIDIA/OpenShell/issues/1719) where providers and sandboxes become CRDs and the gateway narrows to data-plane only. The harness explores what the workflow layer looks like above that with a developer mindset from local machine to cluster.
 
@@ -114,85 +117,11 @@ Managed providers may be updated or explicitly adopted, but apply does not creat
 credentialed providers; platform bootstrap owns their creation. Relative payload
 and policy paths resolve from the workflow file's directory.
 
-Remote-image, non-interactive workflows use the OpenShell SDK for sandbox
-creation, readiness, execution, and cleanup. Source or payload uploads, local
-image builds, policy files, and interactive TTYs currently use the OpenShell CLI
-because those paths do not yet have complete SDK-native implementations.
-
-## The Agent YAML
-
-The legacy Agent YAML remains available during migration. It does not use the
-canonical v1alpha1 execution path below.
-
-A single file defines the entrypoint, credential providers, inference routing, environment, and files uploaded to the sandbox. This is the default config (`profiles/agent-default.yaml`):
-
-```yaml
-name: agent
-entrypoint: claude
-tty: true
-
-providers:
-  - profile: github                               # scoped GITHUB_TOKEN via proxy
-  - profile: google-vertex-ai                     # inference routing through gateway
-  - profile: atlassian                            # Jira/Confluence via mcp-atlassian
-    env:
-      JIRA_URL:                                   # empty = read from host env
-      JIRA_USERNAME:
-  - profile: google-workspace                     # Gmail, Calendar, Drive via gws CLI
-
-env:
-  ANTHROPIC_BASE_URL: https://inference.local     # route inference through gateway proxy
-  ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
-  CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
-
-payloads:
-  - sandbox_path: /sandbox/.claude/CLAUDE.md      # agent instructions
-    local_path: profiles/images/sandbox-default/CLAUDE.md
-  - sandbox_path: /sandbox/.claude.json           # claude code settings
-    local_path: profiles/images/sandbox-default/claude.json
-  - sandbox_path: /sandbox/.claude/settings.json  # permissions and defaults
-    local_path: profiles/images/sandbox-default/settings.json
-  - sandbox_path: /sandbox/.mcp.json              # MCP server config (jira, confluence)
-    local_path: profiles/images/sandbox-default/mcp.json
-```
-
-Credentials never enter the sandbox -- the gateway proxy resolves placeholder tokens at the network boundary. Each provider also contributes its own L7 network policy endpoints and binary allowlists.
-
-Use `harness apply -o yaml` to see the fully resolved config -- providers expand to show credential definitions, endpoint policies, scopes, and refresh strategies.
-
-### Multi-document YAML
-
-Bundle agent, providers, payloads, and policy in one self-contained file. Use `base_agent` to inherit from an existing config:
-
-```yaml
----
-kind: agent
-name: security-reviewer
-base_agent: default                               # inherits providers, env, payloads
-repo: https://github.com/stackrox/collector
-task: "review for memory safety issues"
----
-kind: payload
-sandbox_path: /sandbox/.claude/CLAUDE.md
-content: |
-  You are a C++ security review agent specializing in RAII,
-  move semantics, and concurrency safety. Focus on the
-  highest-priority remediation and explain the fix.
----
-kind: policy
-network_policies:
-  github_git:
-    endpoints:
-      - host: github.com
-        port: 443
-        rules:
-          - allow: { method: GET, path: "/**/info/refs*" }
-          - allow: { method: POST, path: "/**/git-upload-pack" }
-    binaries:
-      - { path: /usr/bin/git }
-```
-
-This inherits all four providers and inference routing from `agent-default.yaml`, adds a custom CLAUDE.md as the agent's instructions, and defines an L7 policy that allows git clone but blocks git push at the HTTP method level.
+Canonical workflows use the OpenShell SDK for sandbox creation, policy
+application, readiness, source and payload uploads, execution, and cleanup.
+Interactive workflows use the same path with host terminal resize and raw-mode
+handling. Canonical sandbox images must be registry references; local build
+contexts are rejected.
 
 ## How It Works
 
@@ -201,8 +130,8 @@ This inherits all four providers and inference routing from `agent-default.yaml`
 harness apply -f config.yaml
     |
     +-> Verify/reconcile declared providers and inference
-    +-> Upload payloads (CLAUDE.md, MCP config, skills)
     +-> Create sandbox (isolated container, deny-by-default network)
+    +-> Upload payloads (CLAUDE.md, MCP config, skills)
     +-> Run task (agent executes, outputs results)
 ```
 
@@ -277,40 +206,30 @@ removes the gateway.
 | Command | What it does |
 |---------|--------------|
 | `harness init` | Generate a harness.yaml (interactive or `--non-interactive`) |
-| `harness doctor` | Validate environment (offline + online checks) |
+| `harness doctor` | Validate gateway reachability and referenced providers |
 | `harness apply -f FILE` | Deploy a sandbox from config |
-| `harness apply --task TEXT` | One-shot headless run |
-| `harness apply --task @FILE` | One-shot from a skill/playbook file |
-| `harness apply --attach` | Interactive TTY mode |
-| `harness apply --dry-run` | Render the v1alpha1 action plan without mutating |
-| `harness apply -o yaml` | Output resolved config |
+| `harness apply -f FILE --attach` | Interactive TTY mode |
+| `harness apply -f FILE --dry-run` | Render the v1alpha1 action plan without mutating |
+| `harness apply -f FILE -o yaml` | Output resolved config with interpolated and credential-bearing map values redacted |
 | `harness get agents\|providers\|gateways` | List resources |
 | `harness describe <name>` | Sandbox details |
 | `harness delete <name> [--all]` | Tear down |
 | `harness plan -f FILE` | Read-only reconciliation plan (mutates nothing) |
-| `harness migrate -f FILE` | Convert a legacy v1 config to v1alpha1 |
 
 ### Credentials
 
-The legacy compatibility path discovers provider credentials from the host and
-may skip missing providers. Canonical v1alpha1 apply is strict: referenced
-providers must already exist, and credentialed provider creation is a separate
-platform/bootstrap responsibility.
-
-| Provider | Required |
-|----------|----------|
-| `github` | `GITHUB_TOKEN` env var |
-| `google-vertex-ai` | `gcloud auth application-default login` + `ANTHROPIC_VERTEX_PROJECT_ID` |
-| `atlassian` | `JIRA_API_TOKEN` + `JIRA_URL` + `JIRA_USERNAME` |
-| `google-workspace` | `gws auth login` ([gws CLI](https://github.com/googleworkspace/cli)) |
+Apply is strict: referenced providers must already exist, and credentialed
+provider creation is a separate platform/bootstrap responsibility. The harness
+does not read local provider credentials; `doctor` verifies that each referenced
+provider is registered on the selected gateway.
 
 ### Config Files
 
 | File | Purpose |
 |------|---------|
-| `profiles/agent-*.yaml` | Agent configs |
-| `profiles/providers/` | Provider profiles (imported to gateway) |
-| `profiles/images/sandbox-default/` | Sandbox image defaults (overridable via payloads) |
+| `profiles/harness-basic.yaml` | Canonical v1alpha1 scaffold used by `harness init` and default `doctor` checks |
+| `profiles/providers/` | Provider-profile examples used by diagnostics and platform bootstrap |
+| `profiles/images/sandbox-default/` | Build context for the published sandbox image |
 
 ## Testing
 
@@ -319,21 +238,28 @@ unit, local-gateway, and Kind integration coverage on Linux. OpenShift integrati
 is available as a manually credentialed target.
 
 ```bash
-make test             # vet + unit tests (16 packages)
+make test             # vet + unit tests
 make lint             # golangci-lint
-make test-suite       # config parsing (32 tests, no gateway needed)
-make test-local       # full e2e on local Podman (22 tests)
+make test-suite       # config and CLI checks (no gateway needed)
+make test-local       # full e2e on local Podman
 make test-kind        # self-contained kind cluster lifecycle
 make test-remote      # full e2e on OCP (needs KUBECONFIG)
 ```
 
-`test-local` is the primary validation target. It provisions a gateway via the OpenShell installer, registers all 4 providers, creates sandboxes, verifies exec/env/GWS token resolution/MCP config/Claude inference, tests missing-provider recovery, and tears down the sandboxes and providers it created (the gateway is OpenShell's to remove).
+`test-local` is the primary validation target. It provisions a gateway via the
+OpenShell installer, runs the canonical sandbox lifecycle, exercises available
+pre-registered provider capabilities, and tears down the resources it created.
 
 `test-kind` creates its own kind cluster, `helm install`s OpenShell, builds and loads the sandbox image, runs the full flow, and deletes the cluster on exit. Use `KEEP=1` to keep the cluster for debugging.
 
 `test-remote` requires `KUBECONFIG` pointing at an OCP cluster and pushes the image automatically. Use `--reuse-gateway` to skip gateway provisioning/teardown when iterating.
 
 Each integration target builds (and pushes, for remote) the sandbox image automatically.
+
+Interactive TTY behavior is covered by unit and race tests but remains a manual
+terminal check: run `harness apply -f harness.yaml --attach`, resize the terminal,
+then exit and confirm the terminal mode is restored. CI has no stable controlling
+TTY, so it does not claim a live interactive proof.
 
 ## Documentation
 

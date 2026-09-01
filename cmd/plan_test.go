@@ -71,8 +71,6 @@ spec:
     - name: test-provider
       type: vertex-ai
       management: managed
-      credentials:
-        source: gcloud-adc
   inference:
     provider: test-provider
     model: claude-haiku-4-5
@@ -100,7 +98,7 @@ spec:
 	factory := testutil.FakeFactory(fakeClient)
 
 	// Build the command.
-	cmd := NewPlanCmd(tmpDir, factory)
+	cmd := NewPlanCmd(factory)
 	cmd.SetArgs([]string{"-f", configPath, "-o", "table"})
 
 	// Capture stdout and execute.
@@ -164,7 +162,7 @@ spec:
 		t.Fatalf("seed route: %v", err)
 	}
 
-	cmd := NewPlanCmd(tmpDir, testutil.FakeFactory(fakeClient))
+	cmd := NewPlanCmd(testutil.FakeFactory(fakeClient))
 	cmd.SetArgs([]string{"-f", configPath, "-o", "table"})
 
 	output, err := captureStdout(t, func() error { return cmd.Execute() })
@@ -199,8 +197,6 @@ spec:
     - name: test-provider
       type: vertex-ai
       management: managed
-      credentials:
-        source: gcloud-adc
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -211,7 +207,7 @@ spec:
 	}))
 
 	factory := testutil.FakeFactory(fakeClient)
-	cmd := NewPlanCmd(tmpDir, factory)
+	cmd := NewPlanCmd(factory)
 	cmd.SetArgs([]string{"-f", configPath, "-o", "json"})
 
 	output, err := captureStdout(t, func() error {
@@ -253,8 +249,6 @@ spec:
     - name: test-provider
       type: custom-provider
       management: managed
-      credentials:
-        source: environment:MY_PROVIDER_TOKEN
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -267,7 +261,7 @@ spec:
 	factory := testutil.FakeFactory(fakeClient)
 
 	// Test table output.
-	cmd := NewPlanCmd(tmpDir, factory)
+	cmd := NewPlanCmd(factory)
 	cmd.SetArgs([]string{"-f", configPath, "-o", "table"})
 
 	output, err := captureStdout(t, func() error {
@@ -283,7 +277,7 @@ spec:
 	}
 
 	// Test JSON output.
-	cmd = NewPlanCmd(tmpDir, factory)
+	cmd = NewPlanCmd(factory)
 	cmd.SetArgs([]string{"-f", configPath, "-o", "json"})
 
 	output, err = captureStdout(t, func() error {
@@ -324,7 +318,7 @@ spec:
 		return nil, nil
 	}
 
-	cmd := NewPlanCmd(tmpDir, recordingFactory)
+	cmd := NewPlanCmd(recordingFactory)
 	cmd.SetArgs([]string{"-f", configPath})
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
@@ -348,14 +342,14 @@ spec:
 	}
 }
 
-// TestPlanCmd_LegacyConfigInput tests that a config without apiVersion produces a migrate-hint error.
-func TestPlanCmd_LegacyConfigInput(t *testing.T) {
+// TestPlanCmd_UnversionedConfigInput checks that an unversioned file is rejected.
+func TestPlanCmd_UnversionedConfigInput(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	configPath := filepath.Join(tmpDir, "legacy.yaml")
+	configPath := filepath.Join(tmpDir, "unversioned.yaml")
 	configContent := `kind: Harness
 metadata:
-  name: legacy-config
+  name: unversioned-config
 spec:
   target:
     gateway: test-gateway
@@ -366,7 +360,7 @@ spec:
 
 	factory := testutil.FakeFactory(nil) // won't be called
 
-	cmd := NewPlanCmd(tmpDir, factory)
+	cmd := NewPlanCmd(factory)
 	cmd.SetArgs([]string{"-f", configPath})
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
@@ -379,9 +373,8 @@ spec:
 		t.Fatal("expected error for missing apiVersion, got nil")
 	}
 
-	// Verify the error message mentions migrate.
-	if !contains(err.Error(), "migrate") {
-		t.Errorf("error does not mention migrate: %v", err)
+	if !contains(err.Error(), "harness.openshell.dev/v1alpha1") {
+		t.Errorf("error does not name the supported apiVersion: %v", err)
 	}
 }
 
@@ -433,7 +426,7 @@ spec:
 				return fakeClient, nil
 			}
 
-			cmd := NewPlanCmd(tmpDir, recordingFactory)
+			cmd := NewPlanCmd(recordingFactory)
 			args := []string{"-f", configPath, "-o", "table"}
 			if tt.flag != "" {
 				args = append(args, "--gateway", tt.flag)
@@ -459,10 +452,9 @@ spec:
 
 // TestPlanCmd_NoFileFlag ensures that omitting -f returns an error.
 func TestPlanCmd_NoFileFlag(t *testing.T) {
-	tmpDir := t.TempDir()
 	factory := testutil.FakeFactory(nil)
 
-	cmd := NewPlanCmd(tmpDir, factory)
+	cmd := NewPlanCmd(factory)
 	cmd.SetArgs([]string{}) // no -f flag
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
@@ -497,8 +489,6 @@ spec:
     - name: test-provider
       type: vertex-ai
       management: managed
-      credentials:
-        source: gcloud-adc
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -511,7 +501,7 @@ spec:
 		return nil, nil
 	}
 
-	cmd := NewPlanCmd(tmpDir, recordingFactory)
+	cmd := NewPlanCmd(recordingFactory)
 	cmd.SetArgs([]string{"-f", configPath, "-o", "table"})
 
 	output, err := captureStdout(t, func() error {
@@ -560,8 +550,6 @@ spec:
     - name: test-provider
       type: vertex-ai
       management: managed
-      credentials:
-        source: gcloud-adc
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -575,7 +563,7 @@ spec:
 		return testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true})), nil
 	}
 
-	cmd := NewPlanCmd(tmpDir, recordingFactory)
+	cmd := NewPlanCmd(recordingFactory)
 	cmd.SetArgs([]string{"-f", configPath, "-o", "table"})
 
 	if _, err := captureStdout(t, func() error { return cmd.Execute() }); err != nil {
@@ -607,8 +595,6 @@ spec:
     - name: test-provider
       type: vertex-ai
       management: managed
-      credentials:
-        source: gcloud-adc
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -619,7 +605,7 @@ spec:
 		return nil, openshell.ErrUnavailable
 	}
 
-	cmd := NewPlanCmd(tmpDir, errorFactory)
+	cmd := NewPlanCmd(errorFactory)
 	cmd.SetArgs([]string{"-f", configPath, "-o", "table"})
 
 	output, err := captureStdout(t, func() error {

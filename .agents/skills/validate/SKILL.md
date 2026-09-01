@@ -18,7 +18,7 @@ pushes to `main`:
 | Workflow | Validation |
 |----------|------------|
 | `ci.yml` | vet, unit tests, offline config suite, golangci-lint |
-| `integration.yml` | local legacy lifecycle, live config suite, canonical v1alpha1 SDK lifecycle on Kind |
+| `integration.yml` | canonical SDK lifecycle on local and Kind gateways plus the live config suite |
 | `images.yml` | multi-architecture sandbox image build when image inputs change; trusted events also push |
 | `hypershell.yml` | isolated remote OIDC lifecycle on trusted `main` pushes or manual dispatch |
 
@@ -48,7 +48,7 @@ make test-suite
 ```
 
 This includes config parsing and rendering, CLI behavior, structured output,
-and v1alpha1 plan/migrate coverage. Some gateway-dependent checks are expected
+and v1alpha1 plan coverage. Some gateway-dependent checks are expected
 to skip when no gateway is reachable.
 
 ### 3. Canonical Kind integration
@@ -70,13 +70,13 @@ Requires a reachable local OpenShell gateway:
 
 ```bash
 make cli
-CI=true HARNESS_OS_IMAGE=profiles/images/sandbox-default ./test/test-flow.sh local-container
+CI=true ./test/test-flow.sh local-container
 make test-suite-live
 ```
 
-The first command covers credential-free legacy compatibility. The live suite
-adds sandbox lifecycle tests and enables provider checks individually when their
-credentials are available.
+Both commands cover the credential-free canonical SDK lifecycle. Provider
+capability checks require providers provisioned by the platform and are reported
+separately when available.
 
 Run `make test-local` without `CI=true` only when evaluating configured provider
 and inference capabilities; that target also pushes the development image to its
@@ -117,12 +117,11 @@ of the repository.
 ```bash
 make cli   # the root ./harness binary is gitignored; build it first
 ./harness --help
-rg -n 'harness (apply|get|describe|delete|doctor|init|migrate|plan)' README.md
+rg -n 'harness (apply|get|describe|delete|doctor|init|plan)' README.md
 rg -n 'harness (up|create|render|deploy)' README.md
 ```
 
-Review matches in context: migration examples can legitimately name deprecated
-commands, while user instructions must use current commands.
+Review matches in context; user instructions must use current commands.
 
 ### 8. CI status
 

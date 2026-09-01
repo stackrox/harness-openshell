@@ -19,8 +19,7 @@ VERSION       := $(shell git describe --tags --always 2>/dev/null || echo dev)
 LDFLAGS       := -s -w -X main.version=$(VERSION)
 
 # Pinned OpenShell CLI/gateway version — single source of truth for `make
-# openshell`, CI (.github/workflows/integration.yml), and the runtime min-version
-# check (internal/gateway.MinOpenShellVersion, enforced in lockstep by a test).
+# openshell` and CI (.github/workflows/integration.yml).
 OPENSHELL_VERSION := $(shell cat .openshell-version 2>/dev/null)
 
 IMAGE  := $(REGISTRY):sandbox-$(VERSION)
@@ -86,7 +85,7 @@ test-suite-live: cli
 ## Local gateway integration (unit tests run separately via 'make test')
 ## Builds and pushes the sandbox image so the gateway can pull it.
 test-local: cli dev-push
-	./test/test-flow.sh local-container
+	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh local-container
 
 ## Kind: self-contained cluster lifecycle
 ## Builds sandbox image locally and pre-loads into kind (no registry push needed).

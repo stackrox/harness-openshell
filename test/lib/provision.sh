@@ -33,7 +33,7 @@ _chart_version() {
 # "Wait for gateway"). Select the 127.0.0.1 registration and confirm it responds.
 provision_local() {
   local gw
-  gw="$("$CLI" gateway list 2>/dev/null | strip_ansi | awk '/127\.0\.0\.1/ {gsub(/^\*/, ""); print $1; exit}')"
+  gw="$("$CLI" gateway list 2>/dev/null | strip_ansi | awk '/127\.0\.0\.1/ {for (i = 1; i <= NF; i++) if ($i == "*") {print $(i + 1); exit}}')"
   if [[ -z "$gw" ]]; then
     echo "  ERROR: no local (127.0.0.1) gateway registered — is OpenShell installed and running?" >&2
     return 1

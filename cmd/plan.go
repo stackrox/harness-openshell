@@ -11,7 +11,7 @@ import (
 // NewPlanCmd constructs the "harness plan" command.
 // It reads a config file, resolves environment variables, connects to the gateway
 // (if specified), reads the current state, builds a reconciliation plan, and renders it.
-func NewPlanCmd(harnessDir string, newClient openshell.Factory) *cobra.Command {
+func NewPlanCmd(newClient openshell.Factory) *cobra.Command {
 	var (
 		file   string
 		output string
@@ -35,7 +35,7 @@ uses this same resolved desired object and action-decision engine.`,
 				return fmt.Errorf("flag -f/--file is required")
 			}
 
-			workflow, err := loadCanonicalWorkflow(file, *gatewayName, *workspace, canonicalOverrides{})
+			workflow, err := loadWorkflow(file, *gatewayName, *workspace, applyOverrides{})
 			if err != nil {
 				return err
 			}

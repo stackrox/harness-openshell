@@ -15,8 +15,8 @@ const (
 //
 // It does NOT default the workspace: an unset workspace stays "" and sdkclient
 // maps "" -> "default" at construction (the single owner of that default). An
-// empty Gateway is likewise left empty — a caller decision (e.g. doctor skips
-// its online checks), never a silent fallback to the CLI's active gateway.
+// empty Gateway is likewise left empty; sdkclient interprets it as the active
+// CLI-compatible gateway registration when a caller chooses to connect.
 //
 // Resolution is pure: getenv is injected (production passes os.Getenv, tests
 // pass a map closure) so this package imports neither os nor any CLI framework.

@@ -60,15 +60,15 @@ type Sandbox struct {
 }
 
 // SandboxCreate describes the SDK-native subset of sandbox creation used by
-// canonical workflows. File uploads, local image builds, and policy-file
-// parsing remain CLI responsibilities until the SDK supports those paths
-// end-to-end.
+// canonical workflows. Policy contains the upstream policy YAML bytes; the SDK
+// boundary owns their conversion to the SDK policy type.
 type SandboxCreate struct {
 	Name      string
 	Image     string
 	Providers []string
 	Env       map[string]string
 	Labels    map[string]string
+	Policy    []byte
 }
 
 // GatewayInfo is the harness view of the active gateway.

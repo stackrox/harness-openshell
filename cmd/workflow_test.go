@@ -6,7 +6,8 @@ import (
 	"testing"
 )
 
-func TestLoadCanonicalWorkflowBuildsDirectTargetAndDefaultsWorkspace(t *testing.T) {
+func TestLoadWorkflowBuildsDirectTargetAndDefaultsWorkspace(t *testing.T) {
+	t.Setenv("OPENSHELL_GATEWAY", "")
 	t.Setenv("DIRECT_ENDPOINT", "https://gateway.example.com")
 	t.Setenv("DIRECT_ISSUER", "https://issuer.example.com")
 	t.Setenv("DIRECT_CLIENT_ID", "ci-user")
@@ -31,9 +32,9 @@ spec:
 		t.Fatalf("write workflow: %v", err)
 	}
 
-	workflow, err := loadCanonicalWorkflow(path, "", "", canonicalOverrides{})
+	workflow, err := loadWorkflow(path, "", "", applyOverrides{})
 	if err != nil {
-		t.Fatalf("loadCanonicalWorkflow: %v", err)
+		t.Fatalf("loadWorkflow: %v", err)
 	}
 	if workflow.Target.Workspace != "" {
 		t.Fatalf("workspace=%q, want implicit default", workflow.Target.Workspace)
@@ -46,5 +47,43 @@ spec:
 	}
 	if got := workflow.Target.Direct.OIDC.Audience; got != "openshell-gateway" {
 		t.Fatalf("audience=%q", got)
+	}
+}
+
+func TestLoadWorkflowExternalGatewayOverridesDirectRegistration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflow.yaml")
+	data := []byte(`apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: direct
+spec:
+  target:
+    registration:
+      endpoint: https://gateway.example.com
+      oidc:
+        issuer: https://issuer.example.com
+        clientId: ci-user
+        audience: openshell-gateway
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write workflow: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name, flag, environment, want string
+	}{
+		{name: "flag", flag: "flag-gateway", want: "flag-gateway"},
+		{name: "environment", environment: "environment-gateway", want: "environment-gateway"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("OPENSHELL_GATEWAY", tc.environment)
+			workflow, err := loadWorkflow(path, tc.flag, "", applyOverrides{})
+			if err != nil {
+				t.Fatalf("loadWorkflow: %v", err)
+			}
+			if workflow.Target.Gateway != tc.want || workflow.Target.Direct != nil {
+				t.Fatalf("target = %+v, want named gateway %q without direct registration", workflow.Target, tc.want)
+			}
+		})
 	}
 }

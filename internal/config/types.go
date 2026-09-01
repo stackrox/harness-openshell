@@ -1,13 +1,11 @@
 // Package config defines the canonical harness.openshell.dev/v1alpha1 configuration schema.
 //
 // This package is SDK-free and cobra-free, defining only the desired-resource model
-// and strict parsing. Secret values are never materialized — SecretRef carries only
-// the source (e.g. "gcloud-adc").
+// and strict parsing. Secret values are never materialized.
 package config
 
 import (
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -45,9 +43,8 @@ type Target struct {
 // Registration describes a direct, in-memory gateway connection. Despite the
 // v1alpha1 field name, apply does not persist a CLI gateway registration.
 type Registration struct {
-	Endpoint      string `yaml:"endpoint,omitempty"`
-	AutoProviders bool   `yaml:"autoProviders,omitempty"`
-	OIDC          *OIDC  `yaml:"oidc,omitempty"`
+	Endpoint string `yaml:"endpoint,omitempty"`
+	OIDC     *OIDC  `yaml:"oidc,omitempty"`
 }
 
 // OIDC holds OIDC issuer and client configuration.
@@ -59,45 +56,6 @@ type OIDC struct {
 	Audience string `yaml:"audience,omitempty"`
 }
 
-// SecretRef refers to a secret source without materializing the value.
-// Valid sources include "gcloud-adc" and "environment:VAR_NAME".
-type SecretRef struct {
-	Source string `yaml:"source"` // e.g. "gcloud-adc", "environment:OPENSHELL_OIDC_CLIENT_SECRET"
-}
-
-// Describe returns a human-safe description of where the secret comes from,
-// never the value. For example, "gcloud ADC" for "gcloud-adc",
-// or "environment OPENSHELL_OIDC_CLIENT_SECRET" for "environment:OPENSHELL_OIDC_CLIENT_SECRET".
-func (s SecretRef) Describe() string {
-	switch {
-	case s.Source == "gcloud-adc":
-		return "gcloud ADC"
-	case strings.HasPrefix(s.Source, "environment:"):
-		return "environment " + strings.TrimPrefix(s.Source, "environment:")
-	default:
-		return s.Source
-	}
-}
-
-// Validate reports whether Source names a supported secret source. It is the
-// single owner of the source grammar (alongside Describe): exactly "gcloud-adc",
-// or "environment:VAR" naming a non-empty variable. Called at Resolve time so a
-// typo'd or unsupported source fails at config load with a clear message rather
-// than being silently accepted and surfacing as a confusing error later.
-func (s SecretRef) Validate() error {
-	switch {
-	case s.Source == "gcloud-adc":
-		return nil
-	case strings.HasPrefix(s.Source, "environment:"):
-		if strings.TrimPrefix(s.Source, "environment:") == "" {
-			return fmt.Errorf("%q names no variable (want \"environment:VAR_NAME\")", s.Source)
-		}
-		return nil
-	default:
-		return fmt.Errorf("%q is invalid (want \"gcloud-adc\" or \"environment:VAR_NAME\")", s.Source)
-	}
-}
-
 // Provider represents a desired provider resource.
 type Provider struct {
 	Name       string `yaml:"name"`
@@ -107,9 +65,8 @@ type Provider struct {
 	// carry this harness's owner label. Without it, a matching-but-unowned
 	// provider is reported adoption-required and never overwritten. It is the
 	// operator's explicit opt-in to manage a pre-existing provider.
-	Adopt       bool              `yaml:"adopt,omitempty"`
-	Credentials *SecretRef        `yaml:"credentials,omitempty"`
-	Config      map[string]string `yaml:"config,omitempty"`
+	Adopt  bool              `yaml:"adopt,omitempty"`
+	Config map[string]string `yaml:"config,omitempty"`
 }
 
 // Inference specifies the LLM inference route configuration.
@@ -184,9 +141,8 @@ type Source struct {
 }
 
 // Payload represents a file or content to be placed in the sandbox.
-// This replaces the legacy sandbox_path/local_path fields.
 type Payload struct {
-	Source      string `yaml:"source,omitempty"`  // local path (was local_path)
+	Source      string `yaml:"source,omitempty"`  // local path
 	Content     string `yaml:"content,omitempty"` // inline content
-	Destination string `yaml:"destination"`       // target path in sandbox (was sandbox_path)
+	Destination string `yaml:"destination"`       // target path in sandbox
 }

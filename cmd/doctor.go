@@ -5,14 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/stackrox/harness-openshell/internal/agent"
+	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/openshell"
-	"gopkg.in/yaml.v3"
 )
 
 type CheckResult struct {
@@ -22,13 +18,10 @@ type CheckResult struct {
 	Message string `json:"message"`
 }
 
-type CheckFunc func(cfg *agent.AgentConfig, cli, harnessDir string) []CheckResult
-
-func NewDoctorCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Command {
+func NewDoctorCmd(defaultCfg []byte, newClient openshell.Factory) *cobra.Command {
 	var (
-		agentFile string
-		agentName string
-		output    string
+		file   string
+		output string
 	)
 	// Assigned by registerTargetFlags below; RunE reads them at execution time.
 	var gatewayName, workspace *string
@@ -36,268 +29,107 @@ func NewDoctorCmd(harnessDir, cli string, newClient openshell.Factory) *cobra.Co
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Validate environment for configured sandbox",
-		Long: `Check that prerequisites are met for running a sandbox.
-
-Phase 1 (offline): checks the openshell binary and provider credentials
-without requiring a running gateway.
-
-Phase 2 (online): if the gateway is reachable, checks provider registration.`,
+		Long: `Check that the configured gateway is reachable and that every referenced
+provider is registered. Provider credentials are owned by platform bootstrap and
+are never loaded by the harness.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format, err := parseOutputFormat(output)
 			if err != nil {
 				return err
 			}
 
-			h, err := resolveHarness(harnessDir, agentName, agentFile)
-			if err != nil {
-				return fmt.Errorf("resolving config: %w", err)
+			var h *config.Harness
+			var target openshell.Target
+			if file != "" {
+				workflow, err := loadWorkflow(file, *gatewayName, *workspace, applyOverrides{})
+				if err != nil {
+					return err
+				}
+				h = workflow.Desired
+				target = workflow.Target
+			} else {
+				h, err = config.Parse(defaultCfg)
+				if err != nil {
+					return fmt.Errorf("parsing default config: %w", err)
+				}
+				h, err = config.Resolve(h, os.Getenv)
+				if err != nil {
+					return fmt.Errorf("resolving default config: %w", err)
+				}
+				target = openshell.ResolveTarget(*gatewayName, *workspace, h.Spec.Target.Gateway, h.Spec.Target.Workspace, os.Getenv)
 			}
 
-			checks := []CheckFunc{
-				checkOpenShell,
-				checkProviderEnvVars,
+			providers := configuredProviders(h)
+			providerNames := make([]string, len(providers))
+			for i, provider := range providers {
+				providerNames[i] = provider.Name
 			}
-
-			var results []CheckResult
-			for _, fn := range checks {
-				results = append(results, fn(h.Agent, cli, harnessDir)...)
-			}
-
-			providerProfiles := make([]string, 0, len(h.Agent.Providers))
-			for _, p := range h.Agent.Providers {
-				providerProfiles = append(providerProfiles, p.Profile)
-			}
-			// Flag/env precedence (flag > env > config > empty) is owned by
-			// openshell.ResolveTarget; an unset gateway (flag and env both empty)
-			// skips Phase 2. Doctor does not load v1alpha1 config, so the config
-			// parameters are empty.
-			target := openshell.ResolveTarget(*gatewayName, *workspace, "", "", os.Getenv)
-			results = append(results, runOnlineChecks(cmd.Context(), newClient, target, providerProfiles)...)
+			results := runOnlineChecks(cmd.Context(), newClient, target, providerNames)
 
 			if format != formatTable {
-				return printStructured(format, results)
+				if err := printStructured(format, results); err != nil {
+					return err
+				}
+				return doctorResultError(results)
 			}
 
 			printDoctorTable(results)
-
-			for _, r := range results {
-				if r.Status == "fail" {
-					return fmt.Errorf("one or more checks failed")
-				}
-			}
-			return nil
+			return doctorResultError(results)
 		},
 	}
 
-	cmd.Flags().StringVarP(&agentFile, "file", "f", "", "Path to harness YAML")
-	cmd.Flags().StringVar(&agentName, "agent", "default", "Agent config name")
+	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to harness YAML")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format (table, json, yaml)")
 	gatewayName, workspace = registerTargetFlags(cmd)
 
 	return cmd
 }
 
-func checkOpenShell(cfg *agent.AgentConfig, cli, _ string) []CheckResult {
-	path, err := exec.LookPath(cli)
-	if err != nil {
-		return []CheckResult{{
-			Group:   "openshell",
-			Name:    "binary",
-			Status:  "fail",
-			Message: fmt.Sprintf("%s not found on PATH", cli),
-		}}
-	}
-
-	out, err := exec.Command(path, "--version").Output()
-	if err != nil {
-		return []CheckResult{{
-			Group:   "openshell",
-			Name:    "binary",
-			Status:  "warn",
-			Message: fmt.Sprintf("found at %s, version unknown", path),
-		}}
-	}
-
-	version := strings.TrimSpace(string(out))
-	return []CheckResult{{
-		Group:   "openshell",
-		Name:    "binary",
-		Status:  "pass",
-		Message: version,
-	}}
-}
-
-type providerProfile struct {
-	ID          string               `yaml:"id"`
-	DisplayName string               `yaml:"display_name"`
-	Credentials []providerCredential `yaml:"credentials"`
-}
-
-type providerCredential struct {
-	Name     string   `yaml:"name"`
-	EnvVars  []string `yaml:"env_vars"`
-	Required bool     `yaml:"required"`
-	Refresh  *struct {
-		Strategy string `yaml:"strategy"`
-	} `yaml:"refresh,omitempty"`
-}
-
-func checkProviderEnvVars(cfg *agent.AgentConfig, cli, harnessDir string) []CheckResult {
-	if len(cfg.Providers) == 0 {
-		return nil
-	}
-
-	var results []CheckResult
-	for _, p := range cfg.Providers {
-		profile := loadProviderProfile(p.Profile, cli, harnessDir)
-		if profile == nil {
-			results = append(results, CheckResult{
-				Group:   "provider",
-				Name:    p.Profile,
-				Status:  "warn",
-				Message: "no profile found, cannot check credentials",
-			})
-			continue
+func doctorResultError(results []CheckResult) error {
+	for _, result := range results {
+		if result.Status == "fail" {
+			return fmt.Errorf("one or more checks failed")
 		}
-
-		allGatewayManaged := true
-		allSet := true
-		var missing []string
-		for _, cred := range profile.Credentials {
-			if !cred.Required {
-				continue
-			}
-			// Gateway-managed credentials (OAuth refresh, service account JWT)
-			// are handled by the gateway, not set by the user as env vars.
-			if cred.Refresh != nil {
-				continue
-			}
-			allGatewayManaged = false
-			found := false
-			for _, ev := range cred.EnvVars {
-				if os.Getenv(ev) != "" {
-					found = true
-					break
-				}
-			}
-			if !found {
-				allSet = false
-				missing = append(missing, cred.EnvVars[0])
-			}
-		}
-
-		if allGatewayManaged {
-			r := checkGatewayManagedProvider(p.Profile)
-			results = append(results, r)
-		} else if allSet {
-			results = append(results, CheckResult{
-				Group:   "provider",
-				Name:    p.Profile,
-				Status:  "pass",
-				Message: "credentials set",
-			})
-		} else {
-			results = append(results, CheckResult{
-				Group:   "provider",
-				Name:    p.Profile,
-				Status:  "fail",
-				Message: "missing: " + strings.Join(missing, ", "),
-			})
-		}
-	}
-
-	return results
-}
-
-func checkGatewayManagedProvider(name string) CheckResult {
-	switch name {
-	case "google-workspace":
-		gwsPath, _ := exec.LookPath("gws")
-		if gwsPath == "" {
-			return CheckResult{Group: "provider", Name: name, Status: "fail", Message: "gws CLI not installed (brew install googleworkspace/cli/gws)"}
-		}
-		if err := exec.Command(gwsPath, "auth", "export", "--unmasked").Run(); err != nil {
-			return CheckResult{Group: "provider", Name: name, Status: "fail", Message: "not authenticated (run: gws auth login)"}
-		}
-		return CheckResult{Group: "provider", Name: name, Status: "pass", Message: "authenticated (gateway-managed OAuth)"}
-	case "google-vertex-ai":
-		home, _ := os.UserHomeDir()
-		adcPath := envOr("GOOGLE_APPLICATION_CREDENTIALS",
-			filepath.Join(home, ".config", "gcloud", "application_default_credentials.json"))
-		if _, err := os.Stat(adcPath); err != nil {
-			return CheckResult{Group: "provider", Name: name, Status: "fail", Message: "ADC not found (run: gcloud auth application-default login)"}
-		}
-		return CheckResult{Group: "provider", Name: name, Status: "pass", Message: "ADC found (gateway-managed refresh)"}
-	default:
-		return CheckResult{Group: "provider", Name: name, Status: "pass", Message: "gateway-managed credentials"}
-	}
-}
-
-func loadProviderProfile(name, cli, harnessDir string) *providerProfile {
-	if profile := loadProfileFromOpenShell(name, cli); profile != nil {
-		return profile
-	}
-	return loadProfileFromDisk(name, harnessDir)
-}
-
-func loadProfileFromOpenShell(name, cli string) *providerProfile {
-	path, err := exec.LookPath(cli)
-	if err != nil {
-		return nil
-	}
-	out, err := exec.Command(path, "provider", "profile", "export", name).Output()
-	if err != nil {
-		return nil
-	}
-	var p providerProfile
-	if err := yaml.Unmarshal(out, &p); err != nil {
-		return nil
-	}
-	return &p
-}
-
-func loadProfileFromDisk(name, harnessDir string) *providerProfile {
-	if harnessDir == "" {
-		return nil
-	}
-	candidates := []string{
-		filepath.Join(harnessDir, "profiles", "providers", name+".yaml"),
-	}
-	for _, path := range candidates {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var p providerProfile
-		if err := yaml.Unmarshal(data, &p); err != nil {
-			continue
-		}
-		return &p
 	}
 	return nil
 }
 
-// runOnlineChecks performs Phase 2 (online) checks via the SDK. It is
-// non-fatal by construction: a missing --gateway or any client-construction
-// failure yields a single warn (Phase 2 skipped), never a fail, preserving
-// doctor's long-standing "online failures don't break the build" contract.
-func runOnlineChecks(ctx context.Context, newClient openshell.Factory, target openshell.Target, providers []string) []CheckResult {
-	if target.Gateway == "" {
-		return []CheckResult{{
-			Group:   "gateway",
-			Name:    "status",
-			Status:  "warn",
-			Message: "Phase 2 (online) checks skipped: no --gateway specified",
-		}}
-	}
+type configuredProvider struct {
+	Name string
+}
 
+func configuredProviders(cfg *config.Harness) []configuredProvider {
+	providers := make([]configuredProvider, 0, len(cfg.Spec.Providers)+len(cfg.Spec.Sandbox.Providers))
+	seen := make(map[string]struct{}, cap(providers))
+	for _, provider := range cfg.Spec.Providers {
+		providers = append(providers, configuredProvider{Name: provider.Name})
+		seen[provider.Name] = struct{}{}
+	}
+	for _, name := range cfg.Spec.Sandbox.Providers {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		providers = append(providers, configuredProvider{Name: name})
+		seen[name] = struct{}{}
+	}
+	return providers
+}
+
+// runOnlineChecks checks the resolved SDK target. An empty target asks the SDK
+// factory to use the active gateway registration; connection failures remain a
+// warning so doctor can still report configuration problems coherently.
+func runOnlineChecks(ctx context.Context, newClient openshell.Factory, target openshell.Target, providers []string) []CheckResult {
 	client, err := newClient(ctx, target)
 	if err != nil {
+		status := "warn"
+		if errors.Is(err, openshell.ErrConfig) || errors.Is(err, openshell.ErrUnauthenticated) {
+			status = "fail"
+		}
 		return []CheckResult{{
 			Group:   "gateway",
 			Name:    "status",
-			Status:  "warn",
-			Message: fmt.Sprintf("Phase 2 (online) checks skipped: %v", err),
+			Status:  status,
+			Message: fmt.Sprintf("gateway checks skipped: %v", err),
 		}}
 	}
 	defer client.Close()
@@ -307,8 +139,8 @@ func runOnlineChecks(ctx context.Context, newClient openshell.Factory, target op
 
 // checkOnlineSDK reads gateway health and provider registration through the
 // SDK client. Health maps: healthy -> pass; ErrUnauthenticated -> fail (the
-// one actionable online failure); ErrUnavailable and any other error -> warn
-// (non-fatal). Provider rows are only produced when the gateway is healthy.
+// one actionable connection failure); ErrUnavailable and any other error -> warn.
+// Missing referenced providers are failures because apply cannot use them.
 func checkOnlineSDK(ctx context.Context, client openshell.Client, providers []string) []CheckResult {
 	h, err := client.Health(ctx)
 	switch {
@@ -326,21 +158,21 @@ func checkOnlineSDK(ctx context.Context, client openshell.Client, providers []st
 			Group:   "gateway",
 			Name:    "status",
 			Status:  "warn",
-			Message: "gateway not reachable (Phase 2 checks skipped)",
+			Message: "gateway not reachable (provider checks skipped)",
 		}}
 	case err != nil:
 		return []CheckResult{{
 			Group:   "gateway",
 			Name:    "status",
 			Status:  "warn",
-			Message: fmt.Sprintf("gateway health check failed: %v (Phase 2 checks skipped)", err),
+			Message: fmt.Sprintf("gateway health check failed: %v (provider checks skipped)", err),
 		}}
 	default: // err == nil but not healthy
 		return []CheckResult{{
 			Group:   "gateway",
 			Name:    "status",
 			Status:  "warn",
-			Message: "gateway reports unhealthy (Phase 2 checks skipped)",
+			Message: "gateway reports unhealthy (provider checks skipped)",
 		}}
 	}
 
@@ -378,8 +210,8 @@ func checkOnlineSDK(ctx context.Context, client openshell.Client, providers []st
 			results = append(results, CheckResult{
 				Group:   "gateway",
 				Name:    name,
-				Status:  "warn",
-				Message: "not registered (will be registered on apply)",
+				Status:  "fail",
+				Message: "not registered (create through platform bootstrap before apply)",
 			})
 		}
 	}
@@ -388,14 +220,7 @@ func checkOnlineSDK(ctx context.Context, client openshell.Client, providers []st
 }
 
 func printDoctorTable(results []CheckResult) {
-	groups := []string{"openshell", "provider", "gateway"}
-	groupLabels := map[string]string{
-		"openshell": "OPENSHELL",
-		"provider":  "PROVIDER",
-		"gateway":   "GATEWAY",
-	}
-
-	for _, g := range groups {
+	for _, g := range []string{"gateway"} {
 		var groupResults []CheckResult
 		for _, r := range results {
 			if r.Group == g {
@@ -406,7 +231,7 @@ func printDoctorTable(results []CheckResult) {
 			continue
 		}
 
-		fmt.Println(groupLabels[g])
+		fmt.Println("GATEWAY")
 		for _, r := range groupResults {
 			icon := "  "
 			switch r.Status {

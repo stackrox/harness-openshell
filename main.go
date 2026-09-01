@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os"
-	"path/filepath"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/cmd"
@@ -14,14 +16,11 @@ import (
 
 var version = "dev"
 
-//go:embed profiles/agent-basic.yaml
-var defaultAgentConfig []byte
+//go:embed profiles/harness-basic.yaml
+var defaultHarnessConfig []byte
 
 func main() {
-	harnessDir := detectHarnessDir()
-
-	var verbose bool
-	var showCommands bool
+	var verbose, showCommands bool
 
 	root := &cobra.Command{
 		Use:           "harness",
@@ -34,66 +33,26 @@ func main() {
 			status.ShowCommands = showCommands
 		},
 	}
-
-	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show kubectl/helm/openshell commands")
-	root.PersistentFlags().BoolVar(&showCommands, "show-commands", false, "Show openshell commands being executed")
-
-	cli := os.Getenv("OPENSHELL_CLI")
-	if cli == "" {
-		cli = "openshell"
-	}
+	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show external commands")
+	root.PersistentFlags().BoolVar(&showCommands, "show-commands", false, "Show external commands on stdout")
 
 	cmd.Version = version
-	cmd.DefaultAgentConfig = defaultAgentConfig
 	root.CompletionOptions.HiddenDefaultCmd = true
 
 	root.AddCommand(
-		cmd.NewApplyCmd(harnessDir, cli, sdkclient.New),
+		cmd.NewApplyCmd(sdkclient.New),
 		cmd.NewGetCmd(sdkclient.New),
 		cmd.NewDescribeCmd(sdkclient.New),
 		cmd.NewDeleteCmd(sdkclient.New),
-		cmd.NewDoctorCmd(harnessDir, cli, sdkclient.New),
-		cmd.NewInitCmd(),
-		cmd.NewMigrateCmd(),
-		cmd.NewPlanCmd(harnessDir, sdkclient.New),
+		cmd.NewDoctorCmd(defaultHarnessConfig, sdkclient.New),
+		cmd.NewInitCmd(defaultHarnessConfig),
+		cmd.NewPlanCmd(sdkclient.New),
 	)
 
-	if err := root.Execute(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := root.ExecuteContext(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-func detectHarnessDir() string {
-	if d := os.Getenv("HARNESS_PROFILE_DIR"); d != "" {
-		return d
-	}
-	if d := os.Getenv("HARNESS_OS_DIR"); d != "" {
-		return d
-	}
-	var roots []string
-	if ex, err := os.Executable(); err == nil {
-		roots = append(roots, filepath.Dir(ex))
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		roots = append(roots, cwd)
-	}
-	for _, root := range roots {
-		dir := root
-		for range 5 {
-			if _, err := os.Stat(filepath.Join(dir, "agent-default.yaml")); err == nil {
-				return dir
-			}
-			if _, err := os.Stat(filepath.Join(dir, "profiles", "agent-default.yaml")); err == nil {
-				return dir
-			}
-			dir = filepath.Dir(dir)
-		}
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		d := filepath.Join(home, ".config", "harness-openshell")
-		os.MkdirAll(filepath.Join(d, "profiles", "providers"), 0o755)
-		return d
-	}
-	return ""
 }

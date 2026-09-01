@@ -2,7 +2,6 @@ package plan
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -28,9 +27,6 @@ func TestTableSections_RepresentativePlan(t *testing.T) {
 					Name:       "gcp",
 					Type:       "google-vertex-ai",
 					Management: "managed",
-					Credentials: &config.SecretRef{
-						Source: "gcloud-adc",
-					},
 				},
 			},
 			Inference: config.Inference{
@@ -178,128 +174,5 @@ func TestPlan_YAMLMarshal(t *testing.T) {
 	}
 	if len(recovered.Groups) != len(plan.Groups) {
 		t.Errorf("round-trip failed: expected %d groups, got %d", len(plan.Groups), len(recovered.Groups))
-	}
-}
-
-func TestPlan_NoSecretValuesInJSON(t *testing.T) {
-	desired := &config.Harness{
-		Spec: config.Spec{
-			Target: config.Target{Gateway: "test-gateway"},
-			Providers: []config.Provider{
-				{
-					Name:       "gcp",
-					Type:       "google-vertex-ai",
-					Management: "managed",
-					Credentials: &config.SecretRef{
-						Source: "environment:OPENSHELL_SECRET",
-					},
-				},
-			},
-		},
-	}
-	current := CurrentState{
-		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
-		Providers: []openshell.Provider{},
-	}
-
-	plan := Build(desired, current)
-	data, err := json.Marshal(plan)
-	if err != nil {
-		t.Fatalf("json.Marshal: %v", err)
-	}
-
-	jsonStr := string(data)
-	// The plan renders Describe() ("environment OPENSHELL_SECRET"), never the
-	// raw SecretRef.Source ("environment:OPENSHELL_SECRET"). The raw form's
-	// absence proves the detail went through Describe rather than a struct dump.
-	if strings.Contains(jsonStr, "environment:OPENSHELL_SECRET") {
-		t.Error("raw SecretRef.Source leaked into JSON output")
-	}
-	if !strings.Contains(jsonStr, "environment OPENSHELL_SECRET") {
-		t.Error("expected credential source description in JSON output")
-	}
-}
-
-func TestPlan_NoSecretValuesInYAML(t *testing.T) {
-	desired := &config.Harness{
-		Spec: config.Spec{
-			Target: config.Target{Gateway: "test-gateway"},
-			Providers: []config.Provider{
-				{
-					Name:       "gcp",
-					Type:       "google-vertex-ai",
-					Management: "managed",
-					Credentials: &config.SecretRef{
-						Source: "gcloud-adc",
-					},
-				},
-			},
-		},
-	}
-	current := CurrentState{
-		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
-		Providers: []openshell.Provider{},
-	}
-
-	plan := Build(desired, current)
-	data, err := yaml.Marshal(plan)
-	if err != nil {
-		t.Fatalf("yaml.Marshal: %v", err)
-	}
-
-	yamlStr := string(data)
-	// The plan renders Describe() ("gcloud ADC"), never the raw
-	// SecretRef.Source ("gcloud-adc"); the raw form's absence proves the detail
-	// went through Describe rather than a struct dump.
-	if strings.Contains(yamlStr, "gcloud-adc") {
-		t.Error("raw SecretRef.Source leaked into YAML output")
-	}
-	if !strings.Contains(yamlStr, "gcloud ADC") {
-		t.Error("expected credential source description in YAML output")
-	}
-}
-
-func TestPlan_NoSecretValuesInTableSections(t *testing.T) {
-	desired := &config.Harness{
-		Spec: config.Spec{
-			Target: config.Target{Gateway: "test-gateway"},
-			Providers: []config.Provider{
-				{
-					Name:       "gcp",
-					Type:       "google-vertex-ai",
-					Management: "managed",
-					Credentials: &config.SecretRef{
-						Source: "environment:MY_SECRET_KEY",
-					},
-				},
-			},
-		},
-	}
-	current := CurrentState{
-		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
-		Providers: []openshell.Provider{},
-	}
-
-	plan := Build(desired, current)
-	sections := plan.TableSections()
-
-	// Flatten all rows into a single string for checking
-	var allText strings.Builder
-	for _, section := range sections {
-		for _, row := range section.Rows {
-			for _, col := range row {
-				allText.WriteString(col)
-				allText.WriteString(" ")
-			}
-		}
-	}
-
-	tableStr := allText.String()
-	// The description should be present
-	if !strings.Contains(tableStr, "environment MY_SECRET_KEY") {
-		t.Errorf("expected credential source in table: %s", tableStr)
 	}
 }

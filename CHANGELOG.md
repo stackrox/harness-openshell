@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Changed
+- `harness apply` now accepts only strict `harness.openshell.dev/v1alpha1`
+  workflows and executes every sandbox lifecycle through the OpenShell Go SDK,
+  including uploads, policy, interactive TTY, and cleanup. Local image build
+  contexts are rejected; use a registry image reference.
+- `harness init` and `harness doctor` use the canonical workflow model. Doctor
+  verifies gateway provider registration and no longer requires local provider
+  credentials or an OpenShell executable for direct SDK/OIDC targets.
+- `apply -o yaml|json` redacts interpolated values and values in provider config
+  and sandbox environment maps.
 - Cloned repos now use URL-hashed bare mirrors (`~/.cache/harness-openshell/mirrors/`)
   plus per-run, self-contained checkouts (`~/.cache/harness-openshell/checkouts/`)
   instead of the basename-keyed `repos/` cache. Distinct repositories that share a
@@ -12,6 +21,12 @@
   `~/.cache/harness-openshell/repos/` directory is orphaned and safe to delete
   manually.
 
+### Removed
+- The unversioned agent config model, compatibility adapter, `migrate` command,
+  legacy task/agent flags, CLI sandbox execution bridge, and harness-owned
+  credentialed-provider bootstrap were removed in a hard cutover. Providers
+  must be provisioned by the target platform before apply.
+
 ## [0.3.0] - 2026-06-17
 
 ### Added
@@ -19,7 +34,7 @@
 - Multi-document harness YAML (`---` separated agent/provider/gateway/policy docs)
 - `harness init` and `harness doctor` commands
 - `kind: config` embeds sandbox files directly in harness YAML
-- `repo` field with `base_agent` inheritance and an inference warning
+- Repository checkout support and an inference warning
 - Cloned repos cached in `~/.cache/harness-openshell/repos/`
 - Configuration test suite with multi-config and free-API support
 - Headless tasks, policy applied via the CLI, and multi-upload payloads
@@ -38,7 +53,6 @@
 
 ### Added
 - `--gateway NAME` and `--gateway-profile FILE` flags on `harness up` for gateway selection
-- `--agent-profile` (`-f`) flag replaces `--file` on `harness up` and `harness create`
 - Gateway profiles support inline Helm values and addon manifests (single self-contained YAML per target)
 - Gateway profiles are embedded in the binary with fallback: `profiles/gateways/` → `gateways/` → embedded
 - `LoadConfigFromBytes` and `LoadProfile` for flexible gateway config loading
@@ -61,7 +75,7 @@
 - Provider registration messages standardized to `%s: registered`
 - All sandbox headers use noun form (`Sandbox`, not `Creating sandbox`)
 - `ensureProviders` helper deduplicates validate-register-revalidate pattern
-- Shared resolve functions moved to `cmd/resolve.go`
+- Shared config resolution was consolidated
 - Environment variables renamed: `SANDBOX_IMAGE` → `HARNESS_OS_IMAGE`, `HARNESS_DIR` → `HARNESS_OS_DIR`, `GATEWAY_NAME` → `HARNESS_OS_GATEWAY`, `PULL_SECRET` → `HARNESS_OS_PULL_SECRET`
 
 ### Removed

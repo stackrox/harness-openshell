@@ -10,6 +10,14 @@ import (
 	"github.com/stackrox/harness-openshell/internal/testutil"
 )
 
+type noCloseClient struct{ openshell.Client }
+
+func (noCloseClient) Close() error { return nil }
+
+func keepOpenFactory(client openshell.Client) openshell.Factory {
+	return testutil.FakeFactory(noCloseClient{client})
+}
+
 // The delete tests use keepOpenFactory (executor_inference_test.go) so the
 // command's deferred Close doesn't shut the shared fake before the test can
 // assert the resources were actually removed, not merely that a log line printed.

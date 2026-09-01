@@ -1,5 +1,0 @@
-# Minimal agent -- no providers, bash entrypoint.
-# Tests: sandbox creation with zero provider dependencies.
-name: test-minimal
-entrypoint: bash
-providers: []

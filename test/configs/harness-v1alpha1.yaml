@@ -10,8 +10,6 @@ spec:
     - name: my-gcp
       type: google-vertex-ai
       management: managed
-      credentials:
-        source: gcloud-adc
     - name: github-fact
       management: referenced
   inference:
