@@ -266,4 +266,6 @@ TTY, so it does not claim a live interactive proof.
 | Document | What it is |
 |----------|------------|
 | [AGENTS.md](AGENTS.md) | Contributor guide |
+| [docs/](docs/) | Repo-facing docs index |
 | [docs/ci.md](docs/ci.md) | HyperShell CI bootstrap and repository contract |
+| [docs/compatibility.md](docs/compatibility.md) | Tested OpenShell, ACP, and Go versions |

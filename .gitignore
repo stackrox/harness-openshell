@@ -14,14 +14,21 @@ acs-ai-sa.json
 dashboard.html
 harness
 harness-openshell
+bin/
+/orchestrator
 infracluster/
 kubeconfig
 mlflow.db
 openshell-arch/
 plan_file_ga.md
 plans/
-specs/
-docs/modernization/
 quay-pull-secret.yaml
 secrets.yaml
 strategy-dashboard.html
+# Working docs — local only (roadmap, specs, archive, scratch); sorted into active/ and archive/ inside
+working-docs/
+# Root scratch configs (local experiments)
+harness.yaml
+test.yaml
+reviewer.yaml
+skills-lock.json
