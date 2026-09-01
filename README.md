@@ -340,5 +340,6 @@ Each integration target builds (and pushes, for remote) the sandbox image automa
 | Document | What it is |
 |----------|------------|
 | [AGENTS.md](AGENTS.md) | Contributor guide |
+| [docs/](docs/) | Repo-facing docs index |
 | [docs/ci.md](docs/ci.md) | HyperShell CI bootstrap and repository contract |
-| [docs/archive/](docs/archive/) | Historical design context; not current behavior |
+| [docs/compatibility.md](docs/compatibility.md) | Tested OpenShell, ACP, and Go versions |
