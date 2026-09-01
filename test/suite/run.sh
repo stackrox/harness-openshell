@@ -75,7 +75,7 @@ run_test_fail "delete: arguments required" "$HARNESS" delete
 
 echo "=== Init and doctor ==="
 run_test "init: canonical scaffold" bash -c 'd=$(mktemp -d); "$1" init --non-interactive -o "$d/harness.yaml" >/dev/null && grep -q "apiVersion: harness.openshell.dev/v1alpha1" "$d/harness.yaml"; rc=$?; rm -rf "$d"; exit $rc' _ "$HARNESS"
-run_test "doctor: canonical file accepted" "$HARNESS" doctor -f "$ROOT/test/ci-workflow.yaml" -o json
+run_test "doctor: canonical config reports missing gateway" bash -c 'd=$(mktemp -d); out=$(HOME="$d" XDG_CONFIG_HOME="$d/.config" "$1" doctor -f "$2" -o json 2>/dev/null); rc=$?; rm -rf "$d"; [[ $rc -ne 0 ]] && python3 -m json.tool <<<"$out" >/dev/null && grep -q '"'"'"status": "fail"'"'"' <<<"$out"' _ "$HARNESS" "$ROOT/test/ci-workflow.yaml"
 
 if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
   echo "=== Live SDK lifecycle ==="
