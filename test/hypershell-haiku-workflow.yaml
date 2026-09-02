@@ -1,0 +1,38 @@
+apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: hs-haiku-check
+spec:
+  target:
+    gateway: hypershell
+    workspace: default-inference
+    registration:
+      endpoint: ${HYPERSHELL_GATEWAY}
+      oidc:
+        issuer: ${HYPERSHELL_OIDC_ISSUER}
+        clientId: ${HYPERSHELL_SANDBOX_SA_ID}
+        audience: ${HYPERSHELL_OIDC_AUDIENCE}
+  providers:
+    - name: vertex-claude-haiku
+      type: google-vertex-ai
+      management: referenced
+  inference:
+    route: inference.local
+    provider: vertex-claude-haiku
+    model: claude-haiku-4-5@20251001
+  sandbox:
+    image: ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+    policy:
+      file: ../profiles/images/sandbox-default/policy.yaml
+    env:
+      ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
+      ANTHROPIC_BASE_URL: https://inference.local
+      CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
+    keep: false
+  agent:
+    type: claude
+    args:
+      - --print
+      - --model
+      - haiku
+      - Respond with exactly HYPERSHELL_HAIKU_OK and nothing else.

@@ -20,7 +20,9 @@ pushes to `main`:
 | `ci.yml` | vet, unit tests, offline config suite, golangci-lint |
 | `integration.yml` | canonical SDK lifecycle on local and Kind gateways plus the live config suite |
 | `images.yml` | multi-architecture sandbox image build when image inputs change; trusted events also push |
-| `hypershell.yml` | isolated remote OIDC lifecycle on trusted `main` pushes or manual dispatch |
+
+HyperShell does not run on GitHub-hosted runners: its OIDC issuer is reachable
+only from the Red Hat network/VPN.
 
 Normal branch pushes do not trigger these workflows. A branch without a pull
 request can therefore have no CI runs.
@@ -94,19 +96,18 @@ This is an opt-in environment validation, not pull-request CI.
 
 ### 6. HyperShell integration
 
-The `HyperShell` workflow runs the canonical SDK lifecycle against a managed
-remote gateway using a pre-provisioned sandbox service account. Platform
-bootstrap grants that account membership in the gateway's default workspace
-once; no administrator token is stored in the repository or used at runtime.
-
-This workflow intentionally does not run on pull requests because repository
-secrets must not be exposed to untrusted PR code. Validate it after a trusted
-push or with manual dispatch:
+Run the canonical SDK lifecycle locally from the Red Hat network/VPN using a
+git-excluded service-account environment file. Platform bootstrap grants that
+account workspace membership once; no administrator token is used at runtime.
 
 ```bash
-gh workflow run hypershell.yml --ref "$(git branch --show-current)"
-gh run list --workflow hypershell.yml --limit 3
+make test-hypershell HYPERSHELL_SA_ENV=path/to/user-sa.env
+make test-hypershell-haiku HYPERSHELL_SA_ENV=path/to/user-sa.env
 ```
+
+The second target requires the durable Vertex provider and inference route
+documented in `docs/ci.md`. Report an unreachable OIDC issuer as a VPN/network
+skip and a missing provider or route as a platform-bootstrap failure.
 
 ### 7. Documentation consistency
 
@@ -144,7 +145,7 @@ Report `PASS`, `FAIL`, or `SKIP (reason)` for:
 - local CI and live integration
 - configured provider capabilities
 - OCP integration
-- trusted HyperShell integration
+- HyperShell integration
 - documentation consistency
 - current-branch GitHub CI
 
