@@ -98,9 +98,13 @@ trap cleanup INT TERM
 echo "=== apply $name ==="
 out="$("$HARNESS_BIN" apply "$name" --file "$WORKFLOW_FILE" 2>&1)"; rc=$?
 echo "$out"
-if [[ $rc -eq 0 ]] && grep -Fxq -- "$EXPECTED_MARKER" <<<"$out"; then
+# Apply writes reconciliation status before handing stdout to the sandbox
+# command. Drop only that leading status prefix, then require the complete agent
+# response to equal the marker; extra response lines must fail the check.
+agent_response="$(awk '!started && /^  [✓!\-] / { next } { started = 1; print }' <<<"$out")"
+if [[ $rc -eq 0 && "$agent_response" == "$EXPECTED_MARKER" ]]; then
   echo "RESULT: PASS ($EXPECTED_MARKER; sandbox auto-deleted)"
   exit 0
 fi
-echo "RESULT: FAIL (apply exit=$rc; marker $EXPECTED_MARKER not found)" >&2
+echo "RESULT: FAIL (apply exit=$rc; complete agent response did not equal $EXPECTED_MARKER)" >&2
 exit 1
