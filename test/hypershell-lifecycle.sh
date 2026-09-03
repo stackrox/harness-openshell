@@ -23,7 +23,8 @@
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-WORKFLOW_FILE="$ROOT_DIR/test/hypershell-workflow.yaml"
+WORKFLOW_FILE="${HYPERSHELL_WORKFLOW_FILE:-$ROOT_DIR/test/hypershell-workflow.yaml}"
+EXPECTED_MARKER="${HYPERSHELL_EXPECTED_MARKER:-canonical-sdk-ok}"
 
 # CI-safe path: this test is deliberately VPN- and credential-gated (see the
 # header) and has no runnable CI mode — a public runner cannot reach the OIDC
@@ -97,9 +98,13 @@ trap cleanup INT TERM
 echo "=== apply $name ==="
 out="$("$HARNESS_BIN" apply "$name" --file "$WORKFLOW_FILE" 2>&1)"; rc=$?
 echo "$out"
-if [[ $rc -eq 0 ]] && grep -q 'canonical-sdk-ok' <<<"$out"; then
-  echo "RESULT: PASS (canonical-sdk-ok; sandbox auto-deleted)"
+# Apply writes reconciliation status before handing stdout to the sandbox
+# command. Drop only that leading status prefix, then require the complete agent
+# response to equal the marker; extra response lines must fail the check.
+agent_response="$(awk '!started && /^  [✓!\-] / { next } { started = 1; print }' <<<"$out")"
+if [[ $rc -eq 0 && "$agent_response" == "$EXPECTED_MARKER" ]]; then
+  echo "RESULT: PASS ($EXPECTED_MARKER; sandbox auto-deleted)"
   exit 0
 fi
-echo "RESULT: FAIL (apply exit=$rc; marker not found)" >&2
+echo "RESULT: FAIL (apply exit=$rc; complete agent response did not equal $EXPECTED_MARKER)" >&2
 exit 1

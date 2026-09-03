@@ -1,0 +1,49 @@
+apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: vertex-gemini
+spec:
+  providers:
+    - name: vertex-ci
+      type: google-vertex-ai
+      management: referenced
+  inference:
+    route: inference.local
+    provider: vertex-ci
+    model: gemini-3.8-flash
+  sandbox:
+    image: quay.io/rcochran/openshell:sandbox-v0.3.0-1-gac8bccf
+    policy:
+      file: ../profiles/images/sandbox-default/policy.yaml
+    env:
+      OPENCODE_CONFIG: /sandbox/opencode-vertex.json
+      OPENCODE_VERTEX_API_KEY: openshell-proxy-managed
+    keep: false
+  payloads:
+    - destination: /sandbox/opencode-vertex.json
+      content: |
+        {
+          "$schema": "https://opencode.ai/config.json",
+          "provider": {
+            "vertex": {
+              "npm": "@ai-sdk/openai-compatible",
+              "name": "Vertex AI through OpenShell",
+              "options": {
+                "baseURL": "https://inference.local/v1",
+                "apiKey": "{env:OPENCODE_VERTEX_API_KEY}"
+              },
+              "models": {
+                "gemini-3.8-flash": {
+                  "name": "Gemini 3.8 Flash"
+                }
+              }
+            }
+          }
+        }
+  agent:
+    type: opencode
+    args:
+      - run
+      - --model
+      - vertex/gemini-3.8-flash
+      - Respond with exactly GEMINI_OPENCODE_OK and nothing else.

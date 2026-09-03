@@ -25,7 +25,7 @@ OPENSHELL_VERSION := $(shell cat .openshell-version 2>/dev/null)
 IMAGE  := $(REGISTRY):sandbox-$(VERSION)
 
 .PHONY: all cli openshell \
-        vet lint test test-local test-kind test-remote test-hypershell test-all \
+        vet lint test test-local test-kind test-remote test-vertex-gemini-opencode test-hypershell test-hypershell-haiku test-all \
         dev-sandbox dev-push tag clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
@@ -87,6 +87,11 @@ test-suite-live: cli
 test-local: cli dev-push
 	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh local-container
 
+## Vertex AI: Gemini 3.8 Flash through OpenCode and a temporary local-gateway provider.
+## Requires GOOGLE_VERTEX_AI_TOKEN and VERTEX_AI_PROJECT_ID.
+test-vertex-gemini-opencode: cli
+	./test/vertex-gemini-opencode.sh
+
 ## Kind: self-contained cluster lifecycle
 ## Builds sandbox image locally and pre-loads into kind (no registry push needed).
 ## Use KEEP=1 to keep the cluster after tests (for debugging).
@@ -107,6 +112,13 @@ test-remote: cli dev-push
 test-hypershell: cli
 	@test -n "$${HYPERSHELL_SA_ENV}" || { echo "ERROR: set HYPERSHELL_SA_ENV=path/to/sa.env"; exit 1; }
 	./test/hypershell-lifecycle.sh
+
+## Managed HyperShell: Claude Haiku through the preconfigured Vertex base layer.
+test-hypershell-haiku: cli
+	@test -n "$${HYPERSHELL_SA_ENV}" || { echo "ERROR: set HYPERSHELL_SA_ENV=path/to/sa.env"; exit 1; }
+	HYPERSHELL_WORKFLOW_FILE=$(CURDIR)/test/hypershell-haiku-workflow.yaml \
+	HYPERSHELL_EXPECTED_MARKER=HYPERSHELL_HAIKU_OK \
+		./test/hypershell-lifecycle.sh
 
 ## All: unit + local + kind + remote
 test-all: test test-local test-kind test-remote
