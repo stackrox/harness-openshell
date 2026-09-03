@@ -5,6 +5,28 @@ issuer is VPN-only. The Harness workflow connects directly through the
 OpenShell Go SDK. It does not persist a gateway registration or use a gateway
 administrator account at runtime.
 
+## GitHub-hosted Vertex smoke test
+
+`.github/workflows/vertex-smoke.yml` is manually dispatched only. It starts a
+local OpenShell gateway on a GitHub-hosted runner, obtains a short-lived Google
+access token from `VERTEX_AI_SERVICE_ACCOUNT_KEY`, and uses it to run OpenCode
+with Gemini 3.8 Flash through `inference.local`. It creates and deletes an
+isolated workspace, so it does not affect the gateway's default workspace.
+
+Repository configuration:
+
+- secret: `VERTEX_AI_SERVICE_ACCOUNT_KEY` — JSON key for the dedicated Vertex
+  service account;
+- variables: `VERTEX_AI_PROJECT_ID`, `VERTEX_AI_REGION`.
+
+The test script accepts `GOOGLE_VERTEX_AI_TOKEN`, not a service-account key.
+This keeps the OpenShell boundary identical when the key bootstrap is later
+replaced with GitHub Workload Identity Federation.
+
+The service-account project must have access to `gemini-3.8-flash` in the
+configured Vertex region. A 404 from the inference setup means the model is
+unavailable to that project; do not bypass the check with `--no-verify`.
+
 ## One-time platform bootstrap
 
 A gateway administrator adds the CI service-account subject to the `default`

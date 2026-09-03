@@ -25,7 +25,7 @@ OPENSHELL_VERSION := $(shell cat .openshell-version 2>/dev/null)
 IMAGE  := $(REGISTRY):sandbox-$(VERSION)
 
 .PHONY: all cli openshell \
-        vet lint test test-local test-kind test-remote test-hypershell test-hypershell-haiku test-all \
+        vet lint test test-local test-kind test-remote test-vertex-gemini-opencode test-hypershell test-hypershell-haiku test-all \
         dev-sandbox dev-push tag clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
@@ -86,6 +86,11 @@ test-suite-live: cli
 ## Builds and pushes the sandbox image so the gateway can pull it.
 test-local: cli dev-push
 	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh local-container
+
+## Vertex AI: Gemini 3.8 Flash through OpenCode and a temporary local-gateway provider.
+## Requires GOOGLE_VERTEX_AI_TOKEN and VERTEX_AI_PROJECT_ID.
+test-vertex-gemini-opencode: cli
+	./test/vertex-gemini-opencode.sh
 
 ## Kind: self-contained cluster lifecycle
 ## Builds sandbox image locally and pre-loads into kind (no registry push needed).
