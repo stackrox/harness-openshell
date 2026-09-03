@@ -16,6 +16,14 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install OpenShell
+        run: |
+          ver="$(cat .openshell-version)"
+          test -n "$ver" || { echo "error: .openshell-version is empty"; exit 1; }
+          install_script="$(mktemp)"
+          curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$install_script"
+          OPENSHELL_VERSION="$ver" sh "$install_script"
+
       - name: Authenticate to Google Cloud
         id: gcp-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
@@ -25,14 +33,6 @@ jobs:
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-
-      - name: Install OpenShell
-        run: |
-          ver="$(cat .openshell-version)"
-          test -n "$ver" || { echo "error: .openshell-version is empty"; exit 1; }
-          install_script="$(mktemp)"
-          curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$install_script"
-          OPENSHELL_VERSION="$ver" sh "$install_script"
 
       - name: Wait for gateway
         run: |
