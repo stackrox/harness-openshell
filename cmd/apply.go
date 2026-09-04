@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
@@ -22,46 +20,20 @@ mutating anything, or -o yaml to output the resolved configuration with
 host-interpolated and credential-bearing map values redacted.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if file == "" {
-				return fmt.Errorf("flag -f/--file is required")
-			}
 			if len(args) == 1 && sandboxName == "" {
 				sandboxName = args[0]
 			}
-
-			workflow, err := loadWorkflow(file, *gatewayName, *workspace, applyOverrides{
-				Name: sandboxName, AgentType: entrypoint, ForceTTY: attach,
-			})
-			if err != nil {
-				return err
-			}
-			if output != "" && !dryRun {
-				return renderWorkflow(workflow, output)
-			}
-
-			var client openshell.Client
-			// A non-dry-run apply always asks the SDK factory to resolve its target.
-			// An empty target means the active CLI-compatible gateway registration;
-			// dry-run remains fully offline when no target was requested.
-			if !dryRun || workflow.Target.Direct != nil || workflow.Target.Gateway != "" {
-				client, err = newClient(cmd.Context(), workflow.Target)
-				if err != nil {
-					desc := targetDescription(workflow.Target)
-					if !dryRun {
-						return fmt.Errorf("connecting to %s: %w", desc, err)
-					}
-					fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s unreachable: %v (rendering desired config only)\n", desc, err)
-				} else {
-					defer client.Close()
-				}
-			}
-			planned, current, err := workflow.buildPlan(cmd.Context(), client)
-			if err != nil {
-				return err
-			}
-			return applyWorkflow(cmd.Context(), workflow, planned, current, client, applyOptions{
-				SetupOnly: setupOnly, DryRun: dryRun, Output: output,
-			})
+			return runApply(cmd.Context(), newClient, applyRequest{
+				File:       file,
+				Name:       sandboxName,
+				Entrypoint: entrypoint,
+				Attach:     attach,
+				DryRun:     dryRun,
+				SetupOnly:  setupOnly,
+				Output:     output,
+				Gateway:    *gatewayName,
+				Workspace:  *workspace,
+			}, cmd.ErrOrStderr())
 		},
 	}
 

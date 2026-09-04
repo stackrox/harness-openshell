@@ -9,6 +9,7 @@ package sdkclient
 import (
 	"context"
 	"fmt"
+	"os"
 
 	v1 "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1"
 	gateway "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/gateway"
@@ -45,13 +46,16 @@ type client struct {
 	gatewayEndpoint string
 }
 
-// New constructs an openshell.Client for the given target: it loads the
-// CLI-managed gateway config, resolves the dial plan via planConnection, and
-// executes it via dial. For OIDC gateways, authenticate with the OpenShell CLI
-// first so its audience-aware token is available to the SDK.
+// New constructs an openshell.Client for the given target.
+//
+// Resolution order:
+//   - explicit Target.Direct connection metadata,
+//   - OPENSHELL_GATEWAY_ENDPOINT + OPENSHELL_OIDC_* direct metadata (when no
+//     gateway name is selected),
+//   - CLI-managed gateway registration/config via gateway.LoadConfig.
 func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
-	if t.Direct != nil {
-		return newDirect(ctx, t)
+	if target, ok := resolveDirectTarget(t, os.Getenv); ok {
+		return newDirect(ctx, target)
 	}
 	cfg, err := gateway.LoadConfig(t.Gateway)
 	if err != nil {
@@ -78,6 +82,34 @@ func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 	c.gatewayName = cfg.Name
 	c.gatewayEndpoint = cfg.Endpoint
 	return c, nil
+}
+
+// resolveDirectTarget normalizes target selection for New:
+//   - explicit target.Direct is authoritative;
+//   - when no gateway name is selected, OPENSHELL_GATEWAY_ENDPOINT +
+//     OPENSHELL_OIDC_* can define a direct SDK target;
+//   - otherwise New falls back to CLI-managed gateway config.
+func resolveDirectTarget(target openshell.Target, getenv func(string) string) (openshell.Target, bool) {
+	if target.Direct != nil {
+		return target, true
+	}
+	if target.Gateway != "" {
+		return target, false
+	}
+	endpoint := getenv(openshell.EnvGatewayEndpoint)
+	if endpoint == "" {
+		return target, false
+	}
+
+	target.Direct = &openshell.DirectConnection{
+		Endpoint: endpoint,
+		OIDC: openshell.OIDCConnection{
+			Issuer:   getenv(openshell.EnvOIDCIssuer),
+			ClientID: getenv(openshell.EnvOIDCClientID),
+			Audience: getenv(openshell.EnvOIDCAudience),
+		},
+	}
+	return target, true
 }
 
 // NewFromClient wraps an existing SDK client (or the SDK fake) bound to a

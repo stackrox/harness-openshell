@@ -247,38 +247,6 @@ func TestParseSelection_Invalid(t *testing.T) {
 	}
 }
 
-func TestParseListProfiles(t *testing.T) {
-	output := `Available Provider Profiles:
-
-  INFERENCE
-    google-vertex-ai  Google Vertex AI               endpoints: 4  inference
-
-  SOURCE CONTROL
-    github            GitHub                         endpoints: 3
-
-  KNOWLEDGE
-    atlassian         Atlassian (Jira + Confluence)  endpoints: 3
-    google-workspace  Google Workspace               endpoints: 8
-`
-	providers := parseListProfiles(output)
-	if len(providers) < 3 {
-		t.Fatalf("expected at least 3 providers, got %d: %+v", len(providers), providers)
-	}
-
-	found := make(map[string]availableProvider)
-	for _, p := range providers {
-		found[p.ID] = p
-	}
-	for _, id := range []string{"google-vertex-ai", "github", "atlassian"} {
-		if _, ok := found[id]; !ok {
-			t.Errorf("missing provider %q in parsed output", id)
-		}
-	}
-	if got := found["github"].Category; got != "source-control" {
-		t.Errorf("github category = %q, want source-control", got)
-	}
-}
-
 func TestInitNoCredentialLeak(t *testing.T) {
 	dir := t.TempDir()
 	outPath := filepath.Join(dir, "harness.yaml")

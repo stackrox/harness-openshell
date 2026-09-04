@@ -26,6 +26,20 @@ environment, then config precedence. Provisioning the gateway is OpenShell's or
 HyperShell's job, not the harness's (see [Install](#install)). When none is
 declared, apply uses the active OpenShell gateway registration.
 
+### Target resolution
+
+Effective target resolution is:
+
+1. explicit flags (`--gateway`, `--workspace`)
+2. environment (`OPENSHELL_GATEWAY`, `OPENSHELL_WORKSPACE`)
+3. workflow config (`spec.target.gateway`, `spec.target.workspace`)
+4. OpenShell active gateway selection (gateway only)
+
+When `OPENSHELL_GATEWAY` is unset, direct SDK/OIDC targeting can come from
+`OPENSHELL_GATEWAY_ENDPOINT` plus `OPENSHELL_OIDC_ISSUER`,
+`OPENSHELL_OIDC_CLIENT_ID`, and `OPENSHELL_OIDC_AUDIENCE`
+(`OPENSHELL_OIDC_CLIENT_SECRET` remains required at runtime).
+
 ### One-shot tasks
 
 Run a task headlessly -- the agent executes in a sandbox and outputs results.
@@ -117,6 +131,13 @@ Managed providers may be updated or explicitly adopted, but apply does not creat
 credentialed providers; platform bootstrap owns their creation. Relative payload
 and policy paths resolve from the workflow file's directory.
 
+Workflow schema essentials:
+
+- `spec.providers` declares provider resources; `spec.sandbox.providers` attaches provider capabilities to the sandbox runtime.
+- `management: referenced` requires an already-registered provider; managed providers can set `adopt: true` to take ownership of a pre-existing provider.
+- `spec.inference.verify: true` enforces inference-route endpoint checks during inference route writes.
+- `spec.source.repo` is cloned outside the sandbox and uploaded; `spec.payloads[*].source` and `spec.sandbox.policy.file` resolve relative to the workflow file.
+
 Canonical workflows use the OpenShell SDK for sandbox creation, policy
 application, readiness, source and payload uploads, execution, and cleanup.
 Interactive workflows use the same path with host terminal resize and raw-mode
@@ -148,6 +169,12 @@ openshell term                       # interactive policy terminal
 
 `openshell term` provides a live view of policy decisions -- which requests are allowed, denied, or pending review. This is how you audit and tune the deny-by-default L7 network policy while an agent is running.
 
+## Prerequisites
+
+- OpenShell CLI and gateway service at the repo-pinned version (see `make openshell` and `.openshell-version`).
+- An active OpenShell gateway registration (`openshell gateway add ...`, `openshell gateway select ...`).
+- Provider credentials already reconciled on the gateway for any referenced providers.
+
 ## Install
 
 ```bash
@@ -156,8 +183,14 @@ openshell term                       # interactive policy terminal
 # managed gateway service (Homebrew/launchd on macOS, systemd on Linux).
 make openshell
 
-# Download the harness binary
-curl -L https://github.com/stackrox/harness-openshell/releases/latest/download/harness_darwin_arm64 -o harness
+# Download the harness binary for your OS/arch
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64) ARCH=amd64 ;;
+  arm64|aarch64) ARCH=arm64 ;;
+esac
+curl -L "https://github.com/stackrox/harness-openshell/releases/latest/download/harness_${OS}_${ARCH}" -o harness
 chmod +x harness
 ```
 
@@ -175,7 +208,7 @@ openshell gateway select openshell
 If you need to restart the service later: `brew services restart openshell`
 (macOS) or `systemctl --user restart openshell-gateway` (Linux).
 
-Or build the harness from source: `make cli`
+Or build from source with `make cli` (uses your local Go toolchain).
 
 ### On a cluster
 
@@ -209,11 +242,13 @@ removes the gateway.
 | `harness doctor` | Validate gateway reachability and referenced providers |
 | `harness apply -f FILE` | Deploy a sandbox from config |
 | `harness apply -f FILE --attach` | Interactive TTY mode |
+| `harness apply -f FILE --setup-only` | Reconcile providers and inference only (skip sandbox run) |
 | `harness apply -f FILE --dry-run` | Render the v1alpha1 action plan without mutating |
 | `harness apply -f FILE -o yaml` | Output resolved config with interpolated and credential-bearing map values redacted |
-| `harness get agents\|providers\|gateways` | List resources |
+| `harness get gateways` | Show active gateway only (name, endpoint, status, version) |
+| `harness get agents\|providers` | List resources |
 | `harness describe <name>` | Sandbox details |
-| `harness delete <name> [--all]` | Tear down |
+| `harness delete <name> [--all\|--sandboxes\|--providers]` | Delete targeted or bulk resources |
 | `harness plan -f FILE` | Read-only reconciliation plan (mutates nothing) |
 
 ### Credentials
@@ -269,3 +304,4 @@ TTY, so it does not claim a live interactive proof.
 | [docs/](docs/) | Repo-facing docs index |
 | [docs/ci.md](docs/ci.md) | HyperShell CI bootstrap and repository contract |
 | [docs/compatibility.md](docs/compatibility.md) | Tested OpenShell, ACP, and Go versions |
+| [profiles/README.md](profiles/README.md) | Profile layout and examples |

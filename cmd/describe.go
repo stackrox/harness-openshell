@@ -42,47 +42,31 @@ func NewDescribeCmd(newClient openshell.Factory) *cobra.Command {
 			// Gateway context and providers are best-effort: a describe still
 			// shows the sandbox even if gateway introspection or the provider
 			// list fails (behavior-preserving with the former CLI path).
-			var gwName, gwEndpoint string
+			var gatewayInfo openshell.GatewayInfo
 			if info, err := client.GatewayInfo(cmd.Context()); err == nil {
-				gwName = info.Name
-				gwEndpoint = info.Endpoint
+				gatewayInfo = info
 			}
 
-			var providerNames []string
-			if providers, err := client.Providers(cmd.Context()); err == nil {
-				providerNames = make([]string, len(providers))
-				for i, p := range providers {
-					providerNames[i] = p.Name
-				}
+			var providers []openshell.Provider
+			if listedProviders, err := client.Providers(cmd.Context()); err == nil {
+				providers = listedProviders
 			}
 
 			if format != formatTable {
-				type describeOut struct {
-					Name      string   `json:"name" yaml:"name"`
-					Phase     string   `json:"phase" yaml:"phase"`
-					Gateway   string   `json:"gateway,omitempty" yaml:"gateway,omitempty"`
-					Endpoint  string   `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
-					Providers []string `json:"providers,omitempty" yaml:"providers,omitempty"`
-				}
-				return printStructured(format, describeOut{
-					Name:      sandbox.Name,
-					Phase:     sandbox.Phase,
-					Gateway:   gwName,
-					Endpoint:  gwEndpoint,
-					Providers: providerNames,
-				})
+				return printStructured(format, describeRecord(sandbox, gatewayInfo, providers))
 			}
 
 			status.Header(sandbox.Name)
 			status.Infof("Phase: %s", sandbox.Phase)
 
-			if gwName != "" {
-				status.Infof("Gateway: %s (%s)", gwName, gwEndpoint)
+			if gatewayInfo.Name != "" {
+				status.Infof("Gateway: %s (%s)", gatewayInfo.Name, gatewayInfo.Endpoint)
 			}
 
-			if len(providerNames) > 0 {
-				status.Infof("Providers: %d registered", len(providerNames))
-				for _, p := range providerNames {
+			providerIDs := providerNames(providers)
+			if len(providerIDs) > 0 {
+				status.Infof("Providers: %d registered", len(providerIDs))
+				for _, p := range providerIDs {
 					fmt.Printf("  - %s\n", p)
 				}
 			}

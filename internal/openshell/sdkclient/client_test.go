@@ -147,6 +147,78 @@ func TestNewFromClientDefaultsWorkspace(t *testing.T) {
 	}
 }
 
+func TestResolveDirectTarget(t *testing.T) {
+	tests := []struct {
+		name    string
+		target  openshell.Target
+		env     map[string]string
+		want    openshell.Target
+		wantUse bool
+	}{
+		{
+			name:    "explicit direct target wins",
+			target:  openshell.Target{Gateway: "named", Direct: &openshell.DirectConnection{Endpoint: "https://direct.example", OIDC: openshell.OIDCConnection{Issuer: "https://issuer", ClientID: "id", Audience: "aud"}}},
+			env:     map[string]string{openshell.EnvGatewayEndpoint: "https://env.example"},
+			want:    openshell.Target{Gateway: "named", Direct: &openshell.DirectConnection{Endpoint: "https://direct.example", OIDC: openshell.OIDCConnection{Issuer: "https://issuer", ClientID: "id", Audience: "aud"}}},
+			wantUse: true,
+		},
+		{
+			name:    "named gateway keeps CLI path",
+			target:  openshell.Target{Gateway: "cli-gateway"},
+			env:     map[string]string{openshell.EnvGatewayEndpoint: "https://env.example"},
+			want:    openshell.Target{Gateway: "cli-gateway"},
+			wantUse: false,
+		},
+		{
+			name: "direct target from env",
+			env: map[string]string{
+				openshell.EnvGatewayEndpoint: "https://env.example",
+				openshell.EnvOIDCIssuer:      "https://issuer.example",
+				openshell.EnvOIDCClientID:    "client",
+				openshell.EnvOIDCAudience:    "gateway",
+			},
+			want: openshell.Target{Direct: &openshell.DirectConnection{
+				Endpoint: "https://env.example",
+				OIDC: openshell.OIDCConnection{
+					Issuer:   "https://issuer.example",
+					ClientID: "client",
+					Audience: "gateway",
+				},
+			}},
+			wantUse: true,
+		},
+		{
+			name:    "no direct target info",
+			target:  openshell.Target{},
+			env:     map[string]string{},
+			want:    openshell.Target{},
+			wantUse: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			getenv := func(key string) string { return tt.env[key] }
+			got, use := resolveDirectTarget(tt.target, getenv)
+			if use != tt.wantUse {
+				t.Fatalf("useDirect = %v, want %v", use, tt.wantUse)
+			}
+			if got.Gateway != tt.want.Gateway || got.Workspace != tt.want.Workspace {
+				t.Fatalf("target gateway/workspace = %+v, want %+v", got, tt.want)
+			}
+			switch {
+			case got.Direct == nil && tt.want.Direct == nil:
+				return
+			case got.Direct == nil || tt.want.Direct == nil:
+				t.Fatalf("direct = %+v, want %+v", got.Direct, tt.want.Direct)
+			}
+			if *got.Direct != *tt.want.Direct {
+				t.Fatalf("direct = %+v, want %+v", *got.Direct, *tt.want.Direct)
+			}
+		})
+	}
+}
+
 func TestProvidersErrorTranslated(t *testing.T) {
 	ctx := context.Background()
 	fc := fake.NewClient()

@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/internal/config"
-	"github.com/stackrox/harness-openshell/internal/status"
 	"gopkg.in/yaml.v3"
 )
 
@@ -107,7 +105,7 @@ func promptEntrypoint(scanner *bufio.Scanner, out io.Writer) (string, error) {
 }
 
 func promptProviders(scanner *bufio.Scanner, out io.Writer) ([]config.Provider, error) {
-	available := discoverProviders()
+	available := defaultProviders
 
 	fmt.Fprintln(out, "Available providers:")
 	for i, p := range available {
@@ -135,78 +133,6 @@ func promptProviders(scanner *bufio.Scanner, out io.Writer) ([]config.Provider, 
 	}
 
 	return buildProviders(available, indices), nil
-}
-
-func discoverProviders() []availableProvider {
-	if providers := discoverFromOpenShell(); len(providers) > 0 {
-		return providers
-	}
-	return defaultProviders
-}
-
-func discoverFromOpenShell() []availableProvider {
-	path, err := exec.LookPath("openshell")
-	if err != nil {
-		return nil
-	}
-	status.Cmd(path, "provider", "list-profiles")
-	out, err := exec.Command(path, "provider", "list-profiles").Output()
-	if err != nil {
-		return nil
-	}
-	return parseListProfiles(string(out))
-}
-
-func parseListProfiles(output string) []availableProvider {
-	var providers []availableProvider
-	var currentCategory string
-
-	for _, line := range strings.Split(output, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-
-		// Category headers and provider rows are indented.
-		if !strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "\t") {
-			continue
-		}
-
-		fields := strings.Fields(trimmed)
-		if len(fields) == 0 {
-			continue
-		}
-
-		// Provider rows contain "endpoints:"; other indented lines are category
-		// headings, including multi-word headings such as "SOURCE CONTROL".
-		epIdx := -1
-		for i, f := range fields {
-			if f == "endpoints:" {
-				epIdx = i
-				break
-			}
-		}
-		if epIdx < 0 {
-			currentCategory = strings.ToLower(strings.Join(fields, "-"))
-			continue
-		}
-
-		id := fields[0]
-		displayName := strings.Join(fields[1:epIdx], " ")
-
-		category := currentCategory
-		if epIdx+2 < len(fields) {
-			category = fields[epIdx+2]
-		}
-
-		providers = append(providers, availableProvider{
-			ID:          id,
-			DisplayName: displayName,
-			Category:    category,
-		})
-	}
-
-	return providers
 }
 
 func providerDefaults(available []availableProvider) string {
