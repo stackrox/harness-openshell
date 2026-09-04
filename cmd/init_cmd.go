@@ -26,6 +26,7 @@ var defaultProviders = []availableProvider{
 	{ID: "google-workspace", DisplayName: "Google Workspace", Category: "knowledge"},
 }
 
+// NewInitCmd constructs the command that generates a starter workflow file.
 func NewInitCmd(defaultCfg []byte) *cobra.Command {
 	var (
 		outputPath     string
@@ -52,6 +53,7 @@ Use --non-interactive to write the embedded default config without prompts.`,
 	return cmd
 }
 
+// initRun writes a starter workflow, optionally collecting interactive choices.
 func initRun(in io.Reader, out io.Writer, outputPath string, force, nonInteractive bool, defaultCfg []byte) error {
 	if _, err := os.Stat(outputPath); err == nil && !force {
 		return fmt.Errorf("%s already exists (use --force to overwrite)", outputPath)

@@ -35,10 +35,13 @@ Effective target resolution is:
 3. workflow config (`spec.target.gateway`, `spec.target.workspace`)
 4. OpenShell active gateway selection (gateway only)
 
-When `OPENSHELL_GATEWAY` is unset, direct SDK/OIDC targeting can come from
-`OPENSHELL_GATEWAY_ENDPOINT` plus `OPENSHELL_OIDC_ISSUER`,
-`OPENSHELL_OIDC_CLIENT_ID`, and `OPENSHELL_OIDC_AUDIENCE`
-(`OPENSHELL_OIDC_CLIENT_SECRET` remains required at runtime).
+When no flag, `OPENSHELL_GATEWAY`, or `spec.target.gateway` selects a named
+gateway, direct SDK/OIDC targeting can come from
+`OPENSHELL_GATEWAY_ENDPOINT` plus all three of `OPENSHELL_OIDC_ISSUER`,
+`OPENSHELL_OIDC_CLIENT_ID`, and `OPENSHELL_OIDC_AUDIENCE`.
+All direct-target fields are required; otherwise Harness falls back to the
+CLI-managed gateway configuration. `OPENSHELL_OIDC_CLIENT_SECRET` remains
+required at runtime and is never part of the workflow document.
 
 ### One-shot tasks
 

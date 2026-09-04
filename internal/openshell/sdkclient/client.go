@@ -50,8 +50,8 @@ type client struct {
 //
 // Resolution order:
 //   - explicit Target.Direct connection metadata,
-//   - OPENSHELL_GATEWAY_ENDPOINT + OPENSHELL_OIDC_* direct metadata (when no
-//     gateway name is selected),
+//   - OPENSHELL_GATEWAY_ENDPOINT + complete OPENSHELL_OIDC_* direct metadata
+//     (when no gateway name is selected),
 //   - CLI-managed gateway registration/config via gateway.LoadConfig.
 func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 	if target, ok := resolveDirectTarget(t, os.Getenv); ok {
@@ -86,8 +86,8 @@ func New(ctx context.Context, t openshell.Target) (openshell.Client, error) {
 
 // resolveDirectTarget normalizes target selection for New:
 //   - explicit target.Direct is authoritative;
-//   - when no gateway name is selected, OPENSHELL_GATEWAY_ENDPOINT +
-//     OPENSHELL_OIDC_* can define a direct SDK target;
+//   - when no gateway name is selected, OPENSHELL_GATEWAY_ENDPOINT plus all
+//     required OPENSHELL_OIDC_* values can define a direct SDK target;
 //   - otherwise New falls back to CLI-managed gateway config.
 func resolveDirectTarget(target openshell.Target, getenv func(string) string) (openshell.Target, bool) {
 	if target.Direct != nil {
@@ -97,16 +97,19 @@ func resolveDirectTarget(target openshell.Target, getenv func(string) string) (o
 		return target, false
 	}
 	endpoint := getenv(openshell.EnvGatewayEndpoint)
-	if endpoint == "" {
+	issuer := getenv(openshell.EnvOIDCIssuer)
+	clientID := getenv(openshell.EnvOIDCClientID)
+	audience := getenv(openshell.EnvOIDCAudience)
+	if endpoint == "" || issuer == "" || clientID == "" || audience == "" {
 		return target, false
 	}
 
 	target.Direct = &openshell.DirectConnection{
 		Endpoint: endpoint,
 		OIDC: openshell.OIDCConnection{
-			Issuer:   getenv(openshell.EnvOIDCIssuer),
-			ClientID: getenv(openshell.EnvOIDCClientID),
-			Audience: getenv(openshell.EnvOIDCAudience),
+			Issuer:   issuer,
+			ClientID: clientID,
+			Audience: audience,
 		},
 	}
 	return target, true

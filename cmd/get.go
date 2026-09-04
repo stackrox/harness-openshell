@@ -7,6 +7,7 @@ import (
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
+// NewGetCmd constructs the resource listing command and its subcommands.
 func NewGetCmd(newClient openshell.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",
@@ -23,6 +24,7 @@ func NewGetCmd(newClient openshell.Factory) *cobra.Command {
 	return cmd
 }
 
+// newGetAgentsCmd constructs the sandbox listing subcommand.
 func newGetAgentsCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
 	var gatewayName, workspace *string
@@ -75,6 +77,7 @@ func newGetAgentsCmd(newClient openshell.Factory) *cobra.Command {
 	return cmd
 }
 
+// newGetProvidersCmd constructs the provider listing subcommand.
 func newGetProvidersCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
 	var gatewayName, workspace *string
@@ -127,6 +130,7 @@ func newGetProvidersCmd(newClient openshell.Factory) *cobra.Command {
 	return cmd
 }
 
+// newGetGatewaysCmd constructs the gateway listing subcommand.
 func newGetGatewaysCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
 	var gatewayName, workspace *string

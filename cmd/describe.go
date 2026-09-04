@@ -9,6 +9,7 @@ import (
 	"github.com/stackrox/harness-openshell/internal/status"
 )
 
+// NewDescribeCmd constructs the sandbox detail command.
 func NewDescribeCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
 	var gatewayName, workspace *string

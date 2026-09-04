@@ -30,10 +30,12 @@ type applyService struct {
 	stderr    io.Writer
 }
 
+// runApply executes an apply request through the service layer.
 func runApply(ctx context.Context, newClient openshell.Factory, req applyRequest, stderr io.Writer) error {
 	return applyService{newClient: newClient, stderr: stderr}.run(ctx, req)
 }
 
+// run loads, resolves, plans, and executes one workflow request.
 func (s applyService) run(ctx context.Context, req applyRequest) error {
 	if req.File == "" {
 		return fmt.Errorf("flag -f/--file is required")
@@ -61,6 +63,8 @@ func (s applyService) run(ctx context.Context, req applyRequest) error {
 	})
 }
 
+// connectAndPlan connects to the selected target when needed and builds the
+// plan used by the subsequent execution step.
 func (s applyService) connectAndPlan(ctx context.Context, workflow *resolvedWorkflow, dryRun bool) (openshell.Client, *plan.Plan, plan.CurrentState, error) {
 	var (
 		client openshell.Client

@@ -194,6 +194,16 @@ func TestResolveDirectTarget(t *testing.T) {
 			want:    openshell.Target{},
 			wantUse: false,
 		},
+		{
+			name: "incomplete direct target falls back to CLI path",
+			env: map[string]string{
+				openshell.EnvGatewayEndpoint: "https://env.example",
+				openshell.EnvOIDCIssuer:      "https://issuer.example",
+				openshell.EnvOIDCClientID:    "client",
+			},
+			want:    openshell.Target{},
+			wantUse: false,
+		},
 	}
 
 	for _, tt := range tests {

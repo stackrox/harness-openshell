@@ -26,6 +26,7 @@ type describeOutput struct {
 	Providers []string `json:"providers,omitempty" yaml:"providers,omitempty"`
 }
 
+// sandboxOutputs converts internal sandbox records to structured CLI output.
 func sandboxOutputs(sandboxes []openshell.Sandbox) []sandboxOutput {
 	out := make([]sandboxOutput, len(sandboxes))
 	for i, sandbox := range sandboxes {
@@ -34,6 +35,7 @@ func sandboxOutputs(sandboxes []openshell.Sandbox) []sandboxOutput {
 	return out
 }
 
+// providerOutputs converts internal provider records to redaction-safe output.
 func providerOutputs(providers []openshell.Provider) []providerOutput {
 	out := make([]providerOutput, len(providers))
 	for i, provider := range providers {
@@ -42,6 +44,7 @@ func providerOutputs(providers []openshell.Provider) []providerOutput {
 	return out
 }
 
+// providerNames returns provider names for the compact table output.
 func providerNames(providers []openshell.Provider) []string {
 	out := make([]string, len(providers))
 	for i, provider := range providers {
@@ -50,6 +53,7 @@ func providerNames(providers []openshell.Provider) []string {
 	return out
 }
 
+// gatewayRecord converts gateway connection and health facts to CLI output.
 func gatewayRecord(info openshell.GatewayInfo) gatewayOutput {
 	return gatewayOutput{
 		Name:     info.Name,
@@ -59,6 +63,7 @@ func gatewayRecord(info openshell.GatewayInfo) gatewayOutput {
 	}
 }
 
+// describeRecord combines sandbox, gateway, and provider facts for describe.
 func describeRecord(sandbox openshell.Sandbox, info openshell.GatewayInfo, providers []openshell.Provider) describeOutput {
 	return describeOutput{
 		Name:      sandbox.Name,
