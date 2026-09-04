@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Check GitHub Actions syntax
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.9
       - name: Check test script syntax
