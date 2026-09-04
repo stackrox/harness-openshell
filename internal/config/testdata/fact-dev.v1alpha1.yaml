@@ -33,7 +33,6 @@ spec:
     tty: false
   agent:
     type: claude
-    model: claude-haiku-4-5
     args: [--bare]
   source:
     repo: https://github.com/stackrox/fact

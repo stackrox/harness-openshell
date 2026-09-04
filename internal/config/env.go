@@ -220,7 +220,6 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	}
 
 	s.Agent.Type = exp("spec.agent.type", h.Spec.Agent.Type)
-	s.Agent.Model = exp("spec.agent.model", h.Spec.Agent.Model)
 	if len(h.Spec.Agent.Args) > 0 {
 		s.Agent.Args = make([]string, len(h.Spec.Agent.Args))
 		for i, a := range h.Spec.Agent.Args {

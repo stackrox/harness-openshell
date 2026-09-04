@@ -22,6 +22,8 @@
   manually.
 
 ### Removed
+- The unused `spec.agent.model` field. Select inference models with
+  `spec.inference.model` and pass agent-specific model flags in `spec.agent.args`.
 - The unversioned agent config model, compatibility adapter, `migrate` command,
   legacy task/agent flags, CLI sandbox execution bridge, and harness-owned
   credentialed-provider bootstrap were removed in a hard cutover. Providers

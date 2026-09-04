@@ -127,9 +127,8 @@ type PolicyRef struct {
 
 // Agent specifies the agent to use in the sandbox.
 type Agent struct {
-	Type  string   `yaml:"type,omitempty"`
-	Model string   `yaml:"model,omitempty"`
-	Args  []string `yaml:"args,omitempty"`
+	Type string   `yaml:"type,omitempty"`
+	Args []string `yaml:"args,omitempty"`
 }
 
 // Source specifies the source repository to clone.

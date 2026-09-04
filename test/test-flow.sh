@@ -68,6 +68,24 @@ cleanup_gateway() {
   harness delete --gateway "$gateway" --sandboxes >/dev/null 2>&1 || true
 }
 
+wait_for_sandbox_absent() {
+  local gateway="$1" sandbox="$2" output
+  local i
+  for i in $(seq 1 30); do
+    if output="$(harness describe --gateway "$gateway" "$sandbox" 2>&1)"; then
+      sleep 1
+      continue
+    fi
+    if [[ "$output" == *"sandbox \"$sandbox\" not found"* ]]; then
+      return 0
+    fi
+    printf '%s\n' "$output" >&2
+    return 1
+  done
+  echo "sandbox $sandbox still exists after automatic cleanup" >&2
+  return 1
+}
+
 provider_exists() {
   "$CLI" provider list --names 2>/dev/null | grep -Fxq "$1"
 }
@@ -118,7 +136,7 @@ exercise_lifecycle() {
   step "sandbox delete" harness delete --gateway "$gateway" "$sandbox"
   local auto_sandbox="${sandbox}-auto"
   step "automatic cleanup apply" harness apply -f "$AUTO_WORKFLOW" --gateway "$gateway" --name "$auto_sandbox"
-  step_fail "automatic cleanup verified" harness describe --gateway "$gateway" "$auto_sandbox"
+  step "automatic cleanup verified" wait_for_sandbox_absent "$gateway" "$auto_sandbox"
 }
 
 test_errors() {
