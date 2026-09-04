@@ -34,7 +34,7 @@ jobs:
             changed=true
           fi
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
         if: steps.changes.outputs.changed == 'true'
       - uses: docker/setup-buildx-action@v3
         if: steps.changes.outputs.changed == 'true'
