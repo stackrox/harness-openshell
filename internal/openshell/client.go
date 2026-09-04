@@ -74,6 +74,30 @@ type SandboxExecutionClient interface {
 	DeleteSandbox(ctx context.Context, name string) error
 }
 
+// StateReader reads the gateway state needed to build a workflow plan.
+type StateReader interface {
+	Health(ctx context.Context) (Health, error)
+	Providers(ctx context.Context) ([]Provider, error)
+	InferenceRouteReader
+}
+
+// InferenceRouteReader reads one inference route from the bound workspace.
+type InferenceRouteReader interface {
+	GetInferenceRoute(ctx context.Context, route string) (InferenceRoute, error)
+}
+
+// ProviderReconciler reads and updates non-secret provider configuration.
+type ProviderReconciler interface {
+	GetProvider(ctx context.Context, name string) (Provider, error)
+	UpdateProvider(ctx context.Context, p Provider) (Provider, error)
+}
+
+// InferenceReconciler reads and upserts inference routes.
+type InferenceReconciler interface {
+	InferenceRouteReader
+	SetInferenceRoute(ctx context.Context, cfg InferenceRouteConfig) (InferenceRoute, error)
+}
+
 // InteractiveSession is the SDK-native bidirectional terminal stream without
 // exposing an SDK type outside sdkclient.
 type InteractiveSession interface {

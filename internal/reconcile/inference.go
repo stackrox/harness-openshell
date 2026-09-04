@@ -43,7 +43,7 @@ type InferenceResult struct {
 // changes. Likewise, an update triggered by a provider/model change with an unset
 // timeout writes 0, resetting any non-default gateway timeout to the default —
 // "unset timeout" always means "let the gateway decide".
-func ReconcileInference(ctx context.Context, c openshell.Client, desired config.Inference) (InferenceResult, error) {
+func ReconcileInference(ctx context.Context, c openshell.InferenceReconciler, desired config.Inference) (InferenceResult, error) {
 	cur, err := plan.ReadInferenceState(ctx, c, desired)
 	if err != nil {
 		return InferenceResult{}, fmt.Errorf("reading inference route: %w", err)
