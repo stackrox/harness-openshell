@@ -21,7 +21,6 @@ var Version = "dev"
 // - Provide writable Python virtualenv at /opt/agent/venv
 // - Maintain standard PATH conventions for agent tools
 // - Support multi-context execution (local, HyperShell personal, service-account)
->>>>>>> 0de49bb (docs: Document explicit sandbox image semantics and precedence rules)
 func resolveSandboxImage(agentImage string) string {
 	// 1. Environment override (highest priority)
 	if envImage := os.Getenv("HARNESS_OS_IMAGE"); envImage != "" {
@@ -42,7 +41,6 @@ func resolveSandboxImage(agentImage string) string {
 // Example outputs:
 //   versionedImage("sandbox") with Version="dev" → quay.io/rcochran/openshell:sandbox
 //   versionedImage("sandbox") with Version="0.1.0" → quay.io/rcochran/openshell:sandbox-0.1.0
->>>>>>> 0de49bb (docs: Document explicit sandbox image semantics and precedence rules)
 func versionedImage(name string) string {
 	base := "quay.io/rcochran/openshell"
 	if Version == "" || Version == "dev" {
