@@ -1,5 +1,9 @@
 ## OpenShell Harness — build, push, and test
 ##
+## Verify (no Docker/Kind/OpenShell needed):
+##   make verify            # vet + lint + test-suite
+##   make verify-fast       # vet + lint (quick checks)
+##
 ## Tests (CI mode auto-detects from CI env var):
 ##   make test              # vet + unit tests
 ##   make test-local        # local gateway integration
@@ -19,13 +23,16 @@ VERSION       := $(shell git describe --tags --always 2>/dev/null || echo dev)
 LDFLAGS       := -s -w -X main.version=$(VERSION)
 
 # Pinned OpenShell CLI/gateway version — single source of truth for `make
-# openshell` and CI (.github/workflows/integration.yml).
+# openshell`, CI (.github/workflows/integration.yml), and the runtime min-version
+# check (internal/gateway.MinOpenShellVersion, enforced in lockstep by a test).
 OPENSHELL_VERSION := $(shell cat .openshell-version 2>/dev/null)
 
 IMAGE  := $(REGISTRY):sandbox-$(VERSION)
 
 .PHONY: all cli openshell \
-        vet lint test test-local test-kind test-remote test-vertex-gemini-opencode test-hypershell test-hypershell-haiku test-all \
+        vet lint verify verify-fast \
+        test test-local test-kind test-remote test-vertex-gemini-opencode test-hypershell test-hypershell-haiku test-all \
+        test-suite test-suite-live \
         dev-sandbox dev-push tag clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
@@ -66,6 +73,14 @@ lint:
 		$(MAKE) vet; \
 	fi
 
+## ── Verify targets (no Docker/Kind/OpenShell needed) ───────────────────
+
+## Fast checks: vet + lint only
+verify-fast: vet lint
+
+## Full verify: fast checks + config test suite
+verify: verify-fast test-suite
+
 ## ── Test targets ──────────────────────────────────────────────────────
 ## CI mode auto-detects from the CI env var (set by GitHub Actions).
 ## Locally: full tests with credentials. On GHA: no-credential mode.
@@ -85,7 +100,7 @@ test-suite-live: cli
 ## Local gateway integration (unit tests run separately via 'make test')
 ## Builds and pushes the sandbox image so the gateway can pull it.
 test-local: cli dev-push
-	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh local-container
+	./test/test-flow.sh local-container
 
 ## Vertex AI: Gemini 3.8 Flash through OpenCode and a temporary local-gateway provider.
 ## Requires GOOGLE_VERTEX_AI_TOKEN and VERTEX_AI_PROJECT_ID.
