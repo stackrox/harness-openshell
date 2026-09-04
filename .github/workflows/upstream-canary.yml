@@ -1,0 +1,42 @@
+name: OpenShell upstream canary
+
+on:
+  schedule:
+    - cron: "17 14 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-latest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install latest OpenShell
+        run: |
+          tmp="$(mktemp)"
+          trap 'rm -f "$tmp"' EXIT
+          curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$tmp"
+          sh "$tmp"
+          openshell --help
+      - name: Run credential-free local lifecycle
+        run: |
+          CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=upstream-canary' -o harness .
+          ./test/test-flow.sh local-container --ci
+        env:
+          TEST_LOG_FILE: /tmp/test-logs/upstream-canary.log
+      - name: Export logs
+        if: always()
+        run: |
+          mkdir -p /tmp/test-logs
+          journalctl --user -u openshell-gateway --no-pager > /tmp/test-logs/gateway.log 2>&1 || true
+          openshell status > /tmp/test-logs/status.txt 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upstream-canary-logs
+          path: /tmp/test-logs/
