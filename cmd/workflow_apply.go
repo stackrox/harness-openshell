@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -24,59 +23,9 @@ type applyOptions struct {
 	Output    string
 }
 
-// applyWorkflow executes a resolved v1alpha1 workflow. The caller supplies the
-// same plan snapshot that it may render for --dry-run; writes are delegated to
-// reconcilers that share plan's provider and inference action functions.
+// applyWorkflow is a compatibility wrapper used by existing tests.
 func applyWorkflow(ctx context.Context, workflow *resolvedWorkflow, p *plan.Plan, current plan.CurrentState, client openshell.Client, opts applyOptions) error {
-	if opts.DryRun {
-		return renderPlan(p, opts.Output)
-	}
-	if client == nil || !current.Reachable {
-		return fmt.Errorf("%s is not reachable or authenticated", targetDescription(workflow.Target))
-	}
-	if err := preflightPlan(workflow.Desired, p); err != nil {
-		return err
-	}
-	if err := verifySandboxProviders(ctx, client, workflow.Desired); err != nil {
-		return err
-	}
-
-	var req run.SandboxRunRequest
-	if !opts.SetupOnly && runConfigured(workflow.Desired) {
-		var (
-			cleanup func()
-			err     error
-		)
-		req, cleanup, err = buildRunRequest(workflow)
-		if err != nil {
-			return err
-		}
-		defer cleanup()
-	}
-
-	if err := reconcileProviders(ctx, client, workflow.Desired.Spec.Providers); err != nil {
-		return err
-	}
-	if inferenceConfigured(workflow.Desired.Spec.Inference) {
-		result, err := reconcile.ReconcileInference(ctx, client, workflow.Desired.Spec.Inference)
-		if err != nil {
-			return fmt.Errorf("reconciling inference: %w", err)
-		}
-		status.OKf("inference: %s (model %s)", result.Action, workflow.Desired.Spec.Inference.Model)
-	}
-	if opts.SetupOnly {
-		status.OK("Setup complete (--setup-only): skipping sandbox creation")
-		return nil
-	}
-	if !runConfigured(workflow.Desired) {
-		status.OK("Reconciliation complete: workflow declares no sandbox run")
-		return nil
-	}
-	executor, ok := client.(openshell.SandboxExecutionClient)
-	if !ok {
-		return fmt.Errorf("configured OpenShell client does not support SDK sandbox execution")
-	}
-	return run.Run(ctx, executor, req, os.Stdin, os.Stdout, os.Stderr)
+	return executeResolvedWorkflow(ctx, workflow, p, current, client, opts)
 }
 
 // targetDescription names a target for error messages: direct registrations
