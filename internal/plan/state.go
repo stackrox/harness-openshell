@@ -43,7 +43,7 @@ type CurrentState struct {
 // unreachable or unauthenticated, Reachable is set to false and a nil error is
 // returned; other errors are escalated. When desired configures inference, it
 // reads the current route so the plan can show a real create/update/noop diff.
-func ReadCurrentState(ctx context.Context, c openshell.Client, desired *config.Harness) (CurrentState, error) {
+func ReadCurrentState(ctx context.Context, c openshell.StateReader, desired *config.Harness) (CurrentState, error) {
 	var state CurrentState
 
 	// Read health.
@@ -98,7 +98,7 @@ func ReadCurrentState(ctx context.Context, c openshell.Client, desired *config.H
 // back to a config-only validate. Transient errors (unavailable/unauthenticated)
 // and ErrPermission are propagated so the caller decides whether to degrade
 // (the read-only plan) or fail (the reconcile write path).
-func ReadInferenceState(ctx context.Context, c openshell.Client, desired config.Inference) (InferenceState, error) {
+func ReadInferenceState(ctx context.Context, c openshell.InferenceRouteReader, desired config.Inference) (InferenceState, error) {
 	route, err := c.GetInferenceRoute(ctx, ResolveInferenceRoute(desired.Route))
 	switch {
 	case err == nil:

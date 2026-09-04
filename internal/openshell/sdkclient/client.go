@@ -26,6 +26,9 @@ var (
 	_ openshell.Factory                = New
 	_ openshell.Client                 = (*client)(nil)
 	_ openshell.SandboxExecutionClient = (*client)(nil)
+	_ openshell.StateReader            = (*client)(nil)
+	_ openshell.ProviderReconciler     = (*client)(nil)
+	_ openshell.InferenceReconciler    = (*client)(nil)
 )
 
 // client wraps the SDK client interface, binding it to one workspace. It holds

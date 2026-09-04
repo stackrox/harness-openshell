@@ -45,7 +45,7 @@ type ProviderResult struct {
 // On Update the write is credential-preserving by construction (the firewall
 // Provider has no credentials field) and is reached only on a real non-secret
 // delta, so the empty-credential copy-through is never sent spuriously.
-func ReconcileProviders(ctx context.Context, c openshell.Client, desired []config.Provider) ([]ProviderResult, error) {
+func ReconcileProviders(ctx context.Context, c openshell.ProviderReconciler, desired []config.Provider) ([]ProviderResult, error) {
 	results := make([]ProviderResult, 0, len(desired))
 
 	for _, d := range desired {
