@@ -12,7 +12,12 @@ jobs:
   local-latest:
     runs-on: ubuntu-latest
     steps:
+      # This job intentionally runs the current upstream installer. It has no
+      # repository secrets or write permissions, and checkout credentials are
+      # not persisted for the installer to read.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
