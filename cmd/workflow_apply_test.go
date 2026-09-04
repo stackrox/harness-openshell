@@ -279,6 +279,76 @@ spec:
 	}
 }
 
+func TestRedactedWorkflowRedactsInterpolatedScalars(t *testing.T) {
+	resolved := &config.Harness{
+		APIVersion: "harness.openshell.dev/v1alpha1",
+		Kind:       "Harness",
+		Metadata:   config.Metadata{Name: "resolved-name"},
+		Spec: config.Spec{
+			Target: config.Target{
+				Gateway:   "resolved-gateway",
+				Workspace: "workspace",
+				Registration: &config.Registration{
+					Endpoint: "https://gateway.example",
+					OIDC:     &config.OIDC{Issuer: "https://issuer.example", ClientID: "client", Audience: "audience"},
+				},
+			},
+			Inference: config.Inference{Route: "inference.local", Provider: "vertex", Model: "model", Timeout: "60s"},
+			Sandbox: config.Sandbox{
+				Image:     "image",
+				Providers: []string{"provider"},
+				Policy:    &config.PolicyRef{File: "policy.yaml"},
+			},
+			Agent:     config.Agent{Type: "agent", Args: []string{"literal", "resolved-argument"}},
+			Source:    config.Source{Repo: "repo", Ref: "main", Destination: "/sandbox", Submodules: "shallow"},
+			Payloads:  []config.Payload{{Source: "payload", Content: "content", Destination: "/sandbox/payload"}},
+			Providers: []config.Provider{{Name: "provider", Type: "vertex", Management: "referenced"}},
+		},
+	}
+	input := &config.Harness{
+		APIVersion: resolved.APIVersion,
+		Kind:       resolved.Kind,
+		Metadata:   config.Metadata{Name: "${NAME}"},
+		Spec: config.Spec{
+			Target: config.Target{
+				Gateway:   "${GATEWAY}",
+				Workspace: "workspace",
+				Registration: &config.Registration{
+					Endpoint: "${ENDPOINT}",
+					OIDC:     &config.OIDC{Issuer: "${ISSUER}", ClientID: "${CLIENT_ID}", Audience: "${AUDIENCE}"},
+				},
+			},
+			Inference: config.Inference{Route: "${ROUTE}", Provider: "vertex", Model: "${MODEL}", Timeout: "60s"},
+			Sandbox: config.Sandbox{
+				Image:     "${IMAGE}",
+				Providers: []string{"${PROVIDER}"},
+				Policy:    &config.PolicyRef{File: "${POLICY}"},
+			},
+			Agent:     config.Agent{Type: "${AGENT}", Args: []string{"literal", "${ARGUMENT}"}},
+			Source:    config.Source{Repo: "${REPO}", Ref: "main", Destination: "${DESTINATION}", Submodules: "shallow"},
+			Payloads:  []config.Payload{{Source: "${PAYLOAD_SOURCE}", Content: "${PAYLOAD_CONTENT}", Destination: "${PAYLOAD_DESTINATION}"}},
+			Providers: []config.Provider{{Name: "${PROVIDER_NAME}", Type: "vertex", Management: "${MANAGEMENT}"}},
+		},
+	}
+
+	got := redactedWorkflow(resolved, input)
+	if got.Metadata.Name != "<redacted>" || got.Spec.Target.Gateway != "<redacted>" || got.Spec.Target.Registration.Endpoint != "<redacted>" || got.Spec.Target.Registration.OIDC.ClientID != "<redacted>" {
+		t.Errorf("target fields = %+v, want interpolated values redacted", got.Spec.Target)
+	}
+	if got.Spec.Inference.Route != "<redacted>" || got.Spec.Inference.Model != "<redacted>" || got.Spec.Sandbox.Image != "<redacted>" || got.Spec.Sandbox.Providers[0] != "<redacted>" || got.Spec.Sandbox.Policy.File != "<redacted>" {
+		t.Errorf("inference/sandbox fields were not redacted: %+v %+v", got.Spec.Inference, got.Spec.Sandbox)
+	}
+	if got.Spec.Agent.Type != "<redacted>" || got.Spec.Agent.Args[0] != "literal" || got.Spec.Agent.Args[1] != "<redacted>" {
+		t.Errorf("agent fields = %+v", got.Spec.Agent)
+	}
+	if got.Spec.Source.Repo != "<redacted>" || got.Spec.Source.Ref != "main" || got.Spec.Source.Destination != "<redacted>" {
+		t.Errorf("source fields = %+v", got.Spec.Source)
+	}
+	if got.Spec.Payloads[0].Source != "<redacted>" || got.Spec.Payloads[0].Content != "<redacted>" || got.Spec.Payloads[0].Destination != "<redacted>" || got.Spec.Providers[0].Name != "<redacted>" || got.Spec.Providers[0].Management != "<redacted>" {
+		t.Errorf("payload/provider fields were not redacted: %+v %+v", got.Spec.Payloads[0], got.Spec.Providers[0])
+	}
+}
+
 func TestApplyRejectsUnversionedConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
 	writeTestFile(t, path, "name: old-config\nentrypoint: claude\n")

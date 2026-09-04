@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"github.com/stackrox/harness-openshell/internal/config"
@@ -340,11 +339,116 @@ func renderWorkflow(workflow *resolvedWorkflow, output string) error {
 // sandbox environment values may originate in the host environment and must
 // never be serialized by -o yaml/json.
 func redactedWorkflow(resolved, input *config.Harness) *config.Harness {
-	out := cloneRedactingInterpolated(reflect.ValueOf(resolved), reflect.ValueOf(input)).Interface().(*config.Harness)
-	for i := range out.Spec.Providers {
-		out.Spec.Providers[i].Config = redactedStringMap(out.Spec.Providers[i].Config)
+	out := &config.Harness{
+		APIVersion: redactInterpolated(resolved.APIVersion, input.APIVersion),
+		Kind:       redactInterpolated(resolved.Kind, input.Kind),
+		Metadata: config.Metadata{
+			Name: redactInterpolated(resolved.Metadata.Name, input.Metadata.Name),
+		},
+		Spec: config.Spec{
+			Target: redactedTarget(resolved.Spec.Target, input.Spec.Target),
+			Inference: config.Inference{
+				Route:    redactInterpolated(resolved.Spec.Inference.Route, input.Spec.Inference.Route),
+				Provider: redactInterpolated(resolved.Spec.Inference.Provider, input.Spec.Inference.Provider),
+				Model:    redactInterpolated(resolved.Spec.Inference.Model, input.Spec.Inference.Model),
+				Timeout:  redactInterpolated(resolved.Spec.Inference.Timeout, input.Spec.Inference.Timeout),
+				Verify:   copyBool(resolved.Spec.Inference.Verify),
+			},
+			Sandbox: redactedSandbox(resolved.Spec.Sandbox, input.Spec.Sandbox),
+			Agent: config.Agent{
+				Type: redactInterpolated(resolved.Spec.Agent.Type, input.Spec.Agent.Type),
+				Args: redactStrings(resolved.Spec.Agent.Args, input.Spec.Agent.Args),
+			},
+			Source: config.Source{
+				Repo:        redactInterpolated(resolved.Spec.Source.Repo, input.Spec.Source.Repo),
+				Ref:         redactInterpolated(resolved.Spec.Source.Ref, input.Spec.Source.Ref),
+				Destination: redactInterpolated(resolved.Spec.Source.Destination, input.Spec.Source.Destination),
+				Submodules:  redactInterpolated(resolved.Spec.Source.Submodules, input.Spec.Source.Submodules),
+			},
+		},
 	}
-	out.Spec.Sandbox.Env = redactedStringMap(out.Spec.Sandbox.Env)
+	out.Spec.Providers = redactedProviders(resolved.Spec.Providers, input.Spec.Providers)
+	out.Spec.Payloads = redactedPayloads(resolved.Spec.Payloads, input.Spec.Payloads)
+	return out
+}
+
+func redactedTarget(resolved, input config.Target) config.Target {
+	out := config.Target{
+		Gateway:   redactInterpolated(resolved.Gateway, input.Gateway),
+		Workspace: redactInterpolated(resolved.Workspace, input.Workspace),
+	}
+	if resolved.Registration != nil {
+		var raw config.Registration
+		if input.Registration != nil {
+			raw = *input.Registration
+		}
+		out.Registration = &config.Registration{
+			Endpoint: redactInterpolated(resolved.Registration.Endpoint, raw.Endpoint),
+		}
+		if resolved.Registration.OIDC != nil {
+			var rawOIDC config.OIDC
+			if raw.OIDC != nil {
+				rawOIDC = *raw.OIDC
+			}
+			out.Registration.OIDC = &config.OIDC{
+				Issuer:   redactInterpolated(resolved.Registration.OIDC.Issuer, rawOIDC.Issuer),
+				ClientID: redactInterpolated(resolved.Registration.OIDC.ClientID, rawOIDC.ClientID),
+				Audience: redactInterpolated(resolved.Registration.OIDC.Audience, rawOIDC.Audience),
+			}
+		}
+	}
+	return out
+}
+
+func redactedProviders(resolved, input []config.Provider) []config.Provider {
+	out := make([]config.Provider, len(resolved))
+	for i, provider := range resolved {
+		var raw config.Provider
+		if i < len(input) {
+			raw = input[i]
+		}
+		out[i] = config.Provider{
+			Name:       redactInterpolated(provider.Name, raw.Name),
+			Type:       redactInterpolated(provider.Type, raw.Type),
+			Management: redactInterpolated(provider.Management, raw.Management),
+			Adopt:      provider.Adopt,
+			Config:     redactedStringMap(provider.Config),
+		}
+	}
+	return out
+}
+
+func redactedSandbox(resolved, input config.Sandbox) config.Sandbox {
+	out := config.Sandbox{
+		Image:     redactInterpolated(resolved.Image, input.Image),
+		Providers: redactStrings(resolved.Providers, input.Providers),
+		Env:       redactedStringMap(resolved.Env),
+		Keep:      resolved.Keep,
+		TTY:       resolved.TTY,
+	}
+	if resolved.Policy != nil {
+		var raw config.PolicyRef
+		if input.Policy != nil {
+			raw = *input.Policy
+		}
+		out.Policy = &config.PolicyRef{File: redactInterpolated(resolved.Policy.File, raw.File)}
+	}
+	return out
+}
+
+func redactedPayloads(resolved, input []config.Payload) []config.Payload {
+	out := make([]config.Payload, len(resolved))
+	for i, payload := range resolved {
+		var raw config.Payload
+		if i < len(input) {
+			raw = input[i]
+		}
+		out[i] = config.Payload{
+			Source:      redactInterpolated(payload.Source, raw.Source),
+			Content:     redactInterpolated(payload.Content, raw.Content),
+			Destination: redactInterpolated(payload.Destination, raw.Destination),
+		}
+	}
 	return out
 }
 
@@ -359,67 +463,29 @@ func redactedStringMap(in map[string]string) map[string]string {
 	return out
 }
 
-// cloneRedactingInterpolated deep-copies a resolved config while replacing any
-// string derived from host interpolation. The raw input supplies only shape and
-// sensitivity information; its values are never copied into output.
-func cloneRedactingInterpolated(resolved, input reflect.Value) reflect.Value {
-	if !resolved.IsValid() {
-		return resolved
+func redactInterpolated(resolved, input string) string {
+	if strings.Contains(input, "$") {
+		return "<redacted>"
 	}
-	if resolved.Kind() == reflect.Pointer {
-		if resolved.IsNil() {
-			return reflect.Zero(resolved.Type())
-		}
-		var raw reflect.Value
-		if input.IsValid() && input.Kind() == reflect.Pointer && !input.IsNil() {
-			raw = input.Elem()
-		}
-		out := reflect.New(resolved.Type().Elem())
-		out.Elem().Set(cloneRedactingInterpolated(resolved.Elem(), raw))
-		return out
-	}
-	if resolved.Kind() == reflect.String {
-		if input.IsValid() && input.Kind() == reflect.String && strings.Contains(input.String(), "$") {
-			return reflect.ValueOf("<redacted>").Convert(resolved.Type())
-		}
-		return resolved
-	}
+	return resolved
+}
 
-	out := reflect.New(resolved.Type()).Elem()
-	switch resolved.Kind() {
-	case reflect.Struct:
-		for i := 0; i < resolved.NumField(); i++ {
-			var raw reflect.Value
-			if input.IsValid() && input.Kind() == reflect.Struct {
-				raw = input.Field(i)
-			}
-			out.Field(i).Set(cloneRedactingInterpolated(resolved.Field(i), raw))
+func redactStrings(resolved, input []string) []string {
+	out := make([]string, len(resolved))
+	for i, value := range resolved {
+		var raw string
+		if i < len(input) {
+			raw = input[i]
 		}
-	case reflect.Slice:
-		out = reflect.MakeSlice(resolved.Type(), resolved.Len(), resolved.Len())
-		for i := 0; i < resolved.Len(); i++ {
-			var raw reflect.Value
-			if input.IsValid() && input.Kind() == reflect.Slice && i < input.Len() {
-				raw = input.Index(i)
-			}
-			out.Index(i).Set(cloneRedactingInterpolated(resolved.Index(i), raw))
-		}
-	case reflect.Map:
-		if resolved.IsNil() {
-			return reflect.Zero(resolved.Type())
-		}
-		out = reflect.MakeMapWithSize(resolved.Type(), resolved.Len())
-		iter := resolved.MapRange()
-		for iter.Next() {
-			key, value := iter.Key(), iter.Value()
-			var raw reflect.Value
-			if input.IsValid() && input.Kind() == reflect.Map {
-				raw = input.MapIndex(key)
-			}
-			out.SetMapIndex(key, cloneRedactingInterpolated(value, raw))
-		}
-	default:
-		out.Set(resolved)
+		out[i] = redactInterpolated(value, raw)
 	}
 	return out
+}
+
+func copyBool(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
 }
