@@ -9,6 +9,15 @@ permissions:
   contents: read
 
 jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check GitHub Actions syntax
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.9
+      - name: Check test script syntax
+        run: find test -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
   test:
     runs-on: ubuntu-latest
     steps:
