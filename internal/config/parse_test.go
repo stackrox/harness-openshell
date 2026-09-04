@@ -152,6 +152,7 @@ func TestRemovedCredentialAndAutoProviderFieldsAreRejected(t *testing.T) {
 	for name, field := range map[string]string{
 		"provider credentials":       "  providers:\n    - name: github\n      credentials: {source: gcloud-adc}\n",
 		"registration autoProviders": "  target:\n    registration:\n      autoProviders: true\n",
+		"agent model":                "  agent:\n    type: claude\n    model: claude-haiku\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			data := "apiVersion: harness.openshell.dev/v1alpha1\nkind: Harness\nmetadata: {name: test}\nspec:\n" + field

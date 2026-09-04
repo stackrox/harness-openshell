@@ -643,9 +643,8 @@ func TestResolveAgentFields(t *testing.T) {
 		Metadata:   Metadata{Name: "test"},
 		Spec: Spec{
 			Agent: Agent{
-				Type:  "${AGENT_TYPE}",
-				Model: "claude-opus",
-				Args:  []string{"--flag1", "${ARG_VALUE}"},
+				Type: "${AGENT_TYPE}",
+				Args: []string{"--flag1", "${ARG_VALUE}"},
 			},
 		},
 	}
