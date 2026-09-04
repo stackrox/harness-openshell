@@ -1,0 +1,36 @@
+name: Setup OpenShell
+description: Install the pinned OpenShell CLI and wait for the gateway to become ready.
+
+runs:
+  using: composite
+  steps:
+    - name: Install openshell
+      # Version is pinned in .openshell-version (the single source of truth,
+      # also read by `make openshell`). The install script otherwise
+      # grabs the latest tagged release, which can drift past the chart's
+      # supervisor image and break the sandbox ssh/tar relay with
+      # "supervisor session not found".
+      shell: bash
+      run: |
+        ver="$(cat .openshell-version)"
+        test -n "$ver" || { echo "error: .openshell-version is empty"; exit 1; }
+        tmp="$(mktemp)"
+        curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$tmp"
+        OPENSHELL_VERSION="$ver" sh "$tmp"
+
+    - name: Wait for gateway
+      shell: bash
+      run: |
+        ready=false
+        for _ in $(seq 1 30); do
+          if openshell inference get &>/dev/null; then
+            ready=true
+            break
+          fi
+          sleep 1
+        done
+        if [[ "$ready" != true ]]; then
+          openshell gateway list || true
+          echo "OpenShell gateway did not become ready" >&2
+          exit 1
+        fi
