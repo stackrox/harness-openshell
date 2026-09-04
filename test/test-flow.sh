@@ -72,7 +72,10 @@ wait_for_sandbox_absent() {
   local gateway="$1" sandbox="$2" output
   local i
   for i in $(seq 1 30); do
-    output="$(harness describe --gateway "$gateway" "$sandbox" 2>&1)" && continue
+    if output="$(harness describe --gateway "$gateway" "$sandbox" 2>&1)"; then
+      sleep 1
+      continue
+    fi
     if [[ "$output" == *"sandbox \"$sandbox\" not found"* ]]; then
       return 0
     fi
