@@ -64,7 +64,7 @@ jobs:
           openshell status > /tmp/test-logs/status.txt 2>&1 || true
           openshell gateway list > /tmp/test-logs/gateways.txt 2>&1 || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-logs-local
@@ -130,7 +130,7 @@ jobs:
           kubectl -n openshell get all > /tmp/test-logs/resources.txt 2>&1 || true
           openshell gateway list > /tmp/test-logs/gateways.txt 2>&1 || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-logs-kind
