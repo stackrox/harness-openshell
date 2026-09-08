@@ -76,6 +76,8 @@ has no tool permissions or direct outbound destinations, only gateway inference.
 Label, head, and base are checked before inference and before publication.
 Diffs over 200 KiB fail rather than receiving partial reviews. Findings must
 match the JSON contract and refer to a displayed new-file hunk.
+The model uses low reasoning effort for this bounded diff-only task; truncated
+or incomplete responses fail validation rather than becoming partial reviews.
 
 The workspace, sandbox, and provider are deleted on success, failure, and normal
 cancellation. Runner loss or forced termination cannot guarantee cleanup.

@@ -18,7 +18,10 @@
         "apiKey": "{env:OPENCODE_VERTEX_API_KEY}"
       },
       "models": {
-        "gemini-3.8-flash": {"name": "Gemini 3.8 Flash"}
+        "gemini-3.8-flash": {
+          "name": "Gemini 3.8 Flash",
+          "options": {"reasoningEffort": "low"}
+        }
       }
     }
   }

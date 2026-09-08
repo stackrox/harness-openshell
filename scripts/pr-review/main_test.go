@@ -37,7 +37,7 @@ func TestLabelGate(t *testing.T) {
 
 func textEvent(text string) []byte {
 	b, _ := json.Marshal(map[string]any{"type": "text", "part": map[string]string{"text": text}})
-	return b
+	return append(b, []byte("\n{\"type\":\"step_finish\",\"part\":{\"reason\":\"stop\"}}")...)
 }
 
 func TestReviewContract(t *testing.T) {
@@ -67,6 +67,14 @@ func TestReviewContract(t *testing.T) {
 		if _, err := parseReview(data, []byte(testDiff)); err == nil {
 			t.Fatal("accepted failed/tool-using worker")
 		}
+	}
+	data := append(textEvent(`{"findings":[]}`), []byte("\n{\"type\":\"step_finish\",\"part\":{\"reason\":\"length\"}}")...)
+	if _, err := parseReview(data, []byte(testDiff)); err == nil {
+		t.Fatal("accepted truncated worker response")
+	}
+	unfinished := strings.SplitN(string(textEvent(`{"findings":[]}`)), "\n", 2)[0]
+	if _, err := parseReview([]byte(unfinished), []byte(testDiff)); err == nil {
+		t.Fatal("accepted response without completion event")
 	}
 }
 
@@ -120,7 +128,8 @@ case "$1 ${2:-}" in
       printf '%s\n' '{"type":"text","part":{"text":"not JSON"}}'
     else
       printf '%s\n' '{"type":"text","part":{"text":"{\"findings\":[]}"}}'
-    fi ;;
+    fi
+    printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
   'workspace delete') [[ "$TEST_MODE" != cleanup-failure ]] ;;
 esac
 `

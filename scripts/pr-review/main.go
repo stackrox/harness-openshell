@@ -311,12 +311,13 @@ func command(ctx context.Context, stdout io.Writer, env []string, name string, a
 
 func parseReview(data, diff []byte) (review, error) {
 	var text strings.Builder
+	complete := false
 	scan := bufio.NewScanner(bytes.NewReader(data))
 	scan.Buffer(make([]byte, 4096), 1024*1024)
 	for scan.Scan() {
 		var event struct {
 			Type string
-			Part struct{ Text string }
+			Part struct{ Text, Reason string }
 		}
 		if json.Unmarshal(scan.Bytes(), &event) != nil {
 			continue
@@ -324,12 +325,18 @@ func parseReview(data, diff []byte) (review, error) {
 		if event.Type == "error" || event.Type == "tool_use" {
 			return review{}, errors.New("worker failed or attempted a tool call")
 		}
+		if event.Type == "step_finish" && event.Part.Reason != "stop" {
+			return review{}, errors.New("worker did not complete its response")
+		}
+		if event.Type == "step_finish" {
+			complete = true
+		}
 		if event.Type == "text" {
 			text.WriteString(event.Part.Text)
 		}
 	}
-	if scan.Err() != nil {
-		return review{}, errors.New("oversized worker output")
+	if scan.Err() != nil || !complete {
+		return review{}, errors.New("incomplete or oversized worker output")
 	}
 	var r review
 	decoder := json.NewDecoder(strings.NewReader(text.String()))
