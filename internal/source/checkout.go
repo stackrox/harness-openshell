@@ -57,7 +57,9 @@ func (c *Cache) Prepare(repoURL, ref, runID string) (Prepared, error) {
 	}
 	commit, err := gitOutput(dir, "rev-parse", "--verify", "HEAD^{commit}")
 	if err != nil {
-		_ = os.RemoveAll(c.runDir(runID))
+		if cleanupErr := os.RemoveAll(c.runDir(runID)); cleanupErr != nil {
+			return Prepared{}, fmt.Errorf("resolving prepared source commit: %w; removing checkout: %w", err, cleanupErr)
+		}
 		return Prepared{}, fmt.Errorf("resolving prepared source commit: %w", err)
 	}
 
