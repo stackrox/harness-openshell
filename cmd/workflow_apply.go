@@ -22,6 +22,12 @@ type applyOptions struct {
 	SetupOnly bool
 	DryRun    bool
 	Output    string
+	Result    *applyResult
+}
+
+type preparedRun struct {
+	run.SandboxRunRequest
+	SourceCommit string
 }
 
 // applyWorkflow is a compatibility wrapper used by existing tests.
@@ -111,7 +117,7 @@ func inferenceConfigured(inf config.Inference) bool {
 	return inf.Route != "" || inf.Provider != "" || inf.Model != "" || inf.Timeout != ""
 }
 
-func buildRunRequest(workflow *resolvedWorkflow) (run.SandboxRunRequest, func(), error) {
+func buildRunRequest(workflow *resolvedWorkflow) (preparedRun, func(), error) {
 	desired := workflow.Desired
 	cleanups := []func(){}
 	cleanup := func() {
@@ -119,9 +125,9 @@ func buildRunRequest(workflow *resolvedWorkflow) (run.SandboxRunRequest, func(),
 			cleanups[i]()
 		}
 	}
-	fail := func(err error) (run.SandboxRunRequest, func(), error) {
+	fail := func(err error) (preparedRun, func(), error) {
 		cleanup()
-		return run.SandboxRunRequest{}, func() {}, err
+		return preparedRun{}, func() {}, err
 	}
 	image := resolveSandboxImagePath(desired.Spec.Sandbox.Image, workflow.BaseDir)
 	if filepath.IsAbs(image) {
@@ -129,6 +135,7 @@ func buildRunRequest(workflow *resolvedWorkflow) (run.SandboxRunRequest, func(),
 	}
 
 	var uploads []run.Upload
+	var sourceCommit string
 	if desired.Spec.Source.Repo != "" {
 		if mode := desired.Spec.Source.Submodules; mode != "" && mode != "shallow" {
 			return fail(fmt.Errorf("spec.source.submodules %q is not supported; use shallow or omit it", mode))
@@ -137,11 +144,12 @@ func buildRunRequest(workflow *resolvedWorkflow) (run.SandboxRunRequest, func(),
 		if err != nil {
 			return fail(fmt.Errorf("generating run ID: %w", err))
 		}
-		upload, sourceCleanup, err := cloneRepo(desired.Spec.Source.Repo, desired.Spec.Source.Ref, runID)
+		upload, sourceCleanup, commit, err := cloneRepo(desired.Spec.Source.Repo, desired.Spec.Source.Ref, runID)
 		if err != nil {
 			return fail(fmt.Errorf("cloning source: %w", err))
 		}
 		cleanups = append(cleanups, sourceCleanup)
+		sourceCommit = commit
 		if desired.Spec.Source.Destination != "" {
 			upload.Dst = desired.Spec.Source.Destination
 		}
@@ -202,7 +210,7 @@ func buildRunRequest(workflow *resolvedWorkflow) (run.SandboxRunRequest, func(),
 		command = append([]string{desired.Spec.Agent.Type}, desired.Spec.Agent.Args...)
 	}
 
-	return run.SandboxRunRequest{
+	return preparedRun{SourceCommit: sourceCommit, SandboxRunRequest: run.SandboxRunRequest{
 		Name:      desired.Metadata.Name,
 		Image:     image,
 		Providers: append([]string(nil), desired.Spec.Sandbox.Providers...),
@@ -212,12 +220,12 @@ func buildRunRequest(workflow *resolvedWorkflow) (run.SandboxRunRequest, func(),
 		TTY:       desired.Spec.Sandbox.TTY,
 		Keep:      desired.Spec.Sandbox.Keep,
 		Policy:    policyBytes,
-	}, cleanup, nil
+	}}, cleanup, nil
 }
 
 // cloneRepo prepares an isolated checkout on the host so repository credentials
 // never enter the sandbox.
-func cloneRepo(repo, ref, runID string) (run.Upload, func(), error) {
+func cloneRepo(repo, ref, runID string) (run.Upload, func(), string, error) {
 	if ref != "" {
 		status.Infof("Repo:  %s (ref: %s)", repo, ref)
 	} else {
@@ -225,11 +233,11 @@ func cloneRepo(repo, ref, runID string) (run.Upload, func(), error) {
 	}
 	cache, err := source.DefaultCache()
 	if err != nil {
-		return run.Upload{}, nil, err
+		return run.Upload{}, nil, "", err
 	}
 	prepared, err := cache.Prepare(repo, ref, runID)
 	if err != nil {
-		return run.Upload{}, nil, fmt.Errorf("preparing repo %s: %w", repo, err)
+		return run.Upload{}, nil, "", fmt.Errorf("preparing repo %s: %w", repo, err)
 	}
 	status.OKf("Prepared %s (commit: %s)", source.RepoName(repo), prepared.Commit)
 	cleanup := func() {
@@ -237,7 +245,7 @@ func cloneRepo(repo, ref, runID string) (run.Upload, func(), error) {
 			status.Warnf("cleaning up repo checkout: %v", err)
 		}
 	}
-	return run.Upload{Src: prepared.Dir, Dst: "/sandbox"}, cleanup, nil
+	return run.Upload{Src: prepared.Dir, Dst: "/sandbox"}, cleanup, prepared.Commit, nil
 }
 
 func renderPlan(p *plan.Plan, output string) error {
