@@ -17,7 +17,7 @@ jobs:
   sandbox:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Check image inputs
@@ -33,7 +33,7 @@ jobs:
             changed=true
           fi
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
         if: steps.changes.outputs.changed == 'true'
       - uses: docker/setup-buildx-action@v3
         if: steps.changes.outputs.changed == 'true'
