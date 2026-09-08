@@ -231,7 +231,7 @@ func cloneRepo(repo, ref, runID string) (run.Upload, func(), error) {
 	if err != nil {
 		return run.Upload{}, nil, fmt.Errorf("preparing repo %s: %w", repo, err)
 	}
-	status.OKf("Prepared %s", source.RepoName(repo))
+	status.OKf("Prepared %s (commit: %s)", source.RepoName(repo), prepared.Commit)
 	cleanup := func() {
 		if err := prepared.Cleanup(); err != nil {
 			status.Warnf("cleaning up repo checkout: %v", err)

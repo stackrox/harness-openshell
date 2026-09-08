@@ -140,6 +140,8 @@ Workflow schema essentials:
 - `management: referenced` requires an already-registered provider; managed providers can set `adopt: true` to take ownership of a pre-existing provider.
 - `spec.inference.verify: true` enforces inference-route endpoint checks during inference route writes.
 - `spec.source.repo` is cloned outside the sandbox and uploaded; `spec.payloads[*].source` and `spec.sandbox.policy.file` resolve relative to the workflow file.
+- Pin `spec.source.ref` to a full commit SHA for repeatable source inputs. Branches and tags resolve at preparation time; an omitted ref uses remote HEAD. Apply reports the actual prepared commit from the host checkout, including the commit behind an annotated tag. Missing refs fail instead of falling back to HEAD. This identifies the initial checkout, not later agent edits or payload overlays, and is not yet a structured run-result artifact.
+- `spec.source.destination` is the parent directory for the checkout, not a rename: `/sandbox` plus a repository named `stackrox` produces `/sandbox/stackrox`. Omitting the destination uses `/sandbox`.
 
 Canonical workflows use the OpenShell SDK for sandbox creation, policy
 application, readiness, source and payload uploads, execution, and cleanup.
