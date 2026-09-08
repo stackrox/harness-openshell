@@ -5,8 +5,12 @@ package openshell
 // default). Exported so cmd help text and tests can name them without
 // re-declaring the strings.
 const (
-	EnvGateway   = "OPENSHELL_GATEWAY"
-	EnvWorkspace = "OPENSHELL_WORKSPACE"
+	EnvGateway         = "OPENSHELL_GATEWAY"
+	EnvWorkspace       = "OPENSHELL_WORKSPACE"
+	EnvGatewayEndpoint = "OPENSHELL_GATEWAY_ENDPOINT"
+	EnvOIDCIssuer      = "OPENSHELL_OIDC_ISSUER"
+	EnvOIDCClientID    = "OPENSHELL_OIDC_CLIENT_ID"
+	EnvOIDCAudience    = "OPENSHELL_OIDC_AUDIENCE"
 )
 
 // ResolveTarget builds a Target from explicit flag values, environment variables,
