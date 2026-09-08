@@ -1,4 +1,10 @@
-# HyperShell validation
+# CI and live validation
+
+Credential-free PR checks do not establish live inference success.
+Image PR checks build without registry login or publication; only
+main/tag pushes publish images and update the shared registry cache.
+
+## HyperShell validation
 
 HyperShell validation runs locally from the Red Hat network because its OIDC
 issuer is VPN-only. The Harness workflow connects directly through the
