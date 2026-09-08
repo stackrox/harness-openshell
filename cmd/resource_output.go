@@ -45,7 +45,7 @@ func providerOutputs(providers []openshell.Provider) []providerOutput {
 }
 
 // providerNames returns provider names for the compact table output.
-func providerNames(providers []openshell.Provider) []string {
+func resourceProviderNames(providers []openshell.Provider) []string {
 	out := make([]string, len(providers))
 	for i, provider := range providers {
 		out[i] = provider.Name
@@ -70,6 +70,6 @@ func describeRecord(sandbox openshell.Sandbox, info openshell.GatewayInfo, provi
 		Phase:     sandbox.Phase,
 		Gateway:   info.Name,
 		Endpoint:  info.Endpoint,
-		Providers: providerNames(providers),
+		Providers: resourceProviderNames(providers),
 	}
 }

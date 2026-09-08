@@ -64,7 +64,7 @@ func NewDescribeCmd(newClient openshell.Factory) *cobra.Command {
 				status.Infof("Gateway: %s (%s)", gatewayInfo.Name, gatewayInfo.Endpoint)
 			}
 
-			providerIDs := providerNames(providers)
+			providerIDs := resourceProviderNames(providers)
 			if len(providerIDs) > 0 {
 				status.Infof("Providers: %d registered", len(providerIDs))
 				for _, p := range providerIDs {
