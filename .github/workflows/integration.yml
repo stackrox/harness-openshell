@@ -13,38 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
-      - name: Install openshell
-        # Version is pinned in .openshell-version (the single source of truth,
-        # also read by `make openshell`). The install script otherwise
-        # grabs the latest tagged release, which can drift past the chart's
-        # supervisor image and break the sandbox ssh/tar relay with
-        # "supervisor session not found".
-        run: |
-          ver="$(cat .openshell-version)"
-          test -n "$ver" || { echo "error: .openshell-version is empty"; exit 1; }
-          tmp="$(mktemp)"
-          curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$tmp"
-          OPENSHELL_VERSION="$ver" sh "$tmp"
-
-      - name: Wait for gateway
-        run: |
-          ready=false
-          for _ in $(seq 1 30); do
-            if openshell inference get &>/dev/null; then
-              ready=true
-              break
-            fi
-            sleep 1
-          done
-          if [[ "$ready" != true ]]; then
-            openshell gateway list || true
-            echo "OpenShell gateway did not become ready" >&2
-            exit 1
-          fi
+      - name: Setup OpenShell
+        uses: ./.github/actions/setup-openshell
 
       - name: Run local integration
         run: |
@@ -64,7 +38,7 @@ jobs:
           openshell status > /tmp/test-logs/status.txt 2>&1 || true
           openshell gateway list > /tmp/test-logs/gateways.txt 2>&1 || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-logs-local
@@ -74,38 +48,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
-      - name: Install openshell
-        # Version is pinned in .openshell-version (the single source of truth,
-        # also read by `make openshell`). The install script otherwise
-        # grabs the latest tagged release, which can drift past the chart's
-        # supervisor image and break the sandbox ssh/tar relay with
-        # "supervisor session not found".
-        run: |
-          ver="$(cat .openshell-version)"
-          test -n "$ver" || { echo "error: .openshell-version is empty"; exit 1; }
-          tmp="$(mktemp)"
-          curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$tmp"
-          OPENSHELL_VERSION="$ver" sh "$tmp"
-
-      - name: Wait for gateway
-        run: |
-          ready=false
-          for _ in $(seq 1 30); do
-            if openshell inference get &>/dev/null; then
-              ready=true
-              break
-            fi
-            sleep 1
-          done
-          if [[ "$ready" != true ]]; then
-            openshell gateway list || true
-            echo "OpenShell gateway did not become ready" >&2
-            exit 1
-          fi
+      - name: Setup OpenShell
+        uses: ./.github/actions/setup-openshell
 
       # install_only: kind-lifecycle.sh creates its own cluster with an
       # isolated kubeconfig — only the kind binary is needed here.
@@ -130,7 +78,7 @@ jobs:
           kubectl -n openshell get all > /tmp/test-logs/resources.txt 2>&1 || true
           openshell gateway list > /tmp/test-logs/gateways.txt 2>&1 || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-logs-kind

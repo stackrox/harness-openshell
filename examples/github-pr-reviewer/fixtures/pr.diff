@@ -1,0 +1,15 @@
+diff --git a/example.go b/example.go
+index 1111111..2222222 100644
+--- a/example.go
++++ b/example.go
+@@ -1,5 +1,9 @@
+ package example
+ 
++// Returns the fixed fixture value used by the reviewer smoke test.
++func ReviewMarker() string {
++	return "fixture-review"
++}
++
+ func Existing() string {
+ 	return "unchanged"
+ }

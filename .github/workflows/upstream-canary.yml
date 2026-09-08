@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Install latest OpenShell
@@ -40,7 +40,7 @@ jobs:
           mkdir -p /tmp/test-logs
           journalctl --user -u openshell-gateway --no-pager > /tmp/test-logs/gateway.log 2>&1 || true
           openshell status > /tmp/test-logs/status.txt 2>&1 || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: upstream-canary-logs
