@@ -53,6 +53,42 @@ The service-account project must have access to `gemini-3.8-flash` in the
 configured Vertex region. A 404 from the inference setup means the model is
 unavailable to that project; do not bypass the check with `--no-verify`.
 
+## Label-driven PR review
+
+Apply `ai-review` to an open, non-draft PR to request a diff-only review and
+keep reviewing each subsequent pushed head. A push containing several commits
+reviews their combined PR diff, not each intermediate commit. New events cancel
+older runs. Removing the label, closing the PR, or converting it to a draft
+disables review. Reapplying the label requests a fresh run.
+
+The `AI review` workflow must be merged into the default branch before this
+trigger works. It uses the Vertex service-account secret and variables above.
+It publishes only workflow summaries and seven-day artifacts: immutable input
+revisions and diff hash, the diff, execution metadata, raw worker diagnostics,
+and validated findings. It never posts PR comments or approves a PR. Findings
+are advisory model output, not evidence that a change is safe to merge.
+
+`pull_request_target` checks out only the trusted default branch. PR contents
+are downloaded as data, never checked out or executed on the runner. A dedicated
+OpenShell workspace receives a pinned image, trusted agent configuration, and
+the diff; no GitHub token or service-account key enters the worker. The worker
+has no tool permissions or direct outbound destinations, only gateway inference.
+Label, head, and base are checked before inference and before publication.
+Diffs over 200 KiB fail rather than receiving partial reviews. Findings must
+match the JSON contract and refer to a displayed new-file hunk.
+
+The workspace, sandbox, and provider are deleted on success, failure, and normal
+cancellation. Runner loss or forced termination cannot guarantee cleanup.
+
+With `GOOGLE_VERTEX_AI_TOKEN` and `VERTEX_AI_PROJECT_ID` configured as above,
+run the opt-in known-bug review test locally:
+
+```bash
+PR_REVIEW_LIVE=1 go test -run '^TestLiveReview$' -v -timeout 9m ./scripts/pr-review
+```
+
+Ordinary unit tests use fake commands and do not contact Vertex.
+
 ## One-time platform bootstrap
 
 A gateway administrator adds the CI service-account subject to the `default`

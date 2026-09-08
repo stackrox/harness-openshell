@@ -1,0 +1,23 @@
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /lib64
+    - /bin
+    - /proc # OpenCode/Bun runtime startup
+    - /etc
+    - /dev/urandom
+  read_write:
+    - /sandbox
+    - /tmp
+    - /dev/null
+landlock:
+  compatibility: best_effort
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+# inference.local is provided by the gateway. No direct GitHub, telemetry,
+# package-registry, or other outbound destinations are granted to this worker.
+network_policies: {}
