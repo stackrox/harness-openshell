@@ -1,9 +1,7 @@
 # CI and live validation
 
-The current sequence is recorded in [plan/goals.md](../plan/goals.md):
-maintenance, service-account-backed local/GitHub execution, then attributable
-review results. Credential-free PR checks do not establish live inference
-success. Image PR checks build without registry login or publication; only
+Credential-free PR checks do not establish live inference success.
+Image PR checks build without registry login or publication; only
 main/tag pushes publish images and update the shared registry cache.
 
 ## HyperShell validation
