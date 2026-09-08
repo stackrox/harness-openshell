@@ -23,6 +23,26 @@ The test script accepts `GOOGLE_VERTEX_AI_TOKEN`, not a service-account key.
 This keeps the OpenShell boundary identical when the key bootstrap is later
 replaced with GitHub Workload Identity Federation.
 
+Run the same smoke locally with a service-account file, without changing the
+default gcloud identity (do not enable shell tracing around credentials):
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+export VERTEX_AI_PROJECT_ID=YOUR_VERTEX_PROJECT
+export VERTEX_AI_REGION=global
+export GOOGLE_VERTEX_AI_TOKEN="$(gcloud auth application-default print-access-token)"
+make test-vertex-gemini-opencode
+unset GOOGLE_VERTEX_AI_TOKEN
+```
+
+The selected Vertex project must grant this service account prediction access;
+it need not be the project that owns the account. A successful local run proves
+the OpenCode/Gemini runtime path, not the Claude reviewer or review quality.
+The smoke validates the final response marker, propagates agent and cleanup
+failures, and attempts cleanup on SIGINT/SIGTERM. Forced termination (SIGKILL or
+runner loss) cannot execute shell cleanup. Credential-free orchestration tests
+run as part of `go test ./...`.
+
 The service-account project must have access to `gemini-3.8-flash` in the
 configured Vertex region. A 404 from the inference setup means the model is
 unavailable to that project; do not bypass the check with `--no-verify`.
