@@ -7,6 +7,7 @@ import (
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
+// NewGetCmd constructs the resource listing command and its subcommands.
 func NewGetCmd(newClient openshell.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",
@@ -23,6 +24,7 @@ func NewGetCmd(newClient openshell.Factory) *cobra.Command {
 	return cmd
 }
 
+// newGetAgentsCmd constructs the sandbox listing subcommand.
 func newGetAgentsCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
 	var gatewayName, workspace *string
@@ -58,15 +60,7 @@ func newGetAgentsCmd(newClient openshell.Factory) *cobra.Command {
 			}
 
 			if format != formatTable {
-				type sandboxOut struct {
-					Name  string `json:"name" yaml:"name"`
-					Phase string `json:"phase" yaml:"phase"`
-				}
-				out := make([]sandboxOut, len(sandboxes))
-				for i, s := range sandboxes {
-					out[i] = sandboxOut{Name: s.Name, Phase: s.Phase}
-				}
-				return printStructured(format, out)
+				return printStructured(format, sandboxOutputs(sandboxes))
 			}
 
 			rows := make([][]string, len(sandboxes))
@@ -83,6 +77,7 @@ func newGetAgentsCmd(newClient openshell.Factory) *cobra.Command {
 	return cmd
 }
 
+// newGetProvidersCmd constructs the provider listing subcommand.
 func newGetProvidersCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
 	var gatewayName, workspace *string
@@ -118,14 +113,7 @@ func newGetProvidersCmd(newClient openshell.Factory) *cobra.Command {
 			}
 
 			if format != formatTable {
-				type providerOut struct {
-					Name string `json:"name" yaml:"name"`
-				}
-				out := make([]providerOut, len(providers))
-				for i, p := range providers {
-					out[i] = providerOut{Name: p.Name}
-				}
-				return printStructured(format, out)
+				return printStructured(format, providerOutputs(providers))
 			}
 
 			rows := make([][]string, len(providers))
@@ -142,6 +130,7 @@ func newGetProvidersCmd(newClient openshell.Factory) *cobra.Command {
 	return cmd
 }
 
+// newGetGatewaysCmd constructs the gateway listing subcommand.
 func newGetGatewaysCmd(newClient openshell.Factory) *cobra.Command {
 	var output string
 	var gatewayName, workspace *string
@@ -173,18 +162,7 @@ registration.`,
 			}
 
 			if format != formatTable {
-				type gwOut struct {
-					Name     string `json:"name" yaml:"name"`
-					Endpoint string `json:"endpoint" yaml:"endpoint"`
-					Status   string `json:"status" yaml:"status"`
-					Version  string `json:"version" yaml:"version"`
-				}
-				return printStructured(format, gwOut{
-					Name:     info.Name,
-					Endpoint: info.Endpoint,
-					Status:   info.Status,
-					Version:  info.Version,
-				})
+				return printStructured(format, gatewayRecord(info))
 			}
 
 			printTable(
