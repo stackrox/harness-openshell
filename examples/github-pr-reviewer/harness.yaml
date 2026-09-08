@@ -11,7 +11,7 @@ spec:
     provider: vertex-claude-haiku
     model: claude-haiku-4-5@20251001
   sandbox:
-    image: ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+    image: ghcr.io/nvidia/openshell-community/sandboxes/base:21aa171
     keep: false
   payloads:
     - source: REVIEW.md

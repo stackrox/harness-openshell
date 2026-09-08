@@ -16,7 +16,7 @@ if [[ "${CI:-}" == "true" ]]; then
 fi
 [[ -x "$HARNESS" ]] || { echo "ERROR: run make cli first" >&2; exit 1; }
 
-name="pr-review-$(date +%s)"
+name="pr-$(date +%s)-$$"
 output=""
 cleanup() {
   "$HARNESS" delete "$name" >/dev/null 2>&1 || true
@@ -31,7 +31,8 @@ if ((rc != 0)); then
   echo "RESULT: FAIL (harness apply exited $rc)" >&2
   exit 1
 fi
-if [[ "$output" != *"$EXPECTED"* ]]; then
+last_line="$(printf '%s\n' "$output" | awk 'NF { line = $0 } END { print line }')"
+if [[ "$last_line" != "$EXPECTED" ]]; then
   echo "RESULT: FAIL (review output did not contain the required marker)" >&2
   exit 1
 fi
