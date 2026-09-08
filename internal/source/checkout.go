@@ -13,6 +13,9 @@ type Prepared struct {
 	// has a real .git directory holding its own objects (no link back to the
 	// shared mirror), so git still works inside the sandbox after upload.
 	Dir string
+	// Commit is the full commit ID of the prepared checkout, resolved on the
+	// host before upload. It is not the requested branch/tag or agent output.
+	Commit string
 	// Cleanup removes the per-run checkout directory. Safe to call once; errors
 	// are returned for the caller to log, never fatal.
 	Cleanup func() error
@@ -52,9 +55,16 @@ func (c *Cache) Prepare(repoURL, ref, runID string) (Prepared, error) {
 		_ = os.RemoveAll(c.runDir(runID))
 		return Prepared{}, err
 	}
+	commit, err := gitOutput(dir, "rev-parse", "--verify", "HEAD^{commit}")
+	if err != nil {
+		if cleanupErr := os.RemoveAll(c.runDir(runID)); cleanupErr != nil {
+			return Prepared{}, fmt.Errorf("resolving prepared source commit: %w; removing checkout: %w", err, cleanupErr)
+		}
+		return Prepared{}, fmt.Errorf("resolving prepared source commit: %w", err)
+	}
 
 	cleanup := func() error { return os.RemoveAll(c.runDir(runID)) }
-	return Prepared{Dir: dir, Cleanup: cleanup}, nil
+	return Prepared{Dir: dir, Commit: commit, Cleanup: cleanup}, nil
 }
 
 // fetchIntoCheckout, under the per-mirror lock, updates the shared mirror for
