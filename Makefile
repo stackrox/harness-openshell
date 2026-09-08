@@ -25,7 +25,7 @@ OPENSHELL_VERSION := $(shell cat .openshell-version 2>/dev/null)
 IMAGE  := $(REGISTRY):sandbox-$(VERSION)
 
 .PHONY: all cli openshell \
-        vet lint test test-local test-kind test-remote test-vertex-gemini-opencode test-hypershell test-hypershell-haiku test-all \
+        vet lint test test-local test-kind test-remote test-vertex-gemini-opencode test-hypershell test-hypershell-haiku test-pr-reviewer-local test-all \
         dev-sandbox dev-push tag clean help
 
 ## ── CLI ──────────────────────────────────────────────────────────────
@@ -119,6 +119,10 @@ test-hypershell-haiku: cli
 	HYPERSHELL_WORKFLOW_FILE=$(CURDIR)/test/hypershell-haiku-workflow.yaml \
 	HYPERSHELL_EXPECTED_MARKER=HYPERSHELL_HAIKU_OK \
 		./test/hypershell-lifecycle.sh
+
+## Local PR reviewer fixture (requires a configured local inference route)
+test-pr-reviewer-local: cli
+	./test/github-pr-reviewer-local.sh
 
 ## All: unit + local + kind + remote
 test-all: test test-local test-kind test-remote
