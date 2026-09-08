@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -21,6 +22,7 @@ type applyRequest struct {
 	DryRun     bool
 	SetupOnly  bool
 	Output     string
+	ResultFile string
 	Gateway    string
 	Workspace  string
 }
@@ -36,9 +38,22 @@ func runApply(ctx context.Context, newClient openshell.Factory, req applyRequest
 }
 
 // run loads, resolves, plans, and executes one workflow request.
-func (s applyService) run(ctx context.Context, req applyRequest) error {
+func (s applyService) run(ctx context.Context, req applyRequest) (runErr error) {
 	if req.File == "" {
 		return fmt.Errorf("flag -f/--file is required")
+	}
+	var result *applyResult
+	if req.ResultFile != "" {
+		if req.DryRun || req.Output != "" || req.SetupOnly {
+			return fmt.Errorf("--result-file requires execution; cannot combine with --dry-run, --output, or --setup-only")
+		}
+		var file *os.File
+		var err error
+		result, file, err = startApplyResult(req.ResultFile)
+		if err != nil {
+			return err
+		}
+		defer func() { runErr = errors.Join(runErr, result.finish(ctx, file, runErr)) }()
 	}
 
 	workflow, err := loadWorkflow(req.File, req.Gateway, req.Workspace, applyOverrides{
@@ -50,7 +65,11 @@ func (s applyService) run(ctx context.Context, req applyRequest) error {
 	if req.Output != "" && !req.DryRun {
 		return renderWorkflow(workflow, req.Output)
 	}
+	if result != nil && !runConfigured(workflow.Desired) {
+		return fmt.Errorf("--result-file requires a workflow with a sandbox run")
+	}
 
+	result.setPhase("plan")
 	client, planned, current, err := s.connectAndPlan(ctx, workflow, req.DryRun)
 	if err != nil {
 		return err
@@ -59,7 +78,7 @@ func (s applyService) run(ctx context.Context, req applyRequest) error {
 		defer client.Close()
 	}
 	return executeResolvedWorkflow(ctx, workflow, planned, current, client, applyOptions{
-		SetupOnly: req.SetupOnly, DryRun: req.DryRun, Output: req.Output,
+		SetupOnly: req.SetupOnly, DryRun: req.DryRun, Output: req.Output, Result: result,
 	})
 }
 
@@ -101,6 +120,7 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 	if opts.DryRun {
 		return renderPlan(p, opts.Output)
 	}
+	opts.Result.setPhase("preflight")
 	if client == nil || !current.Reachable {
 		return fmt.Errorf("%s is not reachable or authenticated", targetDescription(workflow.Target))
 	}
@@ -111,7 +131,8 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 		return err
 	}
 
-	var req run.SandboxRunRequest
+	var req preparedRun
+	opts.Result.setPhase("prepare")
 	if !opts.SetupOnly && runConfigured(workflow.Desired) {
 		var (
 			cleanup func()
@@ -122,8 +143,12 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 			return err
 		}
 		defer cleanup()
+		if opts.Result != nil {
+			opts.Result.SourceCommit = req.SourceCommit
+		}
 	}
 
+	opts.Result.setPhase("reconcile")
 	if err := reconcileProviders(ctx, client, workflow.Desired.Spec.Providers); err != nil {
 		return err
 	}
@@ -146,5 +171,6 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 	if !ok {
 		return fmt.Errorf("configured OpenShell client does not support SDK sandbox execution")
 	}
-	return run.Run(ctx, executor, req, os.Stdin, os.Stdout, os.Stderr)
+	opts.Result.setPhase("execute")
+	return run.Run(ctx, executor, req.SandboxRunRequest, os.Stdin, os.Stdout, os.Stderr)
 }

@@ -149,6 +149,40 @@ Interactive workflows use the same path with host terminal resize and raw-mode
 handling. Canonical sandbox images must be registry references; local build
 contexts are rejected.
 
+### Execution results
+
+For a machine-readable completion record alongside normal agent output:
+
+```bash
+harness apply -f workflow.yaml --result-file result.json
+```
+
+The opt-in JSON record contains `version: 1`, a random `runId`, UTC `startedAt`
+and `finishedAt`, monotonic `durationMillis`, `status`, and the last `phase`.
+`sourceCommit` is included after source preparation succeeds and comes from the
+host checkout—not agent output. It identifies the initial source commit, not
+payload overlays or later agent modifications.
+
+Statuses are `succeeded`, `failed`, `cancelled`, or `timed_out`. Phases are
+`load`, `plan`, `preflight`, `prepare`, `reconcile`, `execute`, and `complete`.
+`execute` includes sandbox creation, upload, command execution, and sandbox
+cleanup; a cleanup error returned by the runner makes the result unsuccessful.
+Success is not a claim about review quality or independent cleanup verification.
+This flag does not introduce a task timeout; `timed_out` records a reported
+deadline failure.
+
+The file is created with owner-only permissions before gateway access, must not
+already exist (including as a symlink), and its parent directory must exist.
+It cannot be combined with `--dry-run`, `--output`, or `--setup-only`, or used
+with a workflow that has no sandbox run. Ordinary execution failures still
+produce a result and a nonzero process exit; file-writing errors also fail the
+command. Forced termination or disk failure can leave an empty/incomplete file:
+consumers must require valid JSON and check the process exit, not file existence.
+
+The result deliberately omits configuration values, prompts, raw errors, and
+agent output. It is a completion record, not yet a complete input manifest or
+review artifact bundle.
+
 ## How It Works
 
 ```
