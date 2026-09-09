@@ -6,6 +6,9 @@ cd "$(dirname "$0")/.."
 : "${REVIEW_DIR:?set an absolute artifact directory}"
 : "${REVIEW_REPOSITORY:?set owner/repository}" "${REVIEW_PR:?set PR number}"
 [[ "$REVIEW_DIR" == /* && "$REVIEW_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ && "$REVIEW_PR" =~ ^[1-9][0-9]*$ ]] || exit 1
+review_model="${REVIEW_MODEL:-claude-haiku-4-5@20251001}"
+review_cli_model="${REVIEW_CLI_MODEL:-haiku}"
+export REVIEW_MODEL="$review_model" REVIEW_CLI_MODEL="$review_cli_model"
 mode="${1:?usage: pr-review.sh prepare|run}"
 [[ "$mode" == prepare || "$mode" == run ]] || exit 1
 gateway="${OPENSHELL_GATEWAY:-openshell}"
@@ -93,13 +96,15 @@ timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspa
   --name vertex-review --type google-vertex-ai --from-existing \
   --config "VERTEX_AI_PROJECT_ID=$VERTEX_AI_PROJECT_ID" --config "VERTEX_AI_REGION=${VERTEX_AI_REGION:-global}"
 created_provider=true
-timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" --provider vertex-review --model 'claude-haiku-4-5@20251001'
+timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" --provider vertex-review --model "$review_model" --no-verify
 export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
 export REVIEW_POLICY="$REVIEW_DIR/review-policy.yaml"
 policy_template="${REVIEW_POLICY_TEMPLATE:-examples/github-pr-reviewer/review-policy.yaml}"
 sed \
   -e "s|\${REVIEW_REPOSITORY}|$REVIEW_REPOSITORY|g" \
   -e "s|\${REVIEW_PR}|$REVIEW_PR|g" \
+  -e "s|\${REVIEW_MODEL}|$review_model|g" \
+  -e "s|\${REVIEW_CLI_MODEL}|$review_cli_model|g" \
   "$policy_template" > "$REVIEW_POLICY"
 (
   ulimit -f 2048 # Bound raw diagnostic output as well as runtime.

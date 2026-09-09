@@ -24,6 +24,8 @@ jobs:
       REVIEW_REPOSITORY: ${{ github.repository }}
       REVIEW_PR: ${{ github.event.pull_request.number }}
       REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
+      REVIEW_MODEL: claude-haiku-4-5@20251001
+      REVIEW_CLI_MODEL: haiku
     steps:
       # Never check out the PR head. Build/run only trusted default-branch code.
       - uses: actions/checkout@v7

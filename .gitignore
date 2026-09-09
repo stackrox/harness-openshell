@@ -9,6 +9,7 @@ __pycache__/
 # Build artifacts
 # Credentials — never commit
 # Local state
+.local/
 # Planning artifacts (local only)
 acs-ai-sa.json
 acs-ai-svc-accnt.json
