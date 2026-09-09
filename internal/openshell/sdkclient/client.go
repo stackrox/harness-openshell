@@ -28,7 +28,6 @@ var (
 	_ openshell.Client                 = (*client)(nil)
 	_ openshell.SandboxExecutionClient = (*client)(nil)
 	_ openshell.StateReader            = (*client)(nil)
-	_ openshell.ProviderReconciler     = (*client)(nil)
 	_ openshell.InferenceReconciler    = (*client)(nil)
 )
 

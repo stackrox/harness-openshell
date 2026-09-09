@@ -1,0 +1,103 @@
+name: Harness PR review
+
+on:
+  workflow_call:
+    inputs:
+      harness-ref:
+        description: Immutable 40-character Harness commit SHA to execute
+        required: true
+        type: string
+      skill-path:
+        description: Path to the trusted review skill in the caller repository
+        required: false
+        type: string
+        default: .github/skills/pr-review/SKILL.md
+    secrets:
+      VERTEX_AI_SERVICE_ACCOUNT_KEY:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    if: >-
+      ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: ai-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Validate immutable Harness revision
+        env:
+          HARNESS_REF: ${{ inputs.harness-ref }}
+        run: '[[ "$HARNESS_REF" =~ ^[0-9a-f]{40}$ ]]'
+      # Checkout only default-branch content from the caller. The PR head is data.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: caller
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: stackrox/harness-openshell
+          ref: ${{ inputs.harness-ref }}
+          path: harness
+          persist-credentials: false
+      - name: Install caller skill
+        env:
+          SKILL_PATH: ${{ inputs.skill-path }}
+        run: |
+          [[ "$SKILL_PATH" != /* && "$SKILL_PATH" != *..* ]] || exit 1
+          test -f "caller/$SKILL_PATH"
+          install -D -m 0644 "caller/$SKILL_PATH" harness/skills/pr-review/SKILL.md
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: harness/go.mod
+      - name: Build trusted harness
+        working-directory: harness
+        run: echo "REVIEW_DIR=$RUNNER_TEMP/ai-review" >> "$GITHUB_ENV"; make cli
+      - name: Check label and fetch exact diff as data
+        id: prepare
+        working-directory: harness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_REPOSITORY: ${{ github.repository }}
+          REVIEW_PR: ${{ github.event.pull_request.number }}
+          REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/pr-review.sh prepare
+      - uses: ./harness/.github/actions/setup-openshell
+        if: steps.prepare.outputs.eligible == 'true'
+      - name: Authenticate to Google Cloud
+        if: steps.prepare.outputs.eligible == 'true'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          project_id: ${{ vars.VERTEX_AI_PROJECT_ID }}
+          credentials_json: ${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        if: steps.prepare.outputs.eligible == 'true'
+      - name: Review in isolated OpenShell workspace
+        if: steps.prepare.outputs.eligible == 'true'
+        working-directory: harness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REVIEW_REPOSITORY: ${{ github.repository }}
+          REVIEW_PR: ${{ github.event.pull_request.number }}
+          REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
+          VERTEX_AI_PROJECT_ID: ${{ vars.VERTEX_AI_PROJECT_ID }}
+          VERTEX_AI_REGION: ${{ vars.VERTEX_AI_REGION }}
+        run: |
+          token="$(gcloud auth print-access-token)"
+          echo "::add-mask::$token"
+          export GOOGLE_VERTEX_AI_TOKEN="$token"
+          bash scripts/pr-review.sh run
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.prepare.outputs.eligible == 'true'
+        with:
+          name: ai-review-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ai-review/
+          retention-days: 7

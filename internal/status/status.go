@@ -84,16 +84,8 @@ func redactFromLiteral(value string) string {
 
 func OK(msg string)                 { fmt.Println("  ✓ " + msg) }
 func OKf(format string, a ...any)   { fmt.Printf("  ✓ "+format+"\n", a...) }
-func Fail(msg string)               { fmt.Println("  ✗ " + msg) }
-func Failf(format string, a ...any) { fmt.Printf("  ✗ "+format+"\n", a...) }
 func Warnf(format string, a ...any) { fmt.Printf("  ! "+format+"\n", a...) }
-func Info(msg string)               { fmt.Println("  - " + msg) }
 func Infof(format string, a ...any) { fmt.Printf("  - "+format+"\n", a...) }
-func Section(title string)          { fmt.Printf("\n=== %s ===\n", title) }
-func Done(msg string) {
-	fmt.Println()
-	fmt.Println(msg)
-}
 
 func Header(title string) {
 	fmt.Printf("\n%s\n", title)

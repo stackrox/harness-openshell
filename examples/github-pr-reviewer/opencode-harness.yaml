@@ -7,6 +7,9 @@ spec:
     - name: vertex-review
       type: google-vertex-ai
       management: referenced
+    - name: github-review
+      type: github
+      management: referenced
   inference:
     route: inference.local
     provider: vertex-review
@@ -15,10 +18,10 @@ spec:
     image: quay.io/rcochran/openshell@sha256:eda3ebb4a6a44de3715016cf912840f98f378083690f0c0c56f459b44b0dbdc8
     policy:
       file: ${REVIEW_POLICY}
+    providers: [github-review]
     env:
       OPENCODE_CONFIG: /sandbox/opencode-review.json
       OPENCODE_VERTEX_API_KEY: sk-openshell-proxy-managed
-      GITHUB_TOKEN: ${GITHUB_TOKEN}
       REVIEW_REPOSITORY: ${REVIEW_REPOSITORY}
       REVIEW_PR: ${REVIEW_PR}
       REVIEW_HEAD: ${REVIEW_HEAD}

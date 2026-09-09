@@ -67,253 +67,23 @@ func TestBuild_TargetLoginRequiredWhenUnreachable(t *testing.T) {
 	}
 }
 
-func TestBuild_ProviderPresentNoop(t *testing.T) {
-	desired := &config.Harness{
-		Spec: config.Spec{
-			Target: config.Target{Gateway: "test-gateway"},
-			Providers: []config.Provider{
-				{
-					Name:       "github",
-					Type:       "github",
-					Management: "managed",
-				},
-			},
-		},
-	}
-	current := CurrentState{
-		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
-		Providers: []openshell.Provider{
-			// Owned by the harness (carries the owner label), so a matching managed
-			// provider is a noop. An unowned match would be adoption-required — see
-			// the ProviderAction table.
-			{Name: "github", Type: "github", Labels: map[string]string{OwnerLabelKey: OwnerLabelValue}},
-		},
-	}
-
-	plan := Build(desired, current)
-
-	var provGroup *Group
-	for i := range plan.Groups {
-		if plan.Groups[i].Section == SectionProviders {
-			provGroup = &plan.Groups[i]
-			break
+func TestBuildReferencedProviders(t *testing.T) {
+	desired := &config.Harness{Spec: config.Spec{Providers: []config.Provider{
+		{Name: "present", Type: "github"},
+		{Name: "absent"},
+	}}}
+	p := Build(desired, CurrentState{Providers: []openshell.Provider{{Name: "present"}}})
+	for _, group := range p.Groups {
+		if group.Section != SectionProviders {
+			continue
 		}
-	}
-
-	if provGroup == nil {
-		t.Fatal("expected PROVIDERS group")
-	}
-	if len(provGroup.Resources) != 1 {
-		t.Errorf("expected 1 provider resource, got %d", len(provGroup.Resources))
-	}
-
-	res := provGroup.Resources[0]
-	if res.Action != ActionNoop {
-		t.Errorf("expected ActionNoop, got %s", res.Action)
-	}
-	if res.Name != "github" {
-		t.Errorf("expected name 'github', got %s", res.Name)
-	}
-}
-
-func TestBuild_ProviderAbsentManaged(t *testing.T) {
-	desired := &config.Harness{
-		Spec: config.Spec{
-			Target: config.Target{Gateway: "test-gateway"},
-			Providers: []config.Provider{
-				{
-					Name:       "gcp",
-					Type:       "google-vertex-ai",
-					Management: "managed",
-				},
-			},
-		},
-	}
-	current := CurrentState{
-		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
-		Providers: []openshell.Provider{},
-	}
-
-	plan := Build(desired, current)
-
-	var provGroup *Group
-	for i := range plan.Groups {
-		if plan.Groups[i].Section == SectionProviders {
-			provGroup = &plan.Groups[i]
-			break
+		if len(group.Resources) != 2 || group.Resources[0].Name != "present" || group.Resources[0].Action != ActionNoop ||
+			group.Resources[1].Name != "absent" || group.Resources[1].Action != ActionMissing {
+			t.Fatalf("unexpected provider plan: %+v", group.Resources)
 		}
+		return
 	}
-
-	res := provGroup.Resources[0]
-	if res.Action != ActionCreate {
-		t.Errorf("expected ActionCreate, got %s", res.Action)
-	}
-}
-
-func TestBuild_ProviderAbsentReferenced(t *testing.T) {
-	desired := &config.Harness{
-		Spec: config.Spec{
-			Target: config.Target{Gateway: "test-gateway"},
-			Providers: []config.Provider{
-				{
-					Name:       "external",
-					Management: "referenced",
-				},
-			},
-		},
-	}
-	current := CurrentState{
-		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
-		Providers: []openshell.Provider{},
-	}
-
-	plan := Build(desired, current)
-
-	var provGroup *Group
-	for i := range plan.Groups {
-		if plan.Groups[i].Section == SectionProviders {
-			provGroup = &plan.Groups[i]
-			break
-		}
-	}
-
-	res := provGroup.Resources[0]
-	if res.Action != ActionAdoptionRequired {
-		t.Errorf("expected ActionAdoptionRequired, got %s", res.Action)
-	}
-}
-
-func TestBuild_ProviderTypeUpdate(t *testing.T) {
-	desired := &config.Harness{
-		Spec: config.Spec{
-			Target: config.Target{Gateway: "test-gateway"},
-			Providers: []config.Provider{
-				{
-					Name:       "github",
-					Type:       "github-new",
-					Management: "managed",
-				},
-			},
-		},
-	}
-	current := CurrentState{
-		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
-		Providers: []openshell.Provider{
-			// Owned, so a type mismatch is an in-place update. An unowned provider
-			// with a type mismatch would be adoption-required, not overwritten.
-			{Name: "github", Type: "github-old", Labels: map[string]string{OwnerLabelKey: OwnerLabelValue}},
-		},
-	}
-
-	plan := Build(desired, current)
-
-	var provGroup *Group
-	for i := range plan.Groups {
-		if plan.Groups[i].Section == SectionProviders {
-			provGroup = &plan.Groups[i]
-			break
-		}
-	}
-
-	res := provGroup.Resources[0]
-	if res.Action != ActionUpdate {
-		t.Errorf("expected ActionUpdate, got %s", res.Action)
-	}
-}
-
-// TestProviderAction is the single-owner diff-rule table (invariant 22). It
-// pins every branch of the create/adopt/update/noop rule, including the
-// ownership gate that keeps reconcile from overwriting a provider it does not
-// own.
-func TestProviderAction(t *testing.T) {
-	owned := map[string]string{OwnerLabelKey: OwnerLabelValue}
-	foreign := map[string]string{OwnerLabelKey: "someone-else"}
-
-	tests := []struct {
-		name    string
-		desired config.Provider
-		cur     *openshell.Provider
-		want    Action
-	}{
-		{
-			name:    "managed absent creates",
-			desired: config.Provider{Name: "gcp", Type: "google-vertex-ai", Management: "managed"},
-			cur:     nil,
-			want:    ActionCreate,
-		},
-		{
-			name:    "referenced absent requires adoption",
-			desired: config.Provider{Name: "ext", Management: "referenced"},
-			cur:     nil,
-			want:    ActionAdoptionRequired,
-		},
-		{
-			name:    "empty management treated as referenced (absent) requires adoption",
-			desired: config.Provider{Name: "ext"},
-			cur:     nil,
-			want:    ActionAdoptionRequired,
-		},
-		{
-			name:    "unowned existing requires adoption (no overwrite)",
-			desired: config.Provider{Name: "gh", Type: "github", Management: "managed"},
-			cur:     &openshell.Provider{Name: "gh", Type: "github"},
-			want:    ActionAdoptionRequired,
-		},
-		{
-			name:    "foreign-owned existing requires adoption",
-			desired: config.Provider{Name: "gh", Type: "github", Management: "managed"},
-			cur:     &openshell.Provider{Name: "gh", Type: "github", Labels: foreign},
-			want:    ActionAdoptionRequired,
-		},
-		{
-			name:    "adopt authorizes taking over an unowned provider (label stamp is an update)",
-			desired: config.Provider{Name: "gh", Type: "github", Management: "managed", Adopt: true},
-			cur:     &openshell.Provider{Name: "gh", Type: "github"},
-			want:    ActionUpdate,
-		},
-		{
-			name:    "owned type mismatch updates",
-			desired: config.Provider{Name: "gh", Type: "github-new", Management: "managed"},
-			cur:     &openshell.Provider{Name: "gh", Type: "github-old", Labels: owned},
-			want:    ActionUpdate,
-		},
-		{
-			name:    "owned config drift updates",
-			desired: config.Provider{Name: "gcp", Type: "google-vertex-ai", Management: "managed", Config: map[string]string{"VERTEX_AI_REGION": "us-east1"}},
-			cur:     &openshell.Provider{Name: "gcp", Type: "google-vertex-ai", Labels: owned, Config: map[string]string{"VERTEX_AI_REGION": "global"}},
-			want:    ActionUpdate,
-		},
-		{
-			name:    "owned matching is noop (extra current config keys are not drift)",
-			desired: config.Provider{Name: "gcp", Type: "google-vertex-ai", Management: "managed", Config: map[string]string{"VERTEX_AI_REGION": "global"}},
-			cur:     &openshell.Provider{Name: "gcp", Type: "google-vertex-ai", Labels: owned, Config: map[string]string{"VERTEX_AI_REGION": "global", "EXTRA": "x"}},
-			want:    ActionNoop,
-		},
-		{
-			name:    "referenced existing and owned is noop (never updated)",
-			desired: config.Provider{Name: "ext", Type: "custom", Management: "referenced"},
-			cur:     &openshell.Provider{Name: "ext", Type: "different", Labels: owned},
-			want:    ActionNoop,
-		},
-		{
-			name:    "referenced existing and unowned is noop (referenced is never written)",
-			desired: config.Provider{Name: "ext", Type: "custom", Management: "referenced"},
-			cur:     &openshell.Provider{Name: "ext", Type: "different"},
-			want:    ActionNoop,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := ProviderAction(tt.desired, tt.cur); got != tt.want {
-				t.Errorf("ProviderAction() = %s, want %s", got, tt.want)
-			}
-		})
-	}
+	t.Fatal("missing providers group")
 }
 
 func TestBuild_InferenceGroupWhenConfigured(t *testing.T) {
@@ -695,7 +465,7 @@ func TestPlan_TableSections(t *testing.T) {
 		Spec: config.Spec{
 			Target: config.Target{Gateway: "test-gateway"},
 			Providers: []config.Provider{
-				{Name: "github", Type: "github", Management: "managed"},
+				{Name: "github", Type: "github", Management: "referenced"},
 			},
 		},
 	}

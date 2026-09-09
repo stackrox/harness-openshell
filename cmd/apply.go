@@ -43,7 +43,7 @@ host-interpolated and credential-bearing map values redacted.`,
 	cmd.Flags().StringVar(&entrypoint, "entrypoint", "", "Override the agent executable")
 	cmd.Flags().BoolVar(&attach, "attach", false, "Attach a TTY for interactive execution")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Render the action plan without mutating anything")
-	cmd.Flags().BoolVar(&setupOnly, "setup-only", false, "Reconcile providers and inference without running a sandbox")
+	cmd.Flags().BoolVar(&setupOnly, "setup-only", false, "Verify provider references and configure inference without running a sandbox")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: yaml or json (dry-run also supports table)")
 	cmd.Flags().StringVar(&resultFile, "result-file", "", "Write host-derived execution result JSON to a new file")
 	gatewayName, workspace = registerTargetFlags(cmd)

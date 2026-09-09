@@ -28,8 +28,6 @@ type Client interface {
 	GetSandbox(ctx context.Context, name string) (Sandbox, error)
 	// DeleteSandbox removes the named sandbox in the bound workspace.
 	DeleteSandbox(ctx context.Context, name string) error
-	// DeleteProvider removes the named provider in the bound workspace.
-	DeleteProvider(ctx context.Context, name string) error
 	// GatewayInfo introspects the active gateway (name, endpoint, status,
 	// version). The SDK offers no gateway list; this reports the single gateway
 	// the client is bound to.
@@ -38,14 +36,6 @@ type Client interface {
 	// ErrNotFound when no such provider exists (requires the "provider:read"
 	// role).
 	GetProvider(ctx context.Context, name string) (Provider, error)
-	// UpdateProvider writes the desired non-secret Config, Labels, and Type of an
-	// existing provider, preserving its stored credentials. It is
-	// credential-preserving by construction: the harness Provider carries no
-	// credentials, and sdkclient overlays only those non-secret fields onto the
-	// provider's current server object (see sdkclient.UpdateProvider). Reconcile
-	// issues it only on a real non-secret delta. Requires the workspace "admin" role plus
-	// "provider:write"; a caller lacking either gets ErrPermission.
-	UpdateProvider(ctx context.Context, p Provider) (Provider, error)
 	// GetInferenceRoute reads the named inference route in the bound workspace.
 	// An empty route targets the gateway default route. Returns ErrNotFound when
 	// no such route exists (requires the workspace "user" role).
@@ -84,12 +74,6 @@ type StateReader interface {
 // InferenceRouteReader reads one inference route from the bound workspace.
 type InferenceRouteReader interface {
 	GetInferenceRoute(ctx context.Context, route string) (InferenceRoute, error)
-}
-
-// ProviderReconciler reads and updates non-secret provider configuration.
-type ProviderReconciler interface {
-	GetProvider(ctx context.Context, name string) (Provider, error)
-	UpdateProvider(ctx context.Context, p Provider) (Provider, error)
 }
 
 // InferenceReconciler reads and upserts inference routes.

@@ -2,17 +2,31 @@ name: AI review
 
 on:
   pull_request_target:
-    types: [labeled, unlabeled, synchronize, reopened, ready_for_review, converted_to_draft, closed]
+    types: [opened, labeled, unlabeled, synchronize, reopened, ready_for_review, converted_to_draft, closed]
 
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
+  ensure-label:
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Add opt-in review label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr edit "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/${{ github.event.pull_request.number }}" --add-label ai-review
+
   review:
+    needs: ensure-label
     if: >-
-      ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
-      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review'))
+      always() &&
+      (github.event.action != 'opened' || needs.ensure-label.result == 'success') &&
+      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
     concurrency:
       group: ai-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true

@@ -326,16 +326,8 @@ func (r *recordingClient) DeleteSandbox(ctx context.Context, name string) error 
 	return r.wrapped.DeleteSandbox(ctx, name)
 }
 
-func (r *recordingClient) DeleteProvider(ctx context.Context, name string) error {
-	return r.wrapped.DeleteProvider(ctx, name)
-}
-
 func (r *recordingClient) GatewayInfo(ctx context.Context) (openshell.GatewayInfo, error) {
 	return r.wrapped.GatewayInfo(ctx)
-}
-
-func (r *recordingClient) UpdateProvider(ctx context.Context, p openshell.Provider) (openshell.Provider, error) {
-	return r.wrapped.UpdateProvider(ctx, p)
 }
 
 func (r *recordingClient) GetInferenceRoute(ctx context.Context, route string) (openshell.InferenceRoute, error) {
@@ -384,16 +376,8 @@ func (e *errorClient) DeleteSandbox(ctx context.Context, name string) error {
 	return e.err
 }
 
-func (e *errorClient) DeleteProvider(ctx context.Context, name string) error {
-	return e.err
-}
-
 func (e *errorClient) GatewayInfo(ctx context.Context) (openshell.GatewayInfo, error) {
 	return openshell.GatewayInfo{}, e.err
-}
-
-func (e *errorClient) UpdateProvider(ctx context.Context, p openshell.Provider) (openshell.Provider, error) {
-	return openshell.Provider{}, e.err
 }
 
 func (e *errorClient) GetInferenceRoute(ctx context.Context, route string) (openshell.InferenceRoute, error) {

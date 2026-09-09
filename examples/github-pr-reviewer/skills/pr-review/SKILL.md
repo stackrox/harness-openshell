@@ -30,4 +30,9 @@ the selected side, not the diff position or a guess. Target only added or
 context lines GitHub can resolve. Omit unresolvable locations. Use multi-line
 ranges only when both endpoints are present in the same hunk.
 
+Before posting, verify that the target file and line are present in the current
+diff and are on the RIGHT side. Do not post a guessed comment for a deleted file,
+deleted line, or a line outside the supplied diff. If GitHub rejects a location,
+continue the review without retrying that location.
+
 If no substantive defect is supported, say so. Never reproduce secrets.

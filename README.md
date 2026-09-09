@@ -2,7 +2,8 @@
 
 > **Experimental.** Built on [OpenShell](https://github.com/NVIDIA/OpenShell), which is itself alpha software. Expect breaking changes in both.
 
-Declarative workflow layer for OpenShell AI agent sandboxes.
+Run workflows in OpenShell AI agent sandboxes. The current focus is portable
+PR review with trusted, repository-controlled skills.
 
 ## Quick Start
 
@@ -79,11 +80,22 @@ The command writes results to stdout. For retained sandboxes, use
 
 ## Why this exists
 
-[OpenShell](https://github.com/NVIDIA/OpenShell) provides a strict, secure sandbox runtime — deny-by-default L7 network policy, credential proxying, Landlock filesystem isolation, and inference routing. It also provisions the gateway itself (the local installer, or `helm install openshell` on a cluster). What it doesn't provide is the developer workflow layer on top: the config that wires up providers, the declarative reconciliation that makes a gateway match your intent, or the CI harness that catches breakage before developers hit it.
+[OpenShell](https://github.com/NVIDIA/OpenShell) owns gateway provisioning,
+sandbox isolation, credential proxying, provider lifecycle, and network policy.
+Harness prepares workflow inputs, stages source and skills, runs an agent, and
+reports the result while cleaning up its sandbox.
 
-Without a shared harness layer, every team building on OpenShell independently solves the same problems — writing shell scripts to register providers, hand-rolling container images, re-deriving inference routing. The configs diverge, the security posture varies, and nobody catches regressions until something breaks in production.
+The next portability milestone is running the same PR-review package in a
+second repository with that repository's trusted skill. Users should customize
+review behavior through skills; maintained integrations and platform setup
+should supply provider credentials and native OpenShell policy. The current
+review example still has repository-local orchestration and requires credential
+wiring improvements before it meets that goal.
 
-**The design boundary**: managing a gateway is OpenShell's problem; the harness is a declarative setup/run layer with zero compute-backend opinion. It never provisions or tears down a gateway — it declares providers, inference, and policy against one OpenShell already stood up, and runs agents in it. The workflow remains portable because its target can be overridden by standard gateway and workspace flags or environment variables.
+Workflows target a local OpenShell gateway or a configured HyperShell gateway.
+Provider references are read-only. Inference reconciliation remains supported
+while existing callers migrate to platform-configured routes. See the
+[code audit](docs/code-audit.md) for the dependency inventory and remaining cuts.
 
 **The core design constraint**: if the developer harness isn't running and live-tested in CI, the developer experience can't be maintained. OpenShell, agent CLIs, and provider APIs all change frequently — often multiple times per week. A harness that works today and isn't continuously validated will silently break. CI exercises the workflow against local and Kind gateways on Linux. OpenShift remains a manually credentialed integration target.
 
@@ -130,14 +142,14 @@ spec:
 `plan` is read-only and may render desired state while the gateway is offline.
 `apply` requires the effective gateway to be reachable, verifies referenced
 providers before sandbox creation, and disables OpenShell provider auto-discovery.
-Managed providers may be updated or explicitly adopted, but apply does not create
-credentialed providers; platform bootstrap owns their creation. Relative payload
+Providers are read-only references; OpenShell/platform bootstrap owns their
+creation, updates, and deletion. Relative payload
 and policy paths resolve from the workflow file's directory.
 
 Workflow schema essentials:
 
-- `spec.providers` declares provider resources; `spec.sandbox.providers` attaches provider capabilities to the sandbox runtime.
-- `management: referenced` requires an already-registered provider; managed providers can set `adopt: true` to take ownership of a pre-existing provider.
+- `spec.providers` verifies existing provider references; `spec.sandbox.providers` attaches provider capabilities to the sandbox runtime.
+- `management: referenced` is optional and is the only supported management mode. Provider configuration belongs in OpenShell/platform bootstrap.
 - `spec.inference.verify: true` enforces inference-route endpoint checks during inference route writes.
 - `spec.source.repo` is cloned outside the sandbox and uploaded; `spec.payloads[*].source` and `spec.sandbox.policy.file` resolve relative to the workflow file.
 - Pin `spec.source.ref` to a full commit SHA for repeatable source inputs. Branches and tags resolve at preparation time; an omitted ref uses remote HEAD. Apply reports the actual prepared commit from the host checkout, including the commit behind an annotated tag. Missing refs fail instead of falling back to HEAD. This identifies the initial checkout, not later agent edits or payload overlays, and is not yet a structured run-result artifact.
@@ -189,7 +201,7 @@ review artifact bundle.
 (OpenShell has already provisioned the gateway; you selected it)
 harness apply -f config.yaml
     |
-    +-> Verify/reconcile declared providers and inference
+    +-> Verify provider references and configure declared inference
     +-> Create sandbox (isolated container, deny-by-default network)
     +-> Upload payloads (CLAUDE.md, MCP config, skills)
     +-> Run task (agent executes, outputs results)
@@ -212,7 +224,7 @@ openshell term                       # interactive policy terminal
 
 - OpenShell CLI and gateway service at the repo-pinned version (see `make openshell` and `.openshell-version`).
 - An active OpenShell gateway registration (`openshell gateway add ...`, `openshell gateway select ...`).
-- Provider credentials already reconciled on the gateway for any referenced providers.
+- Providers already configured on the gateway for any references.
 
 ## Install
 
@@ -263,8 +275,13 @@ harness apply -f harness.yaml            # same YAML, cluster gateway
 
 Tear the gateway down with `helm uninstall openshell` and
 `openshell gateway remove my-cluster`. The harness `delete` command removes
-sandboxes; add `--providers` (or `--all`) to remove providers too. It never
-removes the gateway.
+sandboxes only. Use `openshell provider delete` to remove providers and upstream
+tools to remove the gateway.
+
+Provider-management migration: `management: managed`, provider `adopt`/`config`,
+and `harness delete --providers`/`--all` are removed. Configure providers with
+OpenShell and reference their names in workflows. Use `delete --sandboxes` only
+for a dedicated workspace, or delete individual sandbox names.
 
 > **Migration:** `harness deploy`, `harness teardown`, `harness status`, and
 > `delete --k8s` are removed. Provision the gateway with OpenShell (the
@@ -281,13 +298,13 @@ removes the gateway.
 | `harness doctor` | Validate gateway reachability and referenced providers |
 | `harness apply -f FILE` | Deploy a sandbox from config |
 | `harness apply -f FILE --attach` | Interactive TTY mode |
-| `harness apply -f FILE --setup-only` | Reconcile providers and inference only (skip sandbox run) |
+| `harness apply -f FILE --setup-only` | Verify provider references and configure inference (skip sandbox run) |
 | `harness apply -f FILE --dry-run` | Render the v1alpha1 action plan without mutating |
 | `harness apply -f FILE -o yaml` | Output resolved config with interpolated and credential-bearing map values redacted |
 | `harness get gateways` | Show active gateway only (name, endpoint, status, version) |
 | `harness get agents\|providers` | List resources |
 | `harness describe <name>` | Sandbox details |
-| `harness delete <name> [--all\|--sandboxes\|--providers]` | Delete targeted or bulk resources |
+| `harness delete <name>` / `harness delete --sandboxes` | Delete named sandboxes or all sandboxes in the selected workspace |
 | `harness plan -f FILE` | Read-only reconciliation plan (mutates nothing) |
 
 ### Credentials
