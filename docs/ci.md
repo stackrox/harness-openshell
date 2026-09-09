@@ -53,6 +53,38 @@ The service-account project must have access to `gemini-3.8-flash` in the
 configured Vertex region. A 404 from the inference setup means the model is
 unavailable to that project; do not bypass the check with `--no-verify`.
 
+## Label-driven PR review
+
+Once `AI review` is on the default branch, add `ai-review` to an open, non-draft
+PR. It reviews the full diff on labeling and each pushed head; newer runs cancel
+older ones. Removing the label, closing, or drafting the PR disables review.
+It uses the Vertex secret/variables above. Summaries show status, head SHA, and
+an artifact link. Seven-day artifacts hold input revisions, diff/hash, execution
+metadata, raw output/diagnostics, and `review.txt`. No comments or approvals.
+
+Only trusted default-branch code runs on the host. The pinned sandbox receives
+the PR diff as data, no GitHub/Vertex secrets, no tools/MCP, and inference-only
+egress. Label/head/base are rechecked before execution and publication. Diffs
+over 200 KiB are rejected; execution and diagnostic output are bounded. The
+completion check rejects errors, tool calls, empty or truncated responses—not
+incorrect findings. Artifacts remain unvalidated model output. Cleanup covers
+success, failure, and normal cancellation, but cannot guarantee runner-loss cleanup.
+
+Locally, use `gh` authentication, `jq`, GNU `timeout` (Homebrew `coreutils` on
+macOS), and the Vertex token/project variables above. Use a new absolute artifact
+directory each time and an open, non-draft PR carrying `ai-review`:
+
+```bash
+make cli
+export REVIEW_REPOSITORY=stackrox/harness-openshell REVIEW_PR=123
+export REVIEW_DIR="$PWD/review-artifacts-123"
+bash scripts/pr-review.sh prepare
+bash scripts/pr-review.sh run
+```
+
+Unit tests use fake commands, not Vertex. Structured findings and publication
+are deferred.
+
 ## One-time platform bootstrap
 
 A gateway administrator adds the CI service-account subject to the `default`

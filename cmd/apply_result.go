@@ -28,7 +28,7 @@ type applyResult struct {
 func startApplyResult(path string) (*applyResult, *os.File, error) {
 	id, err := source.NewRunID()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("generating result run ID: %w", err)
 	}
 	// Refuse overwrites and symlinks before making any gateway mutations.
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
