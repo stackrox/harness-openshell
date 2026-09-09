@@ -147,16 +147,12 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 			switch np.Management {
 			case "":
 				np.Management = "referenced"
-			case "managed", "referenced":
+			case "referenced":
 				// valid
+			case "managed":
+				errs = append(errs, fmt.Sprintf("%s.management: managed providers are no longer supported; create/bootstrap the provider in OpenShell and use management: referenced", base))
 			default:
-				errs = append(errs, fmt.Sprintf("%s.management: %q is invalid (want \"managed\" or \"referenced\")", base, np.Management))
-			}
-			if len(p.Config) > 0 {
-				np.Config = make(map[string]string, len(p.Config))
-				for k, v := range p.Config {
-					np.Config[k] = exp(base+".config."+k, v)
-				}
+				errs = append(errs, fmt.Sprintf("%s.management: %q is invalid (want \"referenced\")", base, np.Management))
 			}
 			s.Providers[i] = np
 		}

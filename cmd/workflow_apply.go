@@ -11,7 +11,6 @@ import (
 	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/plan"
-	"github.com/stackrox/harness-openshell/internal/reconcile"
 	"github.com/stackrox/harness-openshell/internal/run"
 	"github.com/stackrox/harness-openshell/internal/source"
 	"github.com/stackrox/harness-openshell/internal/status"
@@ -47,13 +46,13 @@ func targetDescription(target openshell.Target) string {
 	return fmt.Sprintf("gateway %q", target.Gateway)
 }
 
-// verifySandboxProviders checks capabilities attached directly to the sandbox.
-// They are intentionally distinct from spec.providers (desired resources), so a
-// workflow may consume a platform-owned provider without declaring ownership or
-// configuration for it.
+// verifySandboxProviders checks declared and attached provider references once.
 func verifySandboxProviders(ctx context.Context, client openshell.Client, desired *config.Harness) error {
 	declared := make(map[string]struct{}, len(desired.Spec.Providers))
 	for _, provider := range desired.Spec.Providers {
+		if _, err := client.GetProvider(ctx, provider.Name); err != nil {
+			return fmt.Errorf("verifying referenced provider %q: %w", provider.Name, err)
+		}
 		declared[provider.Name] = struct{}{}
 	}
 	for _, name := range desired.Spec.Sandbox.Providers {
@@ -63,51 +62,23 @@ func verifySandboxProviders(ctx context.Context, client openshell.Client, desire
 		if _, err := client.GetProvider(ctx, name); err != nil {
 			return fmt.Errorf("verifying sandbox provider %q: %w", name, err)
 		}
+		declared[name] = struct{}{}
 	}
 	return nil
 }
 
-// preflightPlan rejects actions this execution path cannot safely
-// realize before any provider or inference write occurs. Reconcile repeats its
-// reads to remain race-safe, but it uses the same action functions.
-func preflightPlan(desired *config.Harness, p *plan.Plan) error {
-	management := make(map[string]string, len(desired.Spec.Providers))
-	for _, provider := range desired.Spec.Providers {
-		management[provider.Name] = provider.Management
-	}
+// preflightPlan rejects missing references before any inference write occurs.
+func preflightPlan(p *plan.Plan) error {
 	for _, group := range p.Groups {
 		for _, resource := range group.Resources {
 			switch {
 			case group.Section == plan.SectionTarget && resource.Action == plan.ActionLoginRequired:
 				return fmt.Errorf("gateway %q is not reachable or authenticated", p.Target.Gateway)
-			case group.Section == plan.SectionProviders && resource.Action == plan.ActionCreate:
-				return fmt.Errorf("managed provider %q does not exist; create it through the platform bootstrap path before apply", resource.Name)
-			case group.Section == plan.SectionProviders && resource.Action == plan.ActionAdoptionRequired:
-				if management[resource.Name] == "referenced" {
-					return fmt.Errorf("referenced provider %q does not exist", resource.Name)
-				}
-				return fmt.Errorf("provider %q requires explicit adoption before apply", resource.Name)
+			case group.Section == plan.SectionProviders && resource.Action == plan.ActionMissing:
+				return fmt.Errorf("referenced provider %q does not exist; create it through platform bootstrap before apply", resource.Name)
 			case group.Section == plan.SectionInference && resource.Action == plan.ActionValidate:
 				return fmt.Errorf("gateway does not support inference route reconciliation")
 			}
-		}
-	}
-	return nil
-}
-
-func reconcileProviders(ctx context.Context, client openshell.Client, desired []config.Provider) error {
-	results, err := reconcile.ReconcileProviders(ctx, client, desired)
-	if err != nil {
-		return fmt.Errorf("reconciling providers: %w", err)
-	}
-	for _, result := range results {
-		switch result.Action {
-		case plan.ActionCreate:
-			return fmt.Errorf("managed provider %q does not exist; create it through the platform bootstrap path before apply", result.Name)
-		case plan.ActionAdoptionRequired:
-			return fmt.Errorf("provider %q requires explicit adoption before apply", result.Name)
-		default:
-			status.OKf("provider %s: %s", result.Name, result.Action)
 		}
 	}
 	return nil
@@ -293,8 +264,8 @@ func renderWorkflow(workflow *resolvedWorkflow, output string) error {
 }
 
 // redactedWorkflow keeps the resolved document shape while exposing only keys
-// for maps whose values cross a credential boundary. Provider config and
-// sandbox environment values may originate in the host environment and must
+// for maps whose values cross a credential boundary. Sandbox environment
+// values may originate in the host environment and must
 // never be serialized by -o yaml/json.
 func redactedWorkflow(resolved, input *config.Harness) *config.Harness {
 	out := &config.Harness{
@@ -369,8 +340,6 @@ func redactedProviders(resolved, input []config.Provider) []config.Provider {
 			Name:       redactInterpolated(provider.Name, raw.Name),
 			Type:       redactInterpolated(provider.Type, raw.Type),
 			Management: redactInterpolated(provider.Management, raw.Management),
-			Adopt:      provider.Adopt,
-			Config:     redactedStringMap(provider.Config),
 		}
 	}
 	return out

@@ -34,18 +34,11 @@ type Health struct {
 
 // Provider is the harness view of a registered provider.
 //
-// Deliberately narrow (least-exposure firewall): it carries only the non-secret
-// fields the harness diffs, reports, or writes. It has NO Credentials field —
-// credentials are write-only and never returned by the SDK's Get, so keeping
-// them off this type makes credential-clobber-by-reconcile impossible by
-// construction (a reconcile can neither read nor author a secret). It has NO
-// ResourceVersion field either: the OCC token is an SDK detail owned entirely by
-// sdkclient.UpdateProvider's copy-through, never surfaced to callers.
+// Deliberately narrow (least-exposure firewall): it carries provider identity
+// only. Credentials and provider configuration remain gateway-owned.
 type Provider struct {
-	Name   string
-	Type   string
-	Config map[string]string // non-secret managed configuration
-	Labels map[string]string // ownership + metadata (see plan.OwnerLabelKey)
+	Name string
+	Type string
 }
 
 // Sandbox is the harness view of a sandbox for the read UX (get/describe).

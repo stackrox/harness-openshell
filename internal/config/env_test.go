@@ -349,48 +349,6 @@ func TestResolveNonSecretField(t *testing.T) {
 	}
 }
 
-func TestResolveProviderConfig(t *testing.T) {
-	// Test resolving provider config map
-	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
-		Spec: Spec{
-			Providers: []Provider{
-				{
-					Name:       "vertex",
-					Type:       "vertex",
-					Management: "managed",
-					Config: map[string]string{
-						"PROJECT_ID": "${VERTEX_PROJECT_ID}",
-						"LOCATION":   "us-central1",
-					},
-				},
-			},
-		},
-	}
-
-	getenv := func(name string) string {
-		if name == "VERTEX_PROJECT_ID" {
-			return "my-gcp-project"
-		}
-		return ""
-	}
-
-	resolved, err := Resolve(h, getenv)
-	if err != nil {
-		t.Fatalf("Resolve failed: %v", err)
-	}
-
-	config := resolved.Spec.Providers[0].Config
-	if config["PROJECT_ID"] != "my-gcp-project" {
-		t.Errorf("PROJECT_ID should be resolved: got %q, want %q", config["PROJECT_ID"], "my-gcp-project")
-	}
-	if config["LOCATION"] != "us-central1" {
-		t.Errorf("LOCATION should stay as-is: got %q, want %q", config["LOCATION"], "us-central1")
-	}
-}
-
 func TestResolveMultipleMissingVars(t *testing.T) {
 	// Test that Resolve aggregates all missing vars into one error
 	h := &Harness{

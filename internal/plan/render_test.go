@@ -21,12 +21,12 @@ func TestTableSections_RepresentativePlan(t *testing.T) {
 				{
 					Name:       "github",
 					Type:       "github",
-					Management: "managed",
+					Management: "referenced",
 				},
 				{
 					Name:       "gcp",
 					Type:       "google-vertex-ai",
-					Management: "managed",
+					Management: "referenced",
 				},
 			},
 			Inference: config.Inference{

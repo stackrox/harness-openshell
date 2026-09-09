@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
@@ -18,9 +20,8 @@ func keepOpenFactory(client openshell.Client) openshell.Factory {
 	return testutil.FakeFactory(noCloseClient{client})
 }
 
-// The delete tests use keepOpenFactory (executor_inference_test.go) so the
-// command's deferred Close doesn't shut the shared fake before the test can
-// assert the resources were actually removed, not merely that a log line printed.
+// The delete tests use keepOpenFactory so the command's deferred Close doesn't
+// shut the shared fake before the test can inspect the resulting resources.
 
 func sandboxNames(t *testing.T, c openshell.Client) []string {
 	t.Helper()
@@ -65,6 +66,22 @@ func TestDeleteTargeted(t *testing.T) {
 	}
 }
 
+func TestDeleteTargetedContinuesAfterFailure(t *testing.T) {
+	base, fc := testutil.NewFakeClient("default")
+	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
+	client := &deleteErrorClient{Client: base, name: "missing", err: errors.New("sandbox missing")}
+
+	cmd := NewDeleteCmd(keepOpenFactory(client))
+	cmd.SetArgs([]string{"missing", "agent-a", "--gateway", "prod"})
+	_, err := captureStdout(t, cmd.Execute)
+	if err == nil || !strings.Contains(err.Error(), `deleting sandbox "missing"`) {
+		t.Fatalf("targeted delete should report the missing sandbox: %v", err)
+	}
+	if names := sandboxNames(t, client); len(names) != 0 {
+		t.Errorf("targeted deletion should continue after a failure, got %v", names)
+	}
+}
+
 func TestDeleteSandboxesSweep(t *testing.T) {
 	client, fc := testutil.NewFakeClient("default")
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
@@ -81,64 +98,94 @@ func TestDeleteSandboxesSweep(t *testing.T) {
 	}
 }
 
-func TestDeleteProvidersGuard(t *testing.T) {
+func TestDeleteSandboxesLeavesProvidersUntouched(t *testing.T) {
 	client, fc := testutil.NewFakeClient("default")
-	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 	fc.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
+	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 
 	cmd := NewDeleteCmd(keepOpenFactory(client))
-	cmd.SetArgs([]string{"--providers", "--gateway", "prod"})
-	_, err := captureStdout(t, cmd.Execute)
-	if err == nil {
-		t.Fatal("deleting providers with a running sandbox should be refused")
+	cmd.SetArgs([]string{"--sandboxes", "--gateway", "prod"})
+	if _, err := captureStdout(t, cmd.Execute); err != nil {
+		t.Fatalf("delete --sandboxes: %v", err)
 	}
-	if !contains(err.Error(), "running sandboxes") {
-		t.Errorf("unexpected guard error: %v", err)
-	}
-
-	// The guard must prevent deletion, not delete-then-error: the provider survives.
 	if names := providerNames(t, client); len(names) != 1 || names[0] != "github" {
-		t.Errorf("guard should leave the provider untouched, got %v", names)
+		t.Errorf("sandbox deletion should leave providers untouched, got %v", names)
 	}
 }
 
-// Bulk deletion with no gateway resolvable must fail loudly rather than skip
-// both sweeps and report success — otherwise sandboxes/providers silently
-// survive. With no --gateway/$OPENSHELL_GATEWAY the SDK resolves the active
-// gateway (gateway.LoadConfig("")); when none is selected the Factory returns an
-// error, which delete must propagate before sweeping anything.
-func TestDeleteBulkNoGatewayErrors(t *testing.T) {
-	t.Setenv("OPENSHELL_GATEWAY", "") // no flag, no env → no gateway
-	client, fc := testutil.NewFakeClient("default")
-	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
-
-	// Factory that fails as sdkclient.New does when no active gateway is set.
-	noGateway := func(context.Context, openshell.Target) (openshell.Client, error) {
-		return nil, openshell.ErrConfig
+func TestDeleteRejectsRemovedProviderFlagsBeforeClientCreation(t *testing.T) {
+	for _, flag := range []string{"--all", "--providers"} {
+		t.Run(flag, func(t *testing.T) {
+			called := false
+			factory := func(context.Context, openshell.Target) (openshell.Client, error) {
+				called = true
+				return nil, errors.New("factory should not be called")
+			}
+			cmd := NewDeleteCmd(factory)
+			cmd.SetArgs([]string{flag})
+			if _, err := captureStdout(t, cmd.Execute); err == nil {
+				t.Fatalf("%s should be rejected", flag)
+			}
+			if called {
+				t.Fatalf("%s should fail before creating a client", flag)
+			}
+		})
 	}
+}
 
-	cmd := NewDeleteCmd(noGateway)
-	cmd.SetArgs([]string{"--all"})
+func TestDeleteRejectsNamesWithSandboxSweep(t *testing.T) {
+	called := false
+	factory := func(context.Context, openshell.Target) (openshell.Client, error) {
+		called = true
+		return nil, errors.New("factory should not be called")
+	}
+	cmd := NewDeleteCmd(factory)
+	cmd.SetArgs([]string{"agent-a", "--sandboxes"})
+	if _, err := captureStdout(t, cmd.Execute); err == nil {
+		t.Fatal("names and --sandboxes should be rejected")
+	}
+	if called {
+		t.Fatal("invalid delete combination should fail before creating a client")
+	}
+}
+
+func TestDeleteSandboxesListFailurePropagates(t *testing.T) {
+	listErr := errors.New("gateway list failed")
+	client := &listErrorClient{Client: testutil.NewFake("default"), err: listErr}
+	cmd := NewDeleteCmd(keepOpenFactory(client))
+	cmd.SetArgs([]string{"--sandboxes", "--gateway", "prod"})
 	_, err := captureStdout(t, cmd.Execute)
-	if err == nil {
-		t.Fatal("delete --all with no gateway should error, not report success")
-	}
-	if !contains(err.Error(), "create OpenShell client") {
-		t.Errorf("unexpected error: %v", err)
-	}
-
-	// Nothing was swept.
-	if names := sandboxNames(t, client); len(names) != 1 {
-		t.Errorf("no-gateway delete must not touch resources, got %v", names)
+	if !errors.Is(err, listErr) {
+		t.Fatalf("list failure = %v, want wrapped %v", err, listErr)
 	}
 }
 
-// With no --gateway flag and no $OPENSHELL_GATEWAY, delete relies on the SDK to
-// resolve the active gateway (gateway.LoadConfig("")) and must still sweep — not
-// error, and not silently skip. This is the exact case the local integration
-// teardowns hit: a gateway is selected but not pinned per-command.
+type listErrorClient struct {
+	openshell.Client
+	err error
+}
+
+func (c *listErrorClient) Sandboxes(context.Context) ([]openshell.Sandbox, error) {
+	return nil, c.err
+}
+
+type deleteErrorClient struct {
+	openshell.Client
+	name string
+	err  error
+}
+
+func (c *deleteErrorClient) DeleteSandbox(ctx context.Context, name string) error {
+	if name == c.name {
+		return c.err
+	}
+	return c.Client.DeleteSandbox(ctx, name)
+}
+
+// With no --gateway flag and no $OPENSHELL_GATEWAY, delete relies on the SDK
+// to resolve the active gateway and must still sweep when the factory succeeds.
 func TestDeleteUsesActiveGateway(t *testing.T) {
-	t.Setenv("OPENSHELL_GATEWAY", "") // no flag, no env → SDK resolves the active gateway
+	t.Setenv("OPENSHELL_GATEWAY", "")
 	client, fc := testutil.NewFakeClient("default")
 	fc.AddSandbox("default", &types.Sandbox{Name: "agent-a", Status: types.SandboxStatus{Phase: types.SandboxReady}})
 
@@ -147,24 +194,7 @@ func TestDeleteUsesActiveGateway(t *testing.T) {
 	if _, err := captureStdout(t, cmd.Execute); err != nil {
 		t.Fatalf("delete --sandboxes with an active gateway: %v", err)
 	}
-
 	if names := sandboxNames(t, client); len(names) != 0 {
 		t.Errorf("active-gateway resolution should sweep every sandbox, got %v", names)
-	}
-}
-
-func TestDeleteProvidersSweep(t *testing.T) {
-	client, fc := testutil.NewFakeClient("default")
-	fc.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
-	fc.AddProvider("default", &types.Provider{Name: "vertex", Type: "google-vertex-ai"})
-
-	cmd := NewDeleteCmd(keepOpenFactory(client))
-	cmd.SetArgs([]string{"--providers", "--gateway", "prod"})
-	if _, err := captureStdout(t, cmd.Execute); err != nil {
-		t.Fatalf("delete --providers: %v", err)
-	}
-
-	if names := providerNames(t, client); len(names) != 0 {
-		t.Errorf("--providers should sweep every provider, got %v", names)
 	}
 }

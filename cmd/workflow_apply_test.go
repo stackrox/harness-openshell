@@ -235,6 +235,32 @@ spec:
 	}
 }
 
+func TestApplyRejectsProviderManagementBeforeGatewayAccess(t *testing.T) {
+	for _, field := range []string{"management: managed", "adopt: true", "config: {region: global}"} {
+		t.Run(field, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "workflow.yaml")
+			writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: provider-management
+spec:
+  providers:
+    - name: existing
+      `+field+`
+`)
+			factory := func(context.Context, openshell.Target) (openshell.Client, error) {
+				t.Fatal("removed provider management must fail before gateway access")
+				return nil, nil
+			}
+			command := NewApplyCmd(factory)
+			command.SetArgs([]string{"-f", path})
+			if err := command.Execute(); err == nil {
+				t.Fatal("removed provider management was accepted")
+			}
+		})
+	}
+}
+
 func TestApplyStructuredOutputRedactsCredentialBearingMaps(t *testing.T) {
 	secret := "secret-value-that-must-not-leak"
 	t.Setenv("WORKFLOW_SECRET", secret)
@@ -247,8 +273,6 @@ spec:
   providers:
     - name: existing
       management: referenced
-      config:
-        API_TOKEN: ${WORKFLOW_SECRET}
   sandbox:
     env:
       API_TOKEN: ${WORKFLOW_SECRET}

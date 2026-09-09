@@ -70,7 +70,7 @@ spec:
   providers:
     - name: test-provider
       type: vertex-ai
-      management: managed
+      management: referenced
   inference:
     provider: test-provider
     model: claude-haiku-4-5
@@ -196,7 +196,7 @@ spec:
   providers:
     - name: test-provider
       type: vertex-ai
-      management: managed
+      management: referenced
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -248,7 +248,7 @@ spec:
   providers:
     - name: test-provider
       type: custom-provider
-      management: managed
+      management: referenced
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -488,7 +488,7 @@ spec:
   providers:
     - name: test-provider
       type: vertex-ai
-      management: managed
+      management: referenced
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -549,7 +549,7 @@ spec:
   providers:
     - name: test-provider
       type: vertex-ai
-      management: managed
+      management: referenced
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -594,7 +594,7 @@ spec:
   providers:
     - name: test-provider
       type: vertex-ai
-      management: managed
+      management: referenced
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)

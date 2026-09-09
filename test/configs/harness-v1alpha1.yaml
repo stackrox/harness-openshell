@@ -9,7 +9,7 @@ spec:
   providers:
     - name: my-gcp
       type: google-vertex-ai
-      management: managed
+      management: referenced
     - name: github-fact
       management: referenced
   inference:

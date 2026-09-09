@@ -24,7 +24,7 @@ func main() {
 
 	root := &cobra.Command{
 		Use:           "harness",
-		Short:         "OpenShell Harness — deploy and manage AI agent sandboxes",
+		Short:         "Run agent workflows in OpenShell sandboxes",
 		Version:       version,
 		SilenceErrors: true,
 		SilenceUsage:  true,

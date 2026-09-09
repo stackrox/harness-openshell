@@ -124,7 +124,7 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 	if client == nil || !current.Reachable {
 		return fmt.Errorf("%s is not reachable or authenticated", targetDescription(workflow.Target))
 	}
-	if err := preflightPlan(workflow.Desired, p); err != nil {
+	if err := preflightPlan(p); err != nil {
 		return err
 	}
 	if err := verifySandboxProviders(ctx, client, workflow.Desired); err != nil {
@@ -149,9 +149,6 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 	}
 
 	opts.Result.setPhase("reconcile")
-	if err := reconcileProviders(ctx, client, workflow.Desired.Spec.Providers); err != nil {
-		return err
-	}
 	if inferenceConfigured(workflow.Desired.Spec.Inference) {
 		result, err := reconcile.ReconcileInference(ctx, client, workflow.Desired.Spec.Inference)
 		if err != nil {
