@@ -4,10 +4,9 @@ on:
   workflow_call:
     inputs:
       harness-ref:
-        description: Harness tag or commit to execute
-        required: false
+        description: Immutable 40-character Harness commit SHA to execute
+        required: true
         type: string
-        default: main
       skill-path:
         description: Path to the trusted review skill in the caller repository
         required: false
@@ -32,6 +31,10 @@ jobs:
       group: ai-review-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
+      - name: Validate immutable Harness revision
+        env:
+          HARNESS_REF: ${{ inputs.harness-ref }}
+        run: '[[ "$HARNESS_REF" =~ ^[0-9a-f]{40}$ ]]'
       # Checkout only default-branch content from the caller. The PR head is data.
       - uses: actions/checkout@v7
         with:

@@ -17,7 +17,7 @@ func TestPRReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "cancel", "truncated", "incomplete", "empty", "error", "tool_use", "tool_exit"} {
+	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "cancel", "truncated", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			stepSummary := filepath.Join(root, "step-summary")
@@ -148,6 +148,7 @@ case "$1 ${2:-}" in
       truncated) printf '%s\n' '{"type":"step_finish","part":{"reason":"length"}}' ;;
       error|tool_use) printf '{"type":"%s"}\n' "$FAKE_SCENARIO" ;;
       tool_exit) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":7},"output":"ordinary command failed"}}}' ;;
+      tool_missing_exit) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{},"output":"missing exit"}}}' ;;
       *) printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
     esac ;;
 esac
