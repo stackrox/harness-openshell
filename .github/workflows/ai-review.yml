@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   review:
@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
       REVIEW_REPOSITORY: ${{ github.repository }}
       REVIEW_PR: ${{ github.event.pull_request.number }}
       REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}

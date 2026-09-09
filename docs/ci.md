@@ -60,11 +60,13 @@ PR. It reviews the full diff on labeling and each pushed head; newer runs cancel
 older ones. Removing the label, closing, or drafting the PR disables review.
 It uses the Vertex secret/variables above. Summaries show status, head SHA, and
 an artifact link. Seven-day artifacts hold input revisions, diff/hash, execution
-metadata, raw output/diagnostics, and `review.txt`. No comments or approvals.
+metadata, raw output/diagnostics, and `review.txt`. Reviews are advisory inline
+comments only; they do not approve, request changes, or merge.
 
 Only trusted default-branch code runs on the host. The pinned sandbox receives
-the PR diff as data, no GitHub/Vertex secrets, no tools/MCP, and inference-only
-egress. Label/head/base are rechecked before execution and publication. Diffs
+the PR diff and a PR-scoped GitHub token; OpenShell permits only inline comment
+POSTs to that exact PR. Label/head/base are rechecked before execution and
+publication. Diffs
 over 200 KiB are rejected; execution and diagnostic output are bounded. The
 completion check rejects errors, tool calls, empty or truncated responses—not
 incorrect findings. Artifacts remain unvalidated model output. Cleanup covers
@@ -151,6 +153,9 @@ used by the workflow. The client secret remains in
 `OPENSHELL_OIDC_CLIENT_SECRET`; it is not represented in the workflow document,
 plan, or command output. Administrator credentials remain outside repository CI
 and ordinary validation.
+
+This document is also used to exercise the label-driven artifact-only review
+workflow on a small documentation-only change.
 
 ## Workflow contract
 

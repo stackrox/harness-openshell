@@ -20,4 +20,14 @@ process:
   run_as_group: sandbox
 # inference.local is provided by the gateway. No direct GitHub, telemetry,
 # package-registry, or other outbound destinations are granted to this worker.
-network_policies: {}
+network_policies:
+  endpoints:
+    - host: api.github.com
+      port: 443
+      protocol: rest
+      tls:
+        terminate: true
+      rules:
+        - allow:
+            method: POST
+            path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/comments
