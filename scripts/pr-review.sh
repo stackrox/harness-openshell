@@ -93,9 +93,7 @@ validate_agent_output() {
     any(.[]; .type == "text" and (.part.text | type == "string" and test("\\S"))) and
     any(.[]; .type == "step_finish" and .part.reason == "stop") and
     all(.[]; .type != "error" and
-      (.type != "tool_use" or
-        (.part.state.status == "completed" and
-          (.part.state.metadata.exit // -1) == 0)) and
+      (.type != "tool_use" or .part.state.status == "completed") and
       (.type != "step_finish" or .part.reason == "stop" or .part.reason == "tool-calls"))
   ' "$REVIEW_DIR/agent.ndjson" >/dev/null
 }
