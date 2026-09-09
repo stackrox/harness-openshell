@@ -12,7 +12,7 @@ spec:
     provider: vertex-review
     model: gemini-3.8-flash
   sandbox:
-    image: quay.io/rcochran/openshell@sha256:723d3b92b102eb9b043f747168fae11c2669987598cec57c37dcce7c03c8e36b
+    image: quay.io/rcochran/openshell@sha256:eda3ebb4a6a44de3715016cf912840f98f378083690f0c0c56f459b44b0dbdc
     policy:
       file: ${REVIEW_POLICY}
     env:
