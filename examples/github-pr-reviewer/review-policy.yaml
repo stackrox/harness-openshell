@@ -31,6 +31,21 @@ network_policies:
         enforcement: enforce
         rules:
           - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/issues/${REVIEW_PR}/comments
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/comments
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/reviews
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/files
+          - allow:
               method: POST
               path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/comments
     binaries:
