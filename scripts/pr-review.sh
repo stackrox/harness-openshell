@@ -95,6 +95,11 @@ timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspa
 created_provider=true
 timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" --provider vertex-review --model gemini-3.8-flash
 export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
+export REVIEW_POLICY="$REVIEW_DIR/review-policy.yaml"
+sed \
+  -e "s|\${REVIEW_REPOSITORY}|$REVIEW_REPOSITORY|g" \
+  -e "s|\${REVIEW_PR}|$REVIEW_PR|g" \
+  examples/github-pr-reviewer/review-policy.yaml > "$REVIEW_POLICY"
 (
   ulimit -f 2048 # Bound raw diagnostic output as well as runtime.
   exec timeout -s TERM -k 35s 8m ./harness apply -f examples/github-pr-reviewer/opencode-harness.yaml \

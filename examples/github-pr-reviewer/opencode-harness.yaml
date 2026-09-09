@@ -14,7 +14,7 @@ spec:
   sandbox:
     image: quay.io/rcochran/openshell@sha256:723d3b92b102eb9b043f747168fae11c2669987598cec57c37dcce7c03c8e36b
     policy:
-      file: review-policy.yaml
+      file: ${REVIEW_POLICY}
     env:
       OPENCODE_CONFIG: /sandbox/opencode.json
       XDG_CONFIG_HOME: /sandbox/review-config
