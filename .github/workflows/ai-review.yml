@@ -32,14 +32,13 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Build trusted reviewer
+      - name: Build trusted harness
         run: |
           echo "REVIEW_DIR=$RUNNER_TEMP/ai-review" >> "$GITHUB_ENV"
-          go build -o "$RUNNER_TEMP/pr-review" ./scripts/pr-review
           make cli
       - name: Check label and fetch exact diff as data
         id: prepare
-        run: '"$RUNNER_TEMP/pr-review" prepare'
+        run: bash scripts/pr-review.sh prepare
       - uses: ./.github/actions/setup-openshell
         if: steps.prepare.outputs.eligible == 'true'
       - name: Authenticate to Google Cloud
@@ -59,7 +58,7 @@ jobs:
           token="$(gcloud auth print-access-token)"
           echo "::add-mask::$token"
           export GOOGLE_VERTEX_AI_TOKEN="$token"
-          "$RUNNER_TEMP/pr-review" run
+          bash scripts/pr-review.sh run
       - uses: actions/upload-artifact@v7
         if: always() && steps.prepare.outputs.eligible == 'true'
         with:

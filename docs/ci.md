@@ -55,41 +55,35 @@ unavailable to that project; do not bypass the check with `--no-verify`.
 
 ## Label-driven PR review
 
-Apply `ai-review` to an open, non-draft PR to request a diff-only review and
-keep reviewing each subsequent pushed head. A push containing several commits
-reviews their combined PR diff, not each intermediate commit. New events cancel
-older runs. Removing the label, closing the PR, or converting it to a draft
-disables review. Reapplying the label requests a fresh run.
+Once `AI review` is on the default branch, add `ai-review` to an open, non-draft
+PR. It reviews the full diff on labeling and each pushed head; newer runs cancel
+older ones. Removing the label, closing, or drafting the PR disables review.
+It uses the Vertex secret/variables above. Summaries show status, head SHA, and
+an artifact link. Seven-day artifacts hold input revisions, diff/hash, execution
+metadata, raw output/diagnostics, and `review.txt`. No comments or approvals.
 
-The `AI review` workflow must be merged into the default branch before this
-trigger works. It uses the Vertex service-account secret and variables above.
-It publishes only workflow summaries and seven-day artifacts: immutable input
-revisions and diff hash, the diff, execution metadata, raw worker diagnostics,
-and validated findings. It never posts PR comments or approves a PR. Findings
-are advisory model output, not evidence that a change is safe to merge.
+Only trusted default-branch code runs on the host. The pinned sandbox receives
+the PR diff as data, no GitHub/Vertex secrets, no tools/MCP, and inference-only
+egress. Label/head/base are rechecked before execution and publication. Diffs
+over 200 KiB are rejected; execution and diagnostic output are bounded. The
+completion check rejects errors, tool calls, empty or truncated responses—not
+incorrect findings. Artifacts remain unvalidated model output. Cleanup covers
+success, failure, and normal cancellation, but cannot guarantee runner-loss cleanup.
 
-`pull_request_target` checks out only the trusted default branch. PR contents
-are downloaded as data, never checked out or executed on the runner. A dedicated
-OpenShell workspace receives a pinned image, trusted agent configuration, and
-the diff; no GitHub token or service-account key enters the worker. The worker
-has no tool permissions or direct outbound destinations, only gateway inference.
-Label, head, and base are checked before inference and before publication.
-Diffs over 200 KiB fail rather than receiving partial reviews. Findings must
-match the JSON contract and refer to a displayed new-file hunk.
-The model uses low reasoning effort for this bounded diff-only task; truncated
-or incomplete responses fail validation rather than becoming partial reviews.
-
-The workspace, sandbox, and provider are deleted on success, failure, and normal
-cancellation. Runner loss or forced termination cannot guarantee cleanup.
-
-With `GOOGLE_VERTEX_AI_TOKEN` and `VERTEX_AI_PROJECT_ID` configured as above,
-run the opt-in known-bug review test locally:
+Locally, use `gh` authentication, `jq`, GNU `timeout` (Homebrew `coreutils` on
+macOS), and the Vertex token/project variables above. Use a new absolute artifact
+directory each time and an open, non-draft PR carrying `ai-review`:
 
 ```bash
-PR_REVIEW_LIVE=1 go test -run '^TestLiveReview$' -v -timeout 9m ./scripts/pr-review
+make cli
+export REVIEW_REPOSITORY=stackrox/harness-openshell REVIEW_PR=123
+export REVIEW_DIR="$PWD/review-artifacts-123"
+bash scripts/pr-review.sh prepare
+bash scripts/pr-review.sh run
 ```
 
-Ordinary unit tests use fake commands and do not contact Vertex.
+Unit tests use fake commands, not Vertex. Structured findings and publication
+are deferred.
 
 ## One-time platform bootstrap
 
