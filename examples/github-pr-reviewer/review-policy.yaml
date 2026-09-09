@@ -21,13 +21,33 @@ process:
 # inference.local is provided by the gateway. No direct GitHub, telemetry,
 # package-registry, or other outbound destinations are granted to this worker.
 network_policies:
-  endpoints:
-    - host: api.github.com
-      port: 443
-      protocol: rest
-      tls:
-        terminate: true
-      rules:
-        - allow:
-            method: POST
-            path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/comments
+  github_api:
+    name: github-api
+    endpoints:
+      - host: api.github.com
+        port: 443
+        protocol: rest
+        tls: terminate
+        enforcement: enforce
+        rules:
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/issues/${REVIEW_PR}/comments
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/comments
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/reviews
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/files
+          - allow:
+              method: POST
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/comments
+    binaries:
+      - { path: /usr/bin/gh }
+      - { path: /usr/bin/curl }
