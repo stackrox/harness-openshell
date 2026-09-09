@@ -6,9 +6,6 @@ cd "$(dirname "$0")/.."
 : "${REVIEW_DIR:?set an absolute artifact directory}"
 : "${REVIEW_REPOSITORY:?set owner/repository}" "${REVIEW_PR:?set PR number}"
 [[ "$REVIEW_DIR" == /* && "$REVIEW_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ && "$REVIEW_PR" =~ ^[1-9][0-9]*$ ]] || exit 1
-review_model="${REVIEW_MODEL:-claude-haiku-4-5@20251001}"
-review_cli_model="${REVIEW_CLI_MODEL:-haiku}"
-export REVIEW_MODEL="$review_model" REVIEW_CLI_MODEL="$review_cli_model"
 mode="${1:?usage: pr-review.sh prepare|run}"
 [[ "$mode" == prepare || "$mode" == run ]] || exit 1
 gateway="${OPENSHELL_GATEWAY:-openshell}"
@@ -118,7 +115,7 @@ run_review() {
     --config "VERTEX_AI_PROJECT_ID=$VERTEX_AI_PROJECT_ID" --config "VERTEX_AI_REGION=${VERTEX_AI_REGION:-global}"
   created_provider=true
   timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" \
-    --provider vertex-review --model "$review_model" --no-verify
+    --provider vertex-review --model gemini-2.5-pro --no-verify
 
   export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
   export REVIEW_POLICY="$REVIEW_DIR/review-policy.yaml"
@@ -126,8 +123,6 @@ run_review() {
   sed \
     -e "s|\${REVIEW_REPOSITORY}|$REVIEW_REPOSITORY|g" \
     -e "s|\${REVIEW_PR}|$REVIEW_PR|g" \
-    -e "s|\${REVIEW_MODEL}|$review_model|g" \
-    -e "s|\${REVIEW_CLI_MODEL}|$review_cli_model|g" \
     "$policy_template" > "$REVIEW_POLICY"
 
   (

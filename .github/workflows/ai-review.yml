@@ -24,8 +24,6 @@ jobs:
       REVIEW_REPOSITORY: ${{ github.repository }}
       REVIEW_PR: ${{ github.event.pull_request.number }}
       REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
-      REVIEW_MODEL: gemini-2.5-pro
-      REVIEW_CLI_MODEL: unused
     steps:
       # Never check out the PR head. Build/run only trusted default-branch code.
       - uses: actions/checkout@v7

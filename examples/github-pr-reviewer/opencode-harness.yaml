@@ -10,7 +10,7 @@ spec:
   inference:
     route: inference.local
     provider: vertex-review
-    model: ${REVIEW_MODEL}
+    model: gemini-2.5-pro
   sandbox:
     image: quay.io/rcochran/openshell@sha256:eda3ebb4a6a44de3715016cf912840f98f378083690f0c0c56f459b44b0dbdc8
     policy:
