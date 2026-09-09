@@ -152,6 +152,9 @@ used by the workflow. The client secret remains in
 plan, or command output. Administrator credentials remain outside repository CI
 and ordinary validation.
 
+This document is also used to exercise the label-driven artifact-only review
+workflow on a small documentation-only change.
+
 ## Workflow contract
 
 The reusable portion is the target block in `test/hypershell-workflow.yaml`.
