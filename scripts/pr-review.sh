@@ -93,7 +93,7 @@ timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspa
   --name vertex-review --type google-vertex-ai --from-existing \
   --config "VERTEX_AI_PROJECT_ID=$VERTEX_AI_PROJECT_ID" --config "VERTEX_AI_REGION=${VERTEX_AI_REGION:-global}"
 created_provider=true
-timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" --provider vertex-review --model gemini-3.8-flash
+timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" --provider vertex-review --model 'claude-haiku-4-5@20251001'
 export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
 export REVIEW_POLICY="$REVIEW_DIR/review-policy.yaml"
 policy_template="${REVIEW_POLICY_TEMPLATE:-examples/github-pr-reviewer/review-policy.yaml}"
