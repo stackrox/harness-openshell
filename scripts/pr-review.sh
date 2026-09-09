@@ -93,7 +93,11 @@ validate_agent_output() {
     any(.[]; .type == "text" and (.part.text | type == "string" and test("\\S"))) and
     any(.[]; .type == "step_finish" and .part.reason == "stop") and
     all(.[]; .type != "error" and
-      (.type != "tool_use" or .part.state.status == "completed") and
+      (.type != "tool_use" or
+        (.part.state.status == "completed" and
+          ((.part.state.metadata.exit // 0) == 0 or
+            ((.part.state.metadata.exit // 0) == 1 and
+              ((.part.state.output // .part.state.error // "") | test("422|unprocessable entity|comment.*(position|line)"; "i")))))) and
       (.type != "step_finish" or .part.reason == "stop" or .part.reason == "tool-calls"))
   ' "$REVIEW_DIR/agent.ndjson" >/dev/null
 }
