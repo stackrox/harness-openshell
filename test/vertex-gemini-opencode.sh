@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exercise Gemini 3.8 Flash through OpenCode on a local OpenShell gateway.
+# Exercise Gemini 2.5 Pro through OpenCode on a local OpenShell gateway.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -63,7 +63,7 @@ created_provider=true
   --gateway "$GATEWAY" \
   --workspace "$WORKSPACE" \
   --provider "$PROVIDER" \
-  --model gemini-3.8-flash
+  --model gemini-2.5-pro
 
 output_file="$(mktemp)"
 "$HARNESS" apply -f "$WORKFLOW" --gateway "$GATEWAY" --workspace "$WORKSPACE" >"$output_file" &

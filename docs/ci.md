@@ -16,7 +16,7 @@ administrator account at runtime.
 `.github/workflows/vertex-smoke.yml` is manually dispatched only. It starts a
 local OpenShell gateway on a GitHub-hosted runner, obtains a short-lived Google
 access token from `VERTEX_AI_SERVICE_ACCOUNT_KEY`, and uses it to run OpenCode
-with Gemini 3.8 Flash through `inference.local`. It creates and deletes an
+with Gemini 2.5 Pro through `inference.local`. It creates and deletes an
 isolated workspace, so it does not affect the gateway's default workspace.
 
 Repository configuration:
@@ -49,7 +49,7 @@ failures, and attempts cleanup on SIGINT/SIGTERM. Forced termination (SIGKILL or
 runner loss) cannot execute shell cleanup. Credential-free orchestration tests
 run as part of `go test ./...`.
 
-The service-account project must have access to `gemini-3.8-flash` in the
+The service-account project must have access to `gemini-2.5-pro` in the
 configured Vertex region. A 404 from the inference setup means the model is
 unavailable to that project; do not bypass the check with `--no-verify`.
 
@@ -62,6 +62,12 @@ It uses the Vertex secret/variables above. Summaries show status, head SHA, and
 an artifact link. Seven-day artifacts hold input revisions, diff/hash, execution
 metadata, raw output/diagnostics, and `review.txt`. Reviews are advisory inline
 comments only; they do not approve, request changes, or merge.
+
+The reviewer runs Claude Code through `inference.local` and Google Vertex AI.
+The workflow keeps `REVIEW_MODEL` and `REVIEW_CLI_MODEL` explicit; the currently
+validated default is `claude-haiku-4-5@20251001` / `haiku`. Vertex identifies
+Sonnet 4.5 as `claude-sonnet-4-5@20250929`; switch both values together only
+after the CI service account can invoke that model.
 
 Only trusted default-branch code runs on the host. The pinned sandbox receives
 the PR diff and a PR-scoped GitHub token; OpenShell permits only inline comment
