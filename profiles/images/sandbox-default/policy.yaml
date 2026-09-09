@@ -53,6 +53,7 @@ network_policies:
       - { path: /usr/local/bin/claude }
       - { path: /usr/bin/node }
       - { path: /usr/lib/node_modules/opencode-ai/bin/opencode.exe }
+      - { path: /usr/bin/opencode2 }
 
   # Git Smart HTTP transport — allows clone and fetch.
   # Push (git-receive-pack) is blocked by default. To enable push for

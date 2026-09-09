@@ -19,7 +19,6 @@
 #
 #   mcp-atlassian  0.21.1   https://github.com/sooperset/mcp-atlassian/releases
 #   gws CLI        0.22.5   https://github.com/googleworkspace/cli/releases
-#   opencode-ai    1.18.30  https://www.npmjs.com/package/opencode-ai
 #
 # Base image tools (inherited, pinned upstream):
 #   claude         latest   https://claude.ai/install.sh
@@ -56,8 +55,7 @@ RUN ARCH=$(uname -m | sed 's/arm64/aarch64/') && \
 
 # OpenCode AI coding agent
 # https://github.com/opencode-ai/opencode
-ARG OPENCODE_VERSION=1.18.30
-RUN npm install -g opencode-ai@${OPENCODE_VERSION}
+RUN npm install -g opencode-ai@1.18.30
 
 # Sandbox policy (network egress rules — provider profiles contribute
 # additional endpoints at runtime via providers v2 composition)

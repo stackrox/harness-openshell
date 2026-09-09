@@ -13,6 +13,16 @@ For current-PR context, use `gh api` only with these exact endpoints:
 
 Never access another host, repository, PR, issue, or arbitrary URL. You may use
 bash only to post inline comments to the exact PR endpoint permitted by policy.
+For each comment, include the current PR head as `commit_id`, use
+`side=RIGHT`, and pass the numeric line with `-F line=...` (not `-f`). For
+example:
+
+```bash
+gh api --method POST \
+  "/repos/$REVIEW_REPOSITORY/pulls/$REVIEW_PR/comments" \
+  -f body='...' -f path='path/to/file' \
+  -F line=12 -f side=RIGHT -f commit_id="$REVIEW_HEAD"
+```
 
 Report at most three concrete correctness or security defects. Derive every
 target from the unified diff: `line` is the actual current-file line number on
