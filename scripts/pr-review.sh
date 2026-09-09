@@ -86,6 +86,7 @@ base="$(jq -er '.base | select(test("^[0-9a-f]{40}$"))' "$REVIEW_DIR/input.json"
 (cd "$REVIEW_DIR" && shasum -a 256 -c pr.diff.sha256 >/dev/null)
 ensure_current
 : "${GOOGLE_VERTEX_AI_TOKEN:?set a short-lived Vertex token}" "${VERTEX_AI_PROJECT_ID:?set Vertex project}"
+: "${GITHUB_TOKEN:?set the workflow GitHub token}"
 timeout 60s openshell workspace create --gateway "$gateway" --name "$workspace"
 created_workspace=true
 timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
