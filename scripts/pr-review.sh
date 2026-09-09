@@ -42,7 +42,7 @@ cleanup() {
         printf '\n[Review artifacts](%s/%s/actions/runs/%s#artifacts)\n' "${GITHUB_SERVER_URL:-https://github.com}" "$REVIEW_REPOSITORY" "$GITHUB_RUN_ID"
       fi
     } > "$REVIEW_DIR/summary.md"
-    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    if [[ -n "${GITHUB_STEP_SUMMARY:-}" && "$state" != prepared ]]; then
       cat "$REVIEW_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
     fi
   fi
