@@ -11,7 +11,8 @@ mode="${1:?usage: pr-review.sh prepare|run}"
 gateway="${OPENSHELL_GATEWAY:-openshell}"
 workspace="rev-$RANDOM-$$"
 created_workspace=false
-created_provider=false
+created_vertex_provider=false
+created_github_provider=false
 apply_pid=""
 head="${REVIEW_HEAD:-}"
 base=""
@@ -41,8 +42,11 @@ cleanup_runtime() {
   fi
   if $created_workspace; then
     timeout 30s ./harness delete --gateway "$gateway" --workspace "$workspace" --sandboxes || cleanup_status=1
-    if $created_provider; then
+    if $created_vertex_provider; then
       timeout 30s openshell provider delete --gateway "$gateway" --workspace "$workspace" vertex-review || cleanup_status=1
+    fi
+    if $created_github_provider; then
+      timeout 30s openshell provider delete --gateway "$gateway" --workspace "$workspace" github-review || cleanup_status=1
     fi
     timeout 30s openshell workspace delete --gateway "$gateway" "$workspace" || cleanup_status=1
   fi
@@ -108,14 +112,17 @@ run_review() {
   (cd "$REVIEW_DIR" && shasum -a 256 -c pr.diff.sha256 >/dev/null)
   ensure_current
   : "${GOOGLE_VERTEX_AI_TOKEN:?set a short-lived Vertex token}" "${VERTEX_AI_PROJECT_ID:?set Vertex project}"
-  : "${GITHUB_TOKEN:?set the workflow GitHub token}"
+  : "${GITHUB_TOKEN:?set the workflow GitHub token for provider bootstrap}"
 
   timeout 60s openshell workspace create --gateway "$gateway" --name "$workspace"
   created_workspace=true
   timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
     --name vertex-review --type google-vertex-ai --from-existing \
     --config "VERTEX_AI_PROJECT_ID=$VERTEX_AI_PROJECT_ID" --config "VERTEX_AI_REGION=${VERTEX_AI_REGION:-global}"
-  created_provider=true
+  created_vertex_provider=true
+  timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
+    --name github-review --type github --credential GITHUB_TOKEN
+  created_github_provider=true
   timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" \
     --provider vertex-review --model gemini-2.5-pro --no-verify
 
