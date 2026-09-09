@@ -51,4 +51,4 @@ network_policies:
     binaries:
       - { path: /usr/bin/gh }
       - { path: /usr/bin/curl }
-      - { path: /usr/local/bin/claude }
+      - { path: /usr/bin/opencode }

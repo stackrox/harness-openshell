@@ -118,7 +118,11 @@ apply_pid=""
 jq -Rse 'split("\n") | map(fromjson?) |
   any(.[]; .type == "text" and (.part.text | type == "string" and test("\\S"))) and
   any(.[]; .type == "step_finish" and .part.reason == "stop") and
-  all(.[]; .type != "error" and .type != "tool_use" and (.type != "step_finish" or .part.reason == "stop"))
+  all(.[]; .type != "error" and
+    (.type != "tool_use" or
+      (.part.state.status == "completed" and
+        (.part.state.metadata.exit // -1) == 0)) and
+    (.type != "step_finish" or .part.reason == "stop" or .part.reason == "tool-calls"))
 ' "$REVIEW_DIR/agent.ndjson" >/dev/null
 ensure_current
 jq -Rr 'fromjson? | select(.type == "text") | .part.text' "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"
