@@ -30,7 +30,7 @@ func TestPRReview(t *testing.T) {
 			if err := os.Mkdir(filepath.Join(root, "scripts"), 0o700); err != nil {
 				t.Fatal(err)
 			}
-			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "output": nil, "step-summary": nil} {
+			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
 				if err := os.WriteFile(filepath.Join(root, name), data, 0o700); err != nil {
 					t.Fatal(err)
 				}
@@ -41,7 +41,7 @@ func TestPRReview(t *testing.T) {
 			prepare.Env = append(os.Environ(), "PATH="+root+string(os.PathListSeparator)+os.Getenv("PATH"),
 				"FAKE_SCENARIO="+scenario, "TRACE="+filepath.Join(root, "trace"), "READY="+filepath.Join(root, "ready"),
 				"REVIEW_DIR="+filepath.Join(root, "review"), "REVIEW_REPOSITORY=owner/repo", "REVIEW_PR=1", "REVIEW_HEAD=", "GITHUB_OUTPUT="+filepath.Join(root, "output"),
-				"GITHUB_STEP_SUMMARY="+stepSummary, "GOOGLE_VERTEX_AI_TOKEN=fake", "VERTEX_AI_PROJECT_ID=test-project", "GITHUB_TOKEN=fake")
+				"GITHUB_STEP_SUMMARY="+stepSummary, "GOOGLE_VERTEX_AI_TOKEN=fake", "VERTEX_AI_PROJECT_ID=test-project", "GITHUB_TOKEN=fake", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
 			out, err := prepare.CombinedOutput()
 			if scenario == "oversized" {
 				if err == nil {
