@@ -9,10 +9,8 @@ __pycache__/
 # Build artifacts
 # Credentials — never commit
 # Local state
-.local/
 # Planning artifacts (local only)
 acs-ai-sa.json
-acs-ai-svc-accnt.json
 dashboard.html
 harness
 harness-openshell
@@ -29,8 +27,6 @@ secrets.yaml
 strategy-dashboard.html
 # Working docs — local only (roadmap, specs, archive, scratch); sorted into active/ and archive/ inside
 working-docs/
-# PR reviewer planning workspace — local implementation tracker, never commit
-pr-reviewer-plan/
 # Root scratch configs (local experiments)
 harness.yaml
 test.yaml

@@ -19,7 +19,6 @@
 #
 #   mcp-atlassian  0.21.1   https://github.com/sooperset/mcp-atlassian/releases
 #   gws CLI        0.22.5   https://github.com/googleworkspace/cli/releases
-#   opencode-ai    1.18.30  https://www.npmjs.com/package/opencode-ai
 #
 # Base image tools (inherited, pinned upstream):
 #   claude         latest   https://claude.ai/install.sh
@@ -56,13 +55,7 @@ RUN ARCH=$(uname -m | sed 's/arm64/aarch64/') && \
 
 # OpenCode AI coding agent
 # https://github.com/opencode-ai/opencode
-ARG OPENCODE_VERSION=1.18.30
-RUN npm install -g opencode-ai@${OPENCODE_VERSION}
-
-# OpenCode 2 beta is installed alongside OpenCode 1 for side-by-side testing.
-# Keep the stable binary as the default until the beta passes the integration
-# matrix. OpenCode 2 installs as /usr/local/bin/opencode2.
-RUN npm install -g @opencode/cli@beta
+RUN npm install -g opencode-ai@1.18.30
 
 # Sandbox policy (network egress rules — provider profiles contribute
 # additional endpoints at runtime via providers v2 composition)
@@ -79,12 +72,11 @@ COPY settings.json /sandbox/.claude/settings.json
 COPY claude.json /sandbox/.claude.json
 COPY mcp.json /sandbox/.mcp.json
 COPY opencode.json /sandbox/opencode.json
-COPY opencode2.jsonc /sandbox/opencode2.jsonc
 
 # Harness config directory (populated at runtime via upload)
 RUN mkdir -p /sandbox/.config/openshell && chown sandbox:sandbox /sandbox/.config/openshell
 
-RUN chown -R sandbox:sandbox /sandbox/.claude /sandbox/.claude.json /sandbox/.mcp.json /sandbox/opencode.json /sandbox/opencode2.jsonc /sandbox/.config
+RUN chown -R sandbox:sandbox /sandbox/.claude /sandbox/.claude.json /sandbox/.mcp.json /sandbox/opencode.json /sandbox/.config
 
 USER sandbox
 

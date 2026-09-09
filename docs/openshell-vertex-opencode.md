@@ -65,7 +65,7 @@ provider before creating a session:
 ```ts
 const runtimeModel = {
   providerID: "openshell-inference",
-  id: "claude-haiku-4-5@20251001",
+  modelID: "claude-haiku-4-5@20251001",
 };
 ```
 
