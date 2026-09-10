@@ -65,8 +65,9 @@ active_gateway() {
 
 cleanup_gateway() {
   local gateway="$1"
-  for sandbox in test-local-sdk test-local-sdk-auto; do
-    "$CLI" sandbox delete --gateway "$gateway" "$sandbox" >/dev/null 2>&1 || true
+  local stale_sandbox
+  for stale_sandbox in test-local-sdk test-local-sdk-auto; do
+    "$CLI" sandbox delete --gateway "$gateway" "$stale_sandbox" >/dev/null 2>&1 || true
   done
 }
 
