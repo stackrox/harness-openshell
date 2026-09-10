@@ -431,9 +431,9 @@ func TestPlanCmd_NoFileFlag(t *testing.T) {
 	}
 }
 
-// TestPlanCmd_EmptyGatewaySkipsClient tests that an empty gateway (via flag/env/config)
-// skips client construction and renders desired-only.
-func TestPlanCmd_EmptyGatewaySkipsClient(t *testing.T) {
+// TestPlanCmd_EmptyGatewayUsesActiveClient tests that an empty target uses the
+// active/default gateway, matching apply's connection behavior.
+func TestPlanCmd_EmptyGatewayUsesActiveClient(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
@@ -448,11 +448,11 @@ sandbox:
 		t.Fatalf("write config: %v", err)
 	}
 
-	// Track whether the factory was called.
+	// Track whether the factory was called with the active/default target.
 	factoryCalled := false
 	recordingFactory := func(_ context.Context, _ openshell.Target) (openshell.Client, error) {
 		factoryCalled = true
-		return nil, nil
+		return testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true})), nil
 	}
 
 	cmd := NewPlanCmd(recordingFactory)
@@ -466,17 +466,16 @@ sandbox:
 		t.Fatalf("cmd.Execute: %v", err)
 	}
 
-	if factoryCalled {
-		t.Error("Factory was called despite empty gateway")
+	if !factoryCalled {
+		t.Error("Factory was not called for the active/default gateway")
 	}
 
 	// Should still render the PROVIDERS and other groups.
 	if !contains(output, "PROVIDERS") {
 		t.Errorf("output missing PROVIDERS section:\n%s", output)
 	}
-	// RUN group should also be rendered (not skipped for empty gateway).
-	if !contains(output, "login-required") {
-		t.Errorf("output should show login-required for empty gateway:\n%s", output)
+	if contains(output, "not-inspected") {
+		t.Errorf("connected active gateway should be inspected:\n%s", output)
 	}
 }
 
@@ -564,6 +563,9 @@ sandbox:
 	// Should contain the PROVIDERS group (desired-only rendering).
 	if !contains(output, "PROVIDERS") {
 		t.Errorf("output missing PROVIDERS section:\n%s", output)
+	}
+	if !contains(output, "not-inspected") || contains(output, "missing") {
+		t.Errorf("unreachable gateway must not claim providers are missing:\n%s", output)
 	}
 }
 

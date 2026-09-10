@@ -234,6 +234,35 @@ agent:
 	}
 }
 
+func TestApplyDryRunUsesActiveGatewayWhenTargetIsEmpty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflow.yaml")
+	writeTestFile(t, path, `version: 1
+name: active-dry-run
+sandbox:
+  image: reviewer
+agent:
+  type: reviewer
+`)
+
+	base := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
+	called := false
+	factory := func(_ context.Context, target openshell.Target) (openshell.Client, error) {
+		called = true
+		if target != (openshell.Target{}) {
+			t.Fatalf("target = %+v, want active gateway", target)
+		}
+		return base, nil
+	}
+	command := NewApplyCmd(factory)
+	command.SetArgs([]string{"-f", path, "--dry-run", "-o", "json"})
+	if _, err := captureStdout(t, command.Execute); err != nil {
+		t.Fatalf("apply --dry-run: %v", err)
+	}
+	if !called {
+		t.Error("factory was not called for the active/default gateway during dry-run")
+	}
+}
+
 func TestApplyStructuredOutputRedactsCredentialBearingMaps(t *testing.T) {
 	secret := "secret-value-that-must-not-leak"
 	t.Setenv("WORKFLOW_SECRET", secret)

@@ -38,12 +38,25 @@ write_summary() {
 cleanup_runtime() {
   trap - EXIT INT TERM
   local cleanup_status=0
+  delete_sandbox() {
+    local output
+    if output=$(timeout 30s openshell sandbox delete --gateway "$gateway" --workspace "$workspace" ai-review 2>&1); then
+      return 0
+    fi
+    # A workflow with keep:false lets Harness delete the sandbox before this
+    # wrapper's best-effort cleanup runs. That is already the desired state.
+    if [[ "$output" == *"sandbox not found"* ]]; then
+      return 0
+    fi
+    printf '%s\n' "$output" >&2
+    return 1
+  }
   if [[ -n "$apply_pid" ]]; then
     kill -TERM "$apply_pid" 2>/dev/null || true
     wait "$apply_pid" || true
   fi
   if $created_workspace; then
-    timeout 30s openshell sandbox delete --gateway "$gateway" --workspace "$workspace" ai-review || cleanup_status=1
+    delete_sandbox || cleanup_status=1
     if $created_vertex_provider; then
       timeout 30s openshell provider delete --gateway "$gateway" --workspace "$workspace" vertex-review || cleanup_status=1
     fi

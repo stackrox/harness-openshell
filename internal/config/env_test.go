@@ -122,6 +122,25 @@ func TestResolveEmptyString(t *testing.T) {
 	}
 }
 
+func TestResolveName(t *testing.T) {
+	h := &Harness{Version: 1, Name: "review-${RUN_ID}"}
+	resolved, err := Resolve(h, func(name string) string {
+		if name == "RUN_ID" {
+			return "42"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("Resolve failed: %v", err)
+	}
+	if resolved.Name != "review-42" {
+		t.Errorf("resolved name = %q, want review-42", resolved.Name)
+	}
+	if h.Name != "review-${RUN_ID}" {
+		t.Errorf("input name was mutated: %q", h.Name)
+	}
+}
+
 func TestResolveInvalidTimeout(t *testing.T) {
 	h := &Harness{
 		Version: 1,
@@ -479,6 +498,28 @@ func TestResolvePayloads(t *testing.T) {
 	}
 	if resolved.Spec.Payloads[1].Content != "# Config\nDEBUG=true" {
 		t.Errorf("Payload[1].Content should be resolved, got %q", resolved.Spec.Payloads[1].Content)
+	}
+}
+
+func TestResolveRejectsMalformedPayloads(t *testing.T) {
+	h := &Harness{
+		Version: 1,
+		Name:    "test",
+		Spec: Spec{Payloads: []Payload{
+			{Source: "file", Content: "also-content", Destination: "/sandbox/both"},
+			{Destination: "/sandbox/neither"},
+			{Content: "missing-destination"},
+		}},
+	}
+
+	_, err := Resolve(h, func(string) string { return "" })
+	if err == nil {
+		t.Fatal("expected malformed payloads to be rejected")
+	}
+	for _, want := range []string{"payloads[0]: cannot set both source and content", "payloads[1]: requires source or content", "payloads[2].destination: required"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err, want)
+		}
 	}
 }
 

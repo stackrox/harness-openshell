@@ -15,6 +15,7 @@ func TestBuild_TargetValidateWhenReachable(t *testing.T) {
 		},
 	}
 	current := CurrentState{
+		Inspected: true,
 		Reachable: true,
 		Health: openshell.Health{
 			Healthy: true,
@@ -53,6 +54,7 @@ func TestBuild_TargetLoginRequiredWhenUnreachable(t *testing.T) {
 		},
 	}
 	current := CurrentState{
+		Inspected: true,
 		Reachable: false,
 	}
 
@@ -67,11 +69,23 @@ func TestBuild_TargetLoginRequiredWhenUnreachable(t *testing.T) {
 	}
 }
 
+func TestBuild_TargetAndProvidersNotInspectedWithoutGatewayState(t *testing.T) {
+	desired := &config.Harness{Spec: config.Spec{Sandbox: config.Sandbox{Providers: []string{"github"}}}}
+	result := Build(desired, CurrentState{})
+
+	if got := result.Groups[0].Resources[0].Action; got != ActionNotInspected {
+		t.Errorf("target action = %s, want %s", got, ActionNotInspected)
+	}
+	if got := result.Groups[1].Resources[0].Action; got != ActionNotInspected {
+		t.Errorf("provider action = %s, want %s", got, ActionNotInspected)
+	}
+}
+
 func TestBuildReferencedProviders(t *testing.T) {
 	desired := &config.Harness{Spec: config.Spec{Sandbox: config.Sandbox{Providers: []string{
 		"present", "absent",
 	}}}}
-	p := Build(desired, CurrentState{Providers: []openshell.Provider{{Name: "present"}}})
+	p := Build(desired, CurrentState{Inspected: true, ProvidersKnown: true, Providers: []openshell.Provider{{Name: "present"}}})
 	for _, group := range p.Groups {
 		if group.Section != SectionProviders {
 			continue
@@ -96,6 +110,7 @@ func TestBuild_InferenceGroupWhenConfigured(t *testing.T) {
 		},
 	}
 	current := CurrentState{
+		Inspected: true,
 		Reachable: true,
 		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 	}
@@ -251,6 +266,7 @@ func TestBuild_InferenceRealDiff(t *testing.T) {
 
 	// Capable + absent → create.
 	res := infGroup(Build(desired, CurrentState{
+		Inspected: true,
 		Reachable: true,
 		Inference: InferenceState{Capable: true, Present: false},
 	}))
@@ -263,6 +279,7 @@ func TestBuild_InferenceRealDiff(t *testing.T) {
 
 	// Capable + matching → noop.
 	res = infGroup(Build(desired, CurrentState{
+		Inspected: true,
 		Reachable: true,
 		Inference: InferenceState{Capable: true, Present: true, Provider: "gcp", Model: "claude-opus-4-8"},
 	}))
@@ -281,6 +298,7 @@ func TestBuild_NoInferenceGroupWhenEmpty(t *testing.T) {
 		},
 	}
 	current := CurrentState{
+		Inspected: true,
 		Reachable: true,
 		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 	}
@@ -306,6 +324,7 @@ func TestBuild_RunGroupWithSandbox(t *testing.T) {
 		},
 	}
 	current := CurrentState{
+		Inspected: true,
 		Reachable: true,
 		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 	}
@@ -361,6 +380,7 @@ func TestBuild_RunGroupWithPayloads(t *testing.T) {
 		},
 	}
 	current := CurrentState{
+		Inspected: true,
 		Reachable: true,
 		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 	}
@@ -403,8 +423,10 @@ func TestBuild_RunGroupWithAgent(t *testing.T) {
 		},
 	}
 	current := CurrentState{
-		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
+		Inspected:      true,
+		ProvidersKnown: true,
+		Reachable:      true,
+		Health:         openshell.Health{Healthy: true, Version: "0.0.110"},
 	}
 
 	plan := Build(desired, current)
@@ -446,6 +468,7 @@ func TestBuild_NoRunGroupWhenEmpty(t *testing.T) {
 		},
 	}
 	current := CurrentState{
+		Inspected: true,
 		Reachable: true,
 		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 	}
@@ -467,9 +490,11 @@ func TestPlan_TableSections(t *testing.T) {
 		},
 	}
 	current := CurrentState{
-		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
-		Providers: []openshell.Provider{},
+		Inspected:      true,
+		ProvidersKnown: true,
+		Reachable:      true,
+		Health:         openshell.Health{Healthy: true, Version: "0.0.110"},
+		Providers:      []openshell.Provider{},
 	}
 
 	plan := Build(desired, current)
