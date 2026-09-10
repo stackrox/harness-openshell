@@ -60,7 +60,7 @@ run_test_fail() {
 
 echo "=== Canonical configuration ==="
 run_test "apply: resolved YAML" bash -c '"$1" apply -f "$2" -o yaml | grep -q "apiVersion: harness.openshell.dev/v1alpha1"' _ "$HARNESS" "$CONFIG"
-run_test "reviewer fixture: resolved YAML" bash -c 'out=$("$1" apply -f "$2" -o yaml) && grep -q "source: REVIEW.md" <<<"$out" && grep -q "source: fixtures/pr.diff" <<<"$out" && grep -q "type: claude" <<<"$out"' _ "$HARNESS" "$ROOT/examples/github-pr-reviewer/harness.yaml"
+run_test "reviewer fixture: resolved YAML" bash -c 'out=$("$1" apply -f "$2" -o yaml) && grep -q "source: REVIEW.md" <<<"$out" && grep -q "source: fixtures/pr.diff" <<<"$out" && grep -q "type: claude" <<<"$out"' _ "$HARNESS" "$ROOT/workflows/github-pr-reviewer/harness.yaml"
 run_test "apply: resolved JSON" bash -c '"$1" apply -f "$2" -o json | python3 -m json.tool >/dev/null' _ "$HARNESS" "$CONFIG"
 run_test "apply: name override" bash -c '"$1" apply -f "$2" --name overridden -o yaml | grep -q "name: overridden"' _ "$HARNESS" "$CONFIG"
 run_test "apply: entrypoint override" bash -c '"$1" apply -f "$2" --entrypoint opencode -o yaml | grep -q "type: opencode"' _ "$HARNESS" "$CONFIG"

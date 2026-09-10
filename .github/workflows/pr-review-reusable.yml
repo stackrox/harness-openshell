@@ -55,7 +55,7 @@ jobs:
           persist-credentials: false
       - name: Prepare default review skill
         working-directory: harness
-        run: install -D -m 0644 examples/github-pr-reviewer/skills/pr-review/SKILL.md skills/pr-review/SKILL.md
+        run: install -D -m 0644 workflows/github-pr-reviewer/skills/pr-review/SKILL.md skills/pr-review/SKILL.md
       - name: Install caller skill
         if: inputs.skill-path != ''
         env:
