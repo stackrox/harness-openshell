@@ -24,7 +24,7 @@ The workflow file is a desired input document, not a stored Harness resource:
 
 ```yaml
 apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: pr-review
 spec:

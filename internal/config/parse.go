@@ -10,14 +10,14 @@ import (
 
 const apiVersionV1alpha1 = "harness.openshell.dev/v1alpha1"
 
-// Parse decodes a v1alpha1 Harness document from raw YAML bytes.
+// Parse decodes a v1alpha1 OpenShellWorkflow document from raw YAML bytes.
 //
 // It validates:
 //   - apiVersion must equal "harness.openshell.dev/v1alpha1"; a missing or wrong
 //     apiVersion is rejected with the supported version in the error
 //   - unknown fields within a v1alpha1 document are errors (this rejects
 //     spec.context, the dead terminology whose replacement is spec.target)
-//   - kind must equal "Harness"
+//   - kind must equal "OpenShellWorkflow"
 //   - metadata.name must be non-empty
 func Parse(data []byte) (*Harness, error) {
 	// Detect apiVersion with a lenient pass first so an unversioned document gets
@@ -40,8 +40,8 @@ func Parse(data []byte) (*Harness, error) {
 		return nil, fmt.Errorf("parsing YAML: %w", err)
 	}
 
-	if h.Kind != "Harness" {
-		return nil, fmt.Errorf("invalid kind %q; expected Harness", h.Kind)
+	if h.Kind != "OpenShellWorkflow" {
+		return nil, fmt.Errorf("invalid kind %q; expected OpenShellWorkflow", h.Kind)
 	}
 	if h.Metadata.Name == "" {
 		return nil, fmt.Errorf("metadata.name is required")
@@ -50,7 +50,7 @@ func Parse(data []byte) (*Harness, error) {
 	return &h, nil
 }
 
-// Load reads and parses a v1alpha1 Harness document from a file path.
+// Load reads and parses a v1alpha1 OpenShellWorkflow document from a file path.
 func Load(path string) (*Harness, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

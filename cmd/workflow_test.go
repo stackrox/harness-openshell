@@ -15,7 +15,7 @@ func TestLoadWorkflowBuildsDirectTargetAndDefaultsWorkspace(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
 	data := []byte(`apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: direct
 spec:
@@ -53,7 +53,7 @@ spec:
 func TestLoadWorkflowExternalGatewayOverridesDirectRegistration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
 	data := []byte(`apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: direct
 spec:

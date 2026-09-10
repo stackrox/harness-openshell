@@ -2,7 +2,7 @@
 # No env vars and no target.gateway, so `harness workflow plan` renders fully offline
 # (it skips gateway contact and diffs against empty current state).
 apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: suite-v1alpha1
 spec:

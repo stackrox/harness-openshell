@@ -106,7 +106,7 @@ exercise_provider() {
   image="${HARNESS_OS_IMAGE:-ghcr.io/nvidia/openshell-community/sandboxes/base:latest}"
   printf '%s\n' \
     'apiVersion: harness.openshell.dev/v1alpha1' \
-    'kind: Harness' \
+    'kind: OpenShellWorkflow' \
     'metadata:' "  name: $sandbox" \
     'spec:' '  sandbox:' "    image: $image" '    keep: true' \
     '    providers:' "      - $provider" \

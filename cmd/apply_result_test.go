@@ -188,7 +188,7 @@ func readApplyResult(t *testing.T, path string) applyResult {
 }
 
 const resultWorkflow = `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: result-test
 spec:

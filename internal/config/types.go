@@ -9,10 +9,10 @@ import (
 	"time"
 )
 
-// Harness is the root v1alpha1 configuration document.
+// Harness is the root v1alpha1 OpenShellWorkflow configuration document.
 type Harness struct {
 	APIVersion string   `yaml:"apiVersion"` // must equal "harness.openshell.dev/v1alpha1"
-	Kind       string   `yaml:"kind"`       // must equal "Harness"
+	Kind       string   `yaml:"kind"`       // must equal "OpenShellWorkflow"
 	Metadata   Metadata `yaml:"metadata"`
 	Spec       Spec     `yaml:"spec"`
 }

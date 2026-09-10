@@ -112,7 +112,7 @@ func TestSpecContextRejected(t *testing.T) {
 	// Config with spec.context (dead terminology)
 	doc := `
 apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: test
 spec:
@@ -131,7 +131,7 @@ spec:
 func TestUnknownTopLevelKey(t *testing.T) {
 	doc := `
 apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: test
 spec:
@@ -155,7 +155,7 @@ func TestRemovedCredentialAndAutoProviderFieldsAreRejected(t *testing.T) {
 		"agent model":                "  agent:\n    type: claude\n    model: claude-haiku\n",
 	} {
 		t.Run(name, func(t *testing.T) {
-			data := "apiVersion: harness.openshell.dev/v1alpha1\nkind: Harness\nmetadata: {name: test}\nspec:\n" + field
+			data := "apiVersion: harness.openshell.dev/v1alpha1\nkind: OpenShellWorkflow\nmetadata: {name: test}\nspec:\n" + field
 			if _, err := Parse([]byte(data)); err == nil {
 				t.Fatal("removed field was accepted")
 			}
@@ -198,7 +198,7 @@ func TestProvidersAndSandboxProviders(t *testing.T) {
 
 func TestMissingAPIVersion(t *testing.T) {
 	doc := `
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: test
 spec:
@@ -217,7 +217,7 @@ spec:
 func TestWrongAPIVersion(t *testing.T) {
 	doc := `
 apiVersion: some-other/v1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: test
 spec:
@@ -236,7 +236,7 @@ spec:
 func TestMissingMetadataName(t *testing.T) {
 	doc := `
 apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata: {}
 spec:
   target:

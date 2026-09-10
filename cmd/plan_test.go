@@ -61,7 +61,7 @@ func TestPlanCmd_GoldenTable(t *testing.T) {
 	// Write a test config file.
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
 	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: plan-test
 spec:
@@ -138,7 +138,7 @@ func TestPlanCmd_InferenceRealDiff(t *testing.T) {
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
 	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: plan-test
 spec:
@@ -187,7 +187,7 @@ func TestPlanCmd_JSONOutput(t *testing.T) {
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
 	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: plan-test
 spec:
@@ -239,7 +239,7 @@ func TestPlanCmd_SecretKiller(t *testing.T) {
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
 	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: plan-test
 spec:
@@ -300,7 +300,7 @@ func TestPlanCmd_MissingEnv_FailFast(t *testing.T) {
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
 	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: plan-test
 spec:
@@ -347,7 +347,7 @@ func TestPlanCmd_UnversionedConfigInput(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "unversioned.yaml")
-	configContent := `kind: Harness
+	configContent := `kind: OpenShellWorkflow
 metadata:
   name: unversioned-config
 spec:
@@ -400,7 +400,7 @@ func TestPlanCmd_TargetTierPrecedence(t *testing.T) {
 
 			configPath := filepath.Join(tmpDir, "plan-test.yaml")
 			configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: plan-test
 spec:
@@ -479,7 +479,7 @@ func TestPlanCmd_EmptyGatewaySkipsClient(t *testing.T) {
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
 	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: plan-test
 spec:
@@ -535,7 +535,7 @@ func TestPlanCmd_DirectTargetConnects(t *testing.T) {
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
 	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: plan-test
 spec:
@@ -585,7 +585,7 @@ func TestPlanCmd_UnreachableGatewayRendersDesiredOnly(t *testing.T) {
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
 	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: plan-test
 spec:

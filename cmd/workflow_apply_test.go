@@ -23,7 +23,7 @@ func TestCanonicalWorkflowPlanAndApplyShareResolvedTarget(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "workflow.yaml")
 	writeTestFile(t, file, `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: review
 spec:
@@ -85,7 +85,7 @@ func TestCanonicalProviderOnlyWorkflowDoesNotInventSandboxRun(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "workflow.yaml")
 	writeTestFile(t, file, `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: setup
 spec:
@@ -147,7 +147,7 @@ func TestApplyCommandExecutesV1alphaWorkflow(t *testing.T) {
 	workflowPath := filepath.Join(dir, "workflow.yaml")
 	writeTestFile(t, filepath.Join(dir, "policy.yaml"), "version: 1\n")
 	writeTestFile(t, workflowPath, `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: security-review
 spec:
@@ -206,7 +206,7 @@ func TestApplyRequiresCanonicalFile(t *testing.T) {
 func TestApplyAcceptsPositionalWorkflowFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
 	writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: positional
 spec:
@@ -227,7 +227,7 @@ spec:
 func TestApplyUsesActiveGatewayWhenTargetIsEmpty(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
 	writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: active
 spec:
@@ -261,7 +261,7 @@ func TestApplyRejectsProviderManagementBeforeGatewayAccess(t *testing.T) {
 		t.Run(field, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "workflow.yaml")
 			writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: provider-management
 spec:
@@ -287,7 +287,7 @@ func TestApplyStructuredOutputRedactsCredentialBearingMaps(t *testing.T) {
 	t.Setenv("WORKFLOW_SECRET", secret)
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
 	writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: redacted
 spec:
@@ -327,7 +327,7 @@ spec:
 func TestRedactedWorkflowRedactsInterpolatedScalars(t *testing.T) {
 	resolved := &config.Harness{
 		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
+		Kind:       "OpenShellWorkflow",
 		Metadata:   config.Metadata{Name: "resolved-name"},
 		Spec: config.Spec{
 			Target: config.Target{
@@ -511,7 +511,7 @@ func TestPlanAndApplyDryRunRenderSameCanonicalPlan(t *testing.T) {
 	dir := t.TempDir()
 	workflowPath := filepath.Join(dir, "workflow.yaml")
 	writeTestFile(t, workflowPath, `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
+kind: OpenShellWorkflow
 metadata:
   name: parity
 spec:
