@@ -203,6 +203,27 @@ func TestApplyRequiresCanonicalFile(t *testing.T) {
 	}
 }
 
+func TestApplyAcceptsPositionalWorkflowFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflow.yaml")
+	writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
+kind: Harness
+metadata:
+  name: positional
+spec:
+  sandbox:
+    image: reviewer
+  agent:
+    type: reviewer
+`)
+	command := NewApplyCmd(testutil.FakeFactory(nil))
+	command.SetArgs([]string{path, "--dry-run", "-o", "json"})
+	command.SilenceErrors = true
+	command.SilenceUsage = true
+	if _, err := captureStdout(t, command.Execute); err != nil {
+		t.Fatalf("positional workflow file: %v", err)
+	}
+}
+
 func TestApplyUsesActiveGatewayWhenTargetIsEmpty(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
 	writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1

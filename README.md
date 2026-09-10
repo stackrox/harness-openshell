@@ -19,6 +19,27 @@ Harness earns its place when it removes repeated credential, lifecycle, and CI
 integration code. If a repository can run a native OpenShell workflow with the
 same safety and less bookkeeping, use the native workflow instead.
 
+A consuming repository can ship a ready-to-run development harness alongside
+its source:
+
+```text
+stackrox/
+  workflows/dev-workflow.yaml
+  skills/dev/SKILL.md
+  policies/dev.yaml
+```
+
+The same checked-in workflow can run locally, in GitHub Actions, or from
+another CI system. From a local checkout, use the workflow path directly:
+
+```bash
+harness apply stackrox/workflows/dev-workflow.yaml --attach
+```
+
+The path is a local trusted checkout; Harness does not fetch arbitrary remote
+workflow files as an implicit code-download step. `-f FILE` remains equivalent
+for scripts and integrations that prefer explicit flags.
+
 ### What belongs where
 
 | Concern | Owner |
@@ -285,8 +306,8 @@ mutations must be allowed by the provider profile and OpenShell policy.
 | `harness init` | Generate a starter workflow |
 | `harness doctor` | Check target reachability and referenced providers |
 | `harness plan -f FILE` | Render a read-only reconciliation plan |
-| `harness apply -f FILE` | Run the workflow headlessly |
-| `harness apply -f FILE --attach` | Run the same workflow with an interactive terminal |
+| `harness apply FILE` / `harness apply -f FILE` | Run the workflow headlessly |
+| `harness apply FILE --attach` | Run the same workflow with an interactive terminal |
 | `harness apply -f FILE --setup-only` | Verify references and configure inference without running a sandbox |
 | `harness get gateways\|agents\|providers` | Inspect identity-only resources (`-o table\|json\|yaml`) |
 | `harness describe NAME` | Inspect a sandbox |
