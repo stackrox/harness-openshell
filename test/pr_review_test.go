@@ -137,7 +137,7 @@ set -eu
 printf '%s\n' "$*" >> "$TRACE"
 if [[ "${0##*/}" == gh ]]; then
   if [[ "$2" == */compare/* ]]; then
-    if [[ "$FAKE_SCENARIO" == oversized ]]; then head -c 204801 /dev/zero; else printf 'diff data\n'; fi
+    if [[ "$FAKE_SCENARIO" == oversized ]]; then head -c 262145 /dev/zero; else printf 'diff data\n'; fi
   else
     labels='[{"name":"ai-review"}]'
     [[ "$FAKE_SCENARIO" != unlabeled ]] || labels='[]'

@@ -72,8 +72,8 @@ after the CI service account can invoke that model.
 Only trusted default-branch code runs on the host. The pinned sandbox receives
 the PR diff and a PR-scoped GitHub token; OpenShell permits only inline comment
 POSTs to that exact PR. Label/head/base are rechecked before execution and
-publication. Diffs
-over 200 KiB are rejected; execution and diagnostic output are bounded. The
+publication. Diffs over 256 KiB are rejected; execution and diagnostic output
+are bounded. The
 completion check rejects errors, tool calls, empty or truncated responses—not
 incorrect findings. Artifacts remain unvalidated model output. Cleanup covers
 success, failure, and normal cancellation, but cannot guarantee runner-loss cleanup.

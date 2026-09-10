@@ -11,6 +11,7 @@ mode="${1:?usage: pr-review.sh prepare|run}"
 gateway="${OPENSHELL_GATEWAY:-openshell}"
 allow_draft_reviews="${ALLOW_DRAFT_REVIEWS:-false}"
 workspace="rev-$RANDOM-$$"
+max_diff_bytes=262144
 created_workspace=false
 created_vertex_provider=false
 created_github_provider=false
@@ -86,8 +87,8 @@ prepare_review() {
     '{repository:$repository, pr:$pr, head:$head, base:$base}' > "$REVIEW_DIR/input.json"
   # Read at most limit+1 bytes. Oversized or failed downloads never reach inference.
   timeout 60s gh api "repos/$REVIEW_REPOSITORY/compare/$base...$head" -H 'Accept: application/vnd.github.diff' \
-    | head -c 204801 > "$REVIEW_DIR/pr.diff"
-  [[ -s "$REVIEW_DIR/pr.diff" && $(wc -c < "$REVIEW_DIR/pr.diff") -le 204800 ]] || exit 1
+    | head -c "$((max_diff_bytes + 1))" > "$REVIEW_DIR/pr.diff"
+  [[ -s "$REVIEW_DIR/pr.diff" && $(wc -c < "$REVIEW_DIR/pr.diff") -le "$max_diff_bytes" ]] || exit 1
   (cd "$REVIEW_DIR" && shasum -a 256 pr.diff > pr.diff.sha256)
   [[ -z "${GITHUB_OUTPUT:-}" ]] || printf 'eligible=true\n' >> "$GITHUB_OUTPUT"
   state=prepared
