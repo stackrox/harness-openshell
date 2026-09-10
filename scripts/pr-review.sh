@@ -68,7 +68,7 @@ trap 'exit 143' TERM
 ensure_current() {
   current="$(timeout 60s gh api "$endpoint")"
   if ! jq -e --arg head "$head" --arg base "$base" '
-    .state == "open" and (.draft | not) and any(.labels[]?; .name == "ai-review")
+    .state == "open" and any(.labels[]?; .name == "ai-review")
     and ($head == "" or .head.sha == $head) and ($base == "" or .base.sha == $base)
   ' <<< "$current" >/dev/null; then
     state="skipped or superseded"
