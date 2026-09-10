@@ -20,7 +20,7 @@ spec:
       file: ${REVIEW_POLICY}
     providers: [github-review]
     env:
-      OPENCODE_CONFIG: /sandbox/opencode-review.json
+      OPENCODE_CONFIG: /sandbox/agents/opencode/config.json
       OPENCODE_VERTEX_API_KEY: sk-openshell-proxy-managed
       REVIEW_REPOSITORY: ${REVIEW_REPOSITORY}
       REVIEW_PR: ${REVIEW_PR}
@@ -31,8 +31,8 @@ spec:
       destination: /sandbox/review/pr.diff
     - source: skills/pr-review/SKILL.md
       destination: /sandbox/review/skills/pr-review/SKILL.md
-    - source: opencode-review.json
-      destination: /sandbox/opencode-review.json
+    - source: agents/opencode/config.json
+      destination: /sandbox/agents/opencode/config.json
   agent:
     type: opencode
     args:
