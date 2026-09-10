@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: ''
+      allow-draft-reviews:
+        description: Allow explicitly labeled draft pull requests
+        required: false
+        type: boolean
+        default: false
     secrets:
       VERTEX_AI_SERVICE_ACCOUNT_KEY:
         required: true
@@ -23,8 +28,9 @@ permissions:
 jobs:
   review:
     if: >-
-      ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
-      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review'))
+      (!github.event.pull_request.draft || inputs.allow-draft-reviews) &&
+      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -69,6 +75,7 @@ jobs:
         working-directory: harness
         env:
           GH_TOKEN: ${{ github.token }}
+          ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
           REVIEW_REPOSITORY: ${{ github.repository }}
           REVIEW_PR: ${{ github.event.pull_request.number }}
           REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
@@ -88,6 +95,7 @@ jobs:
         working-directory: harness
         env:
           GH_TOKEN: ${{ github.token }}
+          ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
           GITHUB_TOKEN: ${{ github.token }}
           REVIEW_REPOSITORY: ${{ github.repository }}
           REVIEW_PR: ${{ github.event.pull_request.number }}
