@@ -129,7 +129,7 @@ run_review() {
 
   export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
   export REVIEW_POLICY="$REVIEW_DIR/review-policy.yaml"
-  policy_template="${REVIEW_POLICY_TEMPLATE:-workflows/github-pr-reviewer/openshell/review-policy.yaml}"
+  policy_template="${REVIEW_POLICY_TEMPLATE:-workflows/github-pr-reviewer/review-policy.yaml}"
   sed \
     -e "s|\${REVIEW_REPOSITORY}|$REVIEW_REPOSITORY|g" \
     -e "s|\${REVIEW_PR}|$REVIEW_PR|g" \
