@@ -118,7 +118,7 @@ func (s applyService) connectAndPlan(ctx context.Context, workflow *resolvedWork
 // preflight, reconcile, and optional sandbox execution.
 func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p *plan.Plan, current plan.CurrentState, client openshell.Client, opts applyOptions) error {
 	if opts.DryRun {
-		return renderPlan(p, opts.Output)
+		return renderPlan(redactedPlan(p, workflow.Desired, workflow.Input), opts.Output)
 	}
 	opts.Result.setPhase("preflight")
 	if client == nil || !current.Reachable {

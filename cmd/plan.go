@@ -70,6 +70,7 @@ uses this same resolved desired object and action-decision engine.`,
 			if err != nil {
 				return err
 			}
+			p = redactedPlan(p, workflow.Desired, workflow.Input)
 
 			if format != formatTable {
 				return printStructured(format, p)

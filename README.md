@@ -63,7 +63,10 @@ load and validate YAML
 ```
 
 The current inference-route write is a compatibility bridge for gateways that do
-not yet own that configuration natively. It should shrink as OpenShell does.
+not yet own that configuration natively. It requires workspace-admin access when
+the route differs and should be used only with an isolated or explicitly
+administered workspace. Prefer a bootstrap-owned matching route for shared
+workspaces; this bridge should shrink as OpenShell does.
 
 ## Use it locally
 
@@ -113,6 +116,12 @@ calling shell or configure the values in CI. Defaults include workspace
 `default`, inference route `inference.local`, and the versioned sandbox image;
 `HARNESS_OS_IMAGE` overrides the image.
 
+The workflow file, policy file, and payload declarations are trusted host-side
+inputs. A workflow can intentionally interpolate host environment values or
+upload readable host files, so do not run an untrusted PR-supplied workflow in a
+credentialed host context. The trusted PR-review path checks out workflow code
+from the caller's default branch and stages the pull-request diff only as data.
+
 Direct OIDC target registration in a workflow is in-memory for that invocation.
 The OIDC client secret is read from `OPENSHELL_OIDC_CLIENT_SECRET` and is never
 part of the workflow document.
@@ -147,6 +156,11 @@ requests. Raw credentials must not appear in workflow YAML, `sandbox.env`,
 payloads, agent arguments, logs, artifacts, prompts, or structured JSON/YAML
 output. Use provider configuration and OpenShell policy to grant capabilities;
 provider attachment alone does not authorize comments, pushes, labels, or merges.
+
+This is a contract for trusted workflow authors and bootstrap code, not a secret
+scanner for arbitrary YAML. Interpolated values are redacted from resolved
+configuration, plan, and dry-run display output, but the runner cannot infer
+whether a literal host value is a credential.
 
 For GitHub Actions, trusted host-side setup may use the automatic
 `GITHUB_TOKEN` to register the native OpenShell GitHub provider. The token is
@@ -193,7 +207,9 @@ implicitly enabled by the runner.
 | `harness workflow apply FILE --setup-only` | Verify references and configure inference without running a sandbox |
 
 Plan and dry-run output support `-o table`, `-o json`, and `-o yaml`; credential
-values are never serialized. The Harness CLI deliberately has no `doctor`,
+values are never serialized. `harness workflow apply FILE -o json` or `-o yaml`
+prints the resolved, redacted configuration without executing; use
+`--result-file result.json` for an execution result. The Harness CLI deliberately has no `doctor`,
 `init`, `delete`, `get`, or `describe` commands. Use native OpenShell commands
 for gateway health, sandbox inspection, and retained-sandbox deletion. Normal
 `apply` cleanup deletes a sandbox by default; set `sandbox.keep: true` only to

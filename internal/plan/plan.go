@@ -42,7 +42,7 @@ const (
 type Resource struct {
 	Name   string `json:"name" yaml:"name"`
 	Action Action `json:"action" yaml:"action"`
-	Detail string `json:"detail,omitempty" yaml:"detail,omitempty"` // redaction-safe
+	Detail string `json:"detail,omitempty" yaml:"detail,omitempty"` // redacted by cmd before serialization
 }
 
 // Group clusters resources by section.

@@ -213,24 +213,28 @@ inference:
 	}
 }
 
-// TestPlanCmd_SecretKiller ensures secret values never leak into output.
-// Sets OPENSHELL_OIDC_CLIENT_SECRET=SUPERSECRET and a provider secret env.
-// Asserts the literal value NEVER appears in table/json/yaml output.
+// TestPlanCmd_SecretKiller ensures interpolated secret values never leak into
+// any plan output format, including collapsed run resources such as agent
+// arguments and upload paths.
 func TestPlanCmd_SecretKiller(t *testing.T) {
 	tmpDir := t.TempDir()
 	secretValue := "SUPERSECRET123XYZ"
 
-	t.Setenv("OPENSHELL_OIDC_CLIENT_SECRET", secretValue)
-	t.Setenv("MY_PROVIDER_TOKEN", secretValue)
+	t.Setenv("PLAN_SECRET", secretValue)
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
 	configContent := `version: 1
 name: plan-test
 target:
   gateway: test-gateway
-inference:
-  provider: test-provider
-  model: claude-haiku-4-5
+agent:
+  type: sh
+  args: ["${PLAN_SECRET}"]
+source:
+  repo: ${PLAN_SECRET}
+payloads:
+  - source: ${PLAN_SECRET}
+    destination: /sandbox/${PLAN_SECRET}
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -242,36 +246,18 @@ inference:
 
 	factory := testutil.FakeFactory(fakeClient)
 
-	// Test table output.
-	cmd := NewPlanCmd(factory)
-	cmd.SetArgs([]string{"-f", configPath, "-o", "table"})
-
-	output, err := captureStdout(t, func() error {
-		return cmd.Execute()
-	})
-
-	if err != nil {
-		t.Fatalf("cmd.Execute: %v", err)
-	}
-
-	if contains(output, secretValue) {
-		t.Errorf("secret value leaked in table output: %s", output)
-	}
-
-	// Test JSON output.
-	cmd = NewPlanCmd(factory)
-	cmd.SetArgs([]string{"-f", configPath, "-o", "json"})
-
-	output, err = captureStdout(t, func() error {
-		return cmd.Execute()
-	})
-
-	if err != nil {
-		t.Fatalf("cmd.Execute (json): %v", err)
-	}
-
-	if contains(output, secretValue) {
-		t.Errorf("secret value leaked in json output: %s", output)
+	for _, format := range []string{"table", "json", "yaml"} {
+		t.Run(format, func(t *testing.T) {
+			cmd := NewPlanCmd(factory)
+			cmd.SetArgs([]string{"-f", configPath, "-o", format})
+			output, err := captureStdout(t, func() error { return cmd.Execute() })
+			if err != nil {
+				t.Fatalf("cmd.Execute: %v", err)
+			}
+			if contains(output, secretValue) {
+				t.Fatalf("secret value leaked in %s output: %s", format, output)
+			}
+		})
 	}
 }
 

@@ -136,6 +136,10 @@ Do not use `--no-verify`: a successful inference write is the base-layer proof
 that the ADC principal has `aiplatform.endpoints.predict`. After bootstrap,
 ordinary applies only read the matching provider and route; they neither need
 workspace-admin permission nor receive the Vertex credential in the sandbox.
+If a workflow selects a different provider, model, or route, the compatibility
+reconciliation performs an admin-only upsert in that workspace. Treat that as
+isolated-workspace setup, not a shared-workspace runtime operation; Harness does
+not restore the previous route after the run.
 
 Validate from the VPN with:
 

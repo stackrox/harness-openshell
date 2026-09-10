@@ -53,9 +53,6 @@ jobs:
           ref: ${{ inputs.harness-ref }}
           path: harness
           persist-credentials: false
-      - name: Prepare default review skill
-        working-directory: harness
-        run: install -D -m 0644 examples/github-pr-reviewer/skills/pr-review/SKILL.md skills/pr-review/SKILL.md
       - name: Install caller skill
         if: inputs.skill-path != ''
         env:
@@ -63,7 +60,8 @@ jobs:
         run: |
           [[ "$SKILL_PATH" != /* && "$SKILL_PATH" != *..* ]] || exit 1
           test -f "caller/$SKILL_PATH"
-          install -D -m 0644 "caller/$SKILL_PATH" harness/skills/pr-review/SKILL.md
+          install -D -m 0644 "caller/$SKILL_PATH" harness/examples/github-pr-reviewer/skills/pr-review/SKILL.md
+          cmp -s "caller/$SKILL_PATH" harness/examples/github-pr-reviewer/skills/pr-review/SKILL.md
       - uses: actions/setup-go@v7
         with:
           go-version-file: harness/go.mod

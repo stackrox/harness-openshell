@@ -17,7 +17,7 @@ func TestPRReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "cancel", "truncated", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit"} {
+	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "unrelated-422", "comment-position"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			stepSummary := filepath.Join(root, "step-summary")
@@ -106,7 +106,7 @@ func TestPRReview(t *testing.T) {
 				}
 			}
 			err = cmd.Wait()
-			if (err == nil) != (scenario == "success" || scenario == "stale") {
+			if (err == nil) != (scenario == "success" || scenario == "stale" || scenario == "comment-position") {
 				t.Fatalf("unexpected result: %v\n%s", err, logs.String())
 			}
 			trace, _ := os.ReadFile(filepath.Join(root, "trace"))
@@ -125,7 +125,7 @@ func TestPRReview(t *testing.T) {
 				t.Fatal("provider cleanup must follow creation")
 			}
 			summary, _ := os.ReadFile(filepath.Join(root, "review/summary.md"))
-			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success") || strings.Contains(string(summary), "MODEL_OUTPUT") {
+			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success" || scenario == "comment-position") || strings.Contains(string(summary), "MODEL_OUTPUT") {
 				t.Fatalf("incorrect or model-controlled summary: %s", summary)
 			}
 		})
@@ -165,9 +165,12 @@ case "$1 ${2:-}" in
     case "$FAKE_SCENARIO" in
       incomplete) exit 0 ;;
       truncated) printf '%s\n' '{"type":"step_finish","part":{"reason":"length"}}' ;;
+      malformed-trailing) printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}'; printf '%s\n' '{"type":"error",';;
       error|tool_use) printf '{"type":"%s"}\n' "$FAKE_SCENARIO" ;;
       tool_exit) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":7},"output":"ordinary command failed"}}}' ;;
       tool_missing_exit) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{},"output":"missing exit"}}}' ;;
+      unrelated-422) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"unrelated build failed at record 422"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
+      comment-position) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"comment position is invalid"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
       *) printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
     esac ;;
 esac

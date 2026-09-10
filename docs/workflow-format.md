@@ -58,6 +58,17 @@ sandbox requests. Raw credentials must not appear in workflow YAML, sandbox
 environment values, payloads, agent arguments, logs, artifacts, prompts, or
 structured output.
 
+Workflow, policy, and payload declarations are trusted host-side inputs. Do not
+run an untrusted PR-supplied workflow with a credentialed host context; the
+trusted PR-review workflow checks out its workflow from the default branch and
+stages the PR diff as data. Interpolated values are redacted from display
+projections, but Harness does not attempt to detect credentials embedded as
+literal YAML values.
+
+Inference route reconciliation currently writes a changed route and therefore
+requires workspace-admin access. Shared workspaces should use a matching
+bootstrap-owned route; isolated workspaces may use the compatibility write.
+
 ## Compatibility policy
 
 The Go parser in `internal/config` is the executable source of truth. Parser,

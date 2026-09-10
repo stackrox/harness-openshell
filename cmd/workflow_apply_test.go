@@ -270,6 +270,41 @@ payloads:
 	}
 }
 
+func TestApplyDryRunRedactsInterpolatedPlanValues(t *testing.T) {
+	secret := "dry-run-secret-value"
+	t.Setenv("PLAN_SECRET", secret)
+	path := filepath.Join(t.TempDir(), "workflow.yaml")
+	writeTestFile(t, path, `version: 1
+name: dry-run
+agent:
+  type: sh
+  args: ["${PLAN_SECRET}"]
+source:
+  repo: ${PLAN_SECRET}
+payloads:
+  - source: ${PLAN_SECRET}
+    destination: /sandbox/${PLAN_SECRET}
+`)
+
+	for _, format := range []string{"table", "json", "yaml"} {
+		t.Run(format, func(t *testing.T) {
+			command := NewApplyCmd(testutil.FakeFactory(nil))
+			args := []string{"-f", path, "--dry-run"}
+			if format != "table" {
+				args = append(args, "-o", format)
+			}
+			command.SetArgs(args)
+			output, err := captureStdout(t, command.Execute)
+			if err != nil {
+				t.Fatalf("apply dry-run: %v", err)
+			}
+			if strings.Contains(output, secret) {
+				t.Fatalf("secret value leaked in %s output: %s", format, output)
+			}
+		})
+	}
+}
+
 func TestRedactedWorkflowRedactsInterpolatedScalars(t *testing.T) {
 	resolved := &config.Harness{
 		Version: 1,
