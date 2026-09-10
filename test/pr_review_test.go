@@ -17,7 +17,7 @@ func TestPRReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "unrelated-422", "comment-position"} {
+	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "sandbox-gone", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "unrelated-422", "comment-position"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			stepSummary := filepath.Join(root, "step-summary")
@@ -106,7 +106,7 @@ func TestPRReview(t *testing.T) {
 				}
 			}
 			err = cmd.Wait()
-			if (err == nil) != (scenario == "success" || scenario == "stale" || scenario == "comment-position") {
+			if (err == nil) != (scenario == "success" || scenario == "stale" || scenario == "sandbox-gone" || scenario == "comment-position") {
 				t.Fatalf("unexpected result: %v\n%s", err, logs.String())
 			}
 			trace, _ := os.ReadFile(filepath.Join(root, "trace"))
@@ -125,7 +125,7 @@ func TestPRReview(t *testing.T) {
 				t.Fatal("provider cleanup must follow creation")
 			}
 			summary, _ := os.ReadFile(filepath.Join(root, "review/summary.md"))
-			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success" || scenario == "comment-position") || strings.Contains(string(summary), "MODEL_OUTPUT") {
+			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success" || scenario == "sandbox-gone" || scenario == "comment-position") || strings.Contains(string(summary), "MODEL_OUTPUT") {
 				t.Fatalf("incorrect or model-controlled summary: %s", summary)
 			}
 		})
@@ -147,6 +147,7 @@ if [[ "${0##*/}" == gh ]]; then
   exit 0
 fi
 case "$1 ${2:-}" in
+  'sandbox delete') [[ "$FAKE_SCENARIO" != sandbox-gone ]] || { echo 'sandbox not found' >&2; exit 1; } ;;
   'provider create') [[ "$FAKE_SCENARIO" != provider-failure ]] ;;
   'workspace delete') [[ "$FAKE_SCENARIO" != cleanup-failure ]] ;;
   'workflow apply')
