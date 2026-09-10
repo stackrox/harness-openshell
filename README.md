@@ -209,6 +209,25 @@ harness apply -f config.yaml
 
 OpenShell provisions the gateway and provides the runtime isolation. The harness provides the workflow.
 
+## Architecture boundary
+
+Harness owns the trusted execution contract: resolving the gateway and target,
+passing provider references without exposing credential values, relying on
+OpenShell's proxy and masking behavior, creating and cleaning up the sandbox,
+enforcing bounded execution, validating results, and preventing stale or
+untrusted inputs from becoming part of a run.
+
+The repository using Harness owns the task: its trusted skills, review or task
+criteria, source inputs, agent and model choice, and what to do with the
+result. Those decisions should stay in the consuming repository rather than
+become Harness policy.
+
+This is a portability boundary, not an obligation to use Harness everywhere.
+If a repository can run a native OpenShell workflow with the same safety and
+less bookkeeping, that is the better choice. Harness earns its place when it
+removes repeated credential, lifecycle, and CI integration code while keeping
+task behavior in the repository that owns it.
+
 For runtime operations and policy management, use openshell directly:
 ```bash
 openshell sandbox connect <name>     # interactive shell
