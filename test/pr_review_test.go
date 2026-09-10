@@ -116,7 +116,7 @@ func TestPRReview(t *testing.T) {
 				}
 				return
 			}
-			for _, action := range []string{"--sandboxes", "workspace delete"} {
+			for _, action := range []string{"sandbox delete", "workspace delete"} {
 				if !strings.Contains(string(trace), action) {
 					t.Fatalf("missing cleanup: %s", trace)
 				}

@@ -73,7 +73,7 @@ func TestVertexSmoke(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(calls), "workspace delete") || !strings.Contains(string(calls), "--sandboxes") {
+			if !strings.Contains(string(calls), "workspace delete") || !strings.Contains(string(calls), "sandbox delete") {
 				t.Fatalf("cleanup missing: %s", calls)
 			}
 			if strings.Contains(string(calls), "provider delete") == (scenario == "provider-failure") {
