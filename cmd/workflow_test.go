@@ -14,19 +14,16 @@ func TestLoadWorkflowBuildsDirectTargetAndDefaultsWorkspace(t *testing.T) {
 	t.Setenv("DIRECT_AUDIENCE", "openshell-gateway")
 
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
-	data := []byte(`apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: direct
-spec:
-  target:
-    gateway: hypershell
-    registration:
-      endpoint: ${DIRECT_ENDPOINT}
-      oidc:
-        issuer: ${DIRECT_ISSUER}
-        clientId: ${DIRECT_CLIENT_ID}
-        audience: ${DIRECT_AUDIENCE}
+	data := []byte(`version: 1
+name: direct
+target:
+  gateway: hypershell
+  registration:
+    endpoint: ${DIRECT_ENDPOINT}
+    oidc:
+      issuer: ${DIRECT_ISSUER}
+      clientId: ${DIRECT_CLIENT_ID}
+      audience: ${DIRECT_AUDIENCE}
 `)
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatalf("write workflow: %v", err)
@@ -52,18 +49,15 @@ spec:
 
 func TestLoadWorkflowExternalGatewayOverridesDirectRegistration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
-	data := []byte(`apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: direct
-spec:
-  target:
-    registration:
-      endpoint: https://gateway.example.com
-      oidc:
-        issuer: https://issuer.example.com
-        clientId: ci-user
-        audience: openshell-gateway
+	data := []byte(`version: 1
+name: direct
+target:
+  registration:
+    endpoint: https://gateway.example.com
+    oidc:
+      issuer: https://issuer.example.com
+      clientId: ci-user
+      audience: openshell-gateway
 `)
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatalf("write workflow: %v", err)

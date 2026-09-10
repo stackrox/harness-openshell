@@ -23,7 +23,7 @@ reviews:
         provisioning are external platform responsibilities.
 
         Key architecture:
-        - internal/config/: strict harness.openshell.dev/v1alpha1 model
+        - internal/config/: strict version 1 flat workflow model
         - cmd/workflow_apply.go: apply orchestration and request construction
         - internal/run/: SDK-native sandbox lifecycle
         - internal/openshell/: credential-free SDK boundary
@@ -32,7 +32,7 @@ reviews:
         - Correct error handling (wrap with context, don't swallow)
         - Credential handling (never log secrets, never pass via CLI args if avoidable)
         - SDK firewall usage (credential material must not cross internal/openshell)
-        - Strict v1alpha1 parsing and flag > env > config target precedence
+        - Strict version 1 parsing and flag > env > config target precedence
         - repo clone (happens outside sandbox, git creds never enter unless needed)
     - path: "README.md"
       instructions: |
@@ -46,7 +46,7 @@ reviews:
         instructions, and upstream references are current.
     - path: "profiles/harness-*.yaml"
       instructions: |
-        Canonical workflow scaffolds. Check strict v1alpha1 schema compliance.
+        Canonical workflow scaffolds. Check strict version 1 schema compliance.
     - path: "profiles/providers/**"
       instructions: |
         OpenShell provider profile examples consumed by platform bootstrap.

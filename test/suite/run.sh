@@ -5,7 +5,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HARNESS="$ROOT/harness"
 CLI="${OPENSHELL_CLI:-openshell}"
-CONFIG="$ROOT/test/configs/harness-v1alpha1.yaml"
+CONFIG="$ROOT/test/configs/harness.yaml"
 LIFECYCLE="$ROOT/test/lifecycle-workflow.yaml"
 LIVE=false
 FILTER=""
@@ -59,7 +59,7 @@ run_test_fail() {
 }
 
 echo "=== Canonical configuration ==="
-run_test "apply: resolved YAML" bash -c '"$1" workflow apply "$2" -o yaml | grep -q "apiVersion: harness.openshell.dev/v1alpha1"' _ "$HARNESS" "$CONFIG"
+run_test "apply: resolved YAML" bash -c '"$1" workflow apply "$2" -o yaml | grep -q "version: 1"' _ "$HARNESS" "$CONFIG"
 run_test "reviewer fixture: resolved YAML" bash -c 'out=$("$1" workflow apply "$2" -o yaml) && grep -q "source: REVIEW.md" <<<"$out" && grep -q "source: fixtures/pr.diff" <<<"$out" && grep -q "type: claude" <<<"$out"' _ "$HARNESS" "$ROOT/examples/github-pr-reviewer/harness.yaml"
 run_test "apply: resolved JSON" bash -c '"$1" workflow apply "$2" -o json | python3 -m json.tool >/dev/null' _ "$HARNESS" "$CONFIG"
 run_test "apply: name override" bash -c '"$1" workflow apply "$2" --name overridden -o yaml | grep -q "name: overridden"' _ "$HARNESS" "$CONFIG"

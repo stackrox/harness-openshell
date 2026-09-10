@@ -8,7 +8,7 @@ are intentionally not tracked here.
 |---|---|
 | [ci.md](ci.md) | HyperShell CI bootstrap and repository/secret contract |
 | [compatibility.md](compatibility.md) | Tested and observed OpenShell, ACP, and Go versions |
-| [code-audit.md](code-audit.md) | Workflow-focused simplification, function/dependency inventory, and implemented removals |
+| [workflow-format.md](workflow-format.md) | Version 1 workflow document contract |
 
 See also the top-level [README.md](../README.md) (usage) and
 [AGENTS.md](../AGENTS.md) (coding, upstream-alignment, and validation rules).

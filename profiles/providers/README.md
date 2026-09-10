@@ -6,8 +6,8 @@ sandbox binaries for integrations not fully covered by built-in profiles.
 
 They are inputs to the platform bootstrap process, not to `harness workflow apply`.
 Import and create providers with OpenShell before applying a workflow. The
-harness then verifies and reconciles the provider resources declared in
-`spec.providers`; names in `spec.sandbox.providers` attach existing providers
+harness then verifies the provider resources declared in
+`providers`; names in `sandbox.providers` attach existing providers
 without claiming ownership.
 
 The checked-in examples are:

@@ -60,29 +60,25 @@ func TestPlanCmd_GoldenTable(t *testing.T) {
 
 	// Write a test config file.
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
-	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: plan-test
-spec:
-  target:
-    gateway: test-gateway
-  providers:
-    - name: test-provider
-      type: vertex-ai
-      management: referenced
-  inference:
-    provider: test-provider
-    model: claude-haiku-4-5
-  sandbox:
-    image: quay.io/test/sandbox:latest
-  agent:
-    type: claude
-    args: [--bare]
-  source:
-    repo: https://github.com/test/repo
-    ref: main
-    destination: /sandbox/repo
+	configContent := `version: 1
+name: plan-test
+target:
+  gateway: test-gateway
+providers:
+  - name: test-provider
+    type: vertex-ai
+inference:
+  provider: test-provider
+  model: claude-haiku-4-5
+sandbox:
+  image: quay.io/test/sandbox:latest
+agent:
+  type: claude
+  args: [--bare]
+source:
+  repo: https://github.com/test/repo
+  ref: main
+  destination: /sandbox/repo
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -137,16 +133,13 @@ func TestPlanCmd_InferenceRealDiff(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
-	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: plan-test
-spec:
-  target:
-    gateway: test-gateway
-  inference:
-    provider: test-provider
-    model: claude-haiku-4-5
+	configContent := `version: 1
+name: plan-test
+target:
+  gateway: test-gateway
+inference:
+  provider: test-provider
+  model: claude-haiku-4-5
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -186,17 +179,13 @@ func TestPlanCmd_JSONOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
-	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: plan-test
-spec:
-  target:
-    gateway: test-gateway
-  providers:
-    - name: test-provider
-      type: vertex-ai
-      management: referenced
+	configContent := `version: 1
+name: plan-test
+target:
+  gateway: test-gateway
+providers:
+  - name: test-provider
+    type: vertex-ai
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -238,17 +227,13 @@ func TestPlanCmd_SecretKiller(t *testing.T) {
 	t.Setenv("MY_PROVIDER_TOKEN", secretValue)
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
-	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: plan-test
-spec:
-  target:
-    gateway: test-gateway
-  providers:
-    - name: test-provider
-      type: custom-provider
-      management: referenced
+	configContent := `version: 1
+name: plan-test
+target:
+  gateway: test-gateway
+providers:
+  - name: test-provider
+    type: custom-provider
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -299,13 +284,10 @@ func TestPlanCmd_MissingEnv_FailFast(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
-	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: plan-test
-spec:
-  target:
-    gateway: ${MISSING_VAR}
+	configContent := `version: 1
+name: plan-test
+target:
+  gateway: ${MISSING_VAR}
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -342,17 +324,14 @@ spec:
 	}
 }
 
-// TestPlanCmd_UnversionedConfigInput checks that an unversioned file is rejected.
+// TestPlanCmd_UnversionedConfigInput checks that a file without version is rejected.
 func TestPlanCmd_UnversionedConfigInput(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "unversioned.yaml")
-	configContent := `kind: OpenShellWorkflow
-metadata:
-  name: unversioned-config
-spec:
-  target:
-    gateway: test-gateway
+	configContent := `name: unversioned-config
+target:
+  gateway: test-gateway
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -370,11 +349,11 @@ spec:
 	})
 
 	if err == nil {
-		t.Fatal("expected error for missing apiVersion, got nil")
+		t.Fatal("expected error for missing version, got nil")
 	}
 
-	if !contains(err.Error(), "harness.openshell.dev/v1alpha1") {
-		t.Errorf("error does not name the supported apiVersion: %v", err)
+	if !contains(err.Error(), "version") {
+		t.Errorf("error does not name the supported version: %v", err)
 	}
 }
 
@@ -385,7 +364,7 @@ func TestPlanCmd_TargetTierPrecedence(t *testing.T) {
 		name        string
 		flag        string // --gateway flag value
 		env         string // OPENSHELL_GATEWAY env var
-		configGW    string // spec.target.gateway
+		configGW    string // target.gateway
 		wantGateway string // expected gateway passed to Factory
 	}{
 		{name: "flag", flag: "from-flag", configGW: "from-config", wantGateway: "from-flag"},
@@ -399,13 +378,10 @@ func TestPlanCmd_TargetTierPrecedence(t *testing.T) {
 			tmpDir := t.TempDir()
 
 			configPath := filepath.Join(tmpDir, "plan-test.yaml")
-			configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: plan-test
-spec:
-  target:
-    gateway: ` + tt.configGW + `
+			configContent := `version: 1
+name: plan-test
+target:
+  gateway: ` + tt.configGW + `
 `
 			if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 				t.Fatalf("write config: %v", err)
@@ -478,17 +454,13 @@ func TestPlanCmd_EmptyGatewaySkipsClient(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
-	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: plan-test
-spec:
-  target:
-    gateway: ""
-  providers:
-    - name: test-provider
-      type: vertex-ai
-      management: referenced
+	configContent := `version: 1
+name: plan-test
+target:
+  gateway: ""
+providers:
+  - name: test-provider
+    type: vertex-ai
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -534,22 +506,18 @@ func TestPlanCmd_DirectTargetConnects(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
-	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: plan-test
-spec:
-  target:
-    registration:
-      endpoint: https://gateway.example.com
-      oidc:
-        issuer: https://issuer.example.com
-        clientId: client-123
-        audience: aud-123
-  providers:
-    - name: test-provider
-      type: vertex-ai
-      management: referenced
+	configContent := `version: 1
+name: plan-test
+target:
+  registration:
+    endpoint: https://gateway.example.com
+    oidc:
+      issuer: https://issuer.example.com
+      clientId: client-123
+      audience: aud-123
+providers:
+  - name: test-provider
+    type: vertex-ai
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -584,17 +552,13 @@ func TestPlanCmd_UnreachableGatewayRendersDesiredOnly(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "plan-test.yaml")
-	configContent := `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: plan-test
-spec:
-  target:
-    gateway: unreachable-gateway
-  providers:
-    - name: test-provider
-      type: vertex-ai
-      management: referenced
+	configContent := `version: 1
+name: plan-test
+target:
+  gateway: unreachable-gateway
+providers:
+  - name: test-provider
+    type: vertex-ai
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)

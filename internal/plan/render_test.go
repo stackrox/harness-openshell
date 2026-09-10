@@ -19,14 +19,12 @@ func TestTableSections_RepresentativePlan(t *testing.T) {
 			},
 			Providers: []config.Provider{
 				{
-					Name:       "github",
-					Type:       "github",
-					Management: "referenced",
+					Name: "github",
+					Type: "github",
 				},
 				{
-					Name:       "gcp",
-					Type:       "google-vertex-ai",
-					Management: "referenced",
+					Name: "gcp",
+					Type: "google-vertex-ai",
 				},
 			},
 			Inference: config.Inference{

@@ -9,7 +9,7 @@ run.
 
 Its purpose is to remove repeated gateway, credential, policy, sandbox-lifecycle,
 and CI plumbing from repository workflows. Each workflow can combine a target,
-providers, credentials, policies, skills, agent, and inference route for a
+provider references, policies, skills, an agent, and an inference route for a
 specific use case. The repository still owns task behavior, prompts, review
 criteria, source checkout, and result handling.
 
@@ -23,33 +23,29 @@ one. There is no Harness database, release history, rollback, or watch loop.
 The workflow file is a desired input document, not a stored Harness resource:
 
 ```yaml
-apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: pr-review
-spec:
-  target:
-    gateway: acs
-    workspace: stackrox
-  providers:
-    - name: github-review
-      management: referenced
-  sandbox:
-    image: quay.io/example/reviewer:v1
-    providers: [github-review]
-    policy:
-      file: review-policy.yaml
-    keep: false
-  payloads:
-    - source: .github/skills/pr-review/SKILL.md
-      destination: /sandbox/skills/pr-review/SKILL.md
-  source:
-    repo: https://github.com/stackrox/stackrox
-    ref: main
-    destination: /sandbox/stackrox
-  agent:
-    type: claude
-    args: [--print, "Review the supplied repository input"]
+version: 1
+name: pr-review
+target:
+  gateway: acs
+  workspace: stackrox
+providers:
+  - name: github-review
+sandbox:
+  image: quay.io/example/reviewer:v1
+  providers: [github-review]
+  policy:
+    file: review-policy.yaml
+  keep: false
+payloads:
+  - source: .github/skills/pr-review/SKILL.md
+    destination: /sandbox/skills/pr-review/SKILL.md
+source:
+  repo: https://github.com/stackrox/stackrox
+  ref: main
+  destination: /sandbox/stackrox
+agent:
+  type: claude
+  args: [--print, "Review the supplied repository input"]
 ```
 
 The document can declare a gateway/workspace target, references to existing
@@ -89,7 +85,7 @@ harness workflow apply workflow.yaml --attach
 
 `--attach` runs the same workflow with your terminal connected to the declared
 agent command. It does not open a host shell or bypass the workflow policy.
-For post-run debugging, set `spec.sandbox.keep: true` and use native OpenShell
+For post-run debugging, set `sandbox.keep: true` and use native OpenShell
 commands such as:
 
 ```bash
@@ -131,8 +127,8 @@ administrator or trusted OpenShell bootstrap provisions them in the target
 HyperShell workspace, for example with the native `openshell provider create`
 flow. A workflow then names the existing provider twice when appropriate:
 
-- `spec.providers` declares references that `plan`/`apply` verify;
-- `spec.sandbox.providers` attaches those references to the new sandbox.
+- `providers` declares references that `plan`/`apply` verify;
+- `sandbox.providers` attaches those references to the new sandbox.
 
 If a referenced provider is absent, `apply` fails before creating the sandbox.
 The gateway keeps the provider credential and exposes only its masked proxy
@@ -203,11 +199,12 @@ Plan and dry-run output support `-o table`, `-o json`, and `-o yaml`; credential
 values are never serialized. The Harness CLI deliberately has no `doctor`,
 `init`, `delete`, `get`, or `describe` commands. Use native OpenShell commands
 for gateway health, sandbox inspection, and retained-sandbox deletion. Normal
-`apply` cleanup still deletes a sandbox when `spec.sandbox.keep` is false.
+`apply` cleanup still deletes a sandbox when `sandbox.keep` is false.
 
 ## Documentation and validation
 
 - [AGENTS.md](AGENTS.md) — architecture constraints and validation matrix
+- [docs/workflow-format.md](docs/workflow-format.md) — version 1 workflow contract
 - [docs/ci.md](docs/ci.md) — trusted CI bootstrap and credential contract
 - [docs/compatibility.md](docs/compatibility.md) — tested OpenShell, ACP, and Go versions
 - [examples/github-pr-reviewer/](examples/github-pr-reviewer/) — workflow inputs and policy

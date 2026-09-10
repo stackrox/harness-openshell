@@ -165,7 +165,6 @@ workflow on a small documentation-only change.
 
 ## Workflow contract
 
-The reusable portion is the target block in `test/hypershell-workflow.yaml`.
-Its `registration` field supplies non-secret, in-memory connection metadata;
-despite the v1alpha1 field name, it does not create persistent CLI state. An
-omitted `workspace` selects `default`.
+The reusable portion is the `target` block in `test/hypershell-workflow.yaml`.
+Its `registration` field supplies non-secret, in-memory connection metadata and
+does not create persistent CLI state. An omitted `workspace` selects `default`.

@@ -15,7 +15,7 @@ func NewApplyCmd(newClient openshell.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply [FILE] [flags]",
 		Short: "Apply a harness configuration",
-		Long: `Resolve a harness.openshell.dev/v1alpha1 workflow and execute its
+		Long: `Resolve a version 1 workflow and execute its
 planned reconciliation and sandbox run. Provision the gateway and referenced
 providers with OpenShell first. Use --dry-run to render the action plan without
 mutating anything, or -o yaml to output the resolved configuration with

@@ -24,7 +24,7 @@ func NewPlanCmd(newClient openshell.Factory) *cobra.Command {
 		Short: "Read-only reconciliation plan",
 		Long: `Generate a reconciliation plan showing the actions harness would take.
 
-This is a read-only plan and mutates nothing. For a v1alpha1 workflow, apply
+This is a read-only plan and mutates nothing. Apply
 uses this same resolved desired object and action-decision engine.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -1,0 +1,22 @@
+# Version 1 config for the read-only `harness workflow plan` suite cases.
+# No env vars and no target.gateway, so `harness workflow plan` renders fully offline
+# (it skips gateway contact and diffs against empty current state).
+version: 1
+name: suite
+providers:
+  - name: my-gcp
+    type: google-vertex-ai
+  - name: github-fact
+inference:
+  provider: my-gcp
+  model: claude-haiku-4-5
+sandbox:
+  image: quay.io/example/openshell:sandbox
+  providers:
+    - github-fact
+agent:
+  type: claude
+  args: [--bare]
+source:
+  repo: https://github.com/example/repo
+  ref: main

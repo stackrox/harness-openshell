@@ -105,12 +105,11 @@ exercise_provider() {
   sandbox="test-${provider//[^a-zA-Z0-9]/-}"
   image="${HARNESS_OS_IMAGE:-ghcr.io/nvidia/openshell-community/sandboxes/base:latest}"
   printf '%s\n' \
-    'apiVersion: harness.openshell.dev/v1alpha1' \
-    'kind: OpenShellWorkflow' \
-    'metadata:' "  name: $sandbox" \
-    'spec:' '  sandbox:' "    image: $image" '    keep: true' \
-    '    providers:' "      - $provider" \
-    '  agent:' '    type: sh' '    args: [-c, "true"]' >"$workflow"
+    'version: 1' \
+    "name: $sandbox" \
+    'sandbox:' "  image: $image" '  keep: true' \
+    '  providers:' "    - $provider" \
+    'agent:' '  type: sh' '  args: [-c, "true"]' >"$workflow"
   step "provider: $provider attach" harness workflow apply "$workflow" --gateway "$gateway"
   step "provider: $provider capability" "$CLI" sandbox exec --name "$sandbox" -- bash -c "$check"
   "$CLI" sandbox delete --gateway "$gateway" "$sandbox" >/dev/null 2>&1 || true

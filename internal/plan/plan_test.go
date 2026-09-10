@@ -465,7 +465,7 @@ func TestPlan_TableSections(t *testing.T) {
 		Spec: config.Spec{
 			Target: config.Target{Gateway: "test-gateway"},
 			Providers: []config.Provider{
-				{Name: "github", Type: "github", Management: "referenced"},
+				{Name: "github", Type: "github"},
 			},
 		},
 	}

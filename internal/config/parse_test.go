@@ -21,7 +21,7 @@ func TestParseValidFixture(t *testing.T) {
 	}{
 		{
 			name:            "fact-dev full config",
-			fixture:         "testdata/fact-dev.v1alpha1.yaml",
+			fixture:         "testdata/fact-dev.yaml",
 			expectedName:    "fact-dev",
 			expectedGW:      "rc-dev",
 			expectedWS:      "default",
@@ -42,8 +42,11 @@ func TestParseValidFixture(t *testing.T) {
 				t.Fatalf("Parse failed: %v", err)
 			}
 
-			if h.Metadata.Name != tc.expectedName {
-				t.Errorf("metadata.name: got %q, want %q", h.Metadata.Name, tc.expectedName)
+			if h.Version != formatVersion {
+				t.Errorf("version: got %d, want %d", h.Version, formatVersion)
+			}
+			if h.Name != tc.expectedName {
+				t.Errorf("name: got %q, want %q", h.Name, tc.expectedName)
 			}
 			if h.Spec.Target.Gateway != tc.expectedGW {
 				t.Errorf("target.gateway: got %q, want %q", h.Spec.Target.Gateway, tc.expectedGW)
@@ -62,7 +65,7 @@ func TestParseValidFixture(t *testing.T) {
 }
 
 func TestRoundTrip(t *testing.T) {
-	fixture := "testdata/fact-dev.v1alpha1.yaml"
+	fixture := "testdata/fact-dev.yaml"
 	data1, err := os.ReadFile(fixture)
 	if err != nil {
 		t.Fatalf("failed to read fixture: %v", err)
@@ -90,38 +93,32 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-func TestUnversionedConfigError(t *testing.T) {
-	unversioned := `
-name: test-agent
-gateway: rc-dev
-entrypoint: claude
-repo: https://github.com/example/repo
-providers:
-  - profile: github
-`
-	_, err := Parse([]byte(unversioned))
-	if err == nil {
-		t.Fatal("expected error for unversioned config")
-	}
-	if !bytes.Contains([]byte(err.Error()), []byte("harness.openshell.dev/v1alpha1")) {
-		t.Errorf("error should name the supported apiVersion, got: %v", err)
-	}
-}
-
-func TestSpecContextRejected(t *testing.T) {
-	// Config with spec.context (dead terminology)
+func TestMissingVersionError(t *testing.T) {
 	doc := `
-apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: test
-spec:
-  context:
-    gateway: x
+name: test
+target:
+  gateway: rc-dev
 `
 	_, err := Parse([]byte(doc))
 	if err == nil {
-		t.Fatal("expected error for spec.context")
+		t.Fatal("expected error for missing version")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("version")) {
+		t.Errorf("error should name the supported version, got: %v", err)
+	}
+}
+
+func TestUnknownTopLevelContext(t *testing.T) {
+	// Config with context (dead terminology)
+	doc := `
+version: 1
+name: test
+context:
+  gateway: x
+`
+	_, err := Parse([]byte(doc))
+	if err == nil {
+		t.Fatal("expected error for context")
 	}
 	if !bytes.Contains([]byte(err.Error()), []byte("context")) {
 		t.Errorf("error should mention 'context', got: %v", err)
@@ -130,13 +127,10 @@ spec:
 
 func TestUnknownTopLevelKey(t *testing.T) {
 	doc := `
-apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: test
-spec:
-  target:
-    gateway: x
+version: 1
+name: test
+target:
+  gateway: x
 unknown_key: value
 `
 	_, err := Parse([]byte(doc))
@@ -148,14 +142,33 @@ unknown_key: value
 	}
 }
 
+func TestLegacyEnvelopeRejected(t *testing.T) {
+	doc := `
+apiVersion: harness.openshell.dev/v1alpha1
+kind: OpenShellWorkflow
+metadata:
+  name: legacy
+spec:
+  target: {}
+`
+	_, err := Parse([]byte(doc))
+	if err == nil {
+		t.Fatal("expected legacy envelope to be rejected")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("version")) {
+		t.Errorf("error should identify the required version field: %v", err)
+	}
+}
+
 func TestRemovedCredentialAndAutoProviderFieldsAreRejected(t *testing.T) {
 	for name, field := range map[string]string{
-		"provider credentials":       "  providers:\n    - name: github\n      credentials: {source: gcloud-adc}\n",
-		"registration autoProviders": "  target:\n    registration:\n      autoProviders: true\n",
-		"agent model":                "  agent:\n    type: claude\n    model: claude-haiku\n",
+		"provider credentials":       "providers:\n  - name: github\n    credentials: {source: gcloud-adc}\n",
+		"provider management":        "providers:\n  - name: github\n    management: referenced\n",
+		"registration autoProviders": "target:\n  registration:\n    autoProviders: true\n",
+		"agent model":                "agent:\n  type: claude\n  model: claude-haiku\n",
 	} {
 		t.Run(name, func(t *testing.T) {
-			data := "apiVersion: harness.openshell.dev/v1alpha1\nkind: OpenShellWorkflow\nmetadata: {name: test}\nspec:\n" + field
+			data := "version: 1\nname: test\n" + field
 			if _, err := Parse([]byte(data)); err == nil {
 				t.Fatal("removed field was accepted")
 			}
@@ -164,8 +177,8 @@ func TestRemovedCredentialAndAutoProviderFieldsAreRejected(t *testing.T) {
 }
 
 func TestProvidersAndSandboxProviders(t *testing.T) {
-	// Verify that spec.providers[] is []Provider and spec.sandbox.providers[] is []string
-	data, err := os.ReadFile("testdata/fact-dev.v1alpha1.yaml")
+	// Verify that providers[] is []Provider and sandbox.providers[] is []string.
+	data, err := os.ReadFile("testdata/fact-dev.yaml")
 	if err != nil {
 		t.Fatalf("failed to read fixture: %v", err)
 	}
@@ -175,18 +188,14 @@ func TestProvidersAndSandboxProviders(t *testing.T) {
 		t.Fatalf("Parse failed: %v", err)
 	}
 
-	// Check spec.providers is typed as []Provider with Management field
+	// Check providers is typed as []Provider.
 	if len(h.Spec.Providers) < 1 {
 		t.Fatal("expected at least one provider")
 	}
 	if h.Spec.Providers[0].Name == "" {
 		t.Error("provider name should not be empty")
 	}
-	if h.Spec.Providers[0].Management == "" {
-		t.Error("provider management field should not be empty")
-	}
-
-	// Check spec.sandbox.providers is typed as []string
+	// Check sandbox.providers is typed as []string.
 	if len(h.Spec.Sandbox.Providers) < 1 {
 		t.Fatal("expected at least one sandbox provider")
 	}
@@ -196,89 +205,62 @@ func TestProvidersAndSandboxProviders(t *testing.T) {
 	}
 }
 
-func TestMissingAPIVersion(t *testing.T) {
+func TestUnsupportedVersion(t *testing.T) {
 	doc := `
-kind: OpenShellWorkflow
-metadata:
-  name: test
-spec:
-  target:
-    gateway: x
+version: 2
+name: test
+target:
+  gateway: x
 `
 	_, err := Parse([]byte(doc))
 	if err == nil {
-		t.Fatal("expected error for missing apiVersion")
+		t.Fatal("expected error for unsupported version")
 	}
-	if !bytes.Contains([]byte(err.Error()), []byte("harness.openshell.dev/v1alpha1")) {
-		t.Errorf("error should name the supported apiVersion, got: %v", err)
+	if !bytes.Contains([]byte(err.Error()), []byte("version")) {
+		t.Errorf("error should name the supported version, got: %v", err)
 	}
 }
 
-func TestWrongAPIVersion(t *testing.T) {
+func TestVersionMustBeNumeric(t *testing.T) {
 	doc := `
-apiVersion: some-other/v1
-kind: OpenShellWorkflow
-metadata:
-  name: test
-spec:
-  target:
-    gateway: x
+version: nope
+name: test
+target:
+  gateway: x
 `
 	_, err := Parse([]byte(doc))
 	if err == nil {
-		t.Fatal("expected error for wrong apiVersion")
+		t.Fatal("expected error for non-numeric version")
 	}
-	if !bytes.Contains([]byte(err.Error()), []byte("harness.openshell.dev/v1alpha1")) {
-		t.Errorf("error should name the supported apiVersion, got: %v", err)
+	if !bytes.Contains([]byte(err.Error()), []byte("version")) {
+		t.Errorf("error should name the version, got: %v", err)
 	}
 }
 
-func TestMissingMetadataName(t *testing.T) {
+func TestMissingName(t *testing.T) {
 	doc := `
-apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata: {}
-spec:
-  target:
-    gateway: x
+version: 1
+target:
+  gateway: x
 `
 	_, err := Parse([]byte(doc))
 	if err == nil {
-		t.Fatal("expected error for missing metadata.name")
+		t.Fatal("expected error for missing name")
 	}
-	if !bytes.Contains([]byte(err.Error()), []byte("metadata.name")) {
-		t.Errorf("error should mention 'metadata.name', got: %v", err)
-	}
-}
-
-func TestWrongKind(t *testing.T) {
-	doc := `
-apiVersion: harness.openshell.dev/v1alpha1
-kind: WrongKind
-metadata:
-  name: test
-spec:
-  target:
-    gateway: x
-`
-	_, err := Parse([]byte(doc))
-	if err == nil {
-		t.Fatal("expected error for wrong kind")
-	}
-	if !bytes.Contains([]byte(err.Error()), []byte("kind")) {
-		t.Errorf("error should mention 'kind', got: %v", err)
+	if !bytes.Contains([]byte(err.Error()), []byte("name")) {
+		t.Errorf("error should mention 'name', got: %v", err)
 	}
 }
 
 func TestLoad(t *testing.T) {
 	// Test Load function using the fixture file
-	h, err := Load("testdata/fact-dev.v1alpha1.yaml")
+	h, err := Load("testdata/fact-dev.yaml")
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	if h.Metadata.Name != "fact-dev" {
-		t.Errorf("metadata.name: got %q, want %q", h.Metadata.Name, "fact-dev")
+	if h.Name != "fact-dev" {
+		t.Errorf("name: got %q, want %q", h.Name, "fact-dev")
 	}
 }
 
@@ -290,7 +272,7 @@ func TestLoadNonexistent(t *testing.T) {
 }
 
 func TestPayloadSourceAndDestination(t *testing.T) {
-	fixture := "testdata/fact-dev.v1alpha1.yaml"
+	fixture := "testdata/fact-dev.yaml"
 	data, err := os.ReadFile(fixture)
 	if err != nil {
 		t.Fatalf("failed to read fixture: %v", err)

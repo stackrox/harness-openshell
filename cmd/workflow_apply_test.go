@@ -22,26 +22,22 @@ func TestCanonicalWorkflowPlanAndApplyShareResolvedTarget(t *testing.T) {
 	t.Setenv(openshell.EnvWorkspace, "env-workspace")
 	dir := t.TempDir()
 	file := filepath.Join(dir, "workflow.yaml")
-	writeTestFile(t, file, `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: review
-spec:
-  target:
-    gateway: config-gateway
-    workspace: config-workspace
-  providers:
-    - name: github
-      management: referenced
-  sandbox:
-    image: quay.io/test/reviewer:latest
-    providers: [github]
-    env:
-      REVIEW_MODE: strict
-    keep: true
-  agent:
-    type: reviewer
-    args: [--format, sarif]
+	writeTestFile(t, file, `version: 1
+name: review
+target:
+  gateway: config-gateway
+  workspace: config-workspace
+providers:
+  - name: github
+sandbox:
+  image: quay.io/test/reviewer:latest
+  providers: [github]
+  env:
+    REVIEW_MODE: strict
+  keep: true
+agent:
+  type: reviewer
+  args: [--format, sarif]
 `)
 
 	workflow, err := loadWorkflow(file, "flag-gateway", "flag-workspace", applyOverrides{})
@@ -84,16 +80,12 @@ func TestCanonicalProviderOnlyWorkflowDoesNotInventSandboxRun(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := t.TempDir()
 	file := filepath.Join(dir, "workflow.yaml")
-	writeTestFile(t, file, `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: setup
-spec:
-  target:
-    gateway: acs
-  providers:
-    - name: github
-      management: referenced
+	writeTestFile(t, file, `version: 1
+name: setup
+target:
+  gateway: acs
+providers:
+  - name: github
 `)
 	workflow, err := loadWorkflow(file, "", "", applyOverrides{})
 	if err != nil {
@@ -115,7 +107,7 @@ spec:
 
 func TestApplySetupOnlySkipsSandbox(t *testing.T) {
 	desired := &config.Harness{
-		Metadata: config.Metadata{Name: "setup"},
+		Name: "setup",
 		Spec: config.Spec{
 			Target:  config.Target{Gateway: "acs"},
 			Sandbox: config.Sandbox{Image: "reviewer"},
@@ -141,31 +133,27 @@ func TestApplySetupOnlySkipsSandbox(t *testing.T) {
 	}
 }
 
-func TestApplyCommandExecutesV1alphaWorkflow(t *testing.T) {
+func TestApplyCommandExecutesWorkflow(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := t.TempDir()
 	workflowPath := filepath.Join(dir, "workflow.yaml")
 	writeTestFile(t, filepath.Join(dir, "policy.yaml"), "version: 1\n")
-	writeTestFile(t, workflowPath, `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: security-review
-spec:
-  target:
-    gateway: config-gateway
-    workspace: config-workspace
-  providers:
-    - name: github
-      management: referenced
-  sandbox:
-    image: reviewer
-    providers: [github]
-    keep: false
-    policy:
-      file: policy.yaml
-  agent:
-    type: reviewer
-    args: [--strict]
+	writeTestFile(t, workflowPath, `version: 1
+name: security-review
+target:
+  gateway: config-gateway
+  workspace: config-workspace
+providers:
+  - name: github
+sandbox:
+  image: reviewer
+  providers: [github]
+  keep: false
+  policy:
+    file: policy.yaml
+agent:
+  type: reviewer
+  args: [--strict]
 `)
 
 	client, raw := testutil.NewFakeClient("cli-workspace", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
@@ -205,15 +193,12 @@ func TestApplyRequiresCanonicalFile(t *testing.T) {
 
 func TestApplyAcceptsPositionalWorkflowFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
-	writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: positional
-spec:
-  sandbox:
-    image: reviewer
-  agent:
-    type: reviewer
+	writeTestFile(t, path, `version: 1
+name: positional
+sandbox:
+  image: reviewer
+agent:
+  type: reviewer
 `)
 	command := NewApplyCmd(testutil.FakeFactory(nil))
 	command.SetArgs([]string{path, "--dry-run", "-o", "json"})
@@ -226,15 +211,12 @@ spec:
 
 func TestApplyUsesActiveGatewayWhenTargetIsEmpty(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
-	writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: active
-spec:
-  sandbox:
-    image: reviewer
-  agent:
-    type: "true"
+	writeTestFile(t, path, `version: 1
+name: active
+sandbox:
+  image: reviewer
+agent:
+  type: "true"
 `)
 	base := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
 	client := &recordingSDK{Client: base}
@@ -256,55 +238,25 @@ spec:
 	}
 }
 
-func TestApplyRejectsProviderManagementBeforeGatewayAccess(t *testing.T) {
-	for _, field := range []string{"management: managed", "adopt: true", "config: {region: global}"} {
-		t.Run(field, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "workflow.yaml")
-			writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: provider-management
-spec:
-  providers:
-    - name: existing
-      `+field+`
-`)
-			factory := func(context.Context, openshell.Target) (openshell.Client, error) {
-				t.Fatal("removed provider management must fail before gateway access")
-				return nil, nil
-			}
-			command := NewApplyCmd(factory)
-			command.SetArgs([]string{"-f", path})
-			if err := command.Execute(); err == nil {
-				t.Fatal("removed provider management was accepted")
-			}
-		})
-	}
-}
-
 func TestApplyStructuredOutputRedactsCredentialBearingMaps(t *testing.T) {
 	secret := "secret-value-that-must-not-leak"
 	t.Setenv("WORKFLOW_SECRET", secret)
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
-	writeTestFile(t, path, `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: redacted
-spec:
-  providers:
-    - name: existing
-      management: referenced
-  sandbox:
-    env:
-      API_TOKEN: ${WORKFLOW_SECRET}
-  agent:
-    type: sh
-    args: [-c, '${WORKFLOW_SECRET}']
-  source:
-    repo: ${WORKFLOW_SECRET}
-  payloads:
-    - content: ${WORKFLOW_SECRET}
-      destination: /sandbox/secret
+	writeTestFile(t, path, `version: 1
+name: redacted
+providers:
+  - name: existing
+sandbox:
+  env:
+    API_TOKEN: ${WORKFLOW_SECRET}
+agent:
+  type: sh
+  args: [-c, '${WORKFLOW_SECRET}']
+source:
+  repo: ${WORKFLOW_SECRET}
+payloads:
+  - content: ${WORKFLOW_SECRET}
+    destination: /sandbox/secret
 `)
 	for _, format := range []string{"yaml", "json"} {
 		t.Run(format, func(t *testing.T) {
@@ -326,9 +278,8 @@ spec:
 
 func TestRedactedWorkflowRedactsInterpolatedScalars(t *testing.T) {
 	resolved := &config.Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "OpenShellWorkflow",
-		Metadata:   config.Metadata{Name: "resolved-name"},
+		Version: 1,
+		Name:    "resolved-name",
 		Spec: config.Spec{
 			Target: config.Target{
 				Gateway:   "resolved-gateway",
@@ -347,13 +298,12 @@ func TestRedactedWorkflowRedactsInterpolatedScalars(t *testing.T) {
 			Agent:     config.Agent{Type: "agent", Args: []string{"literal", "resolved-argument"}},
 			Source:    config.Source{Repo: "repo", Ref: "main", Destination: "/sandbox", Submodules: "shallow"},
 			Payloads:  []config.Payload{{Source: "payload", Content: "content", Destination: "/sandbox/payload"}},
-			Providers: []config.Provider{{Name: "provider", Type: "vertex", Management: "referenced"}},
+			Providers: []config.Provider{{Name: "provider", Type: "vertex"}},
 		},
 	}
 	input := &config.Harness{
-		APIVersion: resolved.APIVersion,
-		Kind:       resolved.Kind,
-		Metadata:   config.Metadata{Name: "${NAME}"},
+		Version: resolved.Version,
+		Name:    "${NAME}",
 		Spec: config.Spec{
 			Target: config.Target{
 				Gateway:   "${GATEWAY}",
@@ -372,12 +322,12 @@ func TestRedactedWorkflowRedactsInterpolatedScalars(t *testing.T) {
 			Agent:     config.Agent{Type: "${AGENT}", Args: []string{"literal", "${ARGUMENT}"}},
 			Source:    config.Source{Repo: "${REPO}", Ref: "main", Destination: "${DESTINATION}", Submodules: "shallow"},
 			Payloads:  []config.Payload{{Source: "${PAYLOAD_SOURCE}", Content: "${PAYLOAD_CONTENT}", Destination: "${PAYLOAD_DESTINATION}"}},
-			Providers: []config.Provider{{Name: "${PROVIDER_NAME}", Type: "vertex", Management: "${MANAGEMENT}"}},
+			Providers: []config.Provider{{Name: "${PROVIDER_NAME}", Type: "vertex"}},
 		},
 	}
 
 	got := redactedWorkflow(resolved, input)
-	if got.Metadata.Name != "<redacted>" || got.Spec.Target.Gateway != "<redacted>" || got.Spec.Target.Registration.Endpoint != "<redacted>" || got.Spec.Target.Registration.OIDC.ClientID != "<redacted>" {
+	if got.Name != "<redacted>" || got.Spec.Target.Gateway != "<redacted>" || got.Spec.Target.Registration.Endpoint != "<redacted>" || got.Spec.Target.Registration.OIDC.ClientID != "<redacted>" {
 		t.Errorf("target fields = %+v, want interpolated values redacted", got.Spec.Target)
 	}
 	if got.Spec.Inference.Route != "<redacted>" || got.Spec.Inference.Model != "<redacted>" || got.Spec.Sandbox.Image != "<redacted>" || got.Spec.Sandbox.Providers[0] != "<redacted>" || got.Spec.Sandbox.Policy.File != "<redacted>" {
@@ -389,7 +339,7 @@ func TestRedactedWorkflowRedactsInterpolatedScalars(t *testing.T) {
 	if got.Spec.Source.Repo != "<redacted>" || got.Spec.Source.Ref != "main" || got.Spec.Source.Destination != "<redacted>" {
 		t.Errorf("source fields = %+v", got.Spec.Source)
 	}
-	if got.Spec.Payloads[0].Source != "<redacted>" || got.Spec.Payloads[0].Content != "<redacted>" || got.Spec.Payloads[0].Destination != "<redacted>" || got.Spec.Providers[0].Name != "<redacted>" || got.Spec.Providers[0].Management != "<redacted>" {
+	if got.Spec.Payloads[0].Source != "<redacted>" || got.Spec.Payloads[0].Content != "<redacted>" || got.Spec.Payloads[0].Destination != "<redacted>" || got.Spec.Providers[0].Name != "<redacted>" {
 		t.Errorf("payload/provider fields were not redacted: %+v %+v", got.Spec.Payloads[0], got.Spec.Providers[0])
 	}
 }
@@ -401,8 +351,8 @@ func TestApplyRejectsUnversionedConfig(t *testing.T) {
 	command.SetArgs([]string{"-f", path})
 	command.SilenceErrors = true
 	command.SilenceUsage = true
-	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "harness.openshell.dev/v1alpha1") {
-		t.Fatalf("error = %v, want supported apiVersion", err)
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "version") {
+		t.Fatalf("error = %v, want supported version", err)
 	}
 }
 
@@ -445,7 +395,7 @@ func (c *recordingSDK) DeleteSandbox(_ context.Context, _ string) error {
 
 func TestCanonicalApplyUsesSDKForTTY(t *testing.T) {
 	desired := &config.Harness{
-		Metadata: config.Metadata{Name: "interactive"},
+		Name: "interactive",
 		Spec: config.Spec{
 			Target:  config.Target{Gateway: "acs", Workspace: "team"},
 			Sandbox: config.Sandbox{Image: "reviewer", TTY: true},
@@ -473,7 +423,7 @@ func TestCanonicalApplyUsesSDKForTTY(t *testing.T) {
 
 func TestCanonicalApplyUsesSDKTTYForDirectTarget(t *testing.T) {
 	desired := &config.Harness{
-		Metadata: config.Metadata{Name: "interactive"},
+		Name: "interactive",
 		Spec: config.Spec{
 			Sandbox: config.Sandbox{Image: "reviewer", TTY: true},
 			Agent:   config.Agent{Type: "reviewer"},
@@ -510,19 +460,16 @@ func TestPlanAndApplyDryRunRenderSameCanonicalPlan(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := t.TempDir()
 	workflowPath := filepath.Join(dir, "workflow.yaml")
-	writeTestFile(t, workflowPath, `apiVersion: harness.openshell.dev/v1alpha1
-kind: OpenShellWorkflow
-metadata:
-  name: parity
-spec:
-  target:
-    gateway: acs
-    workspace: team
-  sandbox:
-    image: reviewer
-  agent:
-    type: reviewer
-    args: [--strict]
+	writeTestFile(t, workflowPath, `version: 1
+name: parity
+target:
+  gateway: acs
+  workspace: team
+sandbox:
+  image: reviewer
+agent:
+  type: reviewer
+  args: [--strict]
 `)
 	newFactory := func() openshell.Factory {
 		client := testutil.NewFake("team", fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "test"}))
@@ -551,10 +498,10 @@ func TestCanonicalApplyMissingReferencedProviderFailsBeforeSandbox(t *testing.T)
 	client := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
 	workflow := &resolvedWorkflow{
 		Desired: &config.Harness{
-			Metadata: config.Metadata{Name: "review"},
+			Name: "review",
 			Spec: config.Spec{
 				Target:    config.Target{Gateway: "acs"},
-				Providers: []config.Provider{{Name: "github", Management: "referenced"}},
+				Providers: []config.Provider{{Name: "github"}},
 				Sandbox:   config.Sandbox{Image: "reviewer", Providers: []string{"github"}},
 			},
 		},
@@ -578,7 +525,7 @@ func TestCanonicalApplyMissingSandboxProviderFailsBeforeSandbox(t *testing.T) {
 	client := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
 	workflow := &resolvedWorkflow{
 		Desired: &config.Harness{
-			Metadata: config.Metadata{Name: "review"},
+			Name: "review",
 			Spec: config.Spec{
 				Target:  config.Target{Gateway: "acs"},
 				Sandbox: config.Sandbox{Image: "reviewer", Providers: []string{"github-read"}},
@@ -609,7 +556,7 @@ func TestCanonicalRunRequestResolvesConfigRelativeArtifacts(t *testing.T) {
 
 	workflow := &resolvedWorkflow{
 		Desired: &config.Harness{
-			Metadata: config.Metadata{Name: "review"},
+			Name: "review",
 			Spec: config.Spec{
 				Target:  config.Target{Gateway: "acs", Workspace: "stackrox"},
 				Sandbox: config.Sandbox{Image: "reviewer", Policy: &config.PolicyRef{File: "policy.yaml"}},
