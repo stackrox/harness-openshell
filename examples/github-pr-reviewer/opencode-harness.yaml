@@ -18,7 +18,7 @@ sandbox:
 payloads:
   - source: ${REVIEW_DIFF}
     destination: /sandbox/review/pr.diff
-  - source: skills/pr-review/SKILL.md
+  - source: ${REVIEW_SKILL}
     destination: /sandbox/review/skills/pr-review/SKILL.md
   - source: opencode-review.json
     destination: /sandbox/opencode-review.json

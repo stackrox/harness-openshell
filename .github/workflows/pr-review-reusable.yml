@@ -53,6 +53,8 @@ jobs:
           ref: ${{ inputs.harness-ref }}
           path: harness
           persist-credentials: false
+      - name: Install default review skill
+        run: install -D -m 0644 harness/examples/github-pr-reviewer/skills/pr-review/SKILL.md harness/skills/pr-review/SKILL.md
       - name: Install caller skill
         if: inputs.skill-path != ''
         env:
@@ -60,8 +62,8 @@ jobs:
         run: |
           [[ "$SKILL_PATH" != /* && "$SKILL_PATH" != *..* ]] || exit 1
           test -f "caller/$SKILL_PATH"
-          install -D -m 0644 "caller/$SKILL_PATH" harness/examples/github-pr-reviewer/skills/pr-review/SKILL.md
-          cmp -s "caller/$SKILL_PATH" harness/examples/github-pr-reviewer/skills/pr-review/SKILL.md
+          install -D -m 0644 "caller/$SKILL_PATH" harness/skills/pr-review/SKILL.md
+          cmp -s "caller/$SKILL_PATH" harness/skills/pr-review/SKILL.md
       - uses: actions/setup-go@v7
         with:
           go-version-file: harness/go.mod
@@ -102,6 +104,7 @@ jobs:
           REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
           VERTEX_AI_PROJECT_ID: ${{ vars.VERTEX_AI_PROJECT_ID }}
           VERTEX_AI_REGION: ${{ vars.VERTEX_AI_REGION }}
+          REVIEW_SKILL: ${{ github.workspace }}/harness/skills/pr-review/SKILL.md
         run: |
           token="$(gcloud auth print-access-token)"
           echo "::add-mask::$token"

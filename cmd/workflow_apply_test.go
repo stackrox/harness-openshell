@@ -647,6 +647,68 @@ func TestCanonicalRunRequestResolvesConfigRelativeArtifacts(t *testing.T) {
 	}
 }
 
+func TestGitHubReviewerCustomSkillUsesExamplePayloadPath(t *testing.T) {
+	dir := t.TempDir()
+	exampleDir := filepath.Join("..", "examples", "github-pr-reviewer")
+	workflowPath := filepath.Join(dir, "opencode-harness.yaml")
+	workflowBytes, err := os.ReadFile(filepath.Join(exampleDir, "opencode-harness.yaml"))
+	if err != nil {
+		t.Fatalf("read reviewer workflow: %v", err)
+	}
+	if err := os.WriteFile(workflowPath, workflowBytes, 0o600); err != nil {
+		t.Fatalf("write reviewer workflow: %v", err)
+	}
+	configBytes, err := os.ReadFile(filepath.Join(exampleDir, "opencode-review.json"))
+	if err != nil {
+		t.Fatalf("read reviewer agent config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "opencode-review.json"), configBytes, 0o600); err != nil {
+		t.Fatalf("write reviewer agent config: %v", err)
+	}
+	skillPath := filepath.Join(dir, "skills", "pr-review", "SKILL.md")
+	marker := "custom-skill-marker\n"
+	if err := os.MkdirAll(filepath.Dir(skillPath), 0o700); err != nil {
+		t.Fatalf("create skill directory: %v", err)
+	}
+	writeTestFile(t, skillPath, marker)
+
+	diffPath := filepath.Join(dir, "pr.diff")
+	policyPath := filepath.Join(dir, "review-policy.yaml")
+	writeTestFile(t, diffPath, "diff --git a/file b/file\n")
+	writeTestFile(t, policyPath, "version: 1\n")
+	t.Setenv("REVIEW_DIFF", diffPath)
+	t.Setenv("REVIEW_POLICY", policyPath)
+	t.Setenv("REVIEW_REPOSITORY", "owner/repo")
+	t.Setenv("REVIEW_PR", "1")
+	t.Setenv("REVIEW_HEAD", "head")
+	t.Setenv("REVIEW_SKILL", skillPath)
+
+	workflow, err := loadWorkflow(workflowPath, "", "", applyOverrides{})
+	if err != nil {
+		t.Fatalf("loadWorkflow: %v", err)
+	}
+	req, cleanup, err := buildRunRequest(workflow)
+	if err != nil {
+		t.Fatalf("buildRunRequest: %v", err)
+	}
+	defer cleanup()
+
+	for _, upload := range req.Uploads {
+		if upload.Dst != "/sandbox/review/skills/pr-review/SKILL.md" {
+			continue
+		}
+		got, err := os.ReadFile(upload.Src)
+		if err != nil {
+			t.Fatalf("read uploaded skill source: %v", err)
+		}
+		if string(got) != marker {
+			t.Fatalf("uploaded skill = %q, want marker %q", got, marker)
+		}
+		return
+	}
+	t.Fatal("review skill payload was not declared by the example")
+}
+
 func writeTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {

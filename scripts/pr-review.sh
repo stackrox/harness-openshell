@@ -129,6 +129,7 @@ run_review() {
 
   export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
   export REVIEW_POLICY="$REVIEW_DIR/review-policy.yaml"
+  export REVIEW_SKILL="${REVIEW_SKILL:-examples/github-pr-reviewer/skills/pr-review/SKILL.md}"
   policy_template="${REVIEW_POLICY_TEMPLATE:-examples/github-pr-reviewer/review-policy.yaml}"
   sed \
     -e "s|\${REVIEW_REPOSITORY}|$REVIEW_REPOSITORY|g" \
