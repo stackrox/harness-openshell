@@ -34,7 +34,9 @@ func TestTableSections_RepresentativePlan(t *testing.T) {
 	}
 
 	current := CurrentState{
-		Reachable: true,
+		Inspected:      true,
+		Reachable:      true,
+		ProvidersKnown: true,
 		Health: openshell.Health{
 			Healthy: true,
 			Version: "0.0.110",
@@ -102,6 +104,7 @@ func TestPlan_JSONMarshal(t *testing.T) {
 		},
 	}
 	current := CurrentState{
+		Inspected: true,
 		Reachable: true,
 		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 	}
@@ -137,6 +140,7 @@ func TestPlan_YAMLMarshal(t *testing.T) {
 		},
 	}
 	current := CurrentState{
+		Inspected: true,
 		Reachable: true,
 		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
 	}

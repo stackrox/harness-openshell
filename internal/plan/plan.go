@@ -98,7 +98,7 @@ func buildTargetGroup(desired *config.Harness, current CurrentState) Group {
 	var detail string
 
 	switch {
-	case !gatewayWasInspected(current):
+	case !current.Inspected:
 		action = ActionNotInspected
 		detail = "gateway not inspected"
 	case current.Reachable:
@@ -128,7 +128,7 @@ func buildTargetGroup(desired *config.Harness, current CurrentState) Group {
 // providers by name against current.Providers without proposing provider writes.
 func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 	group := Group{Section: SectionProviders}
-	providersKnown := current.ProvidersKnown || current.Reachable || current.Providers != nil
+	providersKnown := current.ProvidersKnown
 
 	// Build a map of current providers by name for lookup.
 	currentByName := make(map[string]openshell.Provider)
@@ -162,13 +162,6 @@ func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 	}
 
 	return group
-}
-
-// gatewayWasInspected preserves the pure builder's convenient hand-built
-// CurrentState test fixtures while keeping the zero value meaningful: a zero
-// state is a desired-only plan, not an empty gateway snapshot.
-func gatewayWasInspected(current CurrentState) bool {
-	return current.Inspected || current.Reachable || current.ProvidersKnown || current.Providers != nil || current.Health.Healthy || current.Health.Version != ""
 }
 
 // InferenceAction is the single owner of the inference create/update/noop rule.
