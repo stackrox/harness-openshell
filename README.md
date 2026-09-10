@@ -124,6 +124,28 @@ Direct OIDC target registration in a workflow is in-memory for that invocation.
 The OIDC client secret is read from `OPENSHELL_OIDC_CLIENT_SECRET` and is never
 part of the workflow document.
 
+## Provider lifecycle
+
+Harness does not create, update, or delete providers or credentials. A platform
+administrator or trusted OpenShell bootstrap provisions them in the target
+HyperShell workspace, for example with the native `openshell provider create`
+flow. A workflow then names the existing provider twice when appropriate:
+
+- `spec.providers` declares references that `plan`/`apply` verify;
+- `spec.sandbox.providers` attaches those references to the new sandbox.
+
+If a referenced provider is absent, `apply` fails before creating the sandbox.
+The gateway keeps the provider credential and exposes only its masked proxy
+interface inside the sandbox. The runner's own gateway credential—local
+OpenShell login, OIDC service account, or mTLS—is separate and is used only to
+connect and create the sandbox; it is not automatically a sandbox provider.
+
+The PR-review demo currently has a trusted shell bootstrap that creates
+temporary providers for its self-contained test path. That is adapter-specific
+bootstrap, not Harness workflow behavior. A HyperShell deployment should move
+those providers to platform bootstrap and let the workflow reference the
+pre-provisioned names.
+
 ## Credentials and policy
 
 Workflow files contain provider names, not credentials. OpenShell resolves the
