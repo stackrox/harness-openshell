@@ -64,9 +64,6 @@ func TestPlanCmd_GoldenTable(t *testing.T) {
 name: plan-test
 target:
   gateway: test-gateway
-providers:
-  - name: test-provider
-    type: vertex-ai
 inference:
   provider: test-provider
   model: claude-haiku-4-5
@@ -183,9 +180,9 @@ func TestPlanCmd_JSONOutput(t *testing.T) {
 name: plan-test
 target:
   gateway: test-gateway
-providers:
-  - name: test-provider
-    type: vertex-ai
+inference:
+  provider: test-provider
+  model: claude-haiku-4-5
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -231,9 +228,9 @@ func TestPlanCmd_SecretKiller(t *testing.T) {
 name: plan-test
 target:
   gateway: test-gateway
-providers:
-  - name: test-provider
-    type: custom-provider
+inference:
+  provider: test-provider
+  model: claude-haiku-4-5
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -458,9 +455,8 @@ func TestPlanCmd_EmptyGatewaySkipsClient(t *testing.T) {
 name: plan-test
 target:
   gateway: ""
-providers:
-  - name: test-provider
-    type: vertex-ai
+sandbox:
+  providers: [test-provider]
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -515,9 +511,8 @@ target:
       issuer: https://issuer.example.com
       clientId: client-123
       audience: aud-123
-providers:
-  - name: test-provider
-    type: vertex-ai
+sandbox:
+  providers: [test-provider]
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -556,9 +551,8 @@ func TestPlanCmd_UnreachableGatewayRendersDesiredOnly(t *testing.T) {
 name: plan-test
 target:
   gateway: unreachable-gateway
-providers:
-  - name: test-provider
-    type: vertex-ai
+sandbox:
+  providers: [test-provider]
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)

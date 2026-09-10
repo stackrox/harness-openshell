@@ -27,8 +27,6 @@ name: review
 target:
   gateway: config-gateway
   workspace: config-workspace
-providers:
-  - name: github
 sandbox:
   image: quay.io/test/reviewer:latest
   providers: [github]
@@ -76,7 +74,7 @@ agent:
 	}
 }
 
-func TestCanonicalProviderOnlyWorkflowDoesNotInventSandboxRun(t *testing.T) {
+func TestCanonicalInferenceOnlyWorkflowDoesNotInventSandboxRun(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := t.TempDir()
 	file := filepath.Join(dir, "workflow.yaml")
@@ -84,8 +82,9 @@ func TestCanonicalProviderOnlyWorkflowDoesNotInventSandboxRun(t *testing.T) {
 name: setup
 target:
   gateway: acs
-providers:
-  - name: github
+inference:
+  provider: github
+  model: claude-haiku-4-5
 `)
 	workflow, err := loadWorkflow(file, "", "", applyOverrides{})
 	if err != nil {
@@ -143,12 +142,9 @@ name: security-review
 target:
   gateway: config-gateway
   workspace: config-workspace
-providers:
-  - name: github
 sandbox:
   image: reviewer
   providers: [github]
-  keep: false
   policy:
     file: policy.yaml
 agent:
@@ -244,8 +240,6 @@ func TestApplyStructuredOutputRedactsCredentialBearingMaps(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workflow.yaml")
 	writeTestFile(t, path, `version: 1
 name: redacted
-providers:
-  - name: existing
 sandbox:
   env:
     API_TOKEN: ${WORKFLOW_SECRET}
@@ -295,10 +289,9 @@ func TestRedactedWorkflowRedactsInterpolatedScalars(t *testing.T) {
 				Providers: []string{"provider"},
 				Policy:    &config.PolicyRef{File: "policy.yaml"},
 			},
-			Agent:     config.Agent{Type: "agent", Args: []string{"literal", "resolved-argument"}},
-			Source:    config.Source{Repo: "repo", Ref: "main", Destination: "/sandbox", Submodules: "shallow"},
-			Payloads:  []config.Payload{{Source: "payload", Content: "content", Destination: "/sandbox/payload"}},
-			Providers: []config.Provider{{Name: "provider", Type: "vertex"}},
+			Agent:    config.Agent{Type: "agent", Args: []string{"literal", "resolved-argument"}},
+			Source:   config.Source{Repo: "repo", Ref: "main", Destination: "/sandbox", Submodules: "shallow"},
+			Payloads: []config.Payload{{Source: "payload", Content: "content", Destination: "/sandbox/payload"}},
 		},
 	}
 	input := &config.Harness{
@@ -319,10 +312,9 @@ func TestRedactedWorkflowRedactsInterpolatedScalars(t *testing.T) {
 				Providers: []string{"${PROVIDER}"},
 				Policy:    &config.PolicyRef{File: "${POLICY}"},
 			},
-			Agent:     config.Agent{Type: "${AGENT}", Args: []string{"literal", "${ARGUMENT}"}},
-			Source:    config.Source{Repo: "${REPO}", Ref: "main", Destination: "${DESTINATION}", Submodules: "shallow"},
-			Payloads:  []config.Payload{{Source: "${PAYLOAD_SOURCE}", Content: "${PAYLOAD_CONTENT}", Destination: "${PAYLOAD_DESTINATION}"}},
-			Providers: []config.Provider{{Name: "${PROVIDER_NAME}", Type: "vertex"}},
+			Agent:    config.Agent{Type: "${AGENT}", Args: []string{"literal", "${ARGUMENT}"}},
+			Source:   config.Source{Repo: "${REPO}", Ref: "main", Destination: "${DESTINATION}", Submodules: "shallow"},
+			Payloads: []config.Payload{{Source: "${PAYLOAD_SOURCE}", Content: "${PAYLOAD_CONTENT}", Destination: "${PAYLOAD_DESTINATION}"}},
 		},
 	}
 
@@ -339,8 +331,8 @@ func TestRedactedWorkflowRedactsInterpolatedScalars(t *testing.T) {
 	if got.Spec.Source.Repo != "<redacted>" || got.Spec.Source.Ref != "main" || got.Spec.Source.Destination != "<redacted>" {
 		t.Errorf("source fields = %+v", got.Spec.Source)
 	}
-	if got.Spec.Payloads[0].Source != "<redacted>" || got.Spec.Payloads[0].Content != "<redacted>" || got.Spec.Payloads[0].Destination != "<redacted>" || got.Spec.Providers[0].Name != "<redacted>" {
-		t.Errorf("payload/provider fields were not redacted: %+v %+v", got.Spec.Payloads[0], got.Spec.Providers[0])
+	if got.Spec.Payloads[0].Source != "<redacted>" || got.Spec.Payloads[0].Content != "<redacted>" || got.Spec.Payloads[0].Destination != "<redacted>" {
+		t.Errorf("payload fields were not redacted: %+v", got.Spec.Payloads[0])
 	}
 }
 
@@ -494,15 +486,15 @@ agent:
 	}
 }
 
-func TestCanonicalApplyMissingReferencedProviderFailsBeforeSandbox(t *testing.T) {
+func TestCanonicalApplyMissingInferenceProviderFailsBeforeSandbox(t *testing.T) {
 	client := testutil.NewFake("default", fake.WithHealthResult(&types.HealthResult{Healthy: true}))
 	workflow := &resolvedWorkflow{
 		Desired: &config.Harness{
 			Name: "review",
 			Spec: config.Spec{
 				Target:    config.Target{Gateway: "acs"},
-				Providers: []config.Provider{{Name: "github"}},
-				Sandbox:   config.Sandbox{Image: "reviewer", Providers: []string{"github"}},
+				Inference: config.Inference{Provider: "github", Model: "model"},
+				Sandbox:   config.Sandbox{Image: "reviewer"},
 			},
 		},
 		Target: openshell.Target{Gateway: "acs"},
@@ -539,8 +531,8 @@ func TestCanonicalApplyMissingSandboxProviderFailsBeforeSandbox(t *testing.T) {
 	}
 	sdk := &recordingSDK{Client: client}
 	err = applyWorkflow(context.Background(), workflow, planned, current, sdk, applyOptions{})
-	if err == nil || !strings.Contains(err.Error(), `verifying sandbox provider "github-read"`) {
-		t.Fatalf("error = %v, want missing sandbox provider", err)
+	if err == nil || !strings.Contains(err.Error(), `referenced provider "github-read" does not exist`) {
+		t.Fatalf("error = %v, want missing referenced provider", err)
 	}
 	if sdk.createCalls != 0 {
 		t.Fatalf("SDK sandbox create calls = %d, want 0", sdk.createCalls)

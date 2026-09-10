@@ -10,6 +10,10 @@
 - Workflow documents are flat (`version`, `name`, and workflow fields); the
   Kubernetes-style `kind`, `apiVersion`, `metadata`, and `spec` envelope was
   removed.
+- Provider references now come from `inference.provider` and
+  `sandbox.providers`; the redundant top-level `providers` list was removed.
+- Sandboxes are deleted by default; omit `sandbox.keep` for normal runs and set
+  it to `true` only when debugging a retained sandbox.
 - `apply -o yaml|json` redacts interpolated values and sandbox environment maps.
 - Cloned repos now use URL-hashed bare mirrors (`~/.cache/harness-openshell/mirrors/`)
   plus per-run, self-contained checkouts (`~/.cache/harness-openshell/checkouts/`)

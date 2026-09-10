@@ -9,5 +9,5 @@ by `harness workflow apply`.
 
 `providers/` contains provider-profile examples used by the external platform
 bootstrap process. Applying a workflow never creates a
-credentialed provider. A provider named in `providers` or
+credentialed provider. Providers named by `inference.provider` or
 `sandbox.providers` must already exist on the selected gateway.

@@ -19,13 +19,34 @@ type Harness struct {
 // Spec contains the workflow fields. It is an internal Go grouping; the inline
 // YAML tag keeps these fields at the workflow document root.
 type Spec struct {
-	Target    Target     `yaml:"target"`
-	Providers []Provider `yaml:"providers,omitempty"` // desired RESOURCES
-	Inference Inference  `yaml:"inference,omitempty"`
-	Sandbox   Sandbox    `yaml:"sandbox,omitempty"`
-	Agent     Agent      `yaml:"agent,omitempty"`
-	Source    Source     `yaml:"source,omitempty"`
-	Payloads  []Payload  `yaml:"payloads,omitempty"`
+	Target    Target    `yaml:"target"`
+	Inference Inference `yaml:"inference,omitempty"`
+	Sandbox   Sandbox   `yaml:"sandbox,omitempty"`
+	Agent     Agent     `yaml:"agent,omitempty"`
+	Source    Source    `yaml:"source,omitempty"`
+	Payloads  []Payload `yaml:"payloads,omitempty"`
+}
+
+// ProviderReferences returns the unique providers required by inference or the
+// sandbox, preserving inference-first order for stable plans and output.
+func (s Spec) ProviderReferences() []string {
+	seen := make(map[string]struct{}, 1+len(s.Sandbox.Providers))
+	refs := make([]string, 0, 1+len(s.Sandbox.Providers))
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		refs = append(refs, name)
+	}
+	add(s.Inference.Provider)
+	for _, name := range s.Sandbox.Providers {
+		add(name)
+	}
+	return refs
 }
 
 // Target specifies the OpenShell gateway and workspace.
@@ -50,12 +71,6 @@ type OIDC struct {
 	Issuer   string `yaml:"issuer,omitempty"`
 	ClientID string `yaml:"clientId,omitempty"`
 	Audience string `yaml:"audience,omitempty"`
-}
-
-// Provider references a provider configured through OpenShell/bootstrap.
-type Provider struct {
-	Name string `yaml:"name"`
-	Type string `yaml:"type,omitempty"`
 }
 
 // Inference specifies the LLM inference route configuration.
@@ -102,7 +117,7 @@ func (inf Inference) TimeoutSecs() (uint64, error) {
 // Sandbox describes the execution sandbox for this run.
 type Sandbox struct {
 	Image     string            `yaml:"image,omitempty"`
-	Providers []string          `yaml:"providers,omitempty"` // run capabilities (distinct from workflow providers)
+	Providers []string          `yaml:"providers,omitempty"` // provider proxies attached to the sandbox
 	Policy    *PolicyRef        `yaml:"policy,omitempty"`
 	Env       map[string]string `yaml:"env,omitempty"`
 	Keep      bool              `yaml:"keep,omitempty"`

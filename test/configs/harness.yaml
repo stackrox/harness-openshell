@@ -3,10 +3,6 @@
 # (it skips gateway contact and diffs against empty current state).
 version: 1
 name: suite
-providers:
-  - name: my-gcp
-    type: google-vertex-ai
-  - name: github-fact
 inference:
   provider: my-gcp
   model: claude-haiku-4-5

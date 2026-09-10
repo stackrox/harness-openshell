@@ -14,9 +14,6 @@ target:
   gateway: openshell
   workspace: default
 
-providers:
-  - name: github-review
-
 inference:
   route: inference.local
   provider: vertex-review
@@ -25,7 +22,6 @@ inference:
 sandbox:
   image: quay.io/example/reviewer:v1
   providers: [github-review]
-  keep: false
 
 agent:
   type: opencode
@@ -39,11 +35,12 @@ optional. Unknown fields are rejected so a typo cannot silently change a run.
 
 - `target` selects the gateway and workspace. Explicit CLI flags and
   `OPENSHELL_*` environment variables take precedence over these values.
-- `providers` names providers that must already exist in OpenShell. Harness
-  does not create or update providers or credentials.
-- `inference` selects the gateway inference route and model when needed.
+- `inference` selects the gateway inference route and model when needed. Its
+  `provider` must already exist in OpenShell.
 - `sandbox` describes the image, policy, environment, provider attachments,
   payload handling, and cleanup behavior for a run.
+- `sandbox.providers` names providers that must already exist in OpenShell and
+  attaches their masked proxies to the sandbox.
 - `agent` is the command executed in the sandbox.
 - `source` optionally uploads a repository checkout.
 - `payloads` uploads host files or inline content to sandbox destinations.

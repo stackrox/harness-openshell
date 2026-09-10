@@ -9,9 +9,6 @@ target:
       issuer: ${HYPERSHELL_OIDC_ISSUER}
       clientId: ${HYPERSHELL_SANDBOX_SA_ID}
       audience: ${HYPERSHELL_OIDC_AUDIENCE}
-providers:
-  - name: vertex-claude-haiku
-    type: google-vertex-ai
 inference:
   route: inference.local
   provider: vertex-claude-haiku
@@ -24,7 +21,6 @@ sandbox:
     ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
     ANTHROPIC_BASE_URL: https://inference.local
     CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
-  keep: false
 agent:
   type: claude
   args:

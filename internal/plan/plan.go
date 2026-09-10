@@ -70,8 +70,8 @@ func Build(desired *config.Harness, current CurrentState) *Plan {
 	// TARGET group: always emitted, one resource.
 	p.Groups = append(p.Groups, buildTargetGroup(desired, current))
 
-	// PROVIDERS group: emitted only if desired has providers.
-	if len(desired.Spec.Providers) > 0 {
+	// PROVIDERS group: emitted for inference and sandbox provider references.
+	if len(desired.Spec.ProviderReferences()) > 0 {
 		p.Groups = append(p.Groups, buildProvidersGroup(desired, current))
 	}
 
@@ -119,8 +119,8 @@ func buildTargetGroup(desired *config.Harness, current CurrentState) Group {
 	}
 }
 
-// buildProvidersGroup returns the PROVIDERS group. It matches desired providers
-// by name against current.Providers without proposing provider writes.
+// buildProvidersGroup returns the PROVIDERS group. It matches referenced
+// providers by name against current.Providers without proposing provider writes.
 func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 	group := Group{Section: SectionProviders}
 
@@ -130,32 +130,24 @@ func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 		currentByName[p.Name] = p
 	}
 
-	for i := range desired.Spec.Providers {
-		desiredProv := desired.Spec.Providers[i]
-
+	for _, name := range desired.Spec.ProviderReferences() {
 		action := ActionMissing
-		if _, exists := currentByName[desiredProv.Name]; exists {
+		detail := "(referenced)"
+		if provider, exists := currentByName[name]; exists {
 			action = ActionNoop
+			if provider.Type != "" {
+				detail = provider.Type
+			}
 		}
 
 		group.Resources = append(group.Resources, Resource{
-			Name:   desiredProv.Name,
+			Name:   name,
 			Action: action,
-			Detail: buildProviderDetail(&desiredProv),
+			Detail: detail,
 		})
 	}
 
 	return group
-}
-
-// buildProviderDetail constructs a redaction-safe detail string for a provider.
-func buildProviderDetail(prov *config.Provider) string {
-	detail := prov.Type
-	if detail == "" {
-		detail = "(type unspecified)"
-	}
-
-	return detail
 }
 
 // InferenceAction is the single owner of the inference create/update/noop rule.

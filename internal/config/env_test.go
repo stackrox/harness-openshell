@@ -191,22 +191,6 @@ func TestResolve_AllowsAbsoluteDestination(t *testing.T) {
 	}
 }
 
-func TestResolve_RejectsDuplicateProviderNames(t *testing.T) {
-	h := &Harness{
-		Version: 1,
-		Name:    "test",
-		Spec: Spec{Providers: []Provider{
-			{Name: "github"},
-			{Name: "github"},
-		}},
-	}
-
-	_, err := Resolve(h, func(string) string { return "" })
-	if err == nil || !strings.Contains(err.Error(), "duplicate provider") {
-		t.Fatalf("error = %v, want duplicate provider", err)
-	}
-}
-
 func TestResolve_RejectsMalformedRoute(t *testing.T) {
 	h := &Harness{
 		Version: 1,

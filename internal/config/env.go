@@ -126,25 +126,6 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 		}
 	}
 
-	if len(h.Spec.Providers) > 0 {
-		s.Providers = make([]Provider, len(h.Spec.Providers))
-		providerNames := make(map[string]struct{}, len(h.Spec.Providers))
-		for i, p := range h.Spec.Providers {
-			np := p
-			base := fmt.Sprintf("providers[%d]", i)
-			np.Name = exp(base+".name", p.Name)
-			if np.Name == "" {
-				errs = append(errs, base+".name: required")
-			} else if _, exists := providerNames[np.Name]; exists {
-				errs = append(errs, fmt.Sprintf("%s.name: duplicate provider %q", base, np.Name))
-			} else {
-				providerNames[np.Name] = struct{}{}
-			}
-			np.Type = exp(base+".type", p.Type)
-			s.Providers[i] = np
-		}
-	}
-
 	s.Inference.Route = exp("inference.route", h.Spec.Inference.Route)
 	// Format-only check: reject a malformed route name at load time; the gateway
 	// remains the authority on which names actually exist (no allowlist here).

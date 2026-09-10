@@ -16,7 +16,7 @@ func TestParseValidFixture(t *testing.T) {
 		expectedName    string
 		expectedGW      string
 		expectedWS      string
-		expectedNumProv int
+		expectedNumRefs int
 		expectedNumPay  int
 	}{
 		{
@@ -25,7 +25,7 @@ func TestParseValidFixture(t *testing.T) {
 			expectedName:    "fact-dev",
 			expectedGW:      "rc-dev",
 			expectedWS:      "default",
-			expectedNumProv: 2,
+			expectedNumRefs: 2,
 			expectedNumPay:  2,
 		},
 	}
@@ -54,8 +54,8 @@ func TestParseValidFixture(t *testing.T) {
 			if h.Spec.Target.Workspace != tc.expectedWS {
 				t.Errorf("target.workspace: got %q, want %q", h.Spec.Target.Workspace, tc.expectedWS)
 			}
-			if len(h.Spec.Providers) != tc.expectedNumProv {
-				t.Errorf("len(providers): got %d, want %d", len(h.Spec.Providers), tc.expectedNumProv)
+			if len(h.Spec.ProviderReferences()) != tc.expectedNumRefs {
+				t.Errorf("len(provider references): got %d, want %d", len(h.Spec.ProviderReferences()), tc.expectedNumRefs)
 			}
 			if len(h.Spec.Payloads) != tc.expectedNumPay {
 				t.Errorf("len(payloads): got %d, want %d", len(h.Spec.Payloads), tc.expectedNumPay)
@@ -162,8 +162,7 @@ spec:
 
 func TestRemovedCredentialAndAutoProviderFieldsAreRejected(t *testing.T) {
 	for name, field := range map[string]string{
-		"provider credentials":       "providers:\n  - name: github\n    credentials: {source: gcloud-adc}\n",
-		"provider management":        "providers:\n  - name: github\n    management: referenced\n",
+		"top-level providers":        "providers:\n  - name: github\n",
 		"registration autoProviders": "target:\n  registration:\n    autoProviders: true\n",
 		"agent model":                "agent:\n  type: claude\n  model: claude-haiku\n",
 	} {
@@ -176,8 +175,7 @@ func TestRemovedCredentialAndAutoProviderFieldsAreRejected(t *testing.T) {
 	}
 }
 
-func TestProvidersAndSandboxProviders(t *testing.T) {
-	// Verify that providers[] is []Provider and sandbox.providers[] is []string.
+func TestProviderReferences(t *testing.T) {
 	data, err := os.ReadFile("testdata/fact-dev.yaml")
 	if err != nil {
 		t.Fatalf("failed to read fixture: %v", err)
@@ -188,20 +186,9 @@ func TestProvidersAndSandboxProviders(t *testing.T) {
 		t.Fatalf("Parse failed: %v", err)
 	}
 
-	// Check providers is typed as []Provider.
-	if len(h.Spec.Providers) < 1 {
-		t.Fatal("expected at least one provider")
-	}
-	if h.Spec.Providers[0].Name == "" {
-		t.Error("provider name should not be empty")
-	}
-	// Check sandbox.providers is typed as []string.
-	if len(h.Spec.Sandbox.Providers) < 1 {
-		t.Fatal("expected at least one sandbox provider")
-	}
-	// Sandbox providers are just strings, not structs
-	if h.Spec.Sandbox.Providers[0] == "" {
-		t.Error("sandbox provider string should not be empty")
+	refs := h.Spec.ProviderReferences()
+	if len(refs) != 2 || refs[0] != "my-gcp" || refs[1] != "github-fact" {
+		t.Fatalf("provider references = %v, want [my-gcp github-fact]", refs)
 	}
 }
 

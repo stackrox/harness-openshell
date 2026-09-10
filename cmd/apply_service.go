@@ -127,7 +127,7 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 	if err := preflightPlan(p); err != nil {
 		return err
 	}
-	if err := verifySandboxProviders(ctx, client, workflow.Desired); err != nil {
+	if err := verifyProviderReferences(ctx, client, workflow.Desired); err != nil {
 		return err
 	}
 

@@ -28,14 +28,11 @@ name: pr-review
 target:
   gateway: acs
   workspace: stackrox
-providers:
-  - name: github-review
 sandbox:
   image: quay.io/example/reviewer:v1
   providers: [github-review]
   policy:
     file: review-policy.yaml
-  keep: false
 payloads:
   - source: .github/skills/pr-review/SKILL.md
     destination: /sandbox/skills/pr-review/SKILL.md
@@ -48,11 +45,11 @@ agent:
   args: [--print, "Review the supplied repository input"]
 ```
 
-The document can declare a gateway/workspace target, references to existing
-providers, an inference route, sandbox image/policy/environment, agent command,
-source checkout, and payload files. `providers` are references; provider
-credentials and permissions remain OpenShell-owned. Changing the target or
-policy lets the same repository workflow run with a different trust boundary.
+The document can declare a gateway/workspace target, an inference route,
+sandbox provider attachments, sandbox image/policy/environment, agent command,
+source checkout, and payload files. Provider credentials and permissions remain
+OpenShell-owned. Changing the target or policy lets the same repository
+workflow run with a different trust boundary.
 
 The one-shot lifecycle is:
 
@@ -125,10 +122,10 @@ part of the workflow document.
 Harness does not create, update, or delete providers or credentials. A platform
 administrator or trusted OpenShell bootstrap provisions them in the target
 HyperShell workspace, for example with the native `openshell provider create`
-flow. A workflow then names the existing provider twice when appropriate:
-
-- `providers` declares references that `plan`/`apply` verify;
-- `sandbox.providers` attaches those references to the new sandbox.
+flow. A workflow names providers where they are used: `inference.provider`
+selects the inference provider and `sandbox.providers` attaches masked provider
+proxies to the new sandbox. `plan` and `apply` verify those references before
+execution.
 
 If a referenced provider is absent, `apply` fails before creating the sandbox.
 The gateway keeps the provider credential and exposes only its masked proxy

@@ -1,8 +1,6 @@
 version: 1
 name: agent
 target: {}
-providers:
-  - name: google-vertex-ai
 sandbox:
   providers:
     - google-vertex-ai

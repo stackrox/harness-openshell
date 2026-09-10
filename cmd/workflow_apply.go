@@ -46,23 +46,12 @@ func targetDescription(target openshell.Target) string {
 	return fmt.Sprintf("gateway %q", target.Gateway)
 }
 
-// verifySandboxProviders checks declared and attached provider references once.
-func verifySandboxProviders(ctx context.Context, client openshell.Client, desired *config.Harness) error {
-	declared := make(map[string]struct{}, len(desired.Spec.Providers))
-	for _, provider := range desired.Spec.Providers {
-		if _, err := client.GetProvider(ctx, provider.Name); err != nil {
-			return fmt.Errorf("verifying referenced provider %q: %w", provider.Name, err)
-		}
-		declared[provider.Name] = struct{}{}
-	}
-	for _, name := range desired.Spec.Sandbox.Providers {
-		if _, alreadyChecked := declared[name]; alreadyChecked {
-			continue
-		}
+// verifyProviderReferences checks providers used by inference or the sandbox.
+func verifyProviderReferences(ctx context.Context, client openshell.Client, desired *config.Harness) error {
+	for _, name := range desired.Spec.ProviderReferences() {
 		if _, err := client.GetProvider(ctx, name); err != nil {
-			return fmt.Errorf("verifying sandbox provider %q: %w", name, err)
+			return fmt.Errorf("verifying referenced provider %q: %w", name, err)
 		}
-		declared[name] = struct{}{}
 	}
 	return nil
 }
@@ -293,7 +282,6 @@ func redactedWorkflow(resolved, input *config.Harness) *config.Harness {
 			},
 		},
 	}
-	out.Spec.Providers = redactedProviders(resolved.Spec.Providers, input.Spec.Providers)
 	out.Spec.Payloads = redactedPayloads(resolved.Spec.Payloads, input.Spec.Payloads)
 	return out
 }
@@ -321,21 +309,6 @@ func redactedTarget(resolved, input config.Target) config.Target {
 				ClientID: redactInterpolated(resolved.Registration.OIDC.ClientID, rawOIDC.ClientID),
 				Audience: redactInterpolated(resolved.Registration.OIDC.Audience, rawOIDC.Audience),
 			}
-		}
-	}
-	return out
-}
-
-func redactedProviders(resolved, input []config.Provider) []config.Provider {
-	out := make([]config.Provider, len(resolved))
-	for i, provider := range resolved {
-		var raw config.Provider
-		if i < len(input) {
-			raw = input[i]
-		}
-		out[i] = config.Provider{
-			Name: redactInterpolated(provider.Name, raw.Name),
-			Type: redactInterpolated(provider.Type, raw.Type),
 		}
 	}
 	return out

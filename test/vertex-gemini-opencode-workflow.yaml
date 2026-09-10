@@ -1,8 +1,5 @@
 version: 1
 name: vertex-gemini
-providers:
-  - name: vertex-ci
-    type: google-vertex-ai
 inference:
   route: inference.local
   provider: vertex-ci
@@ -14,7 +11,6 @@ sandbox:
   env:
     OPENCODE_CONFIG: /sandbox/opencode-vertex.json
     OPENCODE_VERTEX_API_KEY: openshell-proxy-managed
-  keep: false
 payloads:
   - destination: /sandbox/opencode-vertex.json
     content: |

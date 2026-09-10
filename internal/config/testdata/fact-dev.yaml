@@ -3,10 +3,6 @@ name: fact-dev
 target:
   gateway: rc-dev
   workspace: default
-providers:
-  - name: my-gcp
-    type: google-vertex-ai
-  - name: github-fact
 inference:
   route: default
   provider: my-gcp
@@ -21,7 +17,6 @@ sandbox:
     file: .harness/policies/fact-development.yaml
   env:
     RUST_BACKTRACE: "1"
-  keep: false
   tty: false
 agent:
   type: claude
