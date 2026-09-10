@@ -1,13 +1,17 @@
 # harness
 
 Harness is a declarative runner for [OpenShell](https://github.com/NVIDIA/OpenShell).
-A repository checks in a workflow describing one trusted task; Harness resolves
-that document, runs it in an isolated OpenShell sandbox, returns the result, and
-cleans up the run.
+A repository checks in workflow documents describing repository automation or a
+developer session. The same workflow can run from GitHub Actions, another CI
+system, or a local terminal with `--attach`. Harness resolves the document,
+runs it in an isolated OpenShell sandbox, returns the result, and cleans up the
+run.
 
-Its purpose is to remove repeated gateway, credential, sandbox-lifecycle, and CI
-plumbing from repository workflows. The repository still owns the task behavior:
-skills, prompts, review criteria, source checkout, and result handling.
+Its purpose is to remove repeated gateway, credential, policy, sandbox-lifecycle,
+and CI plumbing from repository workflows. Each workflow can combine a target,
+providers, credentials, policies, skills, agent, and inference route for a
+specific use case. The repository still owns task behavior, prompts, review
+criteria, source checkout, and result handling.
 
 Harness is not a second OpenShell, provider manager, credential store, policy
 language, scheduler, controller, or release manager. The closest operational
@@ -51,7 +55,8 @@ spec:
 The document can declare a gateway/workspace target, references to existing
 providers, an inference route, sandbox image/policy/environment, agent command,
 source checkout, and payload files. `providers` are references; provider
-credentials and permissions remain OpenShell-owned.
+credentials and permissions remain OpenShell-owned. Changing the target or
+policy lets the same repository workflow run with a different trust boundary.
 
 The one-shot lifecycle is:
 
@@ -133,11 +138,14 @@ For GitHub Actions, trusted host-side setup may use the automatic
 not placed in the sandbox environment or agent payload. See
 [docs/ci.md](docs/ci.md) for the bootstrap and secret contract.
 
-## GitHub Actions
+## GitHub Actions and local sessions
 
 The reusable PR reviewer is the first supported workflow archetype:
 `pr-reviewer-with-comments`. The consuming repository supplies its skill and
-review criteria; Harness supplies the execution boundary.
+review criteria; Harness supplies the execution boundary. The same runner can
+also execute repository maintenance, CI assistance, research, or interactive
+developer workflows when those workflows define the appropriate policy and
+provider boundary.
 
 ```yaml
 jobs:
