@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -41,6 +42,13 @@ func Parse(data []byte) (*Harness, error) {
 	var h Harness
 	if err := dec.Decode(&h); err != nil {
 		return nil, fmt.Errorf("parsing YAML: %w", err)
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return nil, fmt.Errorf("parsing YAML: multiple documents are not supported")
+		}
+		return nil, fmt.Errorf("parsing YAML: trailing document: %w", err)
 	}
 
 	if h.Name == "" {

@@ -93,6 +93,11 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 		return out
 	}
 
+	resolved.Name = exp("name", h.Name)
+	if resolved.Name == "" {
+		errs = append(errs, "name: required after resolution")
+	}
+
 	s := &resolved.Spec
 	s.Target.Gateway = exp("target.gateway", h.Spec.Target.Gateway)
 	s.Target.Workspace = exp("target.workspace", h.Spec.Target.Workspace)
@@ -203,13 +208,23 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 		s.Payloads = make([]Payload, len(h.Spec.Payloads))
 		for i, p := range h.Spec.Payloads {
 			base := fmt.Sprintf("payloads[%d]", i)
+			source := exp(base+".source", p.Source)
+			content := exp(base+".content", p.Content)
 			dest := exp(base+".destination", p.Destination)
+			if dest == "" {
+				errs = append(errs, base+".destination: required")
+			}
+			if source != "" && content != "" {
+				errs = append(errs, base+": cannot set both source and content")
+			} else if source == "" && content == "" {
+				errs = append(errs, base+": requires source or content")
+			}
 			if destinationHasTraversal(dest) {
 				errs = append(errs, base+`.destination: must not contain a ".." path segment`)
 			}
 			s.Payloads[i] = Payload{
-				Source:      exp(base+".source", p.Source),
-				Content:     exp(base+".content", p.Content),
+				Source:      source,
+				Content:     content,
 				Destination: dest,
 			}
 		}

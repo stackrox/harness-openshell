@@ -28,6 +28,9 @@ func TestReadCurrentState_HealthyGateway(t *testing.T) {
 	if !state.Reachable {
 		t.Error("expected Reachable=true for healthy gateway")
 	}
+	if !state.Inspected || !state.ProvidersKnown {
+		t.Errorf("expected inspected provider state, got %+v", state)
+	}
 	if !state.Health.Healthy {
 		t.Error("expected Health.Healthy=true")
 	}
@@ -84,6 +87,9 @@ func TestReadCurrentState_UnavailableDegrades(t *testing.T) {
 
 	if state.Reachable {
 		t.Error("expected Reachable=false for unavailable gateway")
+	}
+	if !state.Inspected || state.ProvidersKnown {
+		t.Errorf("expected inspected gateway with unknown providers, got %+v", state)
 	}
 }
 

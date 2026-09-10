@@ -32,10 +32,16 @@ type InferenceState struct {
 
 // CurrentState is a snapshot of the gateway's current state, read at plan time.
 type CurrentState struct {
+	// Inspected distinguishes a gateway that was queried from a desired-only
+	// plan produced without a usable client.
+	Inspected bool
 	Health    openshell.Health
 	Reachable bool
-	Providers []openshell.Provider
-	Inference InferenceState
+	// ProvidersKnown is false when provider state could not be read. An empty
+	// provider list is meaningful only when this is true.
+	ProvidersKnown bool
+	Providers      []openshell.Provider
+	Inference      InferenceState
 }
 
 // ReadCurrentState reads the current gateway state and returns a snapshot. It is
@@ -44,7 +50,7 @@ type CurrentState struct {
 // returned; other errors are escalated. When desired configures inference, it
 // reads the current route so the plan can show a real create/update/noop diff.
 func ReadCurrentState(ctx context.Context, c openshell.StateReader, desired *config.Harness) (CurrentState, error) {
-	var state CurrentState
+	state := CurrentState{Inspected: true}
 
 	// Read health.
 	health, err := c.Health(ctx)
@@ -68,6 +74,7 @@ func ReadCurrentState(ctx context.Context, c openshell.StateReader, desired *con
 		return state, err
 	}
 	state.Providers = providers
+	state.ProvidersKnown = true
 
 	// Read the inference route, but only when desired configures inference (no
 	// point probing an unused subsystem). Health and providers already proved the

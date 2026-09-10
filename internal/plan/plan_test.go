@@ -53,6 +53,7 @@ func TestBuild_TargetLoginRequiredWhenUnreachable(t *testing.T) {
 		},
 	}
 	current := CurrentState{
+		Inspected: true,
 		Reachable: false,
 	}
 
@@ -64,6 +65,18 @@ func TestBuild_TargetLoginRequiredWhenUnreachable(t *testing.T) {
 	}
 	if res.Detail != "gateway unreachable or unauthenticated" {
 		t.Errorf("unexpected detail: %s", res.Detail)
+	}
+}
+
+func TestBuild_TargetAndProvidersNotInspectedWithoutGatewayState(t *testing.T) {
+	desired := &config.Harness{Spec: config.Spec{Sandbox: config.Sandbox{Providers: []string{"github"}}}}
+	result := Build(desired, CurrentState{})
+
+	if got := result.Groups[0].Resources[0].Action; got != ActionNotInspected {
+		t.Errorf("target action = %s, want %s", got, ActionNotInspected)
+	}
+	if got := result.Groups[1].Resources[0].Action; got != ActionNotInspected {
+		t.Errorf("provider action = %s, want %s", got, ActionNotInspected)
 	}
 }
 

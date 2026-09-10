@@ -21,6 +21,7 @@ const (
 	ActionUpdate        Action = "update"
 	ActionValidate      Action = "validate"
 	ActionLoginRequired Action = "login-required"
+	ActionNotInspected  Action = "not-inspected"
 	ActionMissing       Action = "missing"
 	ActionCreateSandbox Action = "create-sandbox"
 	ActionUpload        Action = "upload"
@@ -88,21 +89,25 @@ func Build(desired *config.Harness, current CurrentState) *Plan {
 	return p
 }
 
-// buildTargetGroup returns the TARGET group: validate when the gateway is
-// reachable, otherwise login-required.
+// buildTargetGroup returns the TARGET group. A desired-only plan is distinct
+// from a gateway that was queried and found unreachable.
 func buildTargetGroup(desired *config.Harness, current CurrentState) Group {
 	gatewayName := desired.Spec.Target.Gateway
 
 	var action Action
 	var detail string
 
-	if current.Reachable {
+	switch {
+	case !gatewayWasInspected(current):
+		action = ActionNotInspected
+		detail = "gateway not inspected"
+	case current.Reachable:
 		action = ActionValidate
 		detail = "gateway " + gatewayName
 		if current.Health.Version != "" {
 			detail += " v" + current.Health.Version
 		}
-	} else {
+	default:
 		action = ActionLoginRequired
 		detail = "gateway unreachable or unauthenticated"
 	}
@@ -123,6 +128,7 @@ func buildTargetGroup(desired *config.Harness, current CurrentState) Group {
 // providers by name against current.Providers without proposing provider writes.
 func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 	group := Group{Section: SectionProviders}
+	providersKnown := current.ProvidersKnown || current.Reachable || current.Providers != nil
 
 	// Build a map of current providers by name for lookup.
 	currentByName := make(map[string]openshell.Provider)
@@ -131,6 +137,14 @@ func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 	}
 
 	for _, name := range desired.Spec.ProviderReferences() {
+		if !providersKnown {
+			group.Resources = append(group.Resources, Resource{
+				Name:   name,
+				Action: ActionNotInspected,
+				Detail: "gateway providers not inspected",
+			})
+			continue
+		}
 		action := ActionMissing
 		detail := "(referenced)"
 		if provider, exists := currentByName[name]; exists {
@@ -148,6 +162,13 @@ func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 	}
 
 	return group
+}
+
+// gatewayWasInspected preserves the pure builder's convenient hand-built
+// CurrentState test fixtures while keeping the zero value meaningful: a zero
+// state is a desired-only plan, not an empty gateway snapshot.
+func gatewayWasInspected(current CurrentState) bool {
+	return current.Inspected || current.Reachable || current.ProvidersKnown || current.Providers != nil || current.Health.Healthy || current.Health.Version != ""
 }
 
 // InferenceAction is the single owner of the inference create/update/noop rule.

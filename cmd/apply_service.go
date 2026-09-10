@@ -89,19 +89,17 @@ func (s applyService) connectAndPlan(ctx context.Context, workflow *resolvedWork
 		client openshell.Client
 		err    error
 	)
-	if !dryRun || workflow.Target.Direct != nil || workflow.Target.Gateway != "" {
-		client, err = s.newClient(ctx, workflow.Target)
-		if err != nil {
-			desc := targetDescription(workflow.Target)
-			if !dryRun {
-				return nil, nil, plan.CurrentState{}, fmt.Errorf("connecting to %s: %w", desc, err)
-			}
-			out := s.stderr
-			if out == nil {
-				out = io.Discard
-			}
-			fmt.Fprintf(out, "warning: %s unreachable: %v (rendering desired config only)\n", desc, err)
+	client, err = s.newClient(ctx, workflow.Target)
+	if err != nil {
+		desc := targetDescription(workflow.Target)
+		if !dryRun {
+			return nil, nil, plan.CurrentState{}, fmt.Errorf("connecting to %s: %w", desc, err)
 		}
+		out := s.stderr
+		if out == nil {
+			out = io.Discard
+		}
+		fmt.Fprintf(out, "warning: %s unreachable: %v (rendering desired config only)\n", desc, err)
 	}
 
 	planned, current, err := workflow.buildPlan(ctx, client)

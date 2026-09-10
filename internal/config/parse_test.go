@@ -239,6 +239,18 @@ target:
 	}
 }
 
+func TestTrailingYAMLDocumentRejected(t *testing.T) {
+	doc := `version: 1
+name: first
+---
+version: 1
+name: second
+`
+	if _, err := Parse([]byte(doc)); err == nil {
+		t.Fatal("expected trailing YAML document to be rejected")
+	}
+}
+
 func TestLoad(t *testing.T) {
 	// Test Load function using the fixture file
 	h, err := Load("testdata/fact-dev.yaml")
