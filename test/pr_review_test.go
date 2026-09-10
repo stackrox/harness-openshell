@@ -30,7 +30,14 @@ func TestPRReview(t *testing.T) {
 			if err := os.Mkdir(filepath.Join(root, "scripts"), 0o700); err != nil {
 				t.Fatal(err)
 			}
-			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
+			if err := os.Mkdir(filepath.Join(root, "scripts", "review"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			validator, err := os.ReadFile("../scripts/review/validate-agent-output.sh")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/review/validate-agent-output.sh": validator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
 				if err := os.WriteFile(filepath.Join(root, name), data, 0o700); err != nil {
 					t.Fatal(err)
 				}

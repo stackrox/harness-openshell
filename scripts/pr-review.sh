@@ -93,20 +93,6 @@ prepare_review() {
   state=prepared
 }
 
-validate_agent_output() {
-  jq -Rse 'split("\n") | map(fromjson?) |
-    any(.[]; .type == "text" and (.part.text | type == "string" and test("\\S"))) and
-    any(.[]; .type == "step_finish" and .part.reason == "stop") and
-    all(.[]; .type != "error" and
-      (.type != "tool_use" or
-        (.part.state.status == "completed" and
-          ((.part.state.metadata.exit // -1) == 0 or
-            ((.part.state.metadata.exit // -1) == 1 and
-              ((.part.state.output // .part.state.error // "") | test("422|unprocessable entity|comment.*(position|line)"; "i")))))) and
-      (.type != "step_finish" or .part.reason == "stop" or .part.reason == "tool-calls"))
-  ' "$REVIEW_DIR/agent.ndjson" >/dev/null
-}
-
 run_review() {
   head="$(jq -er '.head | select(test("^[0-9a-f]{40}$"))' "$REVIEW_DIR/input.json")"
   base="$(jq -er '.base | select(test("^[0-9a-f]{40}$"))' "$REVIEW_DIR/input.json")"
@@ -144,7 +130,7 @@ run_review() {
   wait "$apply_pid"
   apply_pid=""
 
-  validate_agent_output
+  scripts/review/validate-agent-output.sh "$REVIEW_DIR"
   ensure_current
   jq -Rr 'fromjson? | select(.type == "text") | .part.text' \
     "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"
