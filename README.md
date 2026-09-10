@@ -242,6 +242,28 @@ harness apply -f harness.yaml
 harness apply -f harness.yaml --attach
 ```
 
+### Debug a workflow interactively
+
+Use `--attach` when developing a skill, prompt, policy, provider profile, or
+agent invocation:
+
+```bash
+harness apply -f workflow.yaml --attach
+```
+
+Harness creates the same sandbox, uploads the same source and payloads, applies
+the same policy, and runs the same declared agent command. The difference is
+that it connects your terminal to the agent's stdin/stdout, including terminal
+resize handling, so you can watch the work and interact with the coding agent
+while it runs. `--attach` does not open a separate host shell or bypass the
+workflow's provider and policy boundaries.
+
+For post-run inspection, set `spec.sandbox.keep: true`, then use
+`openshell sandbox connect <name>` or `openshell sandbox exec <name> -- ...`.
+Turn `keep` back off for normal cleanup. A headless command such as an agent's
+`--print`/JSON mode is still headless when attached; use an interactive agent
+command in a local debug workflow when you need a conversational session.
+
 For retained sandboxes, use OpenShell directly:
 
 ```bash
@@ -263,7 +285,8 @@ mutations must be allowed by the provider profile and OpenShell policy.
 | `harness init` | Generate a starter workflow |
 | `harness doctor` | Check target reachability and referenced providers |
 | `harness plan -f FILE` | Render a read-only reconciliation plan |
-| `harness apply -f FILE` | Run the workflow |
+| `harness apply -f FILE` | Run the workflow headlessly |
+| `harness apply -f FILE --attach` | Run the same workflow with an interactive terminal |
 | `harness apply -f FILE --setup-only` | Verify references and configure inference without running a sandbox |
 | `harness get gateways\|agents\|providers` | Inspect identity-only resources (`-o table\|json\|yaml`) |
 | `harness describe NAME` | Inspect a sandbox |
