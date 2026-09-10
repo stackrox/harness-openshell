@@ -41,7 +41,7 @@ type Provider struct {
 	Type string
 }
 
-// Sandbox is the harness view of a sandbox for the read UX (get/describe).
+// Sandbox is the harness view of a sandbox for native OpenShell inspection.
 //
 // Deliberately narrow (least-exposure firewall): only the fields the read
 // commands render. Phase is the SDK SandboxPhase carried through as a string

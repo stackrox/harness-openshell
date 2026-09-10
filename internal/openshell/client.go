@@ -21,10 +21,10 @@ type Client interface {
 	Health(ctx context.Context) (Health, error)
 	// Providers lists the providers registered in the bound workspace.
 	Providers(ctx context.Context) ([]Provider, error)
-	// Sandboxes lists the sandboxes in the bound workspace (read UX: get agents).
+	// Sandboxes lists the sandboxes in the bound workspace for native OpenShell inspection.
 	Sandboxes(ctx context.Context) ([]Sandbox, error)
 	// GetSandbox reads the named sandbox in the bound workspace. Returns
-	// ErrNotFound when no such sandbox exists (read UX: describe).
+	// ErrNotFound when no such sandbox exists.
 	GetSandbox(ctx context.Context, name string) (Sandbox, error)
 	// DeleteSandbox removes the named sandbox in the bound workspace.
 	DeleteSandbox(ctx context.Context, name string) error
