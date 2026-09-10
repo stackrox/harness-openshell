@@ -41,6 +41,8 @@ optional. Unknown fields are rejected so a typo cannot silently change a run.
   payload handling, and cleanup behavior for a run.
 - `sandbox.providers` names providers that must already exist in OpenShell and
   attaches their masked proxies to the sandbox.
+- `sandbox.keep` defaults to `false`; set it to `true` only to retain a sandbox
+  for debugging.
 - `agent` is the command executed in the sandbox.
 - `source` optionally uploads a repository checkout.
 - `payloads` uploads host files or inline content to sandbox destinations.

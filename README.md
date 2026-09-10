@@ -196,7 +196,8 @@ Plan and dry-run output support `-o table`, `-o json`, and `-o yaml`; credential
 values are never serialized. The Harness CLI deliberately has no `doctor`,
 `init`, `delete`, `get`, or `describe` commands. Use native OpenShell commands
 for gateway health, sandbox inspection, and retained-sandbox deletion. Normal
-`apply` cleanup still deletes a sandbox when `sandbox.keep` is false.
+`apply` cleanup deletes a sandbox by default; set `sandbox.keep: true` only to
+retain it for debugging.
 
 ## Documentation and validation
 
