@@ -149,7 +149,7 @@ fi
 case "$1 ${2:-}" in
   'provider create') [[ "$FAKE_SCENARIO" != provider-failure ]] ;;
   'workspace delete') [[ "$FAKE_SCENARIO" != cleanup-failure ]] ;;
-  'apply '*)
+  'workflow apply '*)
     touch "$READY"
     printf 'diagnostic without trailing newline' >&2
     case "$FAKE_SCENARIO" in
