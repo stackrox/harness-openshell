@@ -79,7 +79,7 @@ wait_for_sandbox_absent() {
       sleep 1
       continue
     fi
-    if [[ "$output" == *"sandbox \"$sandbox\" not found"* ]]; then
+    if [[ "$output" == *"sandbox not found"* ]]; then
       return 0
     fi
     printf '%s\n' "$output" >&2
