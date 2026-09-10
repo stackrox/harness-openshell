@@ -11,6 +11,7 @@ mode="${1:?usage: pr-review.sh prepare|run}"
 gateway="${OPENSHELL_GATEWAY:-openshell}"
 allow_draft_reviews="${ALLOW_DRAFT_REVIEWS:-false}"
 workspace="rev-$RANDOM-$$"
+max_diff_bytes=262144
 created_workspace=false
 created_vertex_provider=false
 created_github_provider=false
@@ -42,7 +43,7 @@ cleanup_runtime() {
     wait "$apply_pid" || true
   fi
   if $created_workspace; then
-    timeout 30s ./harness delete --gateway "$gateway" --workspace "$workspace" --sandboxes || cleanup_status=1
+    timeout 30s openshell sandbox delete --gateway "$gateway" --workspace "$workspace" ai-review || cleanup_status=1
     if $created_vertex_provider; then
       timeout 30s openshell provider delete --gateway "$gateway" --workspace "$workspace" vertex-review || cleanup_status=1
     fi
@@ -86,25 +87,11 @@ prepare_review() {
     '{repository:$repository, pr:$pr, head:$head, base:$base}' > "$REVIEW_DIR/input.json"
   # Read at most limit+1 bytes. Oversized or failed downloads never reach inference.
   timeout 60s gh api "repos/$REVIEW_REPOSITORY/compare/$base...$head" -H 'Accept: application/vnd.github.diff' \
-    | head -c 204801 > "$REVIEW_DIR/pr.diff"
-  [[ -s "$REVIEW_DIR/pr.diff" && $(wc -c < "$REVIEW_DIR/pr.diff") -le 204800 ]] || exit 1
+    | head -c "$((max_diff_bytes + 1))" > "$REVIEW_DIR/pr.diff"
+  [[ -s "$REVIEW_DIR/pr.diff" && $(wc -c < "$REVIEW_DIR/pr.diff") -le "$max_diff_bytes" ]] || exit 1
   (cd "$REVIEW_DIR" && shasum -a 256 pr.diff > pr.diff.sha256)
   [[ -z "${GITHUB_OUTPUT:-}" ]] || printf 'eligible=true\n' >> "$GITHUB_OUTPUT"
   state=prepared
-}
-
-validate_agent_output() {
-  jq -Rse 'split("\n") | map(fromjson?) |
-    any(.[]; .type == "text" and (.part.text | type == "string" and test("\\S"))) and
-    any(.[]; .type == "step_finish" and .part.reason == "stop") and
-    all(.[]; .type != "error" and
-      (.type != "tool_use" or
-        (.part.state.status == "completed" and
-          ((.part.state.metadata.exit // -1) == 0 or
-            ((.part.state.metadata.exit // -1) == 1 and
-              ((.part.state.output // .part.state.error // "") | test("422|unprocessable entity|comment.*(position|line)"; "i")))))) and
-      (.type != "step_finish" or .part.reason == "stop" or .part.reason == "tool-calls"))
-  ' "$REVIEW_DIR/agent.ndjson" >/dev/null
 }
 
 run_review() {
@@ -137,14 +124,14 @@ run_review() {
 
   (
     ulimit -f 2048 # Bound raw diagnostic output as well as runtime.
-    exec timeout -s TERM -k 35s 8m ./harness apply -f examples/github-pr-reviewer/opencode-harness.yaml \
+    exec timeout -s TERM -k 35s 8m ./harness workflow apply examples/github-pr-reviewer/opencode-harness.yaml \
       --gateway "$gateway" --workspace "$workspace" --result-file "$REVIEW_DIR/execution.json"
   ) > "$REVIEW_DIR/agent.ndjson" 2> "$REVIEW_DIR/agent.stderr" &
   apply_pid=$!
   wait "$apply_pid"
   apply_pid=""
 
-  validate_agent_output
+  scripts/review/validate-agent-output.sh "$REVIEW_DIR"
   ensure_current
   jq -Rr 'fromjson? | select(.type == "text") | .part.text' \
     "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"

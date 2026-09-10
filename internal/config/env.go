@@ -94,83 +94,51 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	}
 
 	s := &resolved.Spec
-	s.Target.Gateway = exp("spec.target.gateway", h.Spec.Target.Gateway)
-	s.Target.Workspace = exp("spec.target.workspace", h.Spec.Target.Workspace)
+	s.Target.Gateway = exp("target.gateway", h.Spec.Target.Gateway)
+	s.Target.Workspace = exp("target.workspace", h.Spec.Target.Workspace)
 
 	if r := h.Spec.Target.Registration; r != nil {
 		reg := *r
-		reg.Endpoint = exp("spec.target.registration.endpoint", r.Endpoint)
+		reg.Endpoint = exp("target.registration.endpoint", r.Endpoint)
 		if r.OIDC != nil {
 			o := *r.OIDC
-			o.Issuer = exp("spec.target.registration.oidc.issuer", r.OIDC.Issuer)
-			o.ClientID = exp("spec.target.registration.oidc.clientId", r.OIDC.ClientID)
-			o.Audience = exp("spec.target.registration.oidc.audience", r.OIDC.Audience)
+			o.Issuer = exp("target.registration.oidc.issuer", r.OIDC.Issuer)
+			o.ClientID = exp("target.registration.oidc.clientId", r.OIDC.ClientID)
+			o.Audience = exp("target.registration.oidc.audience", r.OIDC.Audience)
 			reg.OIDC = &o
 		}
 		s.Target.Registration = &reg
 		if reg.Endpoint == "" {
-			errs = append(errs, "spec.target.registration.endpoint: required")
+			errs = append(errs, "target.registration.endpoint: required")
 		}
 		if reg.OIDC == nil {
-			errs = append(errs, "spec.target.registration.oidc: required")
+			errs = append(errs, "target.registration.oidc: required")
 		} else {
 			if reg.OIDC.Issuer == "" {
-				errs = append(errs, "spec.target.registration.oidc.issuer: required")
+				errs = append(errs, "target.registration.oidc.issuer: required")
 			}
 			if reg.OIDC.ClientID == "" {
-				errs = append(errs, "spec.target.registration.oidc.clientId: required")
+				errs = append(errs, "target.registration.oidc.clientId: required")
 			}
 			if reg.OIDC.Audience == "" {
-				errs = append(errs, "spec.target.registration.oidc.audience: required")
+				errs = append(errs, "target.registration.oidc.audience: required")
 			}
 		}
 	}
 
-	if len(h.Spec.Providers) > 0 {
-		s.Providers = make([]Provider, len(h.Spec.Providers))
-		providerNames := make(map[string]struct{}, len(h.Spec.Providers))
-		for i, p := range h.Spec.Providers {
-			np := p
-			base := fmt.Sprintf("spec.providers[%d]", i)
-			np.Name = exp(base+".name", p.Name)
-			if np.Name == "" {
-				errs = append(errs, base+".name: required")
-			} else if _, exists := providerNames[np.Name]; exists {
-				errs = append(errs, fmt.Sprintf("%s.name: duplicate provider %q", base, np.Name))
-			} else {
-				providerNames[np.Name] = struct{}{}
-			}
-			np.Type = exp(base+".type", p.Type)
-			np.Management = exp(base+".management", p.Management)
-			// Empty management defaults to referenced (the safe default: never
-			// auto-creates, never overwrites). Reject only non-empty invalid values.
-			switch np.Management {
-			case "":
-				np.Management = "referenced"
-			case "referenced":
-				// valid
-			case "managed":
-				errs = append(errs, fmt.Sprintf("%s.management: managed providers are no longer supported; create/bootstrap the provider in OpenShell and use management: referenced", base))
-			default:
-				errs = append(errs, fmt.Sprintf("%s.management: %q is invalid (want \"referenced\")", base, np.Management))
-			}
-			s.Providers[i] = np
-		}
-	}
-
-	s.Inference.Route = exp("spec.inference.route", h.Spec.Inference.Route)
+	s.Inference.Route = exp("inference.route", h.Spec.Inference.Route)
 	// Format-only check: reject a malformed route name at load time; the gateway
 	// remains the authority on which names actually exist (no allowlist here).
 	if s.Inference.Route != "" && !routeNamePattern.MatchString(s.Inference.Route) {
-		errs = append(errs, fmt.Sprintf("spec.inference.route: %q is malformed (want a DNS-label-like name such as \"inference.local\")", s.Inference.Route))
+		errs = append(errs, fmt.Sprintf("inference.route: %q is malformed (want a DNS-label-like name such as \"inference.local\")", s.Inference.Route))
 	}
-	s.Inference.Provider = exp("spec.inference.provider", h.Spec.Inference.Provider)
-	s.Inference.Model = exp("spec.inference.model", h.Spec.Inference.Model)
-	s.Inference.Timeout = exp("spec.inference.timeout", h.Spec.Inference.Timeout)
+	s.Inference.Provider = exp("inference.provider", h.Spec.Inference.Provider)
+	s.Inference.Model = exp("inference.model", h.Spec.Inference.Model)
+	s.Inference.Timeout = exp("inference.timeout", h.Spec.Inference.Timeout)
 	// Validate the (now expanded) timeout once, here at resolve time, so the plan
 	// diff and reconcile write can parse it without handling an error.
 	if _, err := s.Inference.TimeoutSecs(); err != nil {
-		errs = append(errs, fmt.Sprintf("spec.inference.timeout: %v", err))
+		errs = append(errs, fmt.Sprintf("inference.timeout: %v", err))
 	}
 	// A configured inference block must name both a provider and a model: the
 	// gateway rejects a route write that lacks either, and reconcile has nothing
@@ -180,10 +148,10 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	// plan.isInferenceConfigured.
 	if s.Inference.Route != "" || s.Inference.Provider != "" || s.Inference.Model != "" || s.Inference.Timeout != "" {
 		if s.Inference.Provider == "" {
-			errs = append(errs, "spec.inference.provider: required when inference is configured")
+			errs = append(errs, "inference.provider: required when inference is configured")
 		}
 		if s.Inference.Model == "" {
-			errs = append(errs, "spec.inference.model: required when inference is configured")
+			errs = append(errs, "inference.model: required when inference is configured")
 		}
 	}
 	if v := h.Spec.Inference.Verify; v != nil {
@@ -191,16 +159,16 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 		s.Inference.Verify = &b
 	}
 
-	s.Sandbox.Image = exp("spec.sandbox.image", h.Spec.Sandbox.Image)
+	s.Sandbox.Image = exp("sandbox.image", h.Spec.Sandbox.Image)
 	if p := h.Spec.Sandbox.Policy; p != nil {
 		np := *p // copy so the resolved struct never aliases the input's PolicyRef
-		np.File = exp("spec.sandbox.policy.file", p.File)
+		np.File = exp("sandbox.policy.file", p.File)
 		s.Sandbox.Policy = &np
 	}
 	if len(h.Spec.Sandbox.Providers) > 0 {
 		s.Sandbox.Providers = make([]string, len(h.Spec.Sandbox.Providers))
 		for i, p := range h.Spec.Sandbox.Providers {
-			path := fmt.Sprintf("spec.sandbox.providers[%d]", i)
+			path := fmt.Sprintf("sandbox.providers[%d]", i)
 			name := exp(path, p)
 			s.Sandbox.Providers[i] = name
 			if name == "" {
@@ -211,30 +179,30 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 	if len(h.Spec.Sandbox.Env) > 0 {
 		s.Sandbox.Env = make(map[string]string, len(h.Spec.Sandbox.Env))
 		for k, v := range h.Spec.Sandbox.Env {
-			s.Sandbox.Env[k] = exp("spec.sandbox.env."+k, v)
+			s.Sandbox.Env[k] = exp("sandbox.env."+k, v)
 		}
 	}
 
-	s.Agent.Type = exp("spec.agent.type", h.Spec.Agent.Type)
+	s.Agent.Type = exp("agent.type", h.Spec.Agent.Type)
 	if len(h.Spec.Agent.Args) > 0 {
 		s.Agent.Args = make([]string, len(h.Spec.Agent.Args))
 		for i, a := range h.Spec.Agent.Args {
-			s.Agent.Args[i] = exp(fmt.Sprintf("spec.agent.args[%d]", i), a)
+			s.Agent.Args[i] = exp(fmt.Sprintf("agent.args[%d]", i), a)
 		}
 	}
 
-	s.Source.Repo = exp("spec.source.repo", h.Spec.Source.Repo)
-	s.Source.Ref = exp("spec.source.ref", h.Spec.Source.Ref)
-	s.Source.Destination = exp("spec.source.destination", h.Spec.Source.Destination)
+	s.Source.Repo = exp("source.repo", h.Spec.Source.Repo)
+	s.Source.Ref = exp("source.ref", h.Spec.Source.Ref)
+	s.Source.Destination = exp("source.destination", h.Spec.Source.Destination)
 	if destinationHasTraversal(s.Source.Destination) {
-		errs = append(errs, `spec.source.destination: must not contain a ".." path segment`)
+		errs = append(errs, `source.destination: must not contain a ".." path segment`)
 	}
-	s.Source.Submodules = exp("spec.source.submodules", h.Spec.Source.Submodules)
+	s.Source.Submodules = exp("source.submodules", h.Spec.Source.Submodules)
 
 	if len(h.Spec.Payloads) > 0 {
 		s.Payloads = make([]Payload, len(h.Spec.Payloads))
 		for i, p := range h.Spec.Payloads {
-			base := fmt.Sprintf("spec.payloads[%d]", i)
+			base := fmt.Sprintf("payloads[%d]", i)
 			dest := exp(base+".destination", p.Destination)
 			if destinationHasTraversal(dest) {
 				errs = append(errs, base+`.destination: must not contain a ".." path segment`)

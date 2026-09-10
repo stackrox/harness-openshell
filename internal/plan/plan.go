@@ -42,7 +42,7 @@ const (
 type Resource struct {
 	Name   string `json:"name" yaml:"name"`
 	Action Action `json:"action" yaml:"action"`
-	Detail string `json:"detail,omitempty" yaml:"detail,omitempty"` // redaction-safe
+	Detail string `json:"detail,omitempty" yaml:"detail,omitempty"` // redacted by cmd before serialization
 }
 
 // Group clusters resources by section.
@@ -70,8 +70,8 @@ func Build(desired *config.Harness, current CurrentState) *Plan {
 	// TARGET group: always emitted, one resource.
 	p.Groups = append(p.Groups, buildTargetGroup(desired, current))
 
-	// PROVIDERS group: emitted only if desired has providers.
-	if len(desired.Spec.Providers) > 0 {
+	// PROVIDERS group: emitted for inference and sandbox provider references.
+	if len(desired.Spec.ProviderReferences()) > 0 {
 		p.Groups = append(p.Groups, buildProvidersGroup(desired, current))
 	}
 
@@ -119,8 +119,8 @@ func buildTargetGroup(desired *config.Harness, current CurrentState) Group {
 	}
 }
 
-// buildProvidersGroup returns the PROVIDERS group. It matches desired providers
-// by name against current.Providers without proposing provider writes.
+// buildProvidersGroup returns the PROVIDERS group. It matches referenced
+// providers by name against current.Providers without proposing provider writes.
 func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 	group := Group{Section: SectionProviders}
 
@@ -130,36 +130,28 @@ func buildProvidersGroup(desired *config.Harness, current CurrentState) Group {
 		currentByName[p.Name] = p
 	}
 
-	for i := range desired.Spec.Providers {
-		desiredProv := desired.Spec.Providers[i]
-
+	for _, name := range desired.Spec.ProviderReferences() {
 		action := ActionMissing
-		if _, exists := currentByName[desiredProv.Name]; exists {
+		detail := "(referenced)"
+		if provider, exists := currentByName[name]; exists {
 			action = ActionNoop
+			if provider.Type != "" {
+				detail = provider.Type
+			}
 		}
 
 		group.Resources = append(group.Resources, Resource{
-			Name:   desiredProv.Name,
+			Name:   name,
 			Action: action,
-			Detail: buildProviderDetail(&desiredProv),
+			Detail: detail,
 		})
 	}
 
 	return group
 }
 
-// buildProviderDetail constructs a redaction-safe detail string for a provider.
-func buildProviderDetail(prov *config.Provider) string {
-	detail := prov.Type
-	if detail == "" {
-		detail = "(type unspecified)"
-	}
-
-	return detail
-}
-
 // InferenceAction is the single owner of the inference create/update/noop rule.
-// Both buildInferenceGroup (harness plan) and internal/reconcile call it, so the
+// Both buildInferenceGroup (harness workflow plan) and internal/reconcile call it, so the
 // plan and the reconcile write can never disagree on what a change is.
 //
 // A gateway that does not serve inference state (cur.Capable false) yields

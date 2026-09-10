@@ -65,18 +65,21 @@ active_gateway() {
 
 cleanup_gateway() {
   local gateway="$1"
-  harness delete --gateway "$gateway" --sandboxes >/dev/null 2>&1 || true
+  local stale_sandbox
+  for stale_sandbox in test-local-sdk test-local-sdk-auto; do
+    "$CLI" sandbox delete --gateway "$gateway" "$stale_sandbox" >/dev/null 2>&1 || true
+  done
 }
 
 wait_for_sandbox_absent() {
   local gateway="$1" sandbox="$2" output
   local i
   for i in $(seq 1 30); do
-    if output="$(harness describe --gateway "$gateway" "$sandbox" 2>&1)"; then
+    if output="$("$CLI" sandbox get --gateway "$gateway" "$sandbox" 2>&1)"; then
       sleep 1
       continue
     fi
-    if [[ "$output" == *"sandbox \"$sandbox\" not found"* ]]; then
+    if [[ "$output" == *"sandbox not found"* ]]; then
       return 0
     fi
     printf '%s\n' "$output" >&2
@@ -102,15 +105,14 @@ exercise_provider() {
   sandbox="test-${provider//[^a-zA-Z0-9]/-}"
   image="${HARNESS_OS_IMAGE:-ghcr.io/nvidia/openshell-community/sandboxes/base:latest}"
   printf '%s\n' \
-    'apiVersion: harness.openshell.dev/v1alpha1' \
-    'kind: Harness' \
-    'metadata:' "  name: $sandbox" \
-    'spec:' '  sandbox:' "    image: $image" '    keep: true' \
-    '    providers:' "      - $provider" \
-    '  agent:' '    type: sh' '    args: [-c, "true"]' >"$workflow"
-  step "provider: $provider attach" harness apply -f "$workflow" --gateway "$gateway"
+    'version: 1' \
+    "name: $sandbox" \
+    'sandbox:' "  image: $image" '  keep: true' \
+    '  providers:' "    - $provider" \
+    'agent:' '  type: sh' '  args: [-c, "true"]' >"$workflow"
+  step "provider: $provider attach" harness workflow apply "$workflow" --gateway "$gateway"
   step "provider: $provider capability" "$CLI" sandbox exec --name "$sandbox" -- bash -c "$check"
-  harness delete --gateway "$gateway" "$sandbox" >/dev/null 2>&1 || true
+  "$CLI" sandbox delete --gateway "$gateway" "$sandbox" >/dev/null 2>&1 || true
   rm -f "$workflow"
 }
 
@@ -129,20 +131,20 @@ exercise_providers() {
 exercise_lifecycle() {
   local gateway="$1" sandbox="$2"
   cleanup_gateway "$gateway"
-  step "canonical apply" harness apply -f "$WORKFLOW" --gateway "$gateway" --name "$sandbox"
-  step "sandbox describe" harness describe --gateway "$gateway" "$sandbox"
-  step "sandbox listed" bash -c '"$1" get agents --gateway "$2" | grep -q "$3"' _ "$HARNESS" "$gateway" "$sandbox"
+  step "canonical apply" harness workflow apply "$WORKFLOW" --gateway "$gateway" --name "$sandbox"
+  step "sandbox describe" "$CLI" sandbox get --gateway "$gateway" "$sandbox"
+  step "sandbox listed" bash -c '"$1" sandbox list --gateway "$2" | grep -q "$3"' _ "$CLI" "$gateway" "$sandbox"
   step "sandbox exec" "$CLI" sandbox exec --name "$sandbox" -- bash -c 'test "$STATIC_VAR" = hello-world'
-  step "sandbox delete" harness delete --gateway "$gateway" "$sandbox"
+  step "sandbox delete" "$CLI" sandbox delete --gateway "$gateway" "$sandbox"
   local auto_sandbox="${sandbox}-auto"
-  step "automatic cleanup apply" harness apply -f "$AUTO_WORKFLOW" --gateway "$gateway" --name "$auto_sandbox"
+  step "automatic cleanup apply" harness workflow apply "$AUTO_WORKFLOW" --gateway "$gateway" --name "$auto_sandbox"
   step "automatic cleanup verified" wait_for_sandbox_absent "$gateway" "$auto_sandbox"
 }
 
 test_errors() {
   echo "=== canonical errors ==="
-  step_fail "missing workflow" harness apply
-  step_fail "unversioned workflow" bash -c 'f=$(mktemp); printf "name: old\n" >"$f"; "$1" apply -f "$f"; rc=$?; rm -f "$f"; exit $rc' _ "$HARNESS"
+  step_fail "missing workflow" harness workflow apply
+  step_fail "unversioned workflow" bash -c 'f=$(mktemp); printf "name: old\n" >"$f"; "$1" workflow apply "$f"; rc=$?; rm -f "$f"; exit $rc' _ "$HARNESS"
   echo
 }
 

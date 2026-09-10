@@ -17,7 +17,7 @@ func TestPRReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "cancel", "truncated", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit"} {
+	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "unrelated-422", "comment-position"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			stepSummary := filepath.Join(root, "step-summary")
@@ -30,8 +30,27 @@ func TestPRReview(t *testing.T) {
 			if err := os.Mkdir(filepath.Join(root, "scripts"), 0o700); err != nil {
 				t.Fatal(err)
 			}
-			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
-				if err := os.WriteFile(filepath.Join(root, name), data, 0o700); err != nil {
+			if err := os.Mkdir(filepath.Join(root, "scripts", "review"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			validator, err := os.ReadFile("../scripts/review/validate-agent-output.sh")
+			if err != nil {
+				t.Fatal(err)
+			}
+			validatorInfo, err := os.Stat("../scripts/review/validate-agent-output.sh")
+			if err != nil {
+				t.Fatal(err)
+			}
+			validatorMode := validatorInfo.Mode().Perm()
+			if validatorMode&0o111 == 0 {
+				t.Fatalf("validator must be executable: mode %o", validatorMode)
+			}
+			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/review/validate-agent-output.sh": validator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
+				mode := os.FileMode(0o700)
+				if name == "scripts/review/validate-agent-output.sh" {
+					mode = validatorMode
+				}
+				if err := os.WriteFile(filepath.Join(root, name), data, mode); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -87,7 +106,7 @@ func TestPRReview(t *testing.T) {
 				}
 			}
 			err = cmd.Wait()
-			if (err == nil) != (scenario == "success" || scenario == "stale") {
+			if (err == nil) != (scenario == "success" || scenario == "stale" || scenario == "comment-position") {
 				t.Fatalf("unexpected result: %v\n%s", err, logs.String())
 			}
 			trace, _ := os.ReadFile(filepath.Join(root, "trace"))
@@ -97,7 +116,7 @@ func TestPRReview(t *testing.T) {
 				}
 				return
 			}
-			for _, action := range []string{"--sandboxes", "workspace delete"} {
+			for _, action := range []string{"sandbox delete", "workspace delete"} {
 				if !strings.Contains(string(trace), action) {
 					t.Fatalf("missing cleanup: %s", trace)
 				}
@@ -106,7 +125,7 @@ func TestPRReview(t *testing.T) {
 				t.Fatal("provider cleanup must follow creation")
 			}
 			summary, _ := os.ReadFile(filepath.Join(root, "review/summary.md"))
-			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success") || strings.Contains(string(summary), "MODEL_OUTPUT") {
+			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success" || scenario == "comment-position") || strings.Contains(string(summary), "MODEL_OUTPUT") {
 				t.Fatalf("incorrect or model-controlled summary: %s", summary)
 			}
 		})
@@ -118,7 +137,7 @@ set -eu
 printf '%s\n' "$*" >> "$TRACE"
 if [[ "${0##*/}" == gh ]]; then
   if [[ "$2" == */compare/* ]]; then
-    if [[ "$FAKE_SCENARIO" == oversized ]]; then head -c 204801 /dev/zero; else printf 'diff data\n'; fi
+    if [[ "$FAKE_SCENARIO" == oversized ]]; then head -c 262145 /dev/zero; else printf 'diff data\n'; fi
   else
     labels='[{"name":"ai-review"}]'
     [[ "$FAKE_SCENARIO" != unlabeled ]] || labels='[]'
@@ -130,7 +149,7 @@ fi
 case "$1 ${2:-}" in
   'provider create') [[ "$FAKE_SCENARIO" != provider-failure ]] ;;
   'workspace delete') [[ "$FAKE_SCENARIO" != cleanup-failure ]] ;;
-  'apply '*)
+  'workflow apply')
     touch "$READY"
     printf 'diagnostic without trailing newline' >&2
     case "$FAKE_SCENARIO" in
@@ -146,9 +165,12 @@ case "$1 ${2:-}" in
     case "$FAKE_SCENARIO" in
       incomplete) exit 0 ;;
       truncated) printf '%s\n' '{"type":"step_finish","part":{"reason":"length"}}' ;;
+      malformed-trailing) printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}'; printf '%s\n' '{"type":"error",';;
       error|tool_use) printf '{"type":"%s"}\n' "$FAKE_SCENARIO" ;;
       tool_exit) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":7},"output":"ordinary command failed"}}}' ;;
       tool_missing_exit) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{},"output":"missing exit"}}}' ;;
+      unrelated-422) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"unrelated build failed at record 422"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
+      comment-position) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"comment position is invalid"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
       *) printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
     esac ;;
 esac

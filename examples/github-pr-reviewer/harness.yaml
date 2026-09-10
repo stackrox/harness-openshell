@@ -1,25 +1,18 @@
-apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
-metadata:
-  name: github-pr-review
-spec:
-  providers:
-    - name: vertex-claude-haiku
-      management: referenced
-  inference:
-    route: inference.local
-    provider: vertex-claude-haiku
-    model: claude-haiku-4-5@20251001
-  sandbox:
-    image: ghcr.io/nvidia/openshell-community/sandboxes/base:21aa171
-    keep: false
-  payloads:
-    - source: REVIEW.md
-      destination: /sandbox/REVIEW.md
-    - source: fixtures/pr.diff
-      destination: /sandbox/pr.diff
-  agent:
-    type: claude
-    args:
-      - --print
-      - Read /sandbox/REVIEW.md and /sandbox/pr.diff. Follow the output contract exactly.
+version: 1
+name: github-pr-review
+inference:
+  route: inference.local
+  provider: vertex-claude-haiku
+  model: claude-haiku-4-5@20251001
+sandbox:
+  image: ghcr.io/nvidia/openshell-community/sandboxes/base:21aa171
+payloads:
+  - source: REVIEW.md
+    destination: /sandbox/REVIEW.md
+  - source: fixtures/pr.diff
+    destination: /sandbox/pr.diff
+agent:
+  type: claude
+  args:
+    - --print
+    - Read /sandbox/REVIEW.md and /sandbox/pr.diff. Follow the output contract exactly.

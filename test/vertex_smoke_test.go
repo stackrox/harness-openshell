@@ -73,7 +73,7 @@ func TestVertexSmoke(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(calls), "workspace delete") || !strings.Contains(string(calls), "--sandboxes") {
+			if !strings.Contains(string(calls), "workspace delete") || !strings.Contains(string(calls), "sandbox delete") {
 				t.Fatalf("cleanup missing: %s", calls)
 			}
 			if strings.Contains(string(calls), "provider delete") == (scenario == "provider-failure") {
@@ -89,7 +89,7 @@ printf '%s\n' "$*" >> "$TRACE"
 case "$1 ${2:-}" in
   'provider create') [[ "$SCENARIO" != provider-failure ]] ;;
   'workspace delete') [[ "$SCENARIO" != cleanup-failure ]] ;;
-  'apply '*)
+  'workflow apply')
     case "$SCENARIO" in
       cancel) touch "$READY"; trap 'exit 143' TERM; while :; do sleep 0.1; done ;;
       agent-failure) exit 42 ;;

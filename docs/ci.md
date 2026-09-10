@@ -72,8 +72,8 @@ after the CI service account can invoke that model.
 Only trusted default-branch code runs on the host. The pinned sandbox receives
 the PR diff and a PR-scoped GitHub token; OpenShell permits only inline comment
 POSTs to that exact PR. Label/head/base are rechecked before execution and
-publication. Diffs
-over 200 KiB are rejected; execution and diagnostic output are bounded. The
+publication. Diffs over 256 KiB are rejected; execution and diagnostic output
+are bounded. The
 completion check rejects errors, tool calls, empty or truncated responses—not
 incorrect findings. Artifacts remain unvalidated model output. Cleanup covers
 success, failure, and normal cancellation, but cannot guarantee runner-loss cleanup.
@@ -136,6 +136,10 @@ Do not use `--no-verify`: a successful inference write is the base-layer proof
 that the ADC principal has `aiplatform.endpoints.predict`. After bootstrap,
 ordinary applies only read the matching provider and route; they neither need
 workspace-admin permission nor receive the Vertex credential in the sandbox.
+If a workflow selects a different provider, model, or route, the compatibility
+reconciliation performs an admin-only upsert in that workspace. Treat that as
+isolated-workspace setup, not a shared-workspace runtime operation; Harness does
+not restore the previous route after the run.
 
 Validate from the VPN with:
 
@@ -165,7 +169,6 @@ workflow on a small documentation-only change.
 
 ## Workflow contract
 
-The reusable portion is the target block in `test/hypershell-workflow.yaml`.
-Its `registration` field supplies non-secret, in-memory connection metadata;
-despite the v1alpha1 field name, it does not create persistent CLI state. An
-omitted `workspace` selects `default`.
+The reusable portion is the `target` block in `test/hypershell-workflow.yaml`.
+Its `registration` field supplies non-secret, in-memory connection metadata and
+does not create persistent CLI state. An omitted `workspace` selects `default`.

@@ -1,12 +1,11 @@
 # Configuration Test Suite
 
-The suite drives the public CLI with canonical
-`harness.openshell.dev/v1alpha1` workflows. Offline checks cover strict parsing,
+The suite drives the public CLI with canonical version 1 workflows. Offline checks cover strict parsing,
 resolved YAML/JSON, overrides, plan output, removed compatibility flags, and
-the `init`/`doctor` surfaces. Live mode adds SDK upload, policy enforcement,
-create, describe, exec, list, and delete against the selected gateway. Automatic
-cleanup is exercised by `test/test-flow.sh`; interactive TTY remains a manual
-controlling-terminal check documented in the repository README.
+the workflow-only command surface. Live mode adds SDK upload, policy
+enforcement, create, inspect, exec, list, and delete against the selected
+gateway. Automatic cleanup is exercised by `test/test-flow.sh`; interactive TTY
+remains a manual controlling-terminal check documented in the repository README.
 
 ```bash
 make test-suite

@@ -8,7 +8,7 @@ import (
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
 
-// NewPlanCmd constructs the "harness plan" command.
+// NewPlanCmd constructs the "harness workflow plan" command.
 // It reads a config file, resolves environment variables, connects to the gateway
 // (if specified), reads the current state, builds a reconciliation plan, and renders it.
 func NewPlanCmd(newClient openshell.Factory) *cobra.Command {
@@ -20,13 +20,20 @@ func NewPlanCmd(newClient openshell.Factory) *cobra.Command {
 	var gatewayName, workspace *string
 
 	cmd := &cobra.Command{
-		Use:   "plan",
+		Use:   "plan [FILE] [flags]",
 		Short: "Read-only reconciliation plan",
 		Long: `Generate a reconciliation plan showing the actions harness would take.
 
-This is a read-only plan and mutates nothing. For a v1alpha1 workflow, apply
+This is a read-only plan and mutates nothing. Apply
 uses this same resolved desired object and action-decision engine.`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				if file != "" {
+					return fmt.Errorf("workflow file specified both as an argument and with --file")
+				}
+				file = args[0]
+			}
 			format, err := parseOutputFormat(output)
 			if err != nil {
 				return err
@@ -63,6 +70,7 @@ uses this same resolved desired object and action-decision engine.`,
 			if err != nil {
 				return err
 			}
+			p = redactedPlan(p, workflow.Desired, workflow.Input)
 
 			if format != formatTable {
 				return printStructured(format, p)
@@ -75,7 +83,7 @@ uses this same resolved desired object and action-decision engine.`,
 		},
 	}
 
-	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to harness YAML (required)")
+	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to harness YAML (or pass it as the first argument)")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format (table, json, yaml)")
 	gatewayName, workspace = registerTargetFlags(cmd)
 

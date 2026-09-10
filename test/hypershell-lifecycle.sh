@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Canonical remote lifecycle against a managed HyperShell gateway, run LOCALLY.
 #
-# Drives the same path CI would: build the CLI, `harness apply` a throwaway
+# Drives the same path CI would: build the CLI, `harness workflow apply` a throwaway
 # sandbox via the OIDC service account, exec the agent, and assert the marker
 # `canonical-sdk-ok`. The sandbox is keep:false, so the gateway deletes it when
 # the run ends (create -> exec -> auto-delete).
@@ -92,11 +92,11 @@ name="hsl-$(date +%s)-$(printf '%03x' $((RANDOM % 4096)))"
 # but a Ctrl-C (SIGINT/SIGTERM) kills harness before its deferred delete runs
 # and would leak the sandbox. Trap those signals and delete it ourselves.
 # shellcheck disable=SC2329  # invoked indirectly via the trap below
-cleanup() { echo "interrupted; deleting $name ..." >&2; "$HARNESS_BIN" delete "$name" >/dev/null 2>&1 || true; exit 130; }
+cleanup() { echo "interrupted; deleting $name ..." >&2; openshell sandbox delete --gateway "$HYPERSHELL_GATEWAY" --workspace default "$name" >/dev/null 2>&1 || true; exit 130; }
 trap cleanup INT TERM
 
 echo "=== apply $name ==="
-out="$("$HARNESS_BIN" apply "$name" --file "$WORKFLOW_FILE" 2>&1)"; rc=$?
+out="$("$HARNESS_BIN" workflow apply "$WORKFLOW_FILE" --name "$name" 2>&1)"; rc=$?
 echo "$out"
 # Apply writes reconciliation status before handing stdout to the sandbox
 # command. Drop only that leading status prefix, then require the complete agent

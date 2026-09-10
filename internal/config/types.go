@@ -1,4 +1,4 @@
-// Package config defines the canonical harness.openshell.dev/v1alpha1 configuration schema.
+// Package config defines the canonical version 1 workflow configuration schema.
 //
 // This package is SDK-free and cobra-free, defining only the desired-resource model
 // and strict parsing. Secret values are never materialized.
@@ -9,39 +9,56 @@ import (
 	"time"
 )
 
-// Harness is the root v1alpha1 configuration document.
+// Harness is the root workflow configuration document.
 type Harness struct {
-	APIVersion string   `yaml:"apiVersion"` // must equal "harness.openshell.dev/v1alpha1"
-	Kind       string   `yaml:"kind"`       // must equal "Harness"
-	Metadata   Metadata `yaml:"metadata"`
-	Spec       Spec     `yaml:"spec"`
+	Version int    `yaml:"version"` // must equal 1
+	Name    string `yaml:"name"`    // required
+	Spec    Spec   `yaml:",inline"`
 }
 
-// Metadata holds document identity.
-type Metadata struct {
-	Name string `yaml:"name"` // required
-}
-
-// Spec is the desired state.
+// Spec contains the workflow fields. It is an internal Go grouping; the inline
+// YAML tag keeps these fields at the workflow document root.
 type Spec struct {
-	Target    Target     `yaml:"target"`
-	Providers []Provider `yaml:"providers,omitempty"` // desired RESOURCES
-	Inference Inference  `yaml:"inference,omitempty"`
-	Sandbox   Sandbox    `yaml:"sandbox,omitempty"`
-	Agent     Agent      `yaml:"agent,omitempty"`
-	Source    Source     `yaml:"source,omitempty"`
-	Payloads  []Payload  `yaml:"payloads,omitempty"`
+	Target    Target    `yaml:"target"`
+	Inference Inference `yaml:"inference,omitempty"`
+	Sandbox   Sandbox   `yaml:"sandbox,omitempty"`
+	Agent     Agent     `yaml:"agent,omitempty"`
+	Source    Source    `yaml:"source,omitempty"`
+	Payloads  []Payload `yaml:"payloads,omitempty"`
 }
 
-// Target specifies the openshell gateway and workspace.
+// ProviderReferences returns the unique providers required by inference or the
+// sandbox, preserving inference-first order for stable plans and output.
+func (s Spec) ProviderReferences() []string {
+	seen := make(map[string]struct{}, 1+len(s.Sandbox.Providers))
+	refs := make([]string, 0, 1+len(s.Sandbox.Providers))
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		refs = append(refs, name)
+	}
+	add(s.Inference.Provider)
+	for _, name := range s.Sandbox.Providers {
+		add(name)
+	}
+	return refs
+}
+
+// Target specifies the OpenShell gateway and workspace.
 type Target struct {
 	Gateway      string        `yaml:"gateway,omitempty"`   // logical name; CLI registration name when Registration is omitted
 	Workspace    string        `yaml:"workspace,omitempty"` // "" → default (owned by sdkclient)
 	Registration *Registration `yaml:"registration,omitempty"`
 }
 
-// Registration describes a direct, in-memory gateway connection. Despite the
-// v1alpha1 field name, apply does not persist a CLI gateway registration.
+// Registration describes a direct, in-memory gateway connection. Despite being
+// part of the workflow document, apply does not persist a CLI gateway
+// registration.
 type Registration struct {
 	Endpoint string `yaml:"endpoint,omitempty"`
 	OIDC     *OIDC  `yaml:"oidc,omitempty"`
@@ -54,15 +71,6 @@ type OIDC struct {
 	Issuer   string `yaml:"issuer,omitempty"`
 	ClientID string `yaml:"clientId,omitempty"`
 	Audience string `yaml:"audience,omitempty"`
-}
-
-// Provider references a provider configured through OpenShell/bootstrap.
-type Provider struct {
-	Name string `yaml:"name"`
-	Type string `yaml:"type,omitempty"`
-	// Management is retained for manifest compatibility. Only referenced
-	// providers are supported; bootstrap owns provider credentials.
-	Management string `yaml:"management"`
 }
 
 // Inference specifies the LLM inference route configuration.
@@ -109,7 +117,7 @@ func (inf Inference) TimeoutSecs() (uint64, error) {
 // Sandbox describes the execution sandbox for this run.
 type Sandbox struct {
 	Image     string            `yaml:"image,omitempty"`
-	Providers []string          `yaml:"providers,omitempty"` // run CAPABILITIES (distinct from Spec.Providers)
+	Providers []string          `yaml:"providers,omitempty"` // provider proxies attached to the sandbox
 	Policy    *PolicyRef        `yaml:"policy,omitempty"`
 	Env       map[string]string `yaml:"env,omitempty"`
 	Keep      bool              `yaml:"keep,omitempty"`

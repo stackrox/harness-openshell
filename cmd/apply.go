@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
@@ -11,17 +13,20 @@ func NewApplyCmd(newClient openshell.Factory) *cobra.Command {
 	var gatewayName, workspace *string
 
 	cmd := &cobra.Command{
-		Use:   "apply [name] [flags]",
+		Use:   "apply [FILE] [flags]",
 		Short: "Apply a harness configuration",
-		Long: `Resolve a harness.openshell.dev/v1alpha1 workflow and execute its
+		Long: `Resolve a version 1 workflow and execute its
 planned reconciliation and sandbox run. Provision the gateway and referenced
 providers with OpenShell first. Use --dry-run to render the action plan without
 mutating anything, or -o yaml to output the resolved configuration with
 host-interpolated and credential-bearing map values redacted.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 && sandboxName == "" {
-				sandboxName = args[0]
+			if len(args) == 1 {
+				if file != "" {
+					return fmt.Errorf("workflow file specified both as an argument and with --file")
+				}
+				file = args[0]
 			}
 			return runApply(cmd.Context(), newClient, applyRequest{
 				File:       file,
@@ -38,7 +43,7 @@ host-interpolated and credential-bearing map values redacted.`,
 		},
 	}
 
-	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to harness YAML file")
+	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to harness YAML file (or pass it as the first argument)")
 	cmd.Flags().StringVar(&sandboxName, "name", "", "Override the sandbox name")
 	cmd.Flags().StringVar(&entrypoint, "entrypoint", "", "Override the agent executable")
 	cmd.Flags().BoolVar(&attach, "attach", false, "Attach a TTY for interactive execution")

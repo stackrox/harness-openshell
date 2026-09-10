@@ -100,9 +100,8 @@ func TestExpandMultipleMissing(t *testing.T) {
 func TestResolveEmptyString(t *testing.T) {
 	// Harness with empty field → stays empty
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Target: Target{
 				Gateway:   "",
@@ -125,10 +124,9 @@ func TestResolveEmptyString(t *testing.T) {
 
 func TestResolveInvalidTimeout(t *testing.T) {
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
-		Spec:       Spec{Inference: Inference{Timeout: "60"}}, // bare integer, no unit
+		Version: 1,
+		Name:    "test",
+		Spec:    Spec{Inference: Inference{Timeout: "60"}}, // bare integer, no unit
 	}
 
 	if _, err := Resolve(h, func(string) string { return "" }); err == nil {
@@ -138,9 +136,8 @@ func TestResolveInvalidTimeout(t *testing.T) {
 
 func TestResolveValidTimeout(t *testing.T) {
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		// Provider+model are required whenever the inference block is configured;
 		// this test only exercises timeout expansion, so supply them as fixtures.
 		Spec: Spec{Inference: Inference{Provider: "gcp", Model: "claude-opus-4-8", Timeout: "${INF_TIMEOUT}"}},
@@ -161,49 +158,10 @@ func TestResolveValidTimeout(t *testing.T) {
 	}
 }
 
-func TestResolve_RejectsBadManagement(t *testing.T) {
-	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
-		Spec: Spec{Providers: []Provider{
-			{Name: "gh", Type: "github", Management: "bogus"},
-		}},
-	}
-
-	_, err := Resolve(h, func(string) string { return "" })
-	if err == nil {
-		t.Fatal("expected Resolve to reject an invalid management value")
-	}
-	if !strings.Contains(err.Error(), "management") || !strings.Contains(err.Error(), "bogus") {
-		t.Errorf("error should name the field and bad value: %v", err)
-	}
-}
-
-func TestResolve_DefaultsEmptyManagementToReferenced(t *testing.T) {
-	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
-		Spec: Spec{Providers: []Provider{
-			{Name: "gh", Type: "github"}, // no management
-		}},
-	}
-
-	resolved, err := Resolve(h, func(string) string { return "" })
-	if err != nil {
-		t.Fatalf("Resolve failed: %v", err)
-	}
-	if got := resolved.Spec.Providers[0].Management; got != "referenced" {
-		t.Errorf("empty management should default to referenced, got %q", got)
-	}
-}
-
 func TestResolve_RejectsDestinationTraversal(t *testing.T) {
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Source:   Source{Repo: "https://example.com/x.git", Destination: "../escape"},
 			Payloads: []Payload{{Content: "x", Destination: "/sandbox/../../etc/passwd"}},
@@ -213,7 +171,7 @@ func TestResolve_RejectsDestinationTraversal(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected Resolve to reject destinations containing \"..\"")
 	}
-	if !strings.Contains(err.Error(), "spec.source.destination") || !strings.Contains(err.Error(), "spec.payloads[0].destination") {
+	if !strings.Contains(err.Error(), "source.destination") || !strings.Contains(err.Error(), "payloads[0].destination") {
 		t.Errorf("error should name both offending fields: %v", err)
 	}
 }
@@ -221,9 +179,8 @@ func TestResolve_RejectsDestinationTraversal(t *testing.T) {
 func TestResolve_AllowsAbsoluteDestination(t *testing.T) {
 	// Sandbox destinations are conventionally absolute; only ".." is rejected.
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Source:   Source{Repo: "https://example.com/x.git", Destination: "/sandbox/src"},
 			Payloads: []Payload{{Content: "x", Destination: "/sandbox/review.md"}},
@@ -234,28 +191,10 @@ func TestResolve_AllowsAbsoluteDestination(t *testing.T) {
 	}
 }
 
-func TestResolve_RejectsDuplicateProviderNames(t *testing.T) {
-	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
-		Spec: Spec{Providers: []Provider{
-			{Name: "github", Management: "referenced"},
-			{Name: "github", Management: "referenced"},
-		}},
-	}
-
-	_, err := Resolve(h, func(string) string { return "" })
-	if err == nil || !strings.Contains(err.Error(), "duplicate provider") {
-		t.Fatalf("error = %v, want duplicate provider", err)
-	}
-}
-
 func TestResolve_RejectsMalformedRoute(t *testing.T) {
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		// Provider+model supplied so only the route-format error can fire.
 		Spec: Spec{Inference: Inference{Provider: "gcp", Model: "claude-opus-4-8", Route: "bad route"}},
 	}
@@ -271,10 +210,9 @@ func TestResolve_RejectsMalformedRoute(t *testing.T) {
 
 func TestResolve_AcceptsDottedRoute(t *testing.T) {
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
-		Spec:       Spec{Inference: Inference{Provider: "gcp", Model: "claude-opus-4-8", Route: "inference.local"}},
+		Version: 1,
+		Name:    "test",
+		Spec:    Spec{Inference: Inference{Provider: "gcp", Model: "claude-opus-4-8", Route: "inference.local"}},
 	}
 
 	if _, err := Resolve(h, func(string) string { return "" }); err != nil {
@@ -285,15 +223,12 @@ func TestResolve_AcceptsDottedRoute(t *testing.T) {
 func TestResolveVerifyRoundTrips(t *testing.T) {
 	// verify:false must survive YAML parse + Resolve as an explicit false, not
 	// collapse to the nil→true default, and must not alias the input pointer.
-	src := `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
-metadata:
-  name: test
-spec:
-  inference:
-    provider: gcp
-    model: claude-opus-4-8
-    verify: false
+	src := `version: 1
+name: test
+inference:
+  provider: gcp
+  model: claude-opus-4-8
+  verify: false
 `
 	h, err := Parse([]byte(src))
 	if err != nil {
@@ -314,9 +249,8 @@ spec:
 func TestResolveNonSecretField(t *testing.T) {
 	// Build Harness with ${SECRET_ISH} in non-secret field
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Target: Target{
 				Gateway: "${GATEWAY_VAR}",
@@ -352,9 +286,8 @@ func TestResolveNonSecretField(t *testing.T) {
 func TestResolveMultipleMissingVars(t *testing.T) {
 	// Test that Resolve aggregates all missing vars into one error
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Target: Target{
 				Gateway:   "${MISSING_GATEWAY}",
@@ -382,9 +315,8 @@ func TestResolveMultipleMissingVars(t *testing.T) {
 func TestResolveSandboxEnv(t *testing.T) {
 	// Test resolving sandbox env map
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Sandbox: Sandbox{
 				Env: map[string]string{
@@ -418,9 +350,8 @@ func TestResolveSandboxEnv(t *testing.T) {
 
 func TestResolveSandboxPolicyFile(t *testing.T) {
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Sandbox: Sandbox{
 				Policy: &PolicyRef{File: "${POLICY_DIR}/fact.yaml"},
@@ -454,9 +385,8 @@ func TestResolveSandboxPolicyFile(t *testing.T) {
 func TestResolveSourceFields(t *testing.T) {
 	// Test resolving source fields
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Source: Source{
 				Repo:        "${GIT_REPO}",
@@ -512,9 +442,8 @@ func TestExpandMissingCloseBrace(t *testing.T) {
 func TestResolvePayloads(t *testing.T) {
 	// Test resolving payload fields
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Payloads: []Payload{
 				{
@@ -556,9 +485,8 @@ func TestResolvePayloads(t *testing.T) {
 func TestResolveInferenceFields(t *testing.T) {
 	// Test resolving inference fields
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Inference: Inference{
 				Route:    "${INFERENCE_ROUTE}",
@@ -596,9 +524,8 @@ func TestResolveInferenceFields(t *testing.T) {
 func TestResolveAgentFields(t *testing.T) {
 	// Test resolving agent fields
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Agent: Agent{
 				Type: "${AGENT_TYPE}",
@@ -656,9 +583,8 @@ func TestExpandMultipleInSameString(t *testing.T) {
 func TestResolveDoesNotMutateInput(t *testing.T) {
 	// Verify that Resolve returns a new copy and doesn't mutate input
 	original := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Target: Target{
 				Gateway: "${GATEWAY_VAR}",
@@ -694,9 +620,8 @@ func TestResolveDoesNotMutateInput(t *testing.T) {
 func TestResolveRegistrationOIDC(t *testing.T) {
 	// Test resolving OIDC fields in registration
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{
 			Target: Target{
 				Registration: &Registration{
@@ -742,9 +667,8 @@ func TestResolveRegistrationOIDC(t *testing.T) {
 
 func TestResolveRegistrationRequiresCompleteDirectOIDC(t *testing.T) {
 	h := &Harness{
-		APIVersion: "harness.openshell.dev/v1alpha1",
-		Kind:       "Harness",
-		Metadata:   Metadata{Name: "test"},
+		Version: 1,
+		Name:    "test",
 		Spec: Spec{Target: Target{Registration: &Registration{
 			OIDC: &OIDC{},
 		}}},

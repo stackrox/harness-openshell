@@ -3,15 +3,18 @@
 ## [Unreleased]
 
 ### Changed
-- `harness apply` now accepts only strict `harness.openshell.dev/v1alpha1`
-  workflows and executes every sandbox lifecycle through the OpenShell Go SDK,
-  including uploads, policy, interactive TTY, and cleanup. Local image build
-  contexts are rejected; use a registry image reference.
-- `harness init` and `harness doctor` use the canonical workflow model. Doctor
-  verifies gateway provider registration and no longer requires local provider
-  credentials or an OpenShell executable for direct SDK/OIDC targets.
-- `apply -o yaml|json` redacts interpolated values and values in provider config
-  and sandbox environment maps.
+- `harness workflow apply` now accepts the strict version 1 workflow format and
+  executes every sandbox lifecycle through the OpenShell Go SDK, including
+  uploads, policy, interactive TTY, and cleanup. Local image build contexts are
+  rejected; use a registry image reference.
+- Workflow documents are flat (`version`, `name`, and workflow fields); the
+  Kubernetes-style `kind`, `apiVersion`, `metadata`, and `spec` envelope was
+  removed.
+- Provider references now come from `inference.provider` and
+  `sandbox.providers`; the redundant top-level `providers` list was removed.
+- Sandboxes are deleted by default; omit `sandbox.keep` for normal runs and set
+  it to `true` only when debugging a retained sandbox.
+- `apply -o yaml|json` redacts interpolated values and sandbox environment maps.
 - Cloned repos now use URL-hashed bare mirrors (`~/.cache/harness-openshell/mirrors/`)
   plus per-run, self-contained checkouts (`~/.cache/harness-openshell/checkouts/`)
   instead of the basename-keyed `repos/` cache. Distinct repositories that share a
@@ -22,8 +25,8 @@
   manually.
 
 ### Removed
-- The unused `spec.agent.model` field. Select inference models with
-  `spec.inference.model` and pass agent-specific model flags in `spec.agent.args`.
+- The unused `agent.model` field. Select inference models with
+  `inference.model` and pass agent-specific model flags in `agent.args`.
 - The unversioned agent config model, compatibility adapter, `migrate` command,
   legacy task/agent flags, CLI sandbox execution bridge, and harness-owned
   credentialed-provider bootstrap were removed in a hard cutover. Providers

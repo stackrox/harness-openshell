@@ -58,7 +58,7 @@ func loadWorkflow(path, flagGateway, flagWorkspace string, overrides applyOverri
 	resolved.Spec.Target.Workspace = target.Workspace
 
 	if overrides.Name != "" {
-		resolved.Metadata.Name = overrides.Name
+		resolved.Name = overrides.Name
 	}
 	if overrides.AgentType != "" {
 		resolved.Spec.Agent.Type = overrides.AgentType

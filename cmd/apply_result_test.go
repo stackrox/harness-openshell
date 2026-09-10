@@ -187,16 +187,13 @@ func readApplyResult(t *testing.T, path string) applyResult {
 	return result
 }
 
-const resultWorkflow = `apiVersion: harness.openshell.dev/v1alpha1
-kind: Harness
-metadata:
-  name: result-test
-spec:
-  sandbox:
-    image: reviewer
-    env:
-      TOKEN: secret-env-value
-  agent:
-    type: sh
-    args: [-c, secret-prompt-value]
+const resultWorkflow = `version: 1
+name: result-test
+sandbox:
+  image: reviewer
+  env:
+    TOKEN: secret-env-value
+agent:
+  type: sh
+  args: [-c, secret-prompt-value]
 `

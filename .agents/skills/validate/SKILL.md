@@ -50,7 +50,7 @@ make test-suite
 ```
 
 This includes config parsing and rendering, CLI behavior, structured output,
-and v1alpha1 plan coverage. Some gateway-dependent checks are expected
+and version 1 plan coverage. Some gateway-dependent checks are expected
 to skip when no gateway is reachable.
 
 ### 3. Canonical Kind integration
@@ -62,7 +62,7 @@ and a working Docker or Podman daemon.
 CI=true CONTAINER_CLI=docker make test-kind
 ```
 
-CI mode is the credential-free, canonical v1alpha1 SDK create/exec/delete
+CI mode is the credential-free, canonical version 1 SDK create/exec/delete
 lifecycle used by pull-request CI. Substitute `podman` only when its machine is
 running. Confirm the temporary cluster is removed unless `KEEP=1` was requested.
 

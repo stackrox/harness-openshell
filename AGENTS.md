@@ -89,10 +89,12 @@ policy format. A policy written for the harness should be byte-compatible with
 what `openshell-image-builder` generates.
 
 ### Provider abstraction
-`kind: provider` is an abstraction layer, not a thin wrapper around
-`openshell provider create`. The backend may change to gateway.toml entries
-(#1886) or K8s CRDs (#1719) as upstream settles. Implement the imperative
-CLI backend today. Do not hard-code the execution strategy.
+Workflow provider fields are reference-only. Harness verifies that
+`inference.provider` and `sandbox.providers` already exist, but never creates,
+updates, deletes, stores, or serializes provider credentials. Providers and
+their masked proxy configuration are owned by OpenShell or trusted platform
+bootstrap. Do not reintroduce a `kind: provider` document or an imperative
+provider-management backend.
 
 ### Plugin compatibility
 The binary may eventually be discoverable as an OpenShell plugin via

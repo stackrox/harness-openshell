@@ -9,7 +9,7 @@ import (
 )
 
 // DefaultInferenceRoute is the route name the gateway assigns when a config
-// leaves spec.inference.route empty. The harness resolves "" to this name so the
+// leaves inference.route empty. The harness resolves "" to this name so the
 // plan read and the reconcile write address the same route (the SDK fake does
 // not default an empty name; a real gateway does). Single owner: reconcile reads
 // it from here rather than redefining it.

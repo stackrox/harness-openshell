@@ -46,23 +46,12 @@ func targetDescription(target openshell.Target) string {
 	return fmt.Sprintf("gateway %q", target.Gateway)
 }
 
-// verifySandboxProviders checks declared and attached provider references once.
-func verifySandboxProviders(ctx context.Context, client openshell.Client, desired *config.Harness) error {
-	declared := make(map[string]struct{}, len(desired.Spec.Providers))
-	for _, provider := range desired.Spec.Providers {
-		if _, err := client.GetProvider(ctx, provider.Name); err != nil {
-			return fmt.Errorf("verifying referenced provider %q: %w", provider.Name, err)
-		}
-		declared[provider.Name] = struct{}{}
-	}
-	for _, name := range desired.Spec.Sandbox.Providers {
-		if _, alreadyChecked := declared[name]; alreadyChecked {
-			continue
-		}
+// verifyProviderReferences checks providers used by inference or the sandbox.
+func verifyProviderReferences(ctx context.Context, client openshell.Client, desired *config.Harness) error {
+	for _, name := range desired.Spec.ProviderReferences() {
 		if _, err := client.GetProvider(ctx, name); err != nil {
-			return fmt.Errorf("verifying sandbox provider %q: %w", name, err)
+			return fmt.Errorf("verifying referenced provider %q: %w", name, err)
 		}
-		declared[name] = struct{}{}
 	}
 	return nil
 }
@@ -109,7 +98,7 @@ func buildRunRequest(workflow *resolvedWorkflow) (preparedRun, func(), error) {
 	var sourceCommit string
 	if desired.Spec.Source.Repo != "" {
 		if mode := desired.Spec.Source.Submodules; mode != "" && mode != "shallow" {
-			return fail(fmt.Errorf("spec.source.submodules %q is not supported; use shallow or omit it", mode))
+			return fail(fmt.Errorf("source.submodules %q is not supported; use shallow or omit it", mode))
 		}
 		runID, err := source.NewRunID()
 		if err != nil {
@@ -130,18 +119,18 @@ func buildRunRequest(workflow *resolvedWorkflow) (preparedRun, func(), error) {
 	contentDir := ""
 	for i, payload := range desired.Spec.Payloads {
 		if payload.Destination == "" {
-			return fail(fmt.Errorf("spec.payloads[%d].destination is required", i))
+			return fail(fmt.Errorf("payloads[%d].destination is required", i))
 		}
 		switch {
 		case payload.Source != "" && payload.Content != "":
-			return fail(fmt.Errorf("spec.payloads[%d] cannot set both source and content", i))
+			return fail(fmt.Errorf("payloads[%d] cannot set both source and content", i))
 		case payload.Source != "":
 			source := payload.Source
 			if !filepath.IsAbs(source) {
 				source = filepath.Join(workflow.BaseDir, source)
 			}
 			if _, err := os.Stat(source); err != nil {
-				return fail(fmt.Errorf("reading spec.payloads[%d].source: %w", i, err))
+				return fail(fmt.Errorf("reading payloads[%d].source: %w", i, err))
 			}
 			uploads = append(uploads, run.Upload{Src: source, Dst: payload.Destination})
 		case payload.Content != "":
@@ -155,11 +144,11 @@ func buildRunRequest(workflow *resolvedWorkflow) (preparedRun, func(), error) {
 			}
 			source := filepath.Join(contentDir, fmt.Sprintf("payload-%d", i))
 			if err := os.WriteFile(source, []byte(payload.Content), 0o600); err != nil {
-				return fail(fmt.Errorf("staging spec.payloads[%d].content: %w", i, err))
+				return fail(fmt.Errorf("staging payloads[%d].content: %w", i, err))
 			}
 			uploads = append(uploads, run.Upload{Src: source, Dst: payload.Destination})
 		default:
-			return fail(fmt.Errorf("spec.payloads[%d] requires source or content", i))
+			return fail(fmt.Errorf("payloads[%d] requires source or content", i))
 		}
 	}
 
@@ -172,7 +161,7 @@ func buildRunRequest(workflow *resolvedWorkflow) (preparedRun, func(), error) {
 		var err error
 		policyBytes, err = os.ReadFile(policyPath)
 		if err != nil {
-			return fail(fmt.Errorf("reading spec.sandbox.policy.file: %w", err))
+			return fail(fmt.Errorf("reading sandbox.policy.file: %w", err))
 		}
 	}
 
@@ -182,7 +171,7 @@ func buildRunRequest(workflow *resolvedWorkflow) (preparedRun, func(), error) {
 	}
 
 	return preparedRun{SourceCommit: sourceCommit, SandboxRunRequest: run.SandboxRunRequest{
-		Name:      desired.Metadata.Name,
+		Name:      desired.Name,
 		Image:     image,
 		Providers: append([]string(nil), desired.Spec.Sandbox.Providers...),
 		Env:       desired.Spec.Sandbox.Env,
@@ -259,7 +248,7 @@ func renderWorkflow(workflow *resolvedWorkflow, output string) error {
 		}
 		return printStructured(formatJSON, document)
 	default:
-		return errors.New("v1alpha1 apply output must be json or yaml")
+		return errors.New("version 1 apply output must be json or yaml")
 	}
 }
 
@@ -269,11 +258,8 @@ func renderWorkflow(workflow *resolvedWorkflow, output string) error {
 // never be serialized by -o yaml/json.
 func redactedWorkflow(resolved, input *config.Harness) *config.Harness {
 	out := &config.Harness{
-		APIVersion: redactInterpolated(resolved.APIVersion, input.APIVersion),
-		Kind:       redactInterpolated(resolved.Kind, input.Kind),
-		Metadata: config.Metadata{
-			Name: redactInterpolated(resolved.Metadata.Name, input.Metadata.Name),
-		},
+		Version: resolved.Version,
+		Name:    redactInterpolated(resolved.Name, input.Name),
 		Spec: config.Spec{
 			Target: redactedTarget(resolved.Spec.Target, input.Spec.Target),
 			Inference: config.Inference{
@@ -296,7 +282,6 @@ func redactedWorkflow(resolved, input *config.Harness) *config.Harness {
 			},
 		},
 	}
-	out.Spec.Providers = redactedProviders(resolved.Spec.Providers, input.Spec.Providers)
 	out.Spec.Payloads = redactedPayloads(resolved.Spec.Payloads, input.Spec.Payloads)
 	return out
 }
@@ -324,22 +309,6 @@ func redactedTarget(resolved, input config.Target) config.Target {
 				ClientID: redactInterpolated(resolved.Registration.OIDC.ClientID, rawOIDC.ClientID),
 				Audience: redactInterpolated(resolved.Registration.OIDC.Audience, rawOIDC.Audience),
 			}
-		}
-	}
-	return out
-}
-
-func redactedProviders(resolved, input []config.Provider) []config.Provider {
-	out := make([]config.Provider, len(resolved))
-	for i, provider := range resolved {
-		var raw config.Provider
-		if i < len(input) {
-			raw = input[i]
-		}
-		out[i] = config.Provider{
-			Name:       redactInterpolated(provider.Name, raw.Name),
-			Type:       redactInterpolated(provider.Type, raw.Type),
-			Management: redactInterpolated(provider.Management, raw.Management),
 		}
 	}
 	return out

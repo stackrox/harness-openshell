@@ -1,0 +1,34 @@
+version: 1
+name: fact-dev
+target:
+  gateway: rc-dev
+  workspace: default
+inference:
+  route: default
+  provider: my-gcp
+  model: claude-haiku-4-5
+  timeout: 60s
+  verify: true
+sandbox:
+  image: quay.io/rcochran/openshell:sandbox-current
+  providers:
+    - github-fact
+  policy:
+    file: .harness/policies/fact-development.yaml
+  env:
+    RUST_BACKTRACE: "1"
+  tty: false
+agent:
+  type: claude
+  args: [--bare]
+source:
+  repo: https://github.com/stackrox/fact
+  ref: main
+  destination: /sandbox/fact
+  submodules: shallow
+payloads:
+  - source: .agents/skills/fact
+    destination: /sandbox/.agents/skills/fact
+  - content: |
+      You are working in the FACT repository.
+    destination: /sandbox/CLAUDE.md

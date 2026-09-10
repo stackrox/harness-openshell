@@ -68,10 +68,9 @@ func TestBuild_TargetLoginRequiredWhenUnreachable(t *testing.T) {
 }
 
 func TestBuildReferencedProviders(t *testing.T) {
-	desired := &config.Harness{Spec: config.Spec{Providers: []config.Provider{
-		{Name: "present", Type: "github"},
-		{Name: "absent"},
-	}}}
+	desired := &config.Harness{Spec: config.Spec{Sandbox: config.Sandbox{Providers: []string{
+		"present", "absent",
+	}}}}
 	p := Build(desired, CurrentState{Providers: []openshell.Provider{{Name: "present"}}})
 	for _, group := range p.Groups {
 		if group.Section != SectionProviders {
@@ -463,10 +462,8 @@ func TestBuild_NoRunGroupWhenEmpty(t *testing.T) {
 func TestPlan_TableSections(t *testing.T) {
 	desired := &config.Harness{
 		Spec: config.Spec{
-			Target: config.Target{Gateway: "test-gateway"},
-			Providers: []config.Provider{
-				{Name: "github", Type: "github", Management: "referenced"},
-			},
+			Target:  config.Target{Gateway: "test-gateway"},
+			Sandbox: config.Sandbox{Providers: []string{"github"}},
 		},
 	}
 	current := CurrentState{
