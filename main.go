@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"os"
 	"os/signal"
@@ -15,9 +14,6 @@ import (
 )
 
 var version = "dev"
-
-//go:embed profiles/harness-basic.yaml
-var defaultHarnessConfig []byte
 
 func main() {
 	var verbose, showCommands bool
@@ -40,13 +36,7 @@ func main() {
 	root.CompletionOptions.HiddenDefaultCmd = true
 
 	root.AddCommand(
-		cmd.NewApplyCmd(sdkclient.New),
-		cmd.NewGetCmd(sdkclient.New),
-		cmd.NewDescribeCmd(sdkclient.New),
-		cmd.NewDeleteCmd(sdkclient.New),
-		cmd.NewDoctorCmd(defaultHarnessConfig, sdkclient.New),
-		cmd.NewInitCmd(defaultHarnessConfig),
-		cmd.NewPlanCmd(sdkclient.New),
+		cmd.NewWorkflowCmd(sdkclient.New),
 	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

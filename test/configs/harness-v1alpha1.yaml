@@ -1,5 +1,5 @@
-# v1alpha1 config for the read-only `harness plan` suite cases.
-# No env vars and no target.gateway, so `harness plan` renders fully offline
+# v1alpha1 config for the read-only `harness workflow plan` suite cases.
+# No env vars and no target.gateway, so `harness workflow plan` renders fully offline
 # (it skips gateway contact and diffs against empty current state).
 apiVersion: harness.openshell.dev/v1alpha1
 kind: Harness

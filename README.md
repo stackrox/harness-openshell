@@ -33,7 +33,7 @@ The same checked-in workflow can run locally, in GitHub Actions, or from
 another CI system. From a local checkout, use the workflow path directly:
 
 ```bash
-harness apply stackrox/workflows/dev-workflow.yaml --attach
+harness workflow apply stackrox/workflows/dev-workflow.yaml --attach
 ```
 
 The path is a local trusted checkout; Harness does not fetch arbitrary remote
@@ -214,6 +214,36 @@ Target resolution follows this order:
 sandbox. Source repositories are prepared outside the sandbox and uploaded;
 OpenShell sandboxes do not use host mounts by design.
 
+### State and defaults
+
+A workflow document is input, not a stored Harness object. Harness has no
+workflow database or controller loop. It resolves one invocation from:
+
+1. explicit flags;
+2. `OPENSHELL_*` target environment variables;
+3. the workflow file and `${VAR}` interpolations;
+4. small execution defaults such as the active gateway, the default workspace,
+   `inference.local`, and the versioned sandbox image (overridable with
+`HARNESS_OS_IMAGE`).
+
+Harness does not implicitly load `.env` files. If a local workflow needs
+non-secret variables, source an environment file in the calling shell or pass
+them through the CI system; raw provider credentials still belong to the
+OpenShell/platform provider path.
+
+It then reads the selected gateway's current state to build a plan and applies
+the actions for that run. Durable gateway registrations, workspaces, providers,
+inference routes, credential material, policies, and sandboxes belong to
+OpenShell or the platform. GitHub Actions owns workflow-run state, labels,
+artifacts, and concurrency. The host may keep a source checkout cache and
+explicit result/artifact files, but those are implementation outputs rather
+than workflow state.
+
+The current inference-route write path is a compatibility bridge for gateways
+that still expect Harness to reconcile a declared route. Platform bootstrap is
+the long-term owner of provider and inference configuration; this bridge should
+shrink as OpenShell provider profiles and inference routes become native.
+
 The execution lifecycle is:
 
 ```text
@@ -230,7 +260,7 @@ load workflow
 For a machine-readable completion record, use:
 
 ```bash
-harness apply -f workflow.yaml --result-file result.json
+harness workflow apply workflow.yaml --result-file result.json
 ```
 
 The result records lifecycle completion, status, phase, timing, and the
@@ -256,11 +286,9 @@ platform bootstrap path.
 The basic local loop is:
 
 ```bash
-harness init
-harness doctor -f harness.yaml
-harness plan -f harness.yaml
-harness apply -f harness.yaml
-harness apply -f harness.yaml --attach
+harness workflow plan harness.yaml
+harness workflow apply harness.yaml
+harness workflow apply harness.yaml --attach
 ```
 
 ### Debug a workflow interactively
@@ -269,7 +297,7 @@ Use `--attach` when developing a skill, prompt, policy, provider profile, or
 agent invocation:
 
 ```bash
-harness apply -f workflow.yaml --attach
+harness workflow apply workflow.yaml --attach
 ```
 
 Harness creates the same sandbox, uploads the same source and payloads, applies
@@ -303,19 +331,15 @@ mutations must be allowed by the provider profile and OpenShell policy.
 
 | Command | Purpose |
 |---|---|
-| `harness init` | Generate a starter workflow |
-| `harness doctor` | Check target reachability and referenced providers |
-| `harness plan -f FILE` | Render a read-only reconciliation plan |
-| `harness apply FILE` / `harness apply -f FILE` | Run the workflow headlessly |
-| `harness apply FILE --attach` | Run the same workflow with an interactive terminal |
-| `harness apply -f FILE --setup-only` | Verify references and configure inference without running a sandbox |
-| `harness get gateways\|agents\|providers` | Inspect identity-only resources (`-o table\|json\|yaml`) |
-| `harness describe NAME` | Inspect a sandbox |
-| `harness delete NAME` | Delete a sandbox |
+| `harness workflow plan FILE` | Render a read-only reconciliation plan |
+| `harness workflow apply FILE` | Run the workflow headlessly |
+| `harness workflow apply FILE --attach` | Run the same workflow with an interactive terminal |
+| `harness workflow apply FILE --setup-only` | Verify references and configure inference without running a sandbox |
 
-Structured list/get output supports `-o table`, `-o json`, and `-o yaml`.
-Credential values are never serialized in JSON or YAML output; only provider
-identity and key names may be shown.
+Plan and dry-run output supports `-o table`, `-o json`, and `-o yaml`.
+Credential values are never serialized in JSON or YAML output. Use
+`openshell sandbox get`, `list`, `connect`, `logs`, and `delete` for runtime
+inspection and cleanup.
 
 ## Testing and development
 

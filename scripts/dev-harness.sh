@@ -8,9 +8,9 @@ set -euo pipefail
 # runtime, so we pull from the registry instead of building locally.
 #
 # Usage:
-#   ./scripts/dev-harness.sh apply
-#   ./scripts/dev-harness.sh apply -f harness.yaml --attach
-#   ./scripts/dev-harness.sh apply -f harness.yaml --entrypoint opencode
+#   ./scripts/dev-harness.sh workflow apply harness.yaml
+#   ./scripts/dev-harness.sh workflow apply harness.yaml --attach
+#   ./scripts/dev-harness.sh workflow apply harness.yaml --entrypoint opencode
 #
 # Env overrides:
 #   HARNESS_OS_IMAGE=...   use a specific image tag

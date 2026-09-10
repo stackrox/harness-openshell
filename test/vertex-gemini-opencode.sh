@@ -25,7 +25,7 @@ cleanup() {
     wait "$apply_pid" 2>/dev/null || true
   fi
   if [[ "$created_workspace" == true ]]; then
-    "$HARNESS" delete --gateway "$GATEWAY" --workspace "$WORKSPACE" --sandboxes || status=1
+    "$CLI" sandbox delete --gateway "$GATEWAY" --workspace "$WORKSPACE" vertex-gemini || status=1
     if [[ "$created_provider" == true ]]; then
       "$CLI" provider delete --gateway "$GATEWAY" --workspace "$WORKSPACE" "$PROVIDER" || status=1
     fi
@@ -66,7 +66,7 @@ created_provider=true
   --model gemini-2.5-pro
 
 output_file="$(mktemp)"
-"$HARNESS" apply -f "$WORKFLOW" --gateway "$GATEWAY" --workspace "$WORKSPACE" >"$output_file" &
+"$HARNESS" workflow apply "$WORKFLOW" --gateway "$GATEWAY" --workspace "$WORKSPACE" >"$output_file" &
 apply_pid=$!
 status=0
 wait "$apply_pid" || status=$?

@@ -197,7 +197,7 @@ EOF
   return 1
 }
 
-# teardown_cluster: replaces `harness delete --k8s`. helm uninstall + gateway
+# teardown_cluster: OpenShell owns gateway/sandbox teardown. helm uninstall + gateway
 # deregister + namespace delete. Best-effort (idempotent).
 #
 # Waits for the namespace to finish deleting before returning: the kind and

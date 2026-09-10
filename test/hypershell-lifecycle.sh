@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Canonical remote lifecycle against a managed HyperShell gateway, run LOCALLY.
 #
-# Drives the same path CI would: build the CLI, `harness apply` a throwaway
+# Drives the same path CI would: build the CLI, `harness workflow apply` a throwaway
 # sandbox via the OIDC service account, exec the agent, and assert the marker
 # `canonical-sdk-ok`. The sandbox is keep:false, so the gateway deletes it when
 # the run ends (create -> exec -> auto-delete).

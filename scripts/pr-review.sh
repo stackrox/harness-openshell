@@ -42,7 +42,7 @@ cleanup_runtime() {
     wait "$apply_pid" || true
   fi
   if $created_workspace; then
-    timeout 30s ./harness delete --gateway "$gateway" --workspace "$workspace" --sandboxes || cleanup_status=1
+    timeout 30s openshell sandbox delete --gateway "$gateway" --workspace "$workspace" ai-review || cleanup_status=1
     if $created_vertex_provider; then
       timeout 30s openshell provider delete --gateway "$gateway" --workspace "$workspace" vertex-review || cleanup_status=1
     fi
@@ -123,7 +123,7 @@ run_review() {
 
   (
     ulimit -f 2048 # Bound raw diagnostic output as well as runtime.
-    exec timeout -s TERM -k 35s 8m ./harness apply -f examples/github-pr-reviewer/opencode-harness.yaml \
+    exec timeout -s TERM -k 35s 8m ./harness workflow apply examples/github-pr-reviewer/opencode-harness.yaml \
       --gateway "$gateway" --workspace "$workspace" --result-file "$REVIEW_DIR/execution.json"
   ) > "$REVIEW_DIR/agent.ndjson" 2> "$REVIEW_DIR/agent.stderr" &
   apply_pid=$!

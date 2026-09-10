@@ -159,7 +159,7 @@ func buildProviderDetail(prov *config.Provider) string {
 }
 
 // InferenceAction is the single owner of the inference create/update/noop rule.
-// Both buildInferenceGroup (harness plan) and internal/reconcile call it, so the
+// Both buildInferenceGroup (harness workflow plan) and internal/reconcile call it, so the
 // plan and the reconcile write can never disagree on what a change is.
 //
 // A gateway that does not serve inference state (cur.Capable false) yields

@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 )
@@ -21,13 +23,10 @@ host-interpolated and credential-bearing map values redacted.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
-				if file == "" {
-					file = args[0]
-				} else if sandboxName == "" {
-					// Preserve the legacy `apply -f FILE NAME` form while making
-					// the common positional form mean the workflow file.
-					sandboxName = args[0]
+				if file != "" {
+					return fmt.Errorf("workflow file specified both as an argument and with --file")
 				}
+				file = args[0]
 			}
 			return runApply(cmd.Context(), newClient, applyRequest{
 				File:       file,
