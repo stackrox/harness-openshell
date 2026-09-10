@@ -85,31 +85,7 @@ func (s applyService) run(ctx context.Context, req applyRequest) (runErr error) 
 // connectAndPlan connects to the selected target when needed and builds the
 // plan used by the subsequent execution step.
 func (s applyService) connectAndPlan(ctx context.Context, workflow *resolvedWorkflow, dryRun bool) (openshell.Client, *plan.Plan, plan.CurrentState, error) {
-	var (
-		client openshell.Client
-		err    error
-	)
-	client, err = s.newClient(ctx, workflow.Target)
-	if err != nil {
-		desc := targetDescription(workflow.Target)
-		if !dryRun {
-			return nil, nil, plan.CurrentState{}, fmt.Errorf("connecting to %s: %w", desc, err)
-		}
-		out := s.stderr
-		if out == nil {
-			out = io.Discard
-		}
-		fmt.Fprintf(out, "warning: %s unreachable: %v (rendering desired config only)\n", desc, err)
-	}
-
-	planned, current, err := workflow.buildPlan(ctx, client)
-	if err != nil {
-		if client != nil {
-			_ = client.Close()
-		}
-		return nil, nil, plan.CurrentState{}, err
-	}
-	return client, planned, current, nil
+	return connectAndBuildPlan(ctx, s.newClient, workflow, dryRun, s.stderr)
 }
 
 // executeResolvedWorkflow runs the fully resolved and planned workflow through

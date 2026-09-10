@@ -47,22 +47,12 @@ uses this same resolved desired object and action-decision engine.`,
 				return err
 			}
 
-			// An empty target means the active/default OpenShell gateway, so use
-			// the same factory path as apply. If it cannot be reached, preserve
-			// the read-only fallback and render the desired config without
-			// claiming that references are absent.
-			var client openshell.Client
-			client, err = newClient(cmd.Context(), workflow.Target)
-			if err != nil {
-				desc := targetDescription(workflow.Target)
-				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %s unreachable: %v (rendering desired config only)\n", desc, err)
-			} else if client != nil {
-				defer client.Close()
-			}
-
-			p, _, err := workflow.buildPlan(cmd.Context(), client)
+			client, p, _, err := connectAndBuildPlan(cmd.Context(), newClient, workflow, true, cmd.ErrOrStderr())
 			if err != nil {
 				return err
+			}
+			if client != nil {
+				defer client.Close()
 			}
 			p = redactedPlan(p, workflow.Desired, workflow.Input)
 
