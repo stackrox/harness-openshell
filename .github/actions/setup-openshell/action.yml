@@ -12,7 +12,8 @@ runs:
       # "supervisor session not found".
       shell: bash
       run: |
-        ver="$(cat .openshell-version)"
+        root="${OPENSHELL_ROOT:-.}"
+        ver="$(cat "$root/.openshell-version")"
         test -n "$ver" || { echo "error: .openshell-version is empty"; exit 1; }
         tmp="$(mktemp)"
         curl -fLsS https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh -o "$tmp"
