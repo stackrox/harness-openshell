@@ -37,8 +37,20 @@ func TestPRReview(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			validatorInfo, err := os.Stat("../scripts/review/validate-agent-output.sh")
+			if err != nil {
+				t.Fatal(err)
+			}
+			validatorMode := validatorInfo.Mode().Perm()
+			if validatorMode&0o111 == 0 {
+				t.Fatalf("validator must be executable: mode %o", validatorMode)
+			}
 			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/review/validate-agent-output.sh": validator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
-				if err := os.WriteFile(filepath.Join(root, name), data, 0o700); err != nil {
+				mode := os.FileMode(0o700)
+				if name == "scripts/review/validate-agent-output.sh" {
+					mode = validatorMode
+				}
+				if err := os.WriteFile(filepath.Join(root, name), data, mode); err != nil {
 					t.Fatal(err)
 				}
 			}
