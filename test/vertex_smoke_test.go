@@ -89,7 +89,7 @@ printf '%s\n' "$*" >> "$TRACE"
 case "$1 ${2:-}" in
   'provider create') [[ "$SCENARIO" != provider-failure ]] ;;
   'workspace delete') [[ "$SCENARIO" != cleanup-failure ]] ;;
-  'workflow apply '*)
+  'workflow apply')
     case "$SCENARIO" in
       cancel) touch "$READY"; trap 'exit 143' TERM; while :; do sleep 0.1; done ;;
       agent-failure) exit 42 ;;
