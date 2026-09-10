@@ -26,7 +26,7 @@ same safety and less bookkeeping, use the native workflow instead.
 | Gateway provisioning, sandbox isolation, policy enforcement, provider proxying and credential masking | OpenShell or HyperShell |
 | Provider registration and platform bootstrap | OpenShell/platform integration; a trusted adapter may create an ephemeral provider |
 | Event, label, draft, permissions, trusted checkout, concurrency, approvals, and branch protection | GitHub Actions |
-| Workflow loading, target resolution, source/payload staging, bounded execution, freshness checks, output validation, and cleanup | Harness and the workflow adapter |
+| Workflow loading, target resolution, source/payload staging, bounded execution, freshness checks, bounded agent-output validation, and cleanup | Harness and the workflow adapter |
 | Task behavior, review criteria, trusted skills, and what to do with the result | Consuming repository |
 | Coding agent and inference model | Workflow configuration and the consuming repository |
 
