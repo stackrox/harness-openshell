@@ -28,8 +28,9 @@ permissions:
 jobs:
   review:
     if: >-
-      ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
-      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review'))
+      (!github.event.pull_request.draft || inputs.allow-draft-reviews) &&
+      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
