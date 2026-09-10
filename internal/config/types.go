@@ -13,11 +13,11 @@ import (
 type Harness struct {
 	Version int    `yaml:"version"` // must equal 1
 	Name    string `yaml:"name"`    // required
-	Spec    `yaml:",inline"`
+	Spec    Spec   `yaml:",inline"`
 }
 
-// Spec contains the workflow fields. It is embedded in Harness so the YAML
-// document stays flat while callers can keep related fields grouped in code.
+// Spec contains the workflow fields. It is an internal Go grouping; the inline
+// YAML tag keeps these fields at the workflow document root.
 type Spec struct {
 	Target    Target     `yaml:"target"`
 	Providers []Provider `yaml:"providers,omitempty"` // desired RESOURCES
