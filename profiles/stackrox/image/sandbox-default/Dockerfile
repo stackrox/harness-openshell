@@ -82,7 +82,7 @@ RUN ARCH=$(uname -m | sed 's/arm64/aarch64/') && \
 # https://github.com/opencode-ai/opencode
 RUN npm install -g opencode-ai@1.18.30
 
-ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
+ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:${PATH}"
 
 # Sandbox policy (network egress rules — provider profiles contribute
 # additional endpoints at runtime via providers v2 composition)
