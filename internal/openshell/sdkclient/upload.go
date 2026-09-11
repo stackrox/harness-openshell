@@ -12,8 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/ssh"
 )
 
 func (c *client) UploadPath(ctx context.Context, sandbox, sourcePath, destinationPath string) error {
@@ -26,30 +24,12 @@ func (c *client) UploadPath(ctx context.Context, sandbox, sourcePath, destinatio
 		return err
 	}
 
-	tunnel, err := c.raw.SSH().Tunnel(ctx, c.workspace, sandbox, 22)
+	connection, err := c.openSSHSession(ctx, sandbox)
 	if err != nil {
-		return fmt.Errorf("open SSH tunnel: %w", err)
+		return err
 	}
-	defer tunnel.Close()
-
-	connection, channels, requests, err := ssh.NewClientConn(&tunnelConn{ReadWriteCloser: tunnel}, "sandbox:22", &ssh.ClientConfig{
-		User: "sandbox",
-		// The authenticated gateway relay is the trust boundary. Tunnel does not
-		// expose the sandbox host fingerprint, and the upstream CLI also disables
-		// host-key checking for this scoped connection.
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
-	})
-	if err != nil {
-		return fmt.Errorf("SSH handshake: %w", err)
-	}
-	sshClient := ssh.NewClient(connection, channels, requests)
-	defer sshClient.Close()
-
-	session, err := sshClient.NewSession()
-	if err != nil {
-		return fmt.Errorf("open SSH session: %w", err)
-	}
-	defer session.Close()
+	defer connection.Close()
+	session := connection.session
 
 	stdin, err := session.StdinPipe()
 	if err != nil {

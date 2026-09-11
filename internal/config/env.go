@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -74,7 +75,43 @@ func expand(raw string, getenv func(string) string) (string, []string) {
 // conventionally absolute (e.g. "/sandbox/review.md"), and the openshell runtime
 // remains the authority on where an upload actually lands.
 func destinationHasTraversal(p string) bool {
-	return slices.Contains(strings.Split(p, "/"), "..")
+	return slices.Contains(strings.Split(strings.ReplaceAll(p, "\\", "/"), "/"), "..")
+}
+
+func validateOutputSource(source string) error {
+	if source == "" {
+		return fmt.Errorf("required")
+	}
+	if strings.IndexByte(source, 0) >= 0 {
+		return fmt.Errorf("must not contain a null byte")
+	}
+	if !strings.HasPrefix(source, "/") {
+		return fmt.Errorf("must be an absolute sandbox path")
+	}
+	if destinationHasTraversal(source) {
+		return fmt.Errorf("must not contain a \"..\" path segment")
+	}
+	clean := path.Clean(source)
+	if clean == "/sandbox" || !strings.HasPrefix(clean, "/sandbox/") {
+		return fmt.Errorf("must be below /sandbox")
+	}
+	return nil
+}
+
+func validateOutputDestination(destination string) error {
+	if destination == "" {
+		return fmt.Errorf("required")
+	}
+	if strings.IndexByte(destination, 0) >= 0 {
+		return fmt.Errorf("must not contain a null byte")
+	}
+	if strings.HasPrefix(destination, "/") || destinationHasTraversal(destination) {
+		return fmt.Errorf("must be a relative path without \"..\" segments")
+	}
+	if clean := path.Clean(destination); clean == "." || clean == "" {
+		return fmt.Errorf("must name a file or directory below the output directory")
+	}
+	return nil
 }
 
 // Resolve returns a copy of h with every string field interpolated via Expand.
@@ -227,6 +264,33 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 				Content:     content,
 				Destination: dest,
 			}
+		}
+	}
+
+	if len(h.Spec.Outputs) > 0 {
+		s.Outputs = make([]Output, len(h.Spec.Outputs))
+		seenDestinations := make(map[string]int, len(h.Spec.Outputs))
+		for i, o := range h.Spec.Outputs {
+			base := fmt.Sprintf("outputs[%d]", i)
+			source := exp(base+".source", o.Source)
+			destination := exp(base+".destination", o.Destination)
+			cleanDestination := path.Clean(destination)
+			if err := validateOutputSource(source); err != nil {
+				errs = append(errs, fmt.Sprintf("%s.source: %v", base, err))
+			}
+			if err := validateOutputDestination(destination); err != nil {
+				errs = append(errs, fmt.Sprintf("%s.destination: %v", base, err))
+			} else if previous, exists := seenDestinations[cleanDestination]; exists {
+				errs = append(errs, fmt.Sprintf("%s.destination: duplicates outputs[%d].destination", base, previous))
+			} else {
+				seenDestinations[cleanDestination] = i
+			}
+			var required *bool
+			if o.Required != nil {
+				value := *o.Required
+				required = &value
+			}
+			s.Outputs[i] = Output{Source: path.Clean(source), Destination: cleanDestination, Required: required}
 		}
 	}
 

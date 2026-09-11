@@ -25,6 +25,7 @@ type Spec struct {
 	Agent     Agent     `yaml:"agent,omitempty"`
 	Source    Source    `yaml:"source,omitempty"`
 	Payloads  []Payload `yaml:"payloads,omitempty"`
+	Outputs   []Output  `yaml:"outputs,omitempty"`
 }
 
 // ProviderReferences returns the unique providers required by inference or the
@@ -148,4 +149,19 @@ type Payload struct {
 	Source      string `yaml:"source,omitempty"`  // local path
 	Content     string `yaml:"content,omitempty"` // inline content
 	Destination string `yaml:"destination"`       // target path in sandbox
+}
+
+// Output maps a path inside the sandbox to a path below the host output
+// directory supplied by the caller. Outputs are downloaded before the sandbox
+// is deleted. Required defaults to true; optional outputs can be used for
+// partial-result workflows.
+type Output struct {
+	Source      string `yaml:"source"`             // absolute sandbox path
+	Destination string `yaml:"destination"`        // relative host path
+	Required    *bool  `yaml:"required,omitempty"` // nil means required
+}
+
+// RequiredEnabled reports whether a missing output should fail the run.
+func (o Output) RequiredEnabled() bool {
+	return o.Required == nil || *o.Required
 }

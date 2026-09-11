@@ -195,6 +195,32 @@ func TestResolve_RejectsDestinationTraversal(t *testing.T) {
 	}
 }
 
+func TestResolveOutputsRequireSandboxSourceAndRelativeDestination(t *testing.T) {
+	for name, output := range map[string]Output{
+		"outside sandbox":       {Source: "/tmp/report.json", Destination: "report.json"},
+		"relative source":       {Source: "artifacts/report.json", Destination: "report.json"},
+		"absolute destination":  {Source: "/sandbox/report.json", Destination: "/tmp/report.json"},
+		"destination traversal": {Source: "/sandbox/report.json", Destination: "../report.json"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Resolve(&Harness{Version: 1, Name: "test", Spec: Spec{Outputs: []Output{output}}}, func(string) string { return "" })
+			if err == nil || !strings.Contains(err.Error(), "outputs[0]") {
+				t.Fatalf("Resolve error = %v, want output validation error", err)
+			}
+		})
+	}
+}
+
+func TestResolveOutputsRejectDuplicateDestinations(t *testing.T) {
+	_, err := Resolve(&Harness{Version: 1, Name: "test", Spec: Spec{Outputs: []Output{
+		{Source: "/sandbox/a", Destination: "report.json"},
+		{Source: "/sandbox/b", Destination: "report.json"},
+	}}}, func(string) string { return "" })
+	if err == nil || !strings.Contains(err.Error(), "duplicates") {
+		t.Fatalf("Resolve error = %v, want duplicate destination error", err)
+	}
+}
+
 func TestResolve_AllowsAbsoluteDestination(t *testing.T) {
 	// Sandbox destinations are conventionally absolute; only ".." is rejected.
 	h := &Harness{

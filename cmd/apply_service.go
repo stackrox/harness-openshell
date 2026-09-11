@@ -22,6 +22,7 @@ type applyRequest struct {
 	DryRun     bool
 	SetupOnly  bool
 	Output     string
+	OutputDir  string
 	ResultFile string
 	Gateway    string
 	Workspace  string
@@ -78,7 +79,7 @@ func (s applyService) run(ctx context.Context, req applyRequest) (runErr error) 
 		defer client.Close()
 	}
 	return executeResolvedWorkflow(ctx, workflow, planned, current, client, applyOptions{
-		SetupOnly: req.SetupOnly, DryRun: req.DryRun, Output: req.Output, Result: result,
+		SetupOnly: req.SetupOnly, DryRun: req.DryRun, Output: req.Output, OutputDir: req.OutputDir, Result: result,
 	})
 }
 
@@ -112,7 +113,7 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 			cleanup func()
 			err     error
 		)
-		req, cleanup, err = buildRunRequest(workflow)
+		req, cleanup, err = buildRunRequest(workflow, opts.OutputDir)
 		if err != nil {
 			return err
 		}

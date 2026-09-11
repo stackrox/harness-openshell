@@ -28,6 +28,8 @@ type recordingSDKRunner struct {
 	rows               uint32
 	uploads            []Upload
 	uploadErr          error
+	downloads          []Download
+	downloadErr        error
 	waitErr            error
 	deleteContextErr   error
 	events             []string
@@ -37,6 +39,12 @@ func (r *recordingSDKRunner) UploadPath(_ context.Context, _ string, sourcePath,
 	r.events = append(r.events, "upload")
 	r.uploads = append(r.uploads, Upload{Src: sourcePath, Dst: destinationPath})
 	return r.uploadErr
+}
+
+func (r *recordingSDKRunner) DownloadPath(_ context.Context, _ string, sourcePath, destinationPath string) error {
+	r.events = append(r.events, "download")
+	r.downloads = append(r.downloads, Download{Src: sourcePath, Dst: destinationPath})
+	return r.downloadErr
 }
 
 func (r *recordingSDKRunner) ExecInteractive(_ context.Context, _ string, command []string, cols, rows uint32) (openshell.InteractiveSession, error) {
@@ -191,6 +199,44 @@ func TestRunUploadsWithoutCommand(t *testing.T) {
 	}
 	if !reflect.DeepEqual(runner.uploads, req.Uploads) || len(runner.executed) != 0 {
 		t.Errorf("uploads = %+v, command = %v", runner.uploads, runner.executed)
+	}
+}
+
+func TestRunDownloadsAfterExecutionAndBeforeCleanup(t *testing.T) {
+	runner := &recordingSDKRunner{}
+	req := SandboxRunRequest{
+		Name: "review", Image: "reviewer", Command: []string{"reviewer"},
+		Downloads: []Download{{Src: "/sandbox/artifacts", Dst: "/tmp/artifacts", Required: true}},
+	}
+	if err := Run(context.Background(), runner, req, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(runner.downloads) != 1 || runner.downloads[0].Src != req.Downloads[0].Src || runner.downloads[0].Dst != req.Downloads[0].Dst {
+		t.Errorf("downloads = %+v, want %+v", runner.downloads, req.Downloads)
+	}
+	if want := []string{"create", "wait", "exec", "download", "delete"}; !reflect.DeepEqual(runner.events, want) {
+		t.Errorf("events = %v, want %v", runner.events, want)
+	}
+}
+
+func TestRunRequiredDownloadFailurePreservesAgentFailure(t *testing.T) {
+	runner := &recordingSDKRunner{exitCode: 7, downloadErr: errors.New("download failed")}
+	err := Run(context.Background(), runner, SandboxRunRequest{
+		Name: "review", Image: "reviewer", Command: []string{"reviewer"},
+		Downloads: []Download{{Src: "/sandbox/report.json", Dst: "/tmp/report.json", Required: true}},
+	}, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "status 7") || !strings.Contains(err.Error(), "download failed") {
+		t.Fatalf("error = %v, want agent and download failures", err)
+	}
+}
+
+func TestRunOptionalMissingDownloadDoesNotFail(t *testing.T) {
+	runner := &recordingSDKRunner{downloadErr: openshell.ErrNotFound}
+	err := Run(context.Background(), runner, SandboxRunRequest{
+		Name: "review", Image: "reviewer", Downloads: []Download{{Src: "/sandbox/optional.json", Dst: "/tmp/optional.json"}},
+	}, bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("optional missing download: %v", err)
 	}
 }
 

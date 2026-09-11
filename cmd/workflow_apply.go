@@ -21,6 +21,7 @@ type applyOptions struct {
 	SetupOnly bool
 	DryRun    bool
 	Output    string
+	OutputDir string
 	Result    *applyResult
 }
 
@@ -77,7 +78,7 @@ func inferenceConfigured(inf config.Inference) bool {
 	return inf.Route != "" || inf.Provider != "" || inf.Model != "" || inf.Timeout != ""
 }
 
-func buildRunRequest(workflow *resolvedWorkflow) (preparedRun, func(), error) {
+func buildRunRequest(workflow *resolvedWorkflow, outputDir string) (preparedRun, func(), error) {
 	desired := workflow.Desired
 	cleanups := []func(){}
 	cleanup := func() {
@@ -170,6 +171,31 @@ func buildRunRequest(workflow *resolvedWorkflow) (preparedRun, func(), error) {
 		command = append([]string{desired.Spec.Agent.Type}, desired.Spec.Agent.Args...)
 	}
 
+	var downloads []run.Download
+	if len(desired.Spec.Outputs) > 0 {
+		if outputDir == "" {
+			return fail(fmt.Errorf("outputs are declared; --output-dir is required"))
+		}
+		outputRoot, err := filepath.Abs(outputDir)
+		if err != nil {
+			return fail(fmt.Errorf("resolving --output-dir: %w", err))
+		}
+		if err := os.MkdirAll(outputRoot, 0o750); err != nil {
+			return fail(fmt.Errorf("creating --output-dir: %w", err))
+		}
+		for i, output := range desired.Spec.Outputs {
+			destination := filepath.Join(outputRoot, filepath.FromSlash(output.Destination))
+			if !pathWithin(outputRoot, destination) {
+				return fail(fmt.Errorf("outputs[%d].destination escapes --output-dir", i))
+			}
+			downloads = append(downloads, run.Download{
+				Src:      output.Source,
+				Dst:      destination,
+				Required: output.RequiredEnabled(),
+			})
+		}
+	}
+
 	return preparedRun{SourceCommit: sourceCommit, SandboxRunRequest: run.SandboxRunRequest{
 		Name:      desired.Name,
 		Image:     image,
@@ -177,10 +203,16 @@ func buildRunRequest(workflow *resolvedWorkflow) (preparedRun, func(), error) {
 		Env:       desired.Spec.Sandbox.Env,
 		Command:   command,
 		Uploads:   uploads,
+		Downloads: downloads,
 		TTY:       desired.Spec.Sandbox.TTY,
 		Keep:      desired.Spec.Sandbox.Keep,
 		Policy:    policyBytes,
 	}}, cleanup, nil
+}
+
+func pathWithin(root, candidate string) bool {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
 // cloneRepo prepares an isolated checkout on the host so repository credentials
@@ -283,6 +315,7 @@ func redactedWorkflow(resolved, input *config.Harness) *config.Harness {
 		},
 	}
 	out.Spec.Payloads = redactedPayloads(resolved.Spec.Payloads, input.Spec.Payloads)
+	out.Spec.Outputs = redactedOutputs(resolved.Spec.Outputs, input.Spec.Outputs)
 	return out
 }
 
@@ -343,6 +376,22 @@ func redactedPayloads(resolved, input []config.Payload) []config.Payload {
 			Source:      redactInterpolated(payload.Source, raw.Source),
 			Content:     redactInterpolated(payload.Content, raw.Content),
 			Destination: redactInterpolated(payload.Destination, raw.Destination),
+		}
+	}
+	return out
+}
+
+func redactedOutputs(resolved, input []config.Output) []config.Output {
+	out := make([]config.Output, len(resolved))
+	for i, output := range resolved {
+		var raw config.Output
+		if i < len(input) {
+			raw = input[i]
+		}
+		out[i] = config.Output{
+			Source:      redactInterpolated(output.Source, raw.Source),
+			Destination: redactInterpolated(output.Destination, raw.Destination),
+			Required:    copyBool(output.Required),
 		}
 	}
 	return out

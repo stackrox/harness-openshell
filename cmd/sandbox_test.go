@@ -15,7 +15,7 @@ func TestCanonicalRunRequestRejectsLocalImages(t *testing.T) {
 			Desired: &config.Harness{Spec: config.Spec{Sandbox: config.Sandbox{Image: image}}},
 			BaseDir: filepath.Dir(dir),
 		}
-		_, cleanup, err := buildRunRequest(workflow)
+		_, cleanup, err := buildRunRequest(workflow, "")
 		cleanup()
 		if err == nil || !strings.Contains(err.Error(), "local sandbox images are unsupported; use a registry image reference") {
 			t.Errorf("buildRunRequest(%q) error = %v", image, err)
@@ -28,7 +28,7 @@ func TestCanonicalRunRequestKeepsRegistryReference(t *testing.T) {
 	req, cleanup, err := buildRunRequest(&resolvedWorkflow{
 		Desired: &config.Harness{Spec: config.Spec{Sandbox: config.Sandbox{Image: image}}},
 		BaseDir: t.TempDir(),
-	})
+	}, "")
 	defer cleanup()
 	if err != nil || req.Image != image {
 		t.Fatalf("buildRunRequest() image = %q, %v", req.Image, err)
