@@ -5,7 +5,8 @@
 # This profile deliberately starts from the StackRox rox-ci-image build so that
 # repository build tools (Go, compilers, make, and the scanner toolchain) are
 # available to the agent. It adds the OpenShell sandbox contract and the
-# coding-agent tools supplied by the NVIDIA community base image.
+# coding-agent tools plus selected vendored assets from the NVIDIA community
+# base image.
 #
 # The rox-ci-image build currently publishes an amd64 toolchain. Keep this
 # profile amd64-only until the upstream CI image provides a multi-architecture
@@ -16,9 +17,7 @@
 # OpenShell base contract:
 #   https://github.com/NVIDIA/OpenShell-Community/tree/main/sandboxes/base
 
-ARG OPENSHELL_BASE_IMAGE=ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e
 ARG BASE_IMAGE=quay.io/stackrox-io/apollo-ci:stackrox-build-0.5.14-1-g9bed4c4911
-FROM ${OPENSHELL_BASE_IMAGE} AS openshell-base
 FROM ${BASE_IMAGE}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -142,13 +141,12 @@ ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr
     GOCACHE=/sandbox/.cache/go-build \
     GOMODCACHE=/sandbox/.cache/go-mod
 
-# Reuse only the community image's shell/skill assets. The NVIDIA policy is
-# intentionally not inherited: provider profiles and workflow policy overlays
-# own integration egress, while this profile keeps only its small StackRox
-# runtime policy.
-COPY --from=openshell-base /sandbox/.agents/skills/ /sandbox/.agents/skills/
-COPY --from=openshell-base /sandbox/.bashrc /sandbox/.bashrc
-COPY --from=openshell-base /sandbox/.profile /sandbox/.profile
+# Vendor only the small OpenShell assets this profile uses. The upstream
+# network policy is intentionally not inherited; this profile owns its small
+# StackRox policy and provider profiles supply integration egress at runtime.
+COPY openshell/skills/ /sandbox/.agents/skills/
+COPY openshell/.bashrc /sandbox/.bashrc
+COPY openshell/.profile /sandbox/.profile
 COPY policy.yaml /etc/openshell/policy.yaml
 
 # Default agent instructions and configuration. Workflows can override these
