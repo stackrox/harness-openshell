@@ -103,7 +103,7 @@ exercise_provider() {
   local workflow sandbox image
   workflow=$(mktemp)
   sandbox="test-${provider//[^a-zA-Z0-9]/-}"
-  image="${HARNESS_OS_IMAGE:-ghcr.io/nvidia/openshell-community/sandboxes/base:latest}"
+  image="${HARNESS_OS_IMAGE:-ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e}"
   printf '%s\n' \
     'version: 1' \
     "name: $sandbox" \

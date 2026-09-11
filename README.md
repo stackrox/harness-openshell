@@ -119,9 +119,10 @@ Resolution order for gateway and workspace targets is:
 environment. Harness does not implicitly load `.env` files; source one in the
 calling shell or configure the values in CI. Defaults include workspace
 `default`, inference route `inference.local`, and the NVIDIA OpenShell
-community base image. `HARNESS_OS_IMAGE` overrides the image for local or
-integration testing; workflows can select a published StackRox image when
-they need additional tools.
+community base image. `HARNESS_OS_IMAGE` is an explicit local or integration
+testing override: it takes precedence over both a workflow-selected image and
+the default image for `harness plan` and `harness apply`. Unset it when the
+workflow should select its own published StackRox image or use the default.
 
 The workflow file, policy file, and payload declarations are trusted host-side
 inputs. A workflow can intentionally interpolate host environment values or
