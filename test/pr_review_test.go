@@ -141,34 +141,46 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 		t.Fatal("review wrapper default skill path is not relative to the workflow file")
 	}
 
-	workflowFiles := []string{
-		"../.github/workflows/ai-review.yml",
-		"../.github/workflows/pr-review-reusable.yml",
-	}
-	for _, path := range workflowFiles {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		workflow := string(data)
-		if !strings.Contains(workflow, "actions/create-github-app-token@") {
-			t.Errorf("%s does not mint an OpenShell GitHub App token", path)
-		}
-		if !strings.Contains(workflow, "client-id:") || strings.Contains(workflow, "app-id:") {
-			t.Errorf("%s does not use the maintained GitHub App Client ID input", path)
-		}
-		if !strings.Contains(workflow, "OPENSHELL_GITHUB_APP_CLIENT_ID") && path == "../.github/workflows/ai-review.yml" {
-			t.Errorf("%s does not consume the GitHub App Client ID variable", path)
-		}
-		if !strings.Contains(workflow, "OPENSHELL_GITHUB_APP_PRIVATE_KEY") {
-			t.Errorf("%s does not consume the private-key secret", path)
-		}
-		if strings.Contains(workflow, "GH_TOKEN: ${{ github.token }}") || strings.Contains(workflow, "GITHUB_TOKEN: ${{ github.token }}") {
-			t.Errorf("%s still uses the automatic workflow token", path)
+	caller := string(mustRead(t, "../.github/workflows/ai-review.yml"))
+	const usesPrefix = "    uses: stackrox/harness-openshell/.github/workflows/pr-review-reusable.yml@"
+	var pinnedRef string
+	for _, line := range strings.Split(caller, "\n") {
+		if strings.HasPrefix(line, usesPrefix) {
+			pinnedRef = strings.TrimPrefix(line, usesPrefix)
+			break
 		}
 	}
-	if !strings.Contains(string(mustRead(t, "../.github/workflows/ai-review.yml")), `export REVIEW_SKILL="$GITHUB_WORKSPACE/examples/github-pr-reviewer/skills/pr-review/SKILL.md"`) {
-		t.Fatal("direct review workflow does not set an absolute skill path")
+	if !isSHA(pinnedRef) {
+		t.Fatalf("caller does not pin the shared review workflow to a commit: %q", pinnedRef)
+	}
+	if !strings.Contains(caller, "harness-ref: "+pinnedRef) {
+		t.Fatalf("caller harness-ref does not match workflow pin %q", pinnedRef)
+	}
+	for _, required := range []string{
+		"openshell-github-app-client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}",
+		"secrets: inherit",
+	} {
+		if !strings.Contains(caller, required) {
+			t.Fatalf("caller is missing %q", required)
+		}
+	}
+	if strings.Contains(caller, "actions/create-github-app-token@") || strings.Contains(caller, "scripts/pr-review.sh") {
+		t.Fatal("caller still contains shared review implementation")
+	}
+
+	shared := string(mustRead(t, "../.github/workflows/pr-review-reusable.yml"))
+	for _, required := range []string{
+		"workflow_call:",
+		"actions/create-github-app-token@",
+		"client-id: ${{ inputs.openshell-github-app-client-id }}",
+		"private-key: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}",
+	} {
+		if !strings.Contains(shared, required) {
+			t.Fatalf("shared review workflow is missing %q", required)
+		}
+	}
+	if strings.Contains(shared, "GH_TOKEN: ${{ github.token }}") || strings.Contains(shared, "GITHUB_TOKEN: ${{ github.token }}") {
+		t.Fatal("shared review workflow still uses the automatic workflow token")
 	}
 
 	data, err := os.ReadFile("../examples/github-pr-reviewer/opencode-harness.yaml")
@@ -182,6 +194,18 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	if strings.Contains(example, "GITHUB_TOKEN") {
 		t.Fatal("review workflow passes the GitHub token into the sandbox configuration")
 	}
+}
+
+func isSHA(value string) bool {
+	if len(value) != 40 {
+		return false
+	}
+	for _, r := range value {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+			return false
+		}
+	}
+	return true
 }
 
 func mustRead(t *testing.T, path string) []byte {
