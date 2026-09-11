@@ -154,6 +154,12 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 		if !strings.Contains(workflow, "actions/create-github-app-token@") {
 			t.Errorf("%s does not mint an OpenShell GitHub App token", path)
 		}
+		if !strings.Contains(workflow, "client-id:") || strings.Contains(workflow, "app-id:") {
+			t.Errorf("%s does not use the maintained GitHub App Client ID input", path)
+		}
+		if !strings.Contains(workflow, "OPENSHELL_GITHUB_APP_CLIENT_ID") && path == "../.github/workflows/ai-review.yml" {
+			t.Errorf("%s does not consume the GitHub App Client ID variable", path)
+		}
 		if !strings.Contains(workflow, "OPENSHELL_GITHUB_APP_PRIVATE_KEY") {
 			t.Errorf("%s does not consume the private-key secret", path)
 		}

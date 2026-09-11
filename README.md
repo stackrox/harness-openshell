@@ -165,7 +165,7 @@ whether a literal host value is a credential.
 For GitHub Actions, trusted host-side setup mints a short-lived installation
 token from the repository's OpenShell GitHub App and uses it to register the
 native OpenShell GitHub provider. The token is not placed in the sandbox
-environment or agent payload. Configure `OPENSHELL_GITHUB_APP_ID` as a
+environment or agent payload. Configure `OPENSHELL_GITHUB_APP_CLIENT_ID` as a
 repository variable and `OPENSHELL_GITHUB_APP_PRIVATE_KEY` as a repository
 secret. The installed App must have repository permissions `Contents: read` and
 `Pull requests: read and write`, and must be installed on the target repository.
@@ -188,7 +188,7 @@ jobs:
       harness-ref: <same-40-character-harness-sha>
       skill-path: .github/skills/pr-review/SKILL.md
       allow-draft-reviews: false
-      openshell-github-app-id: ${{ vars.OPENSHELL_GITHUB_APP_ID }}
+      openshell-github-app-client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}
     secrets: inherit
 ```
 

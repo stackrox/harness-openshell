@@ -17,8 +17,8 @@ on:
         required: false
         type: boolean
         default: false
-      openshell-github-app-id:
-        description: GitHub App ID used for the trusted review token
+      openshell-github-app-client-id:
+        description: GitHub App Client ID used for the trusted review token
         required: true
         type: string
     secrets:
@@ -80,7 +80,7 @@ jobs:
         id: openshell-app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
         with:
-          app-id: ${{ inputs.openshell-github-app-id }}
+          client-id: ${{ inputs.openshell-github-app-client-id }}
           private-key: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}

@@ -59,14 +59,15 @@ The review workflow mints a short-lived GitHub App installation token before
 fetching the diff or creating the OpenShell workspace. Configure these values
 in each consuming repository:
 
-- variable: `OPENSHELL_GITHUB_APP_ID` — the numeric GitHub App ID;
+- variable: `OPENSHELL_GITHUB_APP_CLIENT_ID` — the GitHub App Client ID;
 - secret: `OPENSHELL_GITHUB_APP_PRIVATE_KEY` — the complete PEM private key.
 
 The App installation must grant `Contents: read` and `Pull requests: read and
 write` repository permissions, and include the repository being reviewed. The
 workflow requests only those permissions when minting the installation token.
 
-The reusable workflow accepts the App ID as `openshell-github-app-id` and the
+The reusable workflow accepts the App Client ID as
+`openshell-github-app-client-id` and the
 private key through `secrets: inherit`. The token is used on the trusted host
 for `gh` and native provider bootstrap, then passed to OpenShell as the
 provider credential. It is never included in sandbox environment variables,
