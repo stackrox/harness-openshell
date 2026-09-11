@@ -22,7 +22,7 @@ jobs:
       ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
       (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
     concurrency:
-      group: ai-review-${{ inputs.pull-request || github.event.pull_request.number }}-${{ github.event_name }}
+      group: ai-review-${{ inputs.pull-request || github.event.pull_request.number }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
