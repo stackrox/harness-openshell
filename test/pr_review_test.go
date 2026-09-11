@@ -133,6 +133,14 @@ func TestPRReview(t *testing.T) {
 }
 
 func TestGitHubAppTokenIsHostOnly(t *testing.T) {
+	script, err := os.ReadFile("../scripts/pr-review.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(script), `REVIEW_SKILL="${REVIEW_SKILL:-skills/pr-review/SKILL.md}"`) {
+		t.Fatal("review wrapper default skill path is not relative to the workflow file")
+	}
+
 	workflowFiles := []string{
 		"../.github/workflows/ai-review.yml",
 		"../.github/workflows/pr-review-reusable.yml",
