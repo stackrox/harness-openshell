@@ -91,9 +91,15 @@ RUN npm install -g \
 RUN ln -sf /usr/bin/opencode /usr/local/bin/opencode
 
 # Claude Code uses its native installer rather than the deprecated npm path.
-RUN curl -fsSL https://claude.ai/install.sh | bash \
+# The installer URL is not versioned, so pin its current contents explicitly;
+# update the checksum when intentionally accepting a new installer revision.
+ARG CLAUDE_INSTALL_SHA256=3a68d3406cf674e17bed1733a4dcf37805e2e47d87417700007d7e1aa766a944
+RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
+    && echo "${CLAUDE_INSTALL_SHA256}  /tmp/claude-install.sh" | sha256sum -c - \
+    && bash /tmp/claude-install.sh \
     && cp /root/.local/bin/claude /usr/local/bin/claude \
-    && chmod 755 /usr/local/bin/claude
+    && chmod 755 /usr/local/bin/claude \
+    && rm -f /tmp/claude-install.sh
 
 # Go-language MCP support for repository analysis. Apollo supplies the Go
 # toolchain; gopls is the only additional Go binary needed here.
@@ -111,8 +117,12 @@ RUN uv venv --python "${PYTHON_VERSION}" --seed /sandbox/.venv \
 
 # Google Workspace CLI is used by StackRox workflows when the corresponding
 # OpenShell provider is attached.
-RUN curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v0.22.5/google-workspace-cli-x86_64-unknown-linux-gnu.tar.gz" \
-    | tar xz -C /usr/local/bin
+ARG GWS_VERSION=0.22.5
+ARG GWS_SHA256_AMD64=de78ecdbd2f1a84cca0063a7ecbc440240fc14b6ebccbb17f4646b792a8c5c1f
+RUN curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v${GWS_VERSION}/google-workspace-cli-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/gws.tgz \
+    && echo "${GWS_SHA256_AMD64}  /tmp/gws.tgz" | sha256sum -c - \
+    && tar xzf /tmp/gws.tgz -C /usr/local/bin \
+    && rm -f /tmp/gws.tgz
 
 ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin" \
     VIRTUAL_ENV=/sandbox/.venv
