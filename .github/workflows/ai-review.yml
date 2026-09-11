@@ -19,8 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      GH_TOKEN: ${{ github.token }}
-      GITHUB_TOKEN: ${{ github.token }}
       REVIEW_REPOSITORY: ${{ github.repository }}
       REVIEW_PR: ${{ github.event.pull_request.number }}
       REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
@@ -37,8 +35,20 @@ jobs:
         run: |
           echo "REVIEW_DIR=$RUNNER_TEMP/ai-review" >> "$GITHUB_ENV"
           make cli
+      - name: Create OpenShell GitHub App token
+        id: openshell-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ vars.OPENSHELL_GITHUB_APP_ID }}
+          private-key: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-pull-requests: write
       - name: Check label and fetch exact diff as data
         id: prepare
+        env:
+          GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
         run: bash scripts/pr-review.sh prepare
       - uses: ./.github/actions/setup-openshell
         if: steps.prepare.outputs.eligible == 'true'
@@ -53,6 +63,8 @@ jobs:
       - name: Review in isolated OpenShell workspace
         if: steps.prepare.outputs.eligible == 'true'
         env:
+          GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           VERTEX_AI_PROJECT_ID: ${{ vars.VERTEX_AI_PROJECT_ID }}
           VERTEX_AI_REGION: ${{ vars.VERTEX_AI_REGION }}
         run: |

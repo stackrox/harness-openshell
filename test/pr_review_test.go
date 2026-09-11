@@ -132,6 +132,41 @@ func TestPRReview(t *testing.T) {
 	}
 }
 
+func TestGitHubAppTokenIsHostOnly(t *testing.T) {
+	workflowFiles := []string{
+		"../.github/workflows/ai-review.yml",
+		"../.github/workflows/pr-review-reusable.yml",
+	}
+	for _, path := range workflowFiles {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workflow := string(data)
+		if !strings.Contains(workflow, "actions/create-github-app-token@") {
+			t.Errorf("%s does not mint an OpenShell GitHub App token", path)
+		}
+		if !strings.Contains(workflow, "OPENSHELL_GITHUB_APP_PRIVATE_KEY") {
+			t.Errorf("%s does not consume the private-key secret", path)
+		}
+		if strings.Contains(workflow, "GH_TOKEN: ${{ github.token }}") || strings.Contains(workflow, "GITHUB_TOKEN: ${{ github.token }}") {
+			t.Errorf("%s still uses the automatic workflow token", path)
+		}
+	}
+
+	data, err := os.ReadFile("../examples/github-pr-reviewer/opencode-harness.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	example := string(data)
+	if !strings.Contains(example, "providers: [github-review]") {
+		t.Fatal("review workflow does not attach the native GitHub provider")
+	}
+	if strings.Contains(example, "GITHUB_TOKEN") {
+		t.Fatal("review workflow passes the GitHub token into the sandbox configuration")
+	}
+}
+
 const fakeReviewCommand = `#!/usr/bin/env bash
 set -eu
 printf '%s\n' "$*" >> "$TRACE"
