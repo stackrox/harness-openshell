@@ -79,7 +79,10 @@ RUN uv python install "${PYTHON_VERSION}" \
 # versions mirror the current StackRox sandbox profile where applicable.
 # tar is a Node library dependency; npm leaves the system GNU tar in /usr/bin
 # unchanged.
-RUN npm install -g \
+RUN mkdir -p /tmp/npm-global \
+    && chown sandbox:sandbox /tmp/npm-global
+USER sandbox
+RUN NPM_CONFIG_PREFIX=/tmp/npm-global npm install -g \
         tar@7.5.11 \
         @hono/node-server@1.19.11 \
         opencode-ai@1.18.30 \
@@ -87,6 +90,10 @@ RUN npm install -g \
         @github/copilot@1.0.16 \
         ajv-cli@5.0.0 \
     && npm cache clean --force
+USER root
+RUN cp -a /tmp/npm-global/lib/node_modules/. /usr/lib/node_modules/ \
+    && cp -a /tmp/npm-global/bin/. /usr/bin/ \
+    && rm -rf /tmp/npm-global
 
 # Keep the policy path used by the community image even though npm puts the
 # executable in /usr/bin on this UBI-based image.
