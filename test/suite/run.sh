@@ -65,6 +65,7 @@ run_test "apply: resolved JSON" bash -c '"$1" workflow apply "$2" -o json | pyth
 run_test "apply: name override" bash -c '"$1" workflow apply "$2" --name overridden -o yaml | grep -q "name: overridden"' _ "$HARNESS" "$CONFIG"
 run_test "apply: entrypoint override" bash -c '"$1" workflow apply "$2" --entrypoint opencode -o yaml | grep -q "type: opencode"' _ "$HARNESS" "$CONFIG"
 run_test "apply: attach override" bash -c '"$1" workflow apply "$2" --attach -o yaml | grep -q "tty: true"' _ "$HARNESS" "$CONFIG"
+run_test "local dev workflow: retained interactive shell" bash -c 'out=$("$1" workflow apply "$2" -o yaml) && grep -q "keep: true" <<<"$out" && grep -q "tty: true" <<<"$out" && grep -q "destination: /sandbox" <<<"$out"' _ "$HARNESS" "$ROOT/dev-workflow.yaml"
 run_test_fail "apply: file is required" "$HARNESS" workflow apply -o yaml
 run_test_fail "apply: unversioned config rejected" bash -c 'f=$(mktemp); printf "name: old\\nentrypoint: claude\\n" >"$f"; "$1" workflow apply "$f" -o yaml; rc=$?; rm -f "$f"; exit $rc' _ "$HARNESS"
 

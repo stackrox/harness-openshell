@@ -1,0 +1,20 @@
+version: 1
+name: harness-openshell-dev
+
+# This workflow is intentionally provider-free. Add only the provider and
+# inference references needed for the session you are debugging.
+sandbox:
+  keep: true
+  tty: true
+
+# A directory upload preserves its basename. The repository root is therefore
+# available at /sandbox/harness-openshell inside this repository's workflow.
+payloads:
+  - source: .
+    destination: /sandbox
+
+agent:
+  type: bash
+  args:
+    - -lc
+    - cd /sandbox/harness-openshell && exec bash -li

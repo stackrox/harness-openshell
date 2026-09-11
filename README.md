@@ -100,6 +100,22 @@ openshell sandbox logs <name>
 openshell sandbox delete <name>
 ```
 
+This repository also includes a local development workflow. It uploads the
+current working tree, opens a shell at `/sandbox/harness-openshell`, and keeps
+the sandbox after the shell exits:
+
+```bash
+./scripts/dev-workflow.sh
+```
+
+The helper builds the CLI, selects the latest CI sandbox image, and prints the
+retained sandbox name. Use `HARNESS_DEV_NAME` to choose a stable name, or run
+`openshell sandbox connect <name>` after detaching. The workflow is
+provider-free by design; add only the provider and inference references needed
+for the session, then start the coding agent from the attached shell. The
+directory upload includes the working tree, so do not keep credentials or
+other sensitive files under the repository directory.
+
 ## State, defaults, and configuration
 
 Harness owns no durable workflow state. OpenShell or the platform owns gateway
