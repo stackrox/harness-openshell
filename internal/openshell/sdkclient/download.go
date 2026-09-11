@@ -128,7 +128,7 @@ func remoteDownloadCommand(relative string) string {
 		current += "/" + component
 		symlinkChecks = append(symlinkChecks, "test -L "+shellQuote(current))
 	}
-	return "if ! test -e " + shellQuote(source) + "; then exit " + fmt.Sprint(remotePathMissingStatus) + "; elif " + strings.Join(symlinkChecks, " || ") + "; then exit " + fmt.Sprint(remotePathSymlinkStatus) + "; else tar -cf - -C '/sandbox' -- " + shellQuote(relative) + "; fi"
+	return "if " + strings.Join(symlinkChecks, " || ") + "; then exit " + fmt.Sprint(remotePathSymlinkStatus) + "; elif ! test -e " + shellQuote(source) + "; then exit " + fmt.Sprint(remotePathMissingStatus) + "; else tar -cf - -C '/sandbox' -- " + shellQuote(relative) + "; fi"
 }
 
 // installDownloadTree commits the staged output without replacing a path that

@@ -44,7 +44,7 @@ func TestDownloadPathRegularFile(t *testing.T) {
 	if sandbox != "review" || port != 22 {
 		t.Errorf("tunnel target = %s:%d", sandbox, port)
 	}
-	if want := "if ! test -e '/sandbox/artifacts/report.txt'; then exit 73; elif test -L '/sandbox/artifacts' || test -L '/sandbox/artifacts/report.txt'; then exit 74; else tar -cf - -C '/sandbox' -- 'artifacts/report.txt'; fi"; command != want {
+	if want := "if test -L '/sandbox/artifacts' || test -L '/sandbox/artifacts/report.txt'; then exit 74; elif ! test -e '/sandbox/artifacts/report.txt'; then exit 73; else tar -cf - -C '/sandbox' -- 'artifacts/report.txt'; fi"; command != want {
 		t.Errorf("command = %q, want %q", command, want)
 	}
 }
