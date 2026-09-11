@@ -83,7 +83,7 @@ func loadWorkflow(path, flagGateway, flagWorkspace string, overrides applyOverri
 func runConfigured(desired *config.Harness) bool {
 	sandbox := desired.Spec.Sandbox
 	return sandbox.Image != "" || len(sandbox.Providers) > 0 || sandbox.Policy != nil || len(sandbox.Env) > 0 || sandbox.TTY || sandbox.Keep ||
-		desired.Spec.Agent.Type != "" || desired.Spec.Source.Repo != "" || len(desired.Spec.Payloads) > 0
+		desired.Spec.Agent.Type != "" || desired.Spec.Source.Repo != "" || len(desired.Spec.Payloads) > 0 || len(desired.Spec.Outputs) > 0
 }
 
 func (w *resolvedWorkflow) buildPlan(ctx context.Context, client openshell.Client) (*plan.Plan, plan.CurrentState, error) {

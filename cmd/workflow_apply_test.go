@@ -449,6 +449,8 @@ func (c *recordingSDK) DeleteSandbox(_ context.Context, _ string) error {
 	return nil
 }
 
+func (*recordingSDK) DownloadPath(_ context.Context, _, _, _ string) error { return nil }
+
 func TestCanonicalApplyUsesSDKForTTY(t *testing.T) {
 	desired := &config.Harness{
 		Name: "interactive",
@@ -626,7 +628,7 @@ func TestCanonicalRunRequestResolvesConfigRelativeArtifacts(t *testing.T) {
 		BaseDir: dir,
 	}
 
-	req, cleanup, err := buildRunRequest(workflow)
+	req, cleanup, err := buildRunRequest(workflow, "")
 	if err != nil {
 		t.Fatalf("buildRunRequest: %v", err)
 	}
@@ -646,6 +648,55 @@ func TestCanonicalRunRequestResolvesConfigRelativeArtifacts(t *testing.T) {
 		t.Errorf("staged inline payload not cleaned up: %v", err)
 	}
 }
+
+func TestCanonicalRunRequestResolvesOutputsBelowExplicitDirectory(t *testing.T) {
+	outputDir := filepath.Join(t.TempDir(), "results")
+	workflow := &resolvedWorkflow{
+		Desired: &config.Harness{
+			Name: "review",
+			Spec: config.Spec{
+				Sandbox: config.Sandbox{Image: "reviewer"},
+				Outputs: []config.Output{
+					{Source: "/sandbox/artifacts", Destination: "artifacts", Required: boolPtr(false)},
+				},
+			},
+		},
+		BaseDir: t.TempDir(),
+	}
+	req, cleanup, err := buildRunRequest(workflow, outputDir)
+	if err != nil {
+		t.Fatalf("buildRunRequest: %v", err)
+	}
+	defer cleanup()
+	if len(req.Downloads) != 1 {
+		t.Fatalf("downloads = %+v", req.Downloads)
+	}
+	if got, want := req.Downloads[0].Dst, filepath.Join(outputDir, "artifacts"); got != want {
+		t.Errorf("download destination = %q, want %q", got, want)
+	}
+	if req.Downloads[0].Required {
+		t.Error("optional output was marked required")
+	}
+}
+
+func TestCanonicalRunRequestRequiresOutputDirectory(t *testing.T) {
+	workflow := &resolvedWorkflow{
+		Desired: &config.Harness{
+			Name: "review",
+			Spec: config.Spec{
+				Sandbox: config.Sandbox{Image: "reviewer"},
+				Outputs: []config.Output{{Source: "/sandbox/artifacts", Destination: "artifacts"}},
+			},
+		},
+		BaseDir: t.TempDir(),
+	}
+	if _, cleanup, err := buildRunRequest(workflow, ""); err == nil {
+		cleanup()
+		t.Fatal("buildRunRequest unexpectedly succeeded without --output-dir")
+	}
+}
+
+func boolPtr(value bool) *bool { return &value }
 
 func TestGitHubReviewerCustomSkillUsesExamplePayloadPath(t *testing.T) {
 	dir := t.TempDir()
@@ -687,7 +738,7 @@ func TestGitHubReviewerCustomSkillUsesExamplePayloadPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadWorkflow: %v", err)
 	}
-	req, cleanup, err := buildRunRequest(workflow)
+	req, cleanup, err := buildRunRequest(workflow, "")
 	if err != nil {
 		t.Fatalf("buildRunRequest: %v", err)
 	}

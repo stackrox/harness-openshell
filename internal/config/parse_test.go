@@ -64,6 +64,22 @@ func TestParseValidFixture(t *testing.T) {
 	}
 }
 
+func TestParseOutputs(t *testing.T) {
+	h, err := Parse([]byte(`version: 1
+name: triage
+outputs:
+  - source: /sandbox/artifacts
+    destination: artifacts
+    required: false
+`))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(h.Spec.Outputs) != 1 || h.Spec.Outputs[0].RequiredEnabled() {
+		t.Fatalf("outputs = %+v, want one optional output", h.Spec.Outputs)
+	}
+}
+
 func TestRoundTrip(t *testing.T) {
 	fixture := "testdata/fact-dev.yaml"
 	data1, err := os.ReadFile(fixture)

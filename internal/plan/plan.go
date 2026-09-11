@@ -25,6 +25,7 @@ const (
 	ActionMissing       Action = "missing"
 	ActionCreateSandbox Action = "create-sandbox"
 	ActionUpload        Action = "upload"
+	ActionDownload      Action = "download"
 	ActionExecute       Action = "execute"
 	ActionDeleteSandbox Action = "delete-sandbox"
 )
@@ -300,6 +301,15 @@ func buildRunGroup(desired *config.Harness) Group {
 		})
 	}
 
+	// Download actions happen after agent execution and before cleanup.
+	for _, output := range desired.Spec.Outputs {
+		group.Resources = append(group.Resources, Resource{
+			Name:   output.Source,
+			Action: ActionDownload,
+			Detail: "host output: " + output.Destination,
+		})
+	}
+
 	// Delete sandbox action (only if keep is false).
 	if desired.Spec.Sandbox.Image != "" && !desired.Spec.Sandbox.Keep {
 		group.Resources = append(group.Resources, Resource{
@@ -325,6 +335,7 @@ func hasRunConfig(desired *config.Harness) bool {
 	return desired.Spec.Sandbox.Image != "" ||
 		desired.Spec.Source.Repo != "" ||
 		len(desired.Spec.Payloads) > 0 ||
+		len(desired.Spec.Outputs) > 0 ||
 		desired.Spec.Agent.Type != ""
 }
 

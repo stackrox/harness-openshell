@@ -36,6 +36,10 @@ sandbox:
 payloads:
   - source: .github/skills/pr-review/SKILL.md
     destination: /sandbox/skills/pr-review/SKILL.md
+outputs:
+  - source: /sandbox/artifacts
+    destination: artifacts
+    required: false
 source:
   repo: https://github.com/stackrox/stackrox
   ref: main
@@ -47,7 +51,8 @@ agent:
 
 The document can declare a gateway/workspace target, an inference route,
 sandbox provider attachments, sandbox image/policy/environment, agent command,
-source checkout, and payload files. Provider credentials and permissions remain
+source checkout, payload files, and paths to download after execution. Provider
+credentials and permissions remain
 OpenShell-owned. Changing the target or policy lets the same repository
 workflow run with a different trust boundary.
 
@@ -209,6 +214,7 @@ implicitly enabled by the runner.
 | `harness workflow plan FILE` | Render a read-only plan |
 | `harness workflow apply FILE` | Run the workflow headlessly |
 | `harness workflow apply FILE --attach` | Run it with an interactive terminal |
+| `harness workflow apply FILE --output-dir DIR` | Download declared workflow outputs below `DIR` |
 | `harness workflow apply FILE --setup-only` | Verify references and configure inference without running a sandbox |
 
 Plan and dry-run output support `-o table`, `-o json`, and `-o yaml`; credential

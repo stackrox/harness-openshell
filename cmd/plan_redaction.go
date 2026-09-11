@@ -90,6 +90,14 @@ func interpolatedValues(resolved, input *config.Harness) []string {
 		add(payload.Content, raw.Content)
 		add(payload.Destination, raw.Destination)
 	}
+	for i, output := range resolved.Spec.Outputs {
+		if i >= len(input.Spec.Outputs) {
+			continue
+		}
+		raw := input.Spec.Outputs[i]
+		add(output.Source, raw.Source)
+		add(output.Destination, raw.Destination)
+	}
 
 	// Longest first prevents a shorter interpolated value from partially
 	// consuming a longer one in a compound detail string.

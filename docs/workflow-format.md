@@ -26,6 +26,11 @@ sandbox:
 agent:
   type: opencode
   args: [run, --format, json]
+
+outputs:
+  - source: /sandbox/artifacts
+    destination: artifacts
+    required: false
 ```
 
 `version` must be `1` and `name` is required. All other top-level fields are
@@ -46,6 +51,24 @@ optional. Unknown fields are rejected so a typo cannot silently change a run.
 - `agent` is the command executed in the sandbox.
 - `source` optionally uploads a repository checkout.
 - `payloads` uploads host files or inline content to sandbox destinations.
+- `outputs` downloads sandbox paths after the agent exits. `source` must be an
+  absolute path below `/sandbox`; `destination` is a relative path below the
+  host directory passed with `--output-dir`. Outputs default to required;
+  `required: false` allows a missing path without failing the run. Existing
+  host destinations, traversal paths, links, and archive entries outside the
+  requested path are rejected. Sources are exact files or directories; there
+  is no glob syntax. Downloads are bounded to protect the host.
+
+Run a workflow with outputs by choosing an explicit host directory:
+
+```bash
+harness workflow apply workflow.yaml --output-dir ./workflow-artifacts
+```
+
+Downloads happen before the sandbox cleanup step, including when the agent
+fails, so a workflow can preserve diagnostics while still returning a failed
+run. The current SDK adapter transfers files through OpenShell's authenticated
+SSH tunnel; it does not invoke the OpenShell CLI or copy gateway credentials.
 
 String values may contain `${VAR}` references resolved from the calling
 process environment. Harness does not load `.env` files implicitly.

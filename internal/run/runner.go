@@ -48,21 +48,39 @@ func Run(ctx context.Context, client openshell.SandboxExecutionClient, req Sandb
 			return fmt.Errorf("uploading %q to %q: %w", upload.Src, upload.Dst, err)
 		}
 	}
-	if len(req.Command) == 0 {
-		return nil
+
+	if len(req.Command) > 0 {
+		var exitCode int
+		if req.TTY {
+			exitCode, err = runInteractive(ctx, client, req.Name, req.Command, stdin, stdout)
+		} else {
+			exitCode, err = client.ExecSandbox(ctx, req.Name, req.Command, stdout, stderr)
+		}
+		if err != nil {
+			runErr = fmt.Errorf("executing command in sandbox %q: %w", req.Name, err)
+		} else if exitCode != 0 {
+			runErr = fmt.Errorf("sandbox command exited with status %d", exitCode)
+		}
 	}
 
-	var exitCode int
-	if req.TTY {
-		exitCode, err = runInteractive(ctx, client, req.Name, req.Command, stdin, stdout)
-	} else {
-		exitCode, err = client.ExecSandbox(ctx, req.Name, req.Command, stdout, stderr)
+	if len(req.Downloads) == 0 {
+		return runErr
 	}
-	if err != nil {
-		return fmt.Errorf("executing command in sandbox %q: %w", req.Name, err)
+	downloadCtx := ctx
+	if runErr != nil || ctx.Err() != nil {
+		var cancel context.CancelFunc
+		downloadCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
 	}
-	if exitCode != 0 {
-		return fmt.Errorf("sandbox command exited with status %d", exitCode)
+	for _, download := range req.Downloads {
+		err := client.DownloadPath(downloadCtx, req.Name, download.Src, download.Dst)
+		if err != nil {
+			if !download.Required && errors.Is(err, openshell.ErrNotFound) {
+				continue
+			}
+			downloadErr := fmt.Errorf("downloading %q to %q: %w", download.Src, download.Dst, err)
+			runErr = errors.Join(runErr, downloadErr)
+		}
 	}
-	return nil
+	return runErr
 }

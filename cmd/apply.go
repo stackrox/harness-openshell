@@ -8,7 +8,7 @@ import (
 )
 
 func NewApplyCmd(newClient openshell.Factory) *cobra.Command {
-	var file, sandboxName, entrypoint, output, resultFile string
+	var file, sandboxName, entrypoint, output, outputDir, resultFile string
 	var attach, dryRun, setupOnly bool
 	var gatewayName, workspace *string
 
@@ -36,6 +36,7 @@ host-interpolated and credential-bearing map values redacted.`,
 				DryRun:     dryRun,
 				SetupOnly:  setupOnly,
 				Output:     output,
+				OutputDir:  outputDir,
 				ResultFile: resultFile,
 				Gateway:    *gatewayName,
 				Workspace:  *workspace,
@@ -50,6 +51,7 @@ host-interpolated and credential-bearing map values redacted.`,
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Render the action plan without mutating anything")
 	cmd.Flags().BoolVar(&setupOnly, "setup-only", false, "Verify provider references and configure inference without running a sandbox")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: yaml or json (dry-run also supports table)")
+	cmd.Flags().StringVar(&outputDir, "output-dir", "", "Host directory for workflow outputs")
 	cmd.Flags().StringVar(&resultFile, "result-file", "", "Write host-derived execution result JSON to a new file")
 	gatewayName, workspace = registerTargetFlags(cmd)
 	return cmd
