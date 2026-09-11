@@ -102,12 +102,10 @@ RUN NPM_CONFIG_PREFIX=/tmp/npm-global npm install -g \
     && npm cache clean --force
 USER root
 RUN cp -a /tmp/npm-global/lib/node_modules/. /usr/lib/node_modules/ \
-    && for binary in /tmp/npm-global/bin/*; do \
-         name="$(basename "${binary}")"; \
-         if [ "${name}" != tar ]; then \
-           cp -a "${binary}" "/usr/bin/${name}"; \
-           chown -h root:root "/usr/bin/${name}"; \
-         fi; \
+    && for name in opencode codex copilot ajv; do \
+         test -e "/tmp/npm-global/bin/${name}"; \
+         cp -a "/tmp/npm-global/bin/${name}" "/usr/bin/${name}"; \
+         chown -h root:root "/usr/bin/${name}"; \
        done \
     && chown -R root:root /usr/lib/node_modules \
     && tar --version | grep -q 'GNU tar' \
