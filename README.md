@@ -194,7 +194,9 @@ jobs:
       skill-path: .github/skills/pr-review/SKILL.md
       allow-draft-reviews: false
       openshell-github-app-client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}
-    secrets: inherit
+    secrets:
+      VERTEX_AI_SERVICE_ACCOUNT_KEY: ${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}
+      OPENSHELL_GITHUB_APP_PRIVATE_KEY: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}
 ```
 
 Use `pull_request_target` when the workflow needs secrets or write permissions;

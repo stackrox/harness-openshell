@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestPRReview(t *testing.T) {
@@ -142,45 +144,68 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	}
 
 	caller := string(mustRead(t, "../.github/workflows/ai-review.yml"))
-	const usesPrefix = "    uses: stackrox/harness-openshell/.github/workflows/pr-review-reusable.yml@"
-	var pinnedRef string
-	for _, line := range strings.Split(caller, "\n") {
-		if strings.HasPrefix(line, usesPrefix) {
-			pinnedRef = strings.TrimPrefix(line, usesPrefix)
-			break
-		}
+	callerWorkflow := parseWorkflow(t, caller)
+	reviewJob, ok := callerWorkflow.Jobs["review"]
+	if !ok {
+		t.Fatal("caller does not define a review job")
 	}
+	const usesPrefix = "stackrox/harness-openshell/.github/workflows/pr-review-reusable.yml@"
+	pinnedRef := strings.TrimPrefix(reviewJob.Uses, usesPrefix)
 	if !isSHA(pinnedRef) {
 		t.Fatalf("caller does not pin the shared review workflow to a commit: %q", pinnedRef)
 	}
-	if !strings.Contains(caller, "harness-ref: "+pinnedRef) {
+	if reviewJob.With["harness-ref"] != pinnedRef {
 		t.Fatalf("caller harness-ref does not match workflow pin %q", pinnedRef)
 	}
-	for _, required := range []string{
-		"openshell-github-app-client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}",
-		"secrets: inherit",
+	if reviewJob.With["openshell-github-app-client-id"] != "${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}" {
+		t.Fatal("caller does not pass the GitHub App client ID variable")
+	}
+	for name, want := range map[string]string{
+		"VERTEX_AI_SERVICE_ACCOUNT_KEY":    "${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}",
+		"OPENSHELL_GITHUB_APP_PRIVATE_KEY": "${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}",
 	} {
-		if !strings.Contains(caller, required) {
-			t.Fatalf("caller is missing %q", required)
+		if reviewJob.Secrets[name] != want {
+			t.Fatalf("caller secret %s is not explicitly forwarded", name)
 		}
 	}
-	if strings.Contains(caller, "actions/create-github-app-token@") || strings.Contains(caller, "scripts/pr-review.sh") {
-		t.Fatal("caller still contains shared review implementation")
+	if len(reviewJob.Steps) != 0 {
+		t.Fatal("caller still contains shared review steps")
 	}
 
-	shared := string(mustRead(t, "../.github/workflows/pr-review-reusable.yml"))
-	for _, required := range []string{
-		"workflow_call:",
-		"actions/create-github-app-token@",
-		"client-id: ${{ inputs.openshell-github-app-client-id }}",
-		"private-key: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}",
-	} {
-		if !strings.Contains(shared, required) {
-			t.Fatalf("shared review workflow is missing %q", required)
+	sharedWorkflow := parseWorkflow(t, string(mustRead(t, "../.github/workflows/pr-review-reusable.yml")))
+	sharedJob, ok := sharedWorkflow.Jobs["review"]
+	if !ok {
+		t.Fatal("shared review workflow does not define a review job")
+	}
+	sharedTrigger, ok := sharedWorkflow.On["workflow_call"]
+	if !ok {
+		t.Fatal("shared review workflow is not callable")
+	}
+	for _, name := range []string{"VERTEX_AI_SERVICE_ACCOUNT_KEY", "OPENSHELL_GITHUB_APP_PRIVATE_KEY"} {
+		if _, ok := sharedTrigger.Secrets[name]; !ok {
+			t.Fatalf("shared review workflow does not declare secret %s", name)
 		}
 	}
-	if strings.Contains(shared, "GH_TOKEN: ${{ github.token }}") || strings.Contains(shared, "GITHUB_TOKEN: ${{ github.token }}") {
-		t.Fatal("shared review workflow still uses the automatic workflow token")
+	var tokenStep workflowStep
+	for _, step := range sharedJob.Steps {
+		if strings.HasPrefix(step.Uses, "actions/create-github-app-token@") {
+			tokenStep = step
+			break
+		}
+	}
+	if tokenStep.Uses == "" {
+		t.Fatal("shared review workflow does not mint an OpenShell GitHub App token")
+	}
+	if tokenStep.With["client-id"] != "${{ inputs.openshell-github-app-client-id }}" {
+		t.Fatal("shared workflow does not use the GitHub App client ID input")
+	}
+	if tokenStep.With["private-key"] != "${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}" {
+		t.Fatal("shared workflow does not use the private-key secret")
+	}
+	for _, step := range sharedJob.Steps {
+		if step.Env["GH_TOKEN"] == "${{ github.token }}" || step.Env["GITHUB_TOKEN"] == "${{ github.token }}" {
+			t.Fatal("shared review workflow still uses the automatic workflow token")
+		}
 	}
 
 	data, err := os.ReadFile("../examples/github-pr-reviewer/opencode-harness.yaml")
@@ -194,6 +219,41 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	if strings.Contains(example, "GITHUB_TOKEN") {
 		t.Fatal("review workflow passes the GitHub token into the sandbox configuration")
 	}
+}
+
+type workflowDocument struct {
+	On   map[string]workflowTrigger `yaml:"on"`
+	Jobs map[string]workflowJob     `yaml:"jobs"`
+}
+
+type workflowTrigger struct {
+	Secrets map[string]workflowSecret `yaml:"secrets"`
+}
+
+type workflowSecret struct {
+	Required bool `yaml:"required"`
+}
+
+type workflowJob struct {
+	Uses    string            `yaml:"uses"`
+	With    map[string]string `yaml:"with"`
+	Secrets map[string]string `yaml:"secrets"`
+	Steps   []workflowStep    `yaml:"steps"`
+}
+
+type workflowStep struct {
+	Uses string            `yaml:"uses"`
+	With map[string]string `yaml:"with"`
+	Env  map[string]string `yaml:"env"`
+}
+
+func parseWorkflow(t *testing.T, data string) workflowDocument {
+	t.Helper()
+	var workflow workflowDocument
+	if err := yaml.Unmarshal([]byte(data), &workflow); err != nil {
+		t.Fatalf("parse workflow: %v", err)
+	}
+	return workflow
 }
 
 func isSHA(value string) bool {

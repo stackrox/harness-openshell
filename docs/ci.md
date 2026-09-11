@@ -66,13 +66,14 @@ The App installation must grant `Contents: read` and `Pull requests: read and
 write` repository permissions, and include the repository being reviewed. The
 workflow requests only those permissions when minting the installation token.
 
-The reusable workflow accepts the App Client ID as
-`openshell-github-app-client-id` and the
-private key through `secrets: inherit`. The token is used on the trusted host
-for `gh` and native provider bootstrap, then passed to OpenShell as the
-provider credential. It is never included in sandbox environment variables,
-payloads, agent arguments, or artifacts. Installation tokens expire after one
-hour and are revoked by the token action after the job.
+The workflow accepts the App Client ID as
+`openshell-github-app-client-id`; callers explicitly forward only
+`VERTEX_AI_SERVICE_ACCOUNT_KEY` and `OPENSHELL_GITHUB_APP_PRIVATE_KEY`. The
+token is used on the trusted host for `gh` and native provider bootstrap, then
+passed to OpenShell as the provider credential. It is never included in
+sandbox environment variables, payloads, agent arguments, or artifacts.
+Installation tokens expire after one hour and are revoked by the token action
+after the job.
 
 The Harness repository's `ai-review.yml` is a thin caller of the pinned GitHub
 review workflow, so `pull_request_target` runs use the same path as consuming
