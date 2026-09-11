@@ -7,6 +7,7 @@ HARNESS="$ROOT/harness"
 CLI="${OPENSHELL_CLI:-openshell}"
 CONFIG="$ROOT/test/configs/harness.yaml"
 LIFECYCLE="$ROOT/test/lifecycle-workflow.yaml"
+GENERIC_AGENT="$ROOT/test/generic-agent-workflow.yaml"
 LIVE=false
 FILTER=""
 VERBOSE=false
@@ -65,6 +66,7 @@ run_test "apply: resolved JSON" bash -c '"$1" workflow apply "$2" -o json | pyth
 run_test "apply: name override" bash -c '"$1" workflow apply "$2" --name overridden -o yaml | grep -q "name: overridden"' _ "$HARNESS" "$CONFIG"
 run_test "apply: entrypoint override" bash -c '"$1" workflow apply "$2" --entrypoint opencode -o yaml | grep -q "type: opencode"' _ "$HARNESS" "$CONFIG"
 run_test "apply: attach override" bash -c '"$1" workflow apply "$2" --attach -o yaml | grep -q "tty: true"' _ "$HARNESS" "$CONFIG"
+run_test "generic agent workflow: opaque config and output" bash -c 'out=$("$1" workflow apply "$2" -o yaml) && grep -q "destination: /sandbox/.mcp.json" <<<"$out" && grep -q "source: /sandbox/artifacts/result.json" <<<"$out"' _ "$HARNESS" "$GENERIC_AGENT"
 run_test_fail "apply: file is required" "$HARNESS" workflow apply -o yaml
 run_test_fail "apply: unversioned config rejected" bash -c 'f=$(mktemp); printf "name: old\\nentrypoint: claude\\n" >"$f"; "$1" workflow apply "$f" -o yaml; rc=$?; rm -f "$f"; exit $rc' _ "$HARNESS"
 
@@ -74,6 +76,14 @@ run_test "plan: JSON" bash -c '"$1" workflow plan -f "$2" -o json | python3 -m j
 run_test "plan: YAML" bash -c '"$1" workflow plan -f "$2" -o yaml | grep -q "section: providers"' _ "$HARNESS" "$CONFIG"
 if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
   echo "=== Live SDK lifecycle ==="
+  run_test "live: generic agent payload and output" bash -c '
+    set -e
+    outdir=$(mktemp -d)
+    trap "rm -rf \"$outdir\"" EXIT
+    name="generic-agent-$RANDOM-$$"
+    "$1" workflow apply "$2" --name "$name" --output-dir "$outdir" >/dev/null
+    grep -q status "$outdir/artifacts/result.json"
+  ' _ "$HARNESS" "$GENERIC_AGENT"
   run_test "live: create and retain" "$HARNESS" workflow apply "$LIFECYCLE" --name suite-sdk-live
   run_test "live: describe" "$CLI" sandbox get suite-sdk-live
   run_test "live: get agents" bash -c '"$1" sandbox list | grep -q suite-sdk-live' _ "$CLI"

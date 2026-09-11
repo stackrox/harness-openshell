@@ -1,0 +1,6 @@
+{
+  "permissions": {
+    "defaultMode": "deny",
+    "allow": ["Read(*)", "Write(/sandbox/artifacts/*)"]
+  }
+}

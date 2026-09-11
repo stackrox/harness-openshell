@@ -1,0 +1,36 @@
+version: 1
+name: generic-agent-contract
+
+# This fixture represents a repository-owned agent package. Harness treats the
+# MCP and agent configuration as opaque payloads; it does not know the service
+# or tool names inside them.
+sandbox:
+  image: ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+
+payloads:
+  - source: generic-agent/.mcp.json
+    destination: /sandbox/.mcp.json
+  - source: generic-agent/settings.json
+    destination: /sandbox/.claude/settings.json
+  - source: generic-agent/task.md
+    destination: /sandbox/task.md
+
+outputs:
+  - source: /sandbox/artifacts/result.json
+    destination: artifacts/result.json
+
+# The fixture command stands in for a coding agent. It verifies that the
+# repository-owned configuration arrived, then emits a bounded artifact.
+# A consumer repository can replace this command with Claude, OpenCode, or
+# another agent without changing Harness.
+agent:
+  type: sh
+  args:
+    - -c
+    - |
+      set -eu
+      test -s /sandbox/.mcp.json
+      test -s /sandbox/.claude/settings.json
+      test "$(cat /sandbox/task.md)" = "generic-agent-fixture"
+      mkdir -p /sandbox/artifacts
+      printf '%s\n' '{"status":"ok","task":"generic-agent-fixture"}' > /sandbox/artifacts/result.json
