@@ -62,6 +62,10 @@ in each consuming repository:
 - variable: `OPENSHELL_GITHUB_APP_ID` — the numeric GitHub App ID;
 - secret: `OPENSHELL_GITHUB_APP_PRIVATE_KEY` — the complete PEM private key.
 
+The App installation must grant `Contents: read` and `Pull requests: read and
+write` repository permissions, and include the repository being reviewed. The
+workflow requests only those permissions when minting the installation token.
+
 The reusable workflow accepts the App ID as `openshell-github-app-id` and the
 private key through `secrets: inherit`. The token is used on the trusted host
 for `gh` and native provider bootstrap, then passed to OpenShell as the

@@ -167,7 +167,9 @@ token from the repository's OpenShell GitHub App and uses it to register the
 native OpenShell GitHub provider. The token is not placed in the sandbox
 environment or agent payload. Configure `OPENSHELL_GITHUB_APP_ID` as a
 repository variable and `OPENSHELL_GITHUB_APP_PRIVATE_KEY` as a repository
-secret. See [docs/ci.md](docs/ci.md) for the bootstrap and secret contract.
+secret. The installed App must have repository permissions `Contents: read` and
+`Pull requests: read and write`, and must be installed on the target repository.
+See [docs/ci.md](docs/ci.md) for the bootstrap and secret contract.
 
 ## GitHub Actions and local sessions
 
