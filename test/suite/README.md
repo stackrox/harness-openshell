@@ -4,12 +4,8 @@ The suite drives the public CLI with canonical version 1 workflows. Offline chec
 resolved YAML/JSON, overrides, plan output, removed compatibility flags, and
 the workflow-only command surface. Live mode adds SDK upload, policy
 enforcement, create, inspect, exec, list, and delete against the selected
-gateway. It also runs a generic agent contract fixture: repository-owned MCP
-and settings payloads are uploaded, a fixture agent writes an artifact, and
-Harness downloads it before cleanup. The fixture does not exercise a real MCP
-service or provider. Automatic cleanup is exercised by `test/test-flow.sh`;
-interactive TTY remains a manual controlling-terminal check documented in the
-repository README.
+gateway. Automatic cleanup is exercised by `test/test-flow.sh`; interactive TTY
+remains a manual controlling-terminal check documented in the repository README.
 
 ```bash
 make test-suite

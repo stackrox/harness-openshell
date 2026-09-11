@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "fixture-service": {
-      "command": "fixture-agent-server",
-      "args": ["--read-only"]
-    }
-  }
-}
