@@ -110,7 +110,7 @@ func sandboxRelativePath(sourcePath string) (string, error) {
 	if strings.IndexByte(sourcePath, 0) >= 0 {
 		return "", errors.New("download source must not contain a null byte")
 	}
-	if strings.Contains(strings.ReplaceAll(sourcePath, "\\", "/"), "../") || strings.Contains(sourcePath, "/..") {
+	if hasParentPathSegment(sourcePath) {
 		return "", errors.New("download source must not contain '..' path segments")
 	}
 	clean := path.Clean(sourcePath)
@@ -118,6 +118,15 @@ func sandboxRelativePath(sourcePath string) (string, error) {
 		return "", errors.New("download source must be below /sandbox")
 	}
 	return strings.TrimPrefix(clean, "/sandbox/"), nil
+}
+
+func hasParentPathSegment(value string) bool {
+	for _, segment := range strings.Split(strings.ReplaceAll(value, "\\", "/"), "/") {
+		if segment == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 func extractDownloadTar(reader io.Reader, staging, expectedRoot string) error {

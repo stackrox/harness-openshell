@@ -84,6 +84,9 @@ func TestSandboxRelativePathRejectsEscapes(t *testing.T) {
 			t.Errorf("sandboxRelativePath(%q) unexpectedly succeeded", source)
 		}
 	}
+	if got, err := sandboxRelativePath("/sandbox/foo/..bar"); err != nil || got != "foo/..bar" {
+		t.Fatalf("sandboxRelativePath legitimate filename = %q, %v", got, err)
+	}
 }
 
 func TestExtractDownloadTarRejectsUnsafeEntries(t *testing.T) {
