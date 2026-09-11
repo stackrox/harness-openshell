@@ -67,7 +67,7 @@ RUN curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_$
     && rm -f /tmp/gh.tgz
 
 # Use the same uv-managed Python contract as the community base image. The
-# The rox-ci-image system Python is 3.9, while current MCP integrations require
+# rox-ci-image system Python is 3.9, while current MCP integrations require
 # 3.10+.
 COPY --from=ghcr.io/astral-sh/uv:0.10.8 /uv /usr/local/bin/uv
 ARG PYTHON_VERSION=3.14.3
