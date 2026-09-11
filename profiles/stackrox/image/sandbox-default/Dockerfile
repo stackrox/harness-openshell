@@ -69,9 +69,6 @@ RUN set -eux; \
     GOBIN=/usr/local/bin /usr/local/go/bin/go install "golang.org/x/tools/gopls@v${GOPLS_VERSION}"; \
     rm -rf /tmp/go.tgz /root/go /root/.cache/go-build
 
-# JSON Schema validation used by the ACS triage workflow.
-RUN npm install -g ajv-cli@5.0.0
-
 # Google Workspace CLI (Gmail, Calendar, Drive, Docs, Sheets)
 # https://github.com/googleworkspace/cli
 RUN ARCH=$(uname -m | sed 's/arm64/aarch64/') && \
@@ -80,7 +77,9 @@ RUN ARCH=$(uname -m | sed 's/arm64/aarch64/') && \
 
 # OpenCode AI coding agent
 # https://github.com/opencode-ai/opencode
-RUN npm install -g opencode-ai@1.18.30
+# JSON Schema validation used by the ACS triage workflow.
+RUN npm install -g opencode-ai@1.18.30 ajv-cli@5.0.0 && \
+    npm cache clean --force
 
 ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:${PATH}"
 
