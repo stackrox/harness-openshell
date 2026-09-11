@@ -76,13 +76,26 @@ func (c *client) DownloadPath(ctx context.Context, sandbox, sourcePath, destinat
 		<-extractErr
 		return fmt.Errorf("start remote tar: %w", err)
 	}
-	waitErr := connection.session.Wait()
-	_ = pipeWriter.Close()
+	// Session.Wait waits for the stdout copy goroutine. The tar reader can
+	// finish as soon as it sees the archive terminator, while the remote SSH
+	// channel may remain open briefly. Run Wait concurrently and close the pipe
+	// after extraction so neither side waits for the other indefinitely.
+	waitCh := make(chan error, 1)
+	go func() {
+		waitErr := connection.session.Wait()
+		_ = pipeWriter.Close()
+		waitCh <- waitErr
+	}()
 	archiveErr := <-extractErr
+	_ = pipeReader.Close()
+	waitErr := <-waitCh
 	if archiveErr != nil {
 		return fmt.Errorf("extracting sandbox output: %w", archiveErr)
 	}
-	if waitErr != nil {
+	// Closing the reader after a complete tar archive intentionally interrupts
+	// the SSH stdout copier. The archive has already been validated, so its
+	// resulting io.ErrClosedPipe is not a remote command failure.
+	if waitErr != nil && !errors.Is(waitErr, io.ErrClosedPipe) {
 		if remotePathMissing(waitErr) {
 			return fmt.Errorf("%w: %s", openshell.ErrNotFound, sourcePath)
 		}

@@ -34,3 +34,4 @@ agent:
       test "$(cat /sandbox/task.md)" = "generic-agent-fixture"
       mkdir -p /sandbox/artifacts
       printf '%s\n' '{"status":"ok","task":"generic-agent-fixture"}' > /sandbox/artifacts/result.json
+      printf '%s\n' 'generic-agent-fixture complete'

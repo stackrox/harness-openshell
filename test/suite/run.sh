@@ -80,7 +80,7 @@ if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
     set -e
     outdir=$(mktemp -d)
     trap "rm -rf \"$outdir\"" EXIT
-    name="generic-agent-$RANDOM-$$"
+    name="gen-agent-$RANDOM"
     "$1" workflow apply "$2" --name "$name" --output-dir "$outdir" >/dev/null
     grep -q status "$outdir/artifacts/result.json"
   ' _ "$HARNESS" "$GENERIC_AGENT"
