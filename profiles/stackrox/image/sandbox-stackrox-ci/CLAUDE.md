@@ -1,16 +1,16 @@
 # Sandbox Environment
 
-You are running inside an OpenShell sandbox based on the StackRox Apollo CI
-image. Credentials are injected by OpenShell providers and are not part of the
-image.
+You are running inside an OpenShell sandbox based on the StackRox
+`rox-ci-image` build image. Credentials are injected by OpenShell providers and
+are not part of the image.
 
 ## Environment
 
 - Working directory: `/sandbox`
 - Writable paths: `/sandbox`, `/tmp`
 - Inference routes through the gateway proxy at `inference.local`
-- Repository build tools from the Apollo CI image are available, including Go,
-  compilers, make, git, jq, and the StackRox CI toolchain.
+- Repository build tools from the `rox-ci-image` build are available, including
+  Go, compilers, make, git, jq, and the StackRox CI toolchain.
 
 ## Tools
 

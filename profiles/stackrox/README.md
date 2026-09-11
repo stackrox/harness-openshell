@@ -20,14 +20,14 @@ make dev-sandbox
 
 ### `sandbox-stackrox-ci`
 
-An opt-in image based on
+An opt-in image based on the StackRox `rox-ci-image` build image
 `quay.io/stackrox-io/apollo-ci:stackrox-build-0.5.14-1-g9bed4c4911`. It keeps
 the StackRox CI toolchain (Go, compilers, make, and scanner build tools) and
 adds the OpenShell sandbox contract, coding agents, `gh`, `uv`, the GitHub
 skill, Atlassian MCP, Google Workspace CLI, and `gopls`.
 
-The Apollo CI image currently provides an amd64 toolchain, so this profile is
-published for `linux/amd64` only. It is an experimental alternative to
+The `rox-ci-image` build currently provides an amd64 toolchain, so this profile
+is published for `linux/amd64` only. It is an experimental alternative to
 `sandbox-default`, not a replacement for it.
 
 Build it locally with:

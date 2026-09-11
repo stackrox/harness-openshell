@@ -2,13 +2,14 @@
 
 # StackRox CI sandbox image for OpenShell repository workflows.
 #
-# This profile deliberately starts from the StackRox Apollo CI image so that
+# This profile deliberately starts from the StackRox rox-ci-image build so that
 # repository build tools (Go, compilers, make, and the scanner toolchain) are
 # available to the agent. It adds the OpenShell sandbox contract and the
 # coding-agent tools supplied by the NVIDIA community base image.
 #
-# The Apollo image currently publishes an amd64 toolchain. Keep this profile
-# amd64-only until the upstream CI image provides a multi-architecture build.
+# The rox-ci-image build currently publishes an amd64 toolchain. Keep this
+# profile amd64-only until the upstream CI image provides a multi-architecture
+# build.
 #
 # Base image source:
 #   https://github.com/stackrox/rox-ci-image/blob/main/images/scanner-build.Dockerfile
@@ -25,8 +26,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 USER root
 
 # Runtime tools used by the OpenShell sandbox contract and by agent skills.
-# Apollo already supplies the compiler toolchain, Go, Node, npm, git, jq, and
-# curl; install only the missing runtime pieces here.
+# rox-ci-image already supplies the compiler toolchain, Go, Node, npm, git, jq,
+# and curl; install only the missing runtime pieces here.
 RUN dnf install -y --setopt=install_weak_deps=False \
         ca-certificates \
         findutils \
@@ -56,7 +57,7 @@ RUN groupadd -r supervisor \
     && mkdir -p /sandbox \
     && chown sandbox:sandbox /sandbox
 
-# GitHub CLI (Apollo does not include it). Pin the release and verify it
+# GitHub CLI (rox-ci-image does not include it). Pin the release and verify it
 # before installing so the image remains reproducible.
 ARG GH_VERSION=2.100.0
 ARG GH_SHA256_AMD64=e4d4bb4498e8d007abe545b6568926793ace1b6447da598294a610018cb164be
@@ -66,13 +67,12 @@ RUN curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_$
     && rm -f /tmp/gh.tgz
 
 # Use the same uv-managed Python contract as the community base image. The
-# Apollo system Python is 3.9, while current MCP integrations require 3.10+.
+# The rox-ci-image system Python is 3.9, while current MCP integrations require
+# 3.10+.
 COPY --from=ghcr.io/astral-sh/uv:0.10.8 /uv /usr/local/bin/uv
 ARG PYTHON_VERSION=3.14.3
 ENV UV_PYTHON_INSTALL_DIR=/sandbox/.uv/python
 RUN uv python install "${PYTHON_VERSION}" \
-    && ln -s "$(uv python find "${PYTHON_VERSION}")" /usr/local/bin/python3 \
-    && ln -s "$(uv python find "${PYTHON_VERSION}")" /usr/local/bin/python \
     && uv cache clean
 
 # Coding agents and the JSON-schema utility used by StackRox workflows. These
@@ -101,7 +101,7 @@ RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
     && chmod 755 /usr/local/bin/claude \
     && rm -f /tmp/claude-install.sh
 
-# Go-language MCP support for repository analysis. Apollo supplies the Go
+# Go-language MCP support for repository analysis. rox-ci-image supplies the Go
 # toolchain; gopls is the only additional Go binary needed here.
 ARG GOPLS_VERSION=0.20.0
 RUN GOBIN=/usr/local/bin /usr/local/go/bin/go install "golang.org/x/tools/gopls@v${GOPLS_VERSION}" \
