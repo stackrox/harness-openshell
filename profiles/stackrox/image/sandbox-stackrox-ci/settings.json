@@ -29,8 +29,6 @@
       "TaskUpdate",
       "TaskList",
       "TaskGet",
-      "WebFetch",
-      "WebSearch",
       "mcp__*"
     ],
     "deny": [

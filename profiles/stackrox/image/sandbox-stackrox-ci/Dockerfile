@@ -17,7 +17,9 @@
 # OpenShell base contract:
 #   https://github.com/NVIDIA/OpenShell-Community/tree/main/sandboxes/base
 
-ARG BASE_IMAGE=quay.io/stackrox-io/apollo-ci:stackrox-build-0.5.14-1-g9bed4c4911
+# The tag is stackrox-build-0.5.14-1-g9bed4c4911; pin its immutable digest
+# so a retag cannot silently change the toolchain.
+ARG BASE_IMAGE=quay.io/stackrox-io/apollo-ci@sha256:fe0e38d8d7792fbe61b593d9fca98906985404a083d1e761f344a8c7e49b873b
 FROM ${BASE_IMAGE}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -62,8 +64,11 @@ ARG GH_VERSION=2.100.0
 ARG GH_SHA256_AMD64=e4d4bb4498e8d007abe545b6568926793ace1b6447da598294a610018cb164be
 RUN curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" -o /tmp/gh.tgz \
     && echo "${GH_SHA256_AMD64}  /tmp/gh.tgz" | sha256sum -c - \
-    && tar -xzf /tmp/gh.tgz --strip-components=2 -C /usr/bin "gh_${GH_VERSION}_linux_amd64/bin/gh" \
-    && rm -f /tmp/gh.tgz
+    && mkdir -p /tmp/gh-extract \
+    && tar -xzf /tmp/gh.tgz --strip-components=2 -C /tmp/gh-extract "gh_${GH_VERSION}_linux_amd64/bin/gh" \
+    && test -f /tmp/gh-extract/gh \
+    && install -m 0755 /tmp/gh-extract/gh /usr/bin/gh \
+    && rm -rf /tmp/gh-extract /tmp/gh.tgz
 
 # Use the same uv-managed Python contract as the community base image. The
 # rox-ci-image system Python is 3.9, while current MCP integrations require
@@ -78,20 +83,30 @@ RUN uv python install "${PYTHON_VERSION}" \
 # versions mirror the current StackRox sandbox profile where applicable.
 # tar is a Node library dependency; npm leaves the system GNU tar in /usr/bin
 # unchanged.
+ARG NPM_TAR_VERSION=7.5.11
+ARG NPM_HONO_VERSION=1.19.11
+ARG NPM_OPENCODE_VERSION=1.18.30
+ARG NPM_CODEX_VERSION=0.117.0
+ARG NPM_COPILOT_VERSION=1.0.16
+ARG NPM_AJV_VERSION=5.0.0
 RUN mkdir -p /tmp/npm-global \
     && chown sandbox:sandbox /tmp/npm-global
 USER sandbox
 RUN NPM_CONFIG_PREFIX=/tmp/npm-global npm install -g \
-        tar@7.5.11 \
-        @hono/node-server@1.19.11 \
-        opencode-ai@1.18.30 \
-        @openai/codex@0.117.0 \
-        @github/copilot@1.0.16 \
-        ajv-cli@5.0.0 \
+        "tar@${NPM_TAR_VERSION}" \
+        "@hono/node-server@${NPM_HONO_VERSION}" \
+        "opencode-ai@${NPM_OPENCODE_VERSION}" \
+        "@openai/codex@${NPM_CODEX_VERSION}" \
+        "@github/copilot@${NPM_COPILOT_VERSION}" \
+        "ajv-cli@${NPM_AJV_VERSION}" \
     && npm cache clean --force
 USER root
 RUN cp -a /tmp/npm-global/lib/node_modules/. /usr/lib/node_modules/ \
     && cp -a /tmp/npm-global/bin/. /usr/bin/ \
+    && chown -R root:root /usr/lib/node_modules \
+    && for binary in /tmp/npm-global/bin/*; do \
+         chown -h root:root "/usr/bin/$(basename "${binary}")"; \
+       done \
     && rm -rf /tmp/npm-global
 
 # Keep the profile's command path stable even though npm puts the executable
@@ -117,7 +132,7 @@ RUN GOBIN=/usr/local/bin /usr/local/go/bin/go install "golang.org/x/tools/gopls@
 # still owns credentials; no credential values are baked into this image.
 RUN uv venv --python "${PYTHON_VERSION}" --seed /sandbox/.venv \
     && uv pip install --python /sandbox/.venv/bin/python \
-        cloudpickle \
+        cloudpickle==3.1.2 \
         mcp-atlassian==0.21.1 \
     && uv cache clean
 
