@@ -16,6 +16,18 @@ env:
 jobs:
   sandbox:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - profile: sandbox-default
+            tag_prefix: sandbox
+            platforms: linux/amd64,linux/arm64
+          - profile: sandbox-stackrox-ci
+            tag_prefix: sandbox-stackrox-ci
+            platforms: linux/amd64
+    env:
+      IMAGE_PROFILE: ${{ matrix.profile }}
+      IMAGE_TAG_PREFIX: ${{ matrix.tag_prefix }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -27,7 +39,7 @@ jobs:
         run: |
           if [[ "$GITHUB_REF_TYPE" == tag || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
             changed=true
-          elif git diff --quiet "$BASE_SHA" HEAD -- profiles/stackrox/image/sandbox-default .github/workflows/images.yml; then
+          elif git diff --quiet "$BASE_SHA" HEAD -- "profiles/stackrox/image/${IMAGE_PROFILE}" .github/workflows/images.yml; then
             changed=false
           else
             changed=true
@@ -53,15 +65,15 @@ jobs:
         with:
           images: ${{ env.IMAGE_BASE }}
           tags: |
-            type=semver,pattern=sandbox-v{{version}}
-            type=raw,value=sandbox-${{ steps.version.outputs.version }},enable=${{ github.ref_type != 'tag' }}
+            type=semver,pattern=${{ env.IMAGE_TAG_PREFIX }}-v{{version}}
+            type=raw,value=${{ env.IMAGE_TAG_PREFIX }}-${{ steps.version.outputs.version }},enable=${{ github.ref_type != 'tag' }}
       - uses: docker/build-push-action@v6
         if: steps.changes.outputs.changed == 'true'
         with:
-          context: profiles/stackrox/image/sandbox-default
-          platforms: linux/amd64,linux/arm64
+          context: profiles/stackrox/image/${{ matrix.profile }}
+          platforms: ${{ matrix.platforms }}
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.IMAGE_BASE }}:sandbox-cache
-          cache-to: ${{ github.event_name == 'push' && format('type=registry,ref={0}:sandbox-cache,mode=max', env.IMAGE_BASE) || '' }}
+          cache-from: type=registry,ref=${{ env.IMAGE_BASE }}:${{ env.IMAGE_TAG_PREFIX }}-cache
+          cache-to: ${{ github.event_name == 'push' && format('type=registry,ref={0}:{1}-cache,mode=max', env.IMAGE_BASE, env.IMAGE_TAG_PREFIX) || '' }}
