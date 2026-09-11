@@ -74,16 +74,12 @@ provider credential. It is never included in sandbox environment variables,
 payloads, agent arguments, or artifacts. Installation tokens expire after one
 hour and are revoked by the token action after the job.
 
-Before merging workflow changes, a trusted maintainer can run the branch's
-workflow against an existing PR without executing PR code:
-
-```bash
-gh workflow run ai-review.yml --ref BRANCH -f pull-request=NUMBER
-```
-
-This smoke path uses the same App credentials and OpenShell setup as the PR
-workflow; normal reviews remain `pull_request_target` runs from the default
-branch.
+The Harness repository's `ai-review.yml` is a thin caller of the pinned GitHub
+review workflow, so `pull_request_target` runs use the same path as consuming
+repositories. Changes to that caller are exercised after they reach the default
+branch; before then, use `actionlint` and the local `scripts/pr-review.sh`
+commands below. Normal reviews remain `pull_request_target` runs from the
+default branch.
 
 Once `AI review` is on the default branch, add `ai-review` to an open, non-draft
 PR. It reviews the full diff on labeling and each pushed head; newer runs cancel
