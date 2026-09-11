@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -43,7 +44,7 @@ func TestDownloadPathRegularFile(t *testing.T) {
 	if sandbox != "review" || port != 22 {
 		t.Errorf("tunnel target = %s:%d", sandbox, port)
 	}
-	if want := "if test -e '/sandbox/artifacts/report.txt'; then tar -cf - -C '/sandbox' -- 'artifacts/report.txt'; else exit 73; fi"; command != want {
+	if want := "if ! test -e '/sandbox/artifacts/report.txt'; then exit 73; elif test -L '/sandbox/artifacts' || test -L '/sandbox/artifacts/report.txt'; then exit 74; else tar -cf - -C '/sandbox' -- 'artifacts/report.txt'; fi"; command != want {
 		t.Errorf("command = %q, want %q", command, want)
 	}
 }
@@ -75,6 +76,15 @@ func TestDownloadPathReportsMissingRemotePath(t *testing.T) {
 	err := client.DownloadPath(context.Background(), "review", "/sandbox/missing", filepath.Join(t.TempDir(), "missing"))
 	if !errors.Is(err, openshell.ErrNotFound) {
 		t.Fatalf("error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestDownloadPathRejectsRemoteSymlinkComponent(t *testing.T) {
+	endpoint := &downloadSSH{t: t, remoteErr: errors.New("symlink"), symlink: true}
+	client := newClient(&clientWithSSH{ClientInterface: fake.NewClient(), ssh: endpoint}, "team")
+	err := client.DownloadPath(context.Background(), "review", "/sandbox/link/secret", filepath.Join(t.TempDir(), "secret"))
+	if err == nil || !strings.Contains(err.Error(), "symlinked path component") {
+		t.Fatalf("error = %v, want symlink rejection", err)
 	}
 }
 
@@ -180,6 +190,7 @@ type downloadSSH struct {
 	archive   []byte
 	remoteErr error
 	missing   bool
+	symlink   bool
 
 	mu      sync.Mutex
 	sandbox string
@@ -274,6 +285,9 @@ func (s *downloadSSH) serve(conn net.Conn) {
 		}
 		if s.missing {
 			status = remotePathMissingStatus
+		}
+		if s.symlink {
+			status = remotePathSymlinkStatus
 		}
 		_, _ = channel.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{status}))
 		return

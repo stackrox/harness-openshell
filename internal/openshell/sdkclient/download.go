@@ -19,6 +19,7 @@ const (
 	maxDownloadBytes        = 256 << 20
 	maxDownloadEntries      = 10_000
 	remotePathMissingStatus = 73
+	remotePathSymlinkStatus = 74
 )
 
 // DownloadPath streams one file or directory from the sandbox to an absolute
@@ -69,7 +70,7 @@ func (c *client) DownloadPath(ctx context.Context, sandbox, sourcePath, destinat
 	var remoteError strings.Builder
 	connection.session.Stdout = pipeWriter
 	connection.session.Stderr = &remoteError
-	command := "if test -e " + shellQuote("/sandbox/"+relative) + "; then tar -cf - -C '/sandbox' -- " + shellQuote(relative) + "; else exit " + fmt.Sprint(remotePathMissingStatus) + "; fi"
+	command := remoteDownloadCommand(relative)
 	if err := connection.session.Start(command); err != nil {
 		_ = pipeWriter.Close()
 		<-extractErr
@@ -84,6 +85,9 @@ func (c *client) DownloadPath(ctx context.Context, sandbox, sourcePath, destinat
 	if waitErr != nil {
 		if remotePathMissing(waitErr) {
 			return fmt.Errorf("%w: %s", openshell.ErrNotFound, sourcePath)
+		}
+		if remotePathSymlink(waitErr) {
+			return fmt.Errorf("download source contains a symlinked path component: %s", sourcePath)
 		}
 		detail := strings.TrimSpace(remoteError.String())
 		if detail != "" {
@@ -108,6 +112,23 @@ func (c *client) DownloadPath(ctx context.Context, sandbox, sourcePath, destinat
 func remotePathMissing(err error) bool {
 	var exitErr *ssh.ExitError
 	return errors.As(err, &exitErr) && exitErr.ExitStatus() == remotePathMissingStatus
+}
+
+func remotePathSymlink(err error) bool {
+	var exitErr *ssh.ExitError
+	return errors.As(err, &exitErr) && exitErr.ExitStatus() == remotePathSymlinkStatus
+}
+
+func remoteDownloadCommand(relative string) string {
+	source := "/sandbox/" + relative
+	components := strings.Split(relative, "/")
+	current := "/sandbox"
+	symlinkChecks := make([]string, 0, len(components))
+	for _, component := range components {
+		current += "/" + component
+		symlinkChecks = append(symlinkChecks, "test -L "+shellQuote(current))
+	}
+	return "if ! test -e " + shellQuote(source) + "; then exit " + fmt.Sprint(remotePathMissingStatus) + "; elif " + strings.Join(symlinkChecks, " || ") + "; then exit " + fmt.Sprint(remotePathSymlinkStatus) + "; else tar -cf - -C '/sandbox' -- " + shellQuote(relative) + "; fi"
 }
 
 // installDownloadTree commits the staged output without replacing a path that
