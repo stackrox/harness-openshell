@@ -95,8 +95,8 @@ RUN cp -a /tmp/npm-global/lib/node_modules/. /usr/lib/node_modules/ \
     && cp -a /tmp/npm-global/bin/. /usr/bin/ \
     && rm -rf /tmp/npm-global
 
-# Keep the policy path used by the community image even though npm puts the
-# executable in /usr/bin on this UBI-based image.
+# Keep the profile's command path stable even though npm puts the executable
+# in /usr/bin on this UBI-based image.
 RUN ln -sf /usr/bin/opencode /usr/local/bin/opencode
 
 # Claude Code's native binary. Pin both the release URL and its release
@@ -142,14 +142,14 @@ ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr
     GOCACHE=/sandbox/.cache/go-build \
     GOMODCACHE=/sandbox/.cache/go-mod
 
-# Copy the OpenShell-owned contract from the pinned community image rather than
-# duplicating it in this profile. Provider credentials remain gateway-managed
-# and are not copied here.
-COPY --from=openshell-base /etc/openshell/policy.yaml /etc/openshell/policy.yaml
+# Reuse only the community image's shell/skill assets. The NVIDIA policy is
+# intentionally not inherited: provider profiles and workflow policy overlays
+# own integration egress, while this profile keeps only its small StackRox
+# runtime policy.
 COPY --from=openshell-base /sandbox/.agents/skills/ /sandbox/.agents/skills/
 COPY --from=openshell-base /sandbox/.bashrc /sandbox/.bashrc
 COPY --from=openshell-base /sandbox/.profile /sandbox/.profile
-COPY policy-overlay.yaml /tmp/openshell-policy-overlay.yaml
+COPY policy.yaml /etc/openshell/policy.yaml
 
 # Default agent instructions and configuration. Workflows can override these
 # files with payloads for repository-specific skills and instructions.
@@ -160,6 +160,12 @@ COPY mcp.json /sandbox/.mcp.json
 COPY opencode.json /sandbox/opencode.json
 
 RUN mkdir -p /sandbox/.claude/skills /sandbox/.config/openshell \
+    && chmod 0644 /etc/openshell/policy.yaml \
+         /sandbox/.claude/CLAUDE.md \
+         /sandbox/.claude/settings.json \
+         /sandbox/.claude.json \
+         /sandbox/.mcp.json \
+         /sandbox/opencode.json \
     && for skill in /sandbox/.agents/skills/*/; do \
          [ -d "${skill}" ] || continue; \
          ln -sf "${skill}" "/sandbox/.claude/skills/$(basename "${skill}")"; \
@@ -172,8 +178,6 @@ RUN mkdir -p /sandbox/.claude/skills /sandbox/.config/openshell \
          'export GOCACHE="/sandbox/.cache/go-build"' \
          'export GOMODCACHE="/sandbox/.cache/go-mod"' \
          >> /sandbox/.bashrc \
-    && cat /tmp/openshell-policy-overlay.yaml >> /etc/openshell/policy.yaml \
-    && rm -f /tmp/openshell-policy-overlay.yaml \
     && chown -R sandbox:sandbox /sandbox
 
 WORKDIR /sandbox
