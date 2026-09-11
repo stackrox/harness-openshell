@@ -43,7 +43,7 @@ func TestDownloadPathRegularFile(t *testing.T) {
 	if sandbox != "review" || port != 22 {
 		t.Errorf("tunnel target = %s:%d", sandbox, port)
 	}
-	if want := "tar -cf - -C '/sandbox' -- 'artifacts/report.txt'"; command != want {
+	if want := "if test -e '/sandbox/artifacts/report.txt'; then tar -cf - -C '/sandbox' -- 'artifacts/report.txt'; else exit 73; fi"; command != want {
 		t.Errorf("command = %q, want %q", command, want)
 	}
 }
@@ -70,7 +70,7 @@ func TestDownloadPathDirectoryPreservesShape(t *testing.T) {
 }
 
 func TestDownloadPathReportsMissingRemotePath(t *testing.T) {
-	endpoint := &downloadSSH{t: t, remoteErr: errors.New("tar: /sandbox/missing: No such file or directory")}
+	endpoint := &downloadSSH{t: t, remoteErr: errors.New("missing"), missing: true}
 	client := newClient(&clientWithSSH{ClientInterface: fake.NewClient(), ssh: endpoint}, "team")
 	err := client.DownloadPath(context.Background(), "review", "/sandbox/missing", filepath.Join(t.TempDir(), "missing"))
 	if !errors.Is(err, openshell.ErrNotFound) {
@@ -125,6 +125,28 @@ func TestExtractDownloadTarEnforcesSizeLimit(t *testing.T) {
 	}
 }
 
+func TestInstallDownloadTreeDoesNotReplaceDestination(t *testing.T) {
+	root := t.TempDir()
+	staged := filepath.Join(root, "staged")
+	destination := filepath.Join(root, "destination")
+	if err := os.WriteFile(staged, []byte("new"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(destination, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := installDownloadTree(staged, destination); err == nil {
+		t.Fatal("installDownloadTree unexpectedly replaced destination")
+	}
+	data, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "old" {
+		t.Fatalf("destination = %q, want old", data)
+	}
+}
+
 func tarArchive(t *testing.T, add func(*tar.Writer)) []byte {
 	t.Helper()
 	var archive bytes.Buffer
@@ -157,6 +179,7 @@ type downloadSSH struct {
 	t         *testing.T
 	archive   []byte
 	remoteErr error
+	missing   bool
 
 	mu      sync.Mutex
 	sandbox string
@@ -248,6 +271,9 @@ func (s *downloadSSH) serve(conn net.Conn) {
 		status := uint32(0)
 		if s.remoteErr != nil {
 			status = 1
+		}
+		if s.missing {
+			status = remotePathMissingStatus
 		}
 		_, _ = channel.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{status}))
 		return

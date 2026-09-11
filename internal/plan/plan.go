@@ -288,15 +288,6 @@ func buildRunGroup(desired *config.Harness) Group {
 		}
 	}
 
-	// Download actions per declared sandbox output.
-	for _, output := range desired.Spec.Outputs {
-		group.Resources = append(group.Resources, Resource{
-			Name:   output.Source,
-			Action: ActionDownload,
-			Detail: "host output: " + output.Destination,
-		})
-	}
-
 	// Execute action.
 	if desired.Spec.Agent.Type != "" {
 		detail := ""
@@ -307,6 +298,15 @@ func buildRunGroup(desired *config.Harness) Group {
 			Name:   desired.Spec.Agent.Type,
 			Action: ActionExecute,
 			Detail: detail,
+		})
+	}
+
+	// Download actions happen after agent execution and before cleanup.
+	for _, output := range desired.Spec.Outputs {
+		group.Resources = append(group.Resources, Resource{
+			Name:   output.Source,
+			Action: ActionDownload,
+			Detail: "host output: " + output.Destination,
 		})
 	}
 

@@ -12,11 +12,13 @@ import (
 	"strings"
 
 	"github.com/stackrox/harness-openshell/internal/openshell"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
-	maxDownloadBytes   = 256 << 20
-	maxDownloadEntries = 10_000
+	maxDownloadBytes        = 256 << 20
+	maxDownloadEntries      = 10_000
+	remotePathMissingStatus = 73
 )
 
 // DownloadPath streams one file or directory from the sandbox to an absolute
@@ -67,7 +69,7 @@ func (c *client) DownloadPath(ctx context.Context, sandbox, sourcePath, destinat
 	var remoteError strings.Builder
 	connection.session.Stdout = pipeWriter
 	connection.session.Stderr = &remoteError
-	command := "tar -cf - -C '/sandbox' -- " + shellQuote(relative)
+	command := "if test -e " + shellQuote("/sandbox/"+relative) + "; then tar -cf - -C '/sandbox' -- " + shellQuote(relative) + "; else exit " + fmt.Sprint(remotePathMissingStatus) + "; fi"
 	if err := connection.session.Start(command); err != nil {
 		_ = pipeWriter.Close()
 		<-extractErr
@@ -80,10 +82,10 @@ func (c *client) DownloadPath(ctx context.Context, sandbox, sourcePath, destinat
 		return fmt.Errorf("extracting sandbox output: %w", archiveErr)
 	}
 	if waitErr != nil {
-		detail := strings.TrimSpace(remoteError.String())
-		if strings.Contains(strings.ToLower(detail), "no such file") {
-			return fmt.Errorf("%w: %s: %s", openshell.ErrNotFound, sourcePath, detail)
+		if remotePathMissing(waitErr) {
+			return fmt.Errorf("%w: %s", openshell.ErrNotFound, sourcePath)
 		}
+		detail := strings.TrimSpace(remoteError.String())
 		if detail != "" {
 			return fmt.Errorf("remote tar: %w: %s", waitErr, detail)
 		}
@@ -97,10 +99,54 @@ func (c *client) DownloadPath(ctx context.Context, sandbox, sourcePath, destinat
 	if _, err := os.Lstat(stagedPath); err != nil {
 		return fmt.Errorf("download archive did not contain %q: %w", sourcePath, err)
 	}
-	if err := os.Rename(stagedPath, destinationPath); err != nil {
+	if err := installDownloadTree(stagedPath, destinationPath); err != nil {
 		return fmt.Errorf("install downloaded output: %w", err)
 	}
 	return nil
+}
+
+func remotePathMissing(err error) bool {
+	var exitErr *ssh.ExitError
+	return errors.As(err, &exitErr) && exitErr.ExitStatus() == remotePathMissingStatus
+}
+
+// installDownloadTree commits the staged output without replacing a path that
+// appeared after the initial destination check. Files use an atomic hard-link
+// creation; directories use no-replace mkdir and recurse. The staging tree and
+// destination share a parent, so links do not cross filesystems.
+func installDownloadTree(staged, destination string) error {
+	info, err := os.Lstat(staged)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		if err := os.Mkdir(destination, info.Mode().Perm()); err != nil {
+			if errors.Is(err, os.ErrExist) {
+				return fmt.Errorf("download destination already exists: %s", destination)
+			}
+			return err
+		}
+		entries, err := os.ReadDir(staged)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			childStaged := filepath.Join(staged, entry.Name())
+			childDestination := filepath.Join(destination, entry.Name())
+			if err := installDownloadTree(childStaged, childDestination); err != nil {
+				return err
+			}
+		}
+		return os.Remove(staged)
+	}
+
+	if err := os.Link(staged, destination); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("download destination already exists: %s", destination)
+		}
+		return err
+	}
+	return os.Remove(staged)
 }
 
 func sandboxRelativePath(sourcePath string) (string, error) {
