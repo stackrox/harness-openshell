@@ -102,11 +102,15 @@ RUN NPM_CONFIG_PREFIX=/tmp/npm-global npm install -g \
     && npm cache clean --force
 USER root
 RUN cp -a /tmp/npm-global/lib/node_modules/. /usr/lib/node_modules/ \
-    && cp -a /tmp/npm-global/bin/. /usr/bin/ \
-    && chown -R root:root /usr/lib/node_modules \
     && for binary in /tmp/npm-global/bin/*; do \
-         chown -h root:root "/usr/bin/$(basename "${binary}")"; \
+         name="$(basename "${binary}")"; \
+         if [ "${name}" != tar ]; then \
+           cp -a "${binary}" "/usr/bin/${name}"; \
+           chown -h root:root "/usr/bin/${name}"; \
+         fi; \
        done \
+    && chown -R root:root /usr/lib/node_modules \
+    && tar --version | grep -q 'GNU tar' \
     && rm -rf /tmp/npm-global
 
 # Keep the profile's command path stable even though npm puts the executable
@@ -183,14 +187,6 @@ RUN mkdir -p /sandbox/.claude/skills /sandbox/.config/openshell \
          [ -d "${skill}" ] || continue; \
          ln -sf "${skill}" "/sandbox/.claude/skills/$(basename "${skill}")"; \
        done \
-    && printf '%s\n' \
-         'export PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' \
-         'export VIRTUAL_ENV="/sandbox/.venv"' \
-         'export UV_PYTHON_INSTALL_DIR="/sandbox/.uv/python"' \
-         'export GOPATH="/sandbox/.cache/go"' \
-         'export GOCACHE="/sandbox/.cache/go-build"' \
-         'export GOMODCACHE="/sandbox/.cache/go-mod"' \
-         >> /sandbox/.bashrc \
     && chown -R sandbox:sandbox /sandbox
 
 WORKDIR /sandbox
