@@ -5,9 +5,7 @@ inference:
   provider: vertex-ci
   model: gemini-2.5-pro
 sandbox:
-  image: quay.io/rcochran/openshell:sandbox-v0.3.0-1-gac8bccf
-  policy:
-    file: ../profiles/images/sandbox-default/policy.yaml
+  image: ghcr.io/nvidia/openshell-community/sandboxes/base:latest
   env:
     OPENCODE_CONFIG: /sandbox/opencode-vertex.json
     OPENCODE_VERTEX_API_KEY: openshell-proxy-managed

@@ -10,7 +10,7 @@ inference:
   timeout: 60s
   verify: true
 sandbox:
-  image: quay.io/rcochran/openshell:sandbox-current
+  image: ghcr.io/nvidia/openshell-community/sandboxes/base:latest
   providers:
     - github-fact
   policy:

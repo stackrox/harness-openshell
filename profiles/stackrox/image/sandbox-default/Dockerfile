@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-# OpenShell sandbox image for RHACS Collector team
+# StackRox OpenShell sandbox image for repository workflows
 #
 # Extends the community base image with Atlassian MCP and Google Workspace
 # CLI. All other tools (claude, gh, node, python, git, curl, uv) are

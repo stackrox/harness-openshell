@@ -118,8 +118,10 @@ Resolution order for gateway and workspace targets is:
 `${VAR}` references in workflow strings are expanded from the calling process
 environment. Harness does not implicitly load `.env` files; source one in the
 calling shell or configure the values in CI. Defaults include workspace
-`default`, inference route `inference.local`, and the versioned sandbox image;
-`HARNESS_OS_IMAGE` overrides the image.
+`default`, inference route `inference.local`, and the NVIDIA OpenShell
+community base image. `HARNESS_OS_IMAGE` overrides the image for local or
+integration testing; workflows can select a published StackRox image when
+they need additional tools.
 
 The workflow file, policy file, and payload declarations are trusted host-side
 inputs. A workflow can intentionally interpolate host environment values or

@@ -15,8 +15,6 @@ inference:
   model: claude-haiku-4-5@20251001
 sandbox:
   image: ghcr.io/nvidia/openshell-community/sandboxes/base:latest
-  policy:
-    file: ../profiles/images/sandbox-default/policy.yaml
   env:
     ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
     ANTHROPIC_BASE_URL: https://inference.local
