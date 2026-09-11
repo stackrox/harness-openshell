@@ -136,7 +136,7 @@ RUN curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v${GWS_
     && rm -rf /tmp/gws-extract \
     && rm -f /tmp/gws.tgz
 
-ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin" \
+ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     VIRTUAL_ENV=/sandbox/.venv \
     GOPATH=/sandbox/.cache/go \
     GOCACHE=/sandbox/.cache/go-build \
@@ -165,7 +165,7 @@ RUN mkdir -p /sandbox/.claude/skills /sandbox/.config/openshell \
          ln -sf "${skill}" "/sandbox/.claude/skills/$(basename "${skill}")"; \
        done \
     && printf '%s\n' \
-         'export PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"' \
+         'export PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' \
          'export VIRTUAL_ENV="/sandbox/.venv"' \
          'export UV_PYTHON_INSTALL_DIR="/sandbox/.uv/python"' \
          'export GOPATH="/sandbox/.cache/go"' \
