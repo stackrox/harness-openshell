@@ -77,6 +77,8 @@ RUN uv python install "${PYTHON_VERSION}" \
 
 # Coding agents and the JSON-schema utility used by StackRox workflows. These
 # versions mirror the current StackRox sandbox profile where applicable.
+# tar is a Node library dependency; npm leaves the system GNU tar in /usr/bin
+# unchanged.
 RUN npm install -g \
         tar@7.5.11 \
         @hono/node-server@1.19.11 \
@@ -93,6 +95,8 @@ RUN ln -sf /usr/bin/opencode /usr/local/bin/opencode
 # Claude Code uses its native installer rather than the deprecated npm path.
 # The installer URL is not versioned, so pin its current contents explicitly;
 # update the checksum when intentionally accepting a new installer revision.
+# The installer then resolves the platform release and verifies its binary
+# against the release manifest; there is no separate stable binary URL.
 ARG CLAUDE_INSTALL_SHA256=3a68d3406cf674e17bed1733a4dcf37805e2e47d87417700007d7e1aa766a944
 RUN curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
     && echo "${CLAUDE_INSTALL_SHA256}  /tmp/claude-install.sh" | sha256sum -c - \
@@ -125,7 +129,10 @@ RUN curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v${GWS_
     && rm -f /tmp/gws.tgz
 
 ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin" \
-    VIRTUAL_ENV=/sandbox/.venv
+    VIRTUAL_ENV=/sandbox/.venv \
+    GOPATH=/sandbox/.cache/go \
+    GOCACHE=/sandbox/.cache/go-build \
+    GOMODCACHE=/sandbox/.cache/go-mod
 
 # Copy the OpenShell-owned contract from the pinned community image rather than
 # duplicating it in this profile. Provider credentials remain gateway-managed
@@ -134,6 +141,7 @@ COPY --from=openshell-base /etc/openshell/policy.yaml /etc/openshell/policy.yaml
 COPY --from=openshell-base /sandbox/.agents/skills/ /sandbox/.agents/skills/
 COPY --from=openshell-base /sandbox/.bashrc /sandbox/.bashrc
 COPY --from=openshell-base /sandbox/.profile /sandbox/.profile
+COPY policy-overlay.yaml /tmp/openshell-policy-overlay.yaml
 
 # Default agent instructions and configuration. Workflows can override these
 # files with payloads for repository-specific skills and instructions.
@@ -152,7 +160,12 @@ RUN mkdir -p /sandbox/.claude/skills /sandbox/.config/openshell \
          'export PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"' \
          'export VIRTUAL_ENV="/sandbox/.venv"' \
          'export UV_PYTHON_INSTALL_DIR="/sandbox/.uv/python"' \
+         'export GOPATH="/sandbox/.cache/go"' \
+         'export GOCACHE="/sandbox/.cache/go-build"' \
+         'export GOMODCACHE="/sandbox/.cache/go-mod"' \
          >> /sandbox/.bashrc \
+    && cat /tmp/openshell-policy-overlay.yaml >> /etc/openshell/policy.yaml \
+    && rm -f /tmp/openshell-policy-overlay.yaml \
     && chown -R sandbox:sandbox /sandbox
 
 WORKDIR /sandbox

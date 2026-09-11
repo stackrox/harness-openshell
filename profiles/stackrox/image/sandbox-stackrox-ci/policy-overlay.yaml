@@ -1,0 +1,13 @@
+
+  # Go module downloads used by gopls while analyzing checked-out repositories.
+  # The cache locations are kept below /sandbox so they remain writable under
+  # the OpenShell filesystem policy.
+  go_modules:
+    name: go-modules
+    endpoints:
+      - { host: proxy.golang.org, port: 443 }
+      - { host: sum.golang.org, port: 443 }
+      - { host: go.dev, port: 443 }
+    binaries:
+      - { path: /usr/local/go/bin/go }
+      - { path: /usr/local/bin/gopls }
