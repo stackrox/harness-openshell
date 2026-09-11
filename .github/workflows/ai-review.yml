@@ -3,6 +3,13 @@ name: AI review
 on:
   pull_request_target:
     types: [opened, labeled, unlabeled, synchronize, reopened, ready_for_review, converted_to_draft, closed]
+  # Trusted maintainers can smoke-test a branch's workflow before merging it.
+  workflow_dispatch:
+    inputs:
+      pull-request:
+        description: Open PR number to review
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -11,16 +18,17 @@ permissions:
 jobs:
   review:
     if: >-
-      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
+      (github.event_name == 'workflow_dispatch' ||
+      ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
       (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
     concurrency:
-      group: ai-review-${{ github.event.pull_request.number }}
+      group: ai-review-${{ inputs.pull-request || github.event.pull_request.number }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       REVIEW_REPOSITORY: ${{ github.repository }}
-      REVIEW_PR: ${{ github.event.pull_request.number }}
+      REVIEW_PR: ${{ inputs.pull-request || github.event.pull_request.number }}
       REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
     steps:
       # Never check out the PR head. Build/run only trusted default-branch code.
