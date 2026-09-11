@@ -3,12 +3,14 @@ package cmd
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/stackrox/harness-openshell/internal/config"
 	"github.com/stackrox/harness-openshell/internal/openshell"
 	"github.com/stackrox/harness-openshell/internal/plan"
+	"github.com/stackrox/harness-openshell/internal/testutil"
 )
 
 func TestConnectAndBuildPlanOfflineKeepsProvidersUninspected(t *testing.T) {
@@ -58,5 +60,45 @@ func TestConnectAndBuildPlanNonDryRunRejectsConnectionFailure(t *testing.T) {
 	)
 	if err == nil || !strings.Contains(err.Error(), `connecting to gateway "ci"`) {
 		t.Fatalf("error = %v, want connection context", err)
+	}
+}
+
+type planErrorClient struct {
+	openshell.Client
+	planErr  error
+	closeErr error
+}
+
+func (c planErrorClient) Health(context.Context) (openshell.Health, error) {
+	return openshell.Health{}, c.planErr
+}
+
+func (c planErrorClient) Close() error { return c.closeErr }
+
+func TestConnectAndBuildPlanPreservesPlanAndCloseErrors(t *testing.T) {
+	planErr := errors.New("state read failed")
+	closeErr := errors.New("close failed")
+	client := planErrorClient{
+		Client:   testutil.NewFake("default"),
+		planErr:  planErr,
+		closeErr: closeErr,
+	}
+	workflow := &resolvedWorkflow{Desired: &config.Harness{}, Target: openshell.Target{Gateway: "ci"}}
+
+	gotClient, gotPlan, gotState, err := connectAndBuildPlan(
+		context.Background(),
+		func(context.Context, openshell.Target) (openshell.Client, error) { return client, nil },
+		workflow,
+		true,
+		nil,
+	)
+	if gotClient != nil || gotPlan != nil || !reflect.DeepEqual(gotState, plan.CurrentState{}) {
+		t.Fatalf("failure result = client %v, plan %v, state %+v; want nil, nil, zero", gotClient, gotPlan, gotState)
+	}
+	if !errors.Is(err, planErr) || !errors.Is(err, closeErr) {
+		t.Fatalf("error = %v, want plan and close errors", err)
+	}
+	if !strings.Contains(err.Error(), "building workflow plan") {
+		t.Fatalf("error = %v, want plan operation context", err)
 	}
 }

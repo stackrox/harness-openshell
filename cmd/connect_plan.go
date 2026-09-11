@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -33,10 +34,11 @@ func connectAndBuildPlan(
 
 	planned, current, err := workflow.buildPlan(ctx, client)
 	if err != nil {
+		planErr := fmt.Errorf("building workflow plan: %w", err)
 		if client != nil {
-			_ = client.Close()
+			return nil, nil, plan.CurrentState{}, errors.Join(planErr, client.Close())
 		}
-		return nil, nil, plan.CurrentState{}, err
+		return nil, nil, plan.CurrentState{}, planErr
 	}
 	return client, planned, current, nil
 }
