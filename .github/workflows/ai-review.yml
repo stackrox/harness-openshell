@@ -67,8 +67,8 @@ jobs:
           GITHUB_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           VERTEX_AI_PROJECT_ID: ${{ vars.VERTEX_AI_PROJECT_ID }}
           VERTEX_AI_REGION: ${{ vars.VERTEX_AI_REGION }}
-          REVIEW_SKILL: ${{ github.workspace }}/examples/github-pr-reviewer/skills/pr-review/SKILL.md
         run: |
+          export REVIEW_SKILL="$GITHUB_WORKSPACE/examples/github-pr-reviewer/skills/pr-review/SKILL.md"
           token="$(gcloud auth print-access-token)"
           echo "::add-mask::$token"
           export GOOGLE_VERTEX_AI_TOKEN="$token"

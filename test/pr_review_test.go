@@ -161,6 +161,9 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 			t.Errorf("%s still uses the automatic workflow token", path)
 		}
 	}
+	if !strings.Contains(string(mustRead(t, "../.github/workflows/ai-review.yml")), `export REVIEW_SKILL="$GITHUB_WORKSPACE/examples/github-pr-reviewer/skills/pr-review/SKILL.md"`) {
+		t.Fatal("direct review workflow does not set an absolute skill path")
+	}
 
 	data, err := os.ReadFile("../examples/github-pr-reviewer/opencode-harness.yaml")
 	if err != nil {
@@ -173,6 +176,15 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	if strings.Contains(example, "GITHUB_TOKEN") {
 		t.Fatal("review workflow passes the GitHub token into the sandbox configuration")
 	}
+}
+
+func mustRead(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }
 
 const fakeReviewCommand = `#!/usr/bin/env bash
