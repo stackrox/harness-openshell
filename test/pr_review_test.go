@@ -132,6 +132,67 @@ func TestPRReview(t *testing.T) {
 	}
 }
 
+func TestGitHubAppTokenIsHostOnly(t *testing.T) {
+	script, err := os.ReadFile("../scripts/pr-review.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(script), `REVIEW_SKILL="${REVIEW_SKILL:-skills/pr-review/SKILL.md}"`) {
+		t.Fatal("review wrapper default skill path is not relative to the workflow file")
+	}
+
+	workflowFiles := []string{
+		"../.github/workflows/ai-review.yml",
+		"../.github/workflows/pr-review-reusable.yml",
+	}
+	for _, path := range workflowFiles {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workflow := string(data)
+		if !strings.Contains(workflow, "actions/create-github-app-token@") {
+			t.Errorf("%s does not mint an OpenShell GitHub App token", path)
+		}
+		if !strings.Contains(workflow, "client-id:") || strings.Contains(workflow, "app-id:") {
+			t.Errorf("%s does not use the maintained GitHub App Client ID input", path)
+		}
+		if !strings.Contains(workflow, "OPENSHELL_GITHUB_APP_CLIENT_ID") && path == "../.github/workflows/ai-review.yml" {
+			t.Errorf("%s does not consume the GitHub App Client ID variable", path)
+		}
+		if !strings.Contains(workflow, "OPENSHELL_GITHUB_APP_PRIVATE_KEY") {
+			t.Errorf("%s does not consume the private-key secret", path)
+		}
+		if strings.Contains(workflow, "GH_TOKEN: ${{ github.token }}") || strings.Contains(workflow, "GITHUB_TOKEN: ${{ github.token }}") {
+			t.Errorf("%s still uses the automatic workflow token", path)
+		}
+	}
+	if !strings.Contains(string(mustRead(t, "../.github/workflows/ai-review.yml")), `export REVIEW_SKILL="$GITHUB_WORKSPACE/examples/github-pr-reviewer/skills/pr-review/SKILL.md"`) {
+		t.Fatal("direct review workflow does not set an absolute skill path")
+	}
+
+	data, err := os.ReadFile("../examples/github-pr-reviewer/opencode-harness.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	example := string(data)
+	if !strings.Contains(example, "providers: [github-review]") {
+		t.Fatal("review workflow does not attach the native GitHub provider")
+	}
+	if strings.Contains(example, "GITHUB_TOKEN") {
+		t.Fatal("review workflow passes the GitHub token into the sandbox configuration")
+	}
+}
+
+func mustRead(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
 const fakeReviewCommand = `#!/usr/bin/env bash
 set -eu
 printf '%s\n' "$*" >> "$TRACE"

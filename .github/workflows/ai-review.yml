@@ -3,6 +3,13 @@ name: AI review
 on:
   pull_request_target:
     types: [opened, labeled, unlabeled, synchronize, reopened, ready_for_review, converted_to_draft, closed]
+  # Trusted maintainers can smoke-test a branch's workflow before merging it.
+  workflow_dispatch:
+    inputs:
+      pull-request:
+        description: Open PR number to review
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -11,18 +18,17 @@ permissions:
 jobs:
   review:
     if: >-
-      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
+      (github.event_name == 'workflow_dispatch' ||
+      ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
       (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
     concurrency:
-      group: ai-review-${{ github.event.pull_request.number }}
+      group: ai-review-${{ inputs.pull-request || github.event.pull_request.number }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      GH_TOKEN: ${{ github.token }}
-      GITHUB_TOKEN: ${{ github.token }}
       REVIEW_REPOSITORY: ${{ github.repository }}
-      REVIEW_PR: ${{ github.event.pull_request.number }}
+      REVIEW_PR: ${{ inputs.pull-request || github.event.pull_request.number }}
       REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
     steps:
       # Never check out the PR head. Build/run only trusted default-branch code.
@@ -37,9 +43,26 @@ jobs:
         run: |
           echo "REVIEW_DIR=$RUNNER_TEMP/ai-review" >> "$GITHUB_ENV"
           make cli
+      - name: Create OpenShell GitHub App token
+        id: openshell-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-pull-requests: write
       - name: Check label and fetch exact diff as data
         id: prepare
+        env:
+          GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
         run: bash scripts/pr-review.sh prepare
+      - name: Load exact review head
+        if: steps.prepare.outputs.eligible == 'true'
+        run: |
+          head="$(jq -er '.head' "$REVIEW_DIR/input.json")"
+          echo "REVIEW_HEAD=$head" >> "$GITHUB_ENV"
       - uses: ./.github/actions/setup-openshell
         if: steps.prepare.outputs.eligible == 'true'
       - name: Authenticate to Google Cloud
@@ -53,9 +76,12 @@ jobs:
       - name: Review in isolated OpenShell workspace
         if: steps.prepare.outputs.eligible == 'true'
         env:
+          GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           VERTEX_AI_PROJECT_ID: ${{ vars.VERTEX_AI_PROJECT_ID }}
           VERTEX_AI_REGION: ${{ vars.VERTEX_AI_REGION }}
         run: |
+          export REVIEW_SKILL="$GITHUB_WORKSPACE/examples/github-pr-reviewer/skills/pr-review/SKILL.md"
           token="$(gcloud auth print-access-token)"
           echo "::add-mask::$token"
           export GOOGLE_VERTEX_AI_TOKEN="$token"

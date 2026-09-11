@@ -17,8 +17,14 @@ on:
         required: false
         type: boolean
         default: false
+      openshell-github-app-client-id:
+        description: GitHub App Client ID used for the trusted review token
+        required: true
+        type: string
     secrets:
       VERTEX_AI_SERVICE_ACCOUNT_KEY:
+        required: true
+      OPENSHELL_GITHUB_APP_PRIVATE_KEY:
         required: true
 
 permissions:
@@ -70,11 +76,21 @@ jobs:
       - name: Build trusted harness
         working-directory: harness
         run: echo "REVIEW_DIR=$RUNNER_TEMP/ai-review" >> "$GITHUB_ENV"; make cli
+      - name: Create OpenShell GitHub App token
+        id: openshell-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ inputs.openshell-github-app-client-id }}
+          private-key: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-pull-requests: write
       - name: Check label and fetch exact diff as data
         id: prepare
         working-directory: harness
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
           REVIEW_REPOSITORY: ${{ github.repository }}
           REVIEW_PR: ${{ github.event.pull_request.number }}
@@ -96,9 +112,9 @@ jobs:
         if: steps.prepare.outputs.eligible == 'true'
         working-directory: harness
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           REVIEW_REPOSITORY: ${{ github.repository }}
           REVIEW_PR: ${{ github.event.pull_request.number }}
           REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}

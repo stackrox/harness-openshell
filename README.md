@@ -162,10 +162,14 @@ scanner for arbitrary YAML. Interpolated values are redacted from resolved
 configuration, plan, and dry-run display output, but the runner cannot infer
 whether a literal host value is a credential.
 
-For GitHub Actions, trusted host-side setup may use the automatic
-`GITHUB_TOKEN` to register the native OpenShell GitHub provider. The token is
-not placed in the sandbox environment or agent payload. See
-[docs/ci.md](docs/ci.md) for the bootstrap and secret contract.
+For GitHub Actions, trusted host-side setup mints a short-lived installation
+token from the repository's OpenShell GitHub App and uses it to register the
+native OpenShell GitHub provider. The token is not placed in the sandbox
+environment or agent payload. Configure `OPENSHELL_GITHUB_APP_CLIENT_ID` as a
+repository variable and `OPENSHELL_GITHUB_APP_PRIVATE_KEY` as a repository
+secret. The installed App must have repository permissions `Contents: read` and
+`Pull requests: read and write`, and must be installed on the target repository.
+See [docs/ci.md](docs/ci.md) for the bootstrap and secret contract.
 
 ## GitHub Actions and local sessions
 
@@ -184,6 +188,7 @@ jobs:
       harness-ref: <same-40-character-harness-sha>
       skill-path: .github/skills/pr-review/SKILL.md
       allow-draft-reviews: false
+      openshell-github-app-client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}
     secrets: inherit
 ```
 

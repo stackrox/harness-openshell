@@ -55,6 +55,36 @@ unavailable to that project; do not bypass the check with `--no-verify`.
 
 ## Label-driven PR review
 
+The review workflow mints a short-lived GitHub App installation token before
+fetching the diff or creating the OpenShell workspace. Configure these values
+in each consuming repository:
+
+- variable: `OPENSHELL_GITHUB_APP_CLIENT_ID` — the GitHub App Client ID;
+- secret: `OPENSHELL_GITHUB_APP_PRIVATE_KEY` — the complete PEM private key.
+
+The App installation must grant `Contents: read` and `Pull requests: read and
+write` repository permissions, and include the repository being reviewed. The
+workflow requests only those permissions when minting the installation token.
+
+The reusable workflow accepts the App Client ID as
+`openshell-github-app-client-id` and the
+private key through `secrets: inherit`. The token is used on the trusted host
+for `gh` and native provider bootstrap, then passed to OpenShell as the
+provider credential. It is never included in sandbox environment variables,
+payloads, agent arguments, or artifacts. Installation tokens expire after one
+hour and are revoked by the token action after the job.
+
+Before merging workflow changes, a trusted maintainer can run the branch's
+workflow against an existing PR without executing PR code:
+
+```bash
+gh workflow run ai-review.yml --ref BRANCH -f pull-request=NUMBER
+```
+
+This smoke path uses the same App credentials and OpenShell setup as the PR
+workflow; normal reviews remain `pull_request_target` runs from the default
+branch.
+
 Once `AI review` is on the default branch, add `ai-review` to an open, non-draft
 PR. It reviews the full diff on labeling and each pushed head; newer runs cancel
 older ones. Removing the label, closing, or drafting the PR disables review.
