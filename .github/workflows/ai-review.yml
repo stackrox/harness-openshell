@@ -3,13 +3,6 @@ name: AI review
 on:
   pull_request_target:
     types: [opened, labeled, unlabeled, synchronize, reopened, ready_for_review, converted_to_draft, closed]
-  # Trusted maintainers can smoke-test a branch's workflow before merging it.
-  workflow_dispatch:
-    inputs:
-      pull-request:
-        description: Open PR number to review
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -17,78 +10,13 @@ permissions:
 
 jobs:
   review:
-    if: >-
-      (github.event_name == 'workflow_dispatch' ||
-      ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
-      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
-    concurrency:
-      group: ai-review-${{ inputs.pull-request || github.event.pull_request.number }}
-      cancel-in-progress: true
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      REVIEW_REPOSITORY: ${{ github.repository }}
-      REVIEW_PR: ${{ inputs.pull-request || github.event.pull_request.number }}
-      REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
-    steps:
-      # Never check out the PR head. Build/run only trusted default-branch code.
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-      - name: Build trusted harness
-        run: |
-          echo "REVIEW_DIR=$RUNNER_TEMP/ai-review" >> "$GITHUB_ENV"
-          make cli
-      - name: Create OpenShell GitHub App token
-        id: openshell-app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
-        with:
-          client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}
-          private-key: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: read
-          permission-pull-requests: write
-      - name: Check label and fetch exact diff as data
-        id: prepare
-        env:
-          GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
-        run: bash scripts/pr-review.sh prepare
-      - name: Load exact review head
-        if: steps.prepare.outputs.eligible == 'true'
-        run: |
-          head="$(jq -er '.head' "$REVIEW_DIR/input.json")"
-          echo "REVIEW_HEAD=$head" >> "$GITHUB_ENV"
-      - uses: ./.github/actions/setup-openshell
-        if: steps.prepare.outputs.eligible == 'true'
-      - name: Authenticate to Google Cloud
-        if: steps.prepare.outputs.eligible == 'true'
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          project_id: ${{ vars.VERTEX_AI_PROJECT_ID }}
-          credentials_json: ${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}
-      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-        if: steps.prepare.outputs.eligible == 'true'
-      - name: Review in isolated OpenShell workspace
-        if: steps.prepare.outputs.eligible == 'true'
-        env:
-          GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
-          GITHUB_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
-          VERTEX_AI_PROJECT_ID: ${{ vars.VERTEX_AI_PROJECT_ID }}
-          VERTEX_AI_REGION: ${{ vars.VERTEX_AI_REGION }}
-        run: |
-          export REVIEW_SKILL="$GITHUB_WORKSPACE/examples/github-pr-reviewer/skills/pr-review/SKILL.md"
-          token="$(gcloud auth print-access-token)"
-          echo "::add-mask::$token"
-          export GOOGLE_VERTEX_AI_TOKEN="$token"
-          bash scripts/pr-review.sh run
-      - uses: actions/upload-artifact@v7
-        if: always() && steps.prepare.outputs.eligible == 'true'
-        with:
-          name: ai-review-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/ai-review/
-          retention-days: 7
+    uses: stackrox/harness-openshell/.github/workflows/pr-review-reusable.yml@9c971b9c85c2125af56e9cd59bc97f991698f4fc
+    with:
+      # `uses` pins the workflow adapter; harness-ref pins the checked-out
+      # Harness CLI/scripts. Keep both at the same release commit.
+      harness-ref: 9c971b9c85c2125af56e9cd59bc97f991698f4fc
+      allow-draft-reviews: false
+      openshell-github-app-client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}
+    secrets:
+      VERTEX_AI_SERVICE_ACCOUNT_KEY: ${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}
+      OPENSHELL_GITHUB_APP_PRIVATE_KEY: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}
