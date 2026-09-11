@@ -17,7 +17,7 @@ func TestPRReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "sandbox-gone", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "unrelated-422", "unrelated-422-comment", "unrelated-comment", "comment-position"} {
+	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "sandbox-gone", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "unrelated-422", "unrelated-422-line", "unrelated-422-comment", "unrelated-comment", "comment-position"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			stepSummary := filepath.Join(root, "step-summary")
@@ -171,6 +171,7 @@ case "$1 ${2:-}" in
       tool_exit) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":7},"output":"ordinary command failed"}}}' ;;
       tool_missing_exit) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{},"output":"missing exit"}}}' ;;
       unrelated-422) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"unrelated build failed at record 422"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
+      unrelated-422-line) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"build failed at line 422"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
       unrelated-422-comment) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"comment delivery failed with status 422"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
       unrelated-comment) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"comment formatting failed"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
       comment-position) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"comment position is invalid"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;

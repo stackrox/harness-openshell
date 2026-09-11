@@ -18,7 +18,9 @@ jq -Rse 'split("\n") | map(fromjson?) |
     (.part.state.metadata.exit // -1) == 1 and
     ((.part.state.output // .part.state.error // "") |
       test("comment[[:space:]]+(position|line)[[:space:]]+(is|was)[[:space:]]+(invalid|unresolvable|not[[:space:]]+part[[:space:]]+of[[:space:]]+the[[:space:]]+diff)"; "i") or
-      test("(http[[:space:]]*)?422.*(position|line|side|diff[[:space:]]+hunk)|(position|line|side|diff[[:space:]]+hunk).*422"; "i"))
+      (test("422|unprocessable[[:space:]]+entity"; "i") and
+        test("comment|review|pull[[:space:]]+request"; "i") and
+        test("position|line|side|diff[[:space:]]+hunk"; "i")))
     ;
   any(.[]; .type == "text" and (.part.text | type == "string" and test("\\S"))) and
   any(.[]; .type == "step_finish" and .part.reason == "stop") and
