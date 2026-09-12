@@ -47,7 +47,7 @@ jobs:
         id: version
         if: steps.changes.outputs.changed == 'true'
         run: echo "version=$(git describe --tags --always 2>/dev/null || echo dev)" >> "$GITHUB_OUTPUT"
-      - uses: docker/metadata-action@v5
+      - uses: docker/metadata-action@v6
         id: meta
         if: steps.changes.outputs.changed == 'true'
         with:
