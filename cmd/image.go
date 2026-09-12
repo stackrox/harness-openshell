@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 )
 
-// Version is the build version, set at link time and used to tag versioned
-// sandbox images.
+// Version is the build version, set at link time.
 var Version = "dev"
+
+const defaultSandboxImage = "ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e"
 
 // resolveSandboxImagePath resolves a relative Dockerfile directory against
 // harnessDir. An image ref (or an already-absolute path) is returned unchanged.
@@ -29,13 +30,5 @@ func resolveSandboxImage(agentImage string) string {
 	if agentImage != "" {
 		return agentImage
 	}
-	return versionedImage("sandbox")
-}
-
-func versionedImage(name string) string {
-	base := "quay.io/rcochran/openshell"
-	if Version == "" || Version == "dev" {
-		return base + ":" + name
-	}
-	return base + ":" + name + "-" + Version
+	return defaultSandboxImage
 }

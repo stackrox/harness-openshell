@@ -27,7 +27,7 @@ jobs:
         run: |
           if [[ "$GITHUB_REF_TYPE" == tag || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
             changed=true
-          elif git diff --quiet "$BASE_SHA" HEAD -- profiles/images/sandbox-default .github/workflows/images.yml; then
+          elif git diff --quiet "$BASE_SHA" HEAD -- profiles/stackrox/image/sandbox-default .github/workflows/images.yml; then
             changed=false
           else
             changed=true
@@ -58,7 +58,7 @@ jobs:
       - uses: docker/build-push-action@v6
         if: steps.changes.outputs.changed == 'true'
         with:
-          context: profiles/images/sandbox-default
+          context: profiles/stackrox/image/sandbox-default
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}

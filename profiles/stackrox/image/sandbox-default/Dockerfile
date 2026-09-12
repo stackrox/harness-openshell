@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-# OpenShell sandbox image for RHACS Collector team
+# StackRox OpenShell sandbox image for repository workflows
 #
 # Extends the community base image with Atlassian MCP and Google Workspace
 # CLI. All other tools (claude, gh, node, python, git, curl, uv) are
@@ -38,7 +38,7 @@
 #   GWS config could be provider-managed and the CLI could move to a
 #   community sandbox.
 #
-ARG BASE_IMAGE=ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+ARG BASE_IMAGE=ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e
 FROM ${BASE_IMAGE}
 
 USER root

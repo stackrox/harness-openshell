@@ -17,6 +17,7 @@ CONTAINER_CLI ?= podman
 PLATFORM      := linux/amd64
 VERSION       := $(shell git describe --tags --always 2>/dev/null || echo dev)
 LDFLAGS       := -s -w -X main.version=$(VERSION)
+STACKROX_IMAGE_DIR := profiles/stackrox/image/sandbox-default
 
 # Pinned OpenShell CLI/gateway version — single source of truth for `make
 # openshell` and CI (.github/workflows/integration.yml).
@@ -83,9 +84,9 @@ test-suite-live: cli
 	./test/suite/run.sh --live
 
 ## Local gateway integration (unit tests run separately via 'make test')
-## Builds and pushes the sandbox image so the gateway can pull it.
-test-local: cli dev-push
-	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh local-container
+## Uses the NVIDIA community base image by default.
+test-local: cli
+	./test/test-flow.sh local-container
 
 ## Vertex AI: Gemini 3.8 Flash through OpenCode and a temporary local-gateway provider.
 ## Requires GOOGLE_VERTEX_AI_TOKEN and VERTEX_AI_PROJECT_ID.
@@ -93,18 +94,16 @@ test-vertex-gemini-opencode: cli
 	./test/vertex-gemini-opencode.sh
 
 ## Kind: self-contained cluster lifecycle
-## Builds sandbox image locally and pre-loads into kind (no registry push needed).
+## Uses the NVIDIA community base image by default.
 ## Use KEEP=1 to keep the cluster after tests (for debugging).
 test-kind: cli
-	$(CONTAINER_CLI) build -t $(IMAGE) profiles/images/sandbox-default/
-	@echo ""
-	HARNESS_OS_IMAGE=$(IMAGE) CONTAINER_CLI=$(CONTAINER_CLI) ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
+	CONTAINER_CLI=$(CONTAINER_CLI) ./test/kind-lifecycle.sh $(if $(KEEP),--keep)
 
-## Remote (OCP): requires KUBECONFIG set. Pushes image since the cluster pulls from registry.
-test-remote: cli dev-push
+## Remote (OCP): requires KUBECONFIG set. Uses the NVIDIA community base image.
+test-remote: cli
 	@test -n "$${KUBECONFIG}" || { echo "ERROR: Set KUBECONFIG for OCP (e.g. export KUBECONFIG=infracluster/kubeconfig)"; exit 1; }
 	@echo ""
-	HARNESS_OS_IMAGE=$(IMAGE) ./test/test-flow.sh openshift
+	./test/test-flow.sh openshift
 
 ## Managed HyperShell: canonical remote lifecycle against the real gateway.
 ## Runs LOCALLY only (the OIDC issuer is VPN-only, unreachable from CI runners).
@@ -131,15 +130,15 @@ test-all: test test-local test-kind test-remote
 
 ## Build dev sandbox image locally (native arch only)
 dev-sandbox:
-	$(CONTAINER_CLI) build -t $(IMAGE) profiles/images/sandbox-default/
+	$(CONTAINER_CLI) build -t $(IMAGE) $(STACKROX_IMAGE_DIR)
 	@echo "Built: $(IMAGE)"
 
 ## Build and push dev sandbox image (multi-arch)
 dev-push:
 	@$(CONTAINER_CLI) rmi --force $(IMAGE) 2>/dev/null || true
 	@$(CONTAINER_CLI) manifest rm $(IMAGE) 2>/dev/null || true
-	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(IMAGE) profiles/images/sandbox-default/
-	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(IMAGE) profiles/images/sandbox-default/
+	$(CONTAINER_CLI) build --platform linux/amd64 --manifest $(IMAGE) $(STACKROX_IMAGE_DIR)
+	$(CONTAINER_CLI) build --platform linux/arm64 --manifest $(IMAGE) $(STACKROX_IMAGE_DIR)
 	$(CONTAINER_CLI) manifest push $(IMAGE)
 	@echo "Pushed: $(IMAGE) (multi-arch)"
 

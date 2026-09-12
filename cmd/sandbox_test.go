@@ -42,3 +42,17 @@ func TestResolveSandboxImagePathFindsRelativeLocalContext(t *testing.T) {
 		t.Fatalf("resolveSandboxImagePath() = %q, want %q", got, dir)
 	}
 }
+
+func TestResolveSandboxImageDefaultsToCommunityBase(t *testing.T) {
+	t.Setenv("HARNESS_OS_IMAGE", "")
+	if got := resolveSandboxImage(""); got != defaultSandboxImage {
+		t.Fatalf("resolveSandboxImage() = %q, want %q", got, defaultSandboxImage)
+	}
+}
+
+func TestResolveSandboxImageHonorsEnvironmentOverride(t *testing.T) {
+	t.Setenv("HARNESS_OS_IMAGE", "quay.io/stackrox/agent:v1")
+	if got := resolveSandboxImage(""); got != "quay.io/stackrox/agent:v1" {
+		t.Fatalf("resolveSandboxImage() = %q, want environment override", got)
+	}
+}
