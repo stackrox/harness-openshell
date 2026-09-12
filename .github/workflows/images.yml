@@ -55,7 +55,7 @@ jobs:
           tags: |
             type=semver,pattern=sandbox-v{{version}}
             type=raw,value=sandbox-${{ steps.version.outputs.version }},enable=${{ github.ref_type != 'tag' }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         if: steps.changes.outputs.changed == 'true'
         with:
           context: profiles/stackrox/image/sandbox-default
