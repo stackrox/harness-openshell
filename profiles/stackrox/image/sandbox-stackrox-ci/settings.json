@@ -1,0 +1,55 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(cd *)",
+      "Bash(cp *)",
+      "Bash(curl *)",
+      "Bash(for *)",
+      "Bash(gh *)",
+      "Bash(git *)",
+      "Bash(go list *)",
+      "Bash(go mod *)",
+      "Bash(go version *)",
+      "Bash(if *)",
+      "Bash(jq *)",
+      "Bash(mkdir *)",
+      "Bash(python3 *)",
+      "Bash(test *)",
+      "Bash(timeout *)",
+      "Bash(while *)",
+      "Read",
+      "Write(artifacts/*)",
+      "Edit(artifacts/*)",
+      "Glob",
+      "Grep",
+      "Agent",
+      "SendMessage",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskList",
+      "TaskGet",
+      "mcp__*"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(chmod *)",
+      "Bash(chown *)",
+      "Bash(apt *)",
+      "Bash(pip *)",
+      "Bash(npm *)",
+      "Bash(git push *)",
+      "Read(**/.env*)",
+      "Read(**/.ssh/*)",
+      "Read(**/.gnupg/*)",
+      "Read(**/.config/gh/*)",
+      "Read(**/.claude.json)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "trustedMcpServers": ["atlassian"],
+  "skipDangerousModePermissionPrompt": true,
+  "env": {
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"
+  }
+}
