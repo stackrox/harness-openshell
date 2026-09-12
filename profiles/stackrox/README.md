@@ -43,3 +43,26 @@ docker build --platform linux/amd64 \
   -t quay.io/rcochran/openshell:sandbox-stackrox-ci \
   profiles/stackrox/image/sandbox-stackrox-ci
 ```
+
+### `sandbox-collector-builder`
+
+An amd64 image based on the StackRox Collector builder image. The `master`
+builder manifest is pinned to
+`sha256:52a3cca5253abb0cd5c3606769d5fd5b8be4cdb4671396f38a792695f07d7696`.
+It keeps the Collector compiler and build toolchain and adds the same
+OpenShell contract, coding agents, GitHub skill, Atlassian MCP, Google
+Workspace CLI, and `gopls` support as the StackRox CI profile. It is separate
+from `sandbox-stackrox-ci` so workflows can choose the Collector-specific
+toolchain without changing the Apollo/rox-ci-image profile.
+
+The base image is multi-architecture, but several bundled third-party
+binaries are currently amd64-only, so this profile is published for
+`linux/amd64` only.
+
+Build it locally with:
+
+```bash
+docker build --platform linux/amd64 \
+  -t quay.io/rcochran/openshell:sandbox-collector-builder \
+  profiles/stackrox/image/sandbox-collector-builder
+```
