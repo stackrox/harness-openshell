@@ -8,6 +8,11 @@
       "environment": {
         "READ_ONLY_MODE": "true"
       }
+    },
+    "gopls-mcp": {
+      "type": "local",
+      "command": ["/usr/local/bin/gopls", "mcp"],
+      "enabled": true
     }
   }
 }
