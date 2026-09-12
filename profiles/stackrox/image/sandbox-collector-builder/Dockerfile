@@ -106,7 +106,6 @@ RUN cp -a /tmp/npm-global/lib/node_modules/. /usr/lib/node_modules/ \
          chown -h root:root "/usr/local/bin/${name}"; \
        done \
     && chown -R root:root /usr/lib/node_modules \
-    && tar --version | grep -q 'GNU tar' \
     && rm -rf /tmp/npm-global
 
 # Claude Code's native binary. Pin both the release URL and its release
