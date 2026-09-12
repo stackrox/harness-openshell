@@ -12,7 +12,10 @@ runner-side service-account setup used by the original GitHub Actions workflow.
 Generic Harness workflows use the NVIDIA base image directly. Select the
 published StackRox image only when a workflow needs one of these additions;
 providers, credentials, skills, and task-specific policy remain outside the
-image.
+image. The image does not create or attach providers; a workflow must name
+providers that are already provisioned and attach them through
+`sandbox.providers` before provider credentials or inference routes are
+available.
 
 Build it locally with:
 
