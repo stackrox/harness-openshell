@@ -102,8 +102,8 @@ USER root
 RUN cp -a /tmp/npm-global/lib/node_modules/. /usr/lib/node_modules/ \
     && for name in opencode codex copilot ajv; do \
          test -e "/tmp/npm-global/bin/${name}"; \
-         cp -a "/tmp/npm-global/bin/${name}" "/usr/local/bin/${name}"; \
-         chown -h root:root "/usr/local/bin/${name}"; \
+         cp -a "/tmp/npm-global/bin/${name}" "/usr/bin/${name}"; \
+         chown -h root:root "/usr/bin/${name}"; \
        done \
     && chown -R root:root /usr/lib/node_modules \
     && rm -rf /tmp/npm-global
@@ -128,8 +128,9 @@ RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go
     && rm -f /tmp/go.tgz
 
 ARG GOPLS_VERSION=0.20.0
-RUN GOBIN=/usr/local/bin /usr/local/go/bin/go install "golang.org/x/tools/gopls@v${GOPLS_VERSION}" \
-    && rm -rf /root/go /root/.cache/go-build
+RUN GOPATH=/tmp/gopath GOCACHE=/tmp/gocache GOBIN=/usr/local/bin \
+        /usr/local/go/bin/go install "golang.org/x/tools/gopls@v${GOPLS_VERSION}" \
+    && rm -rf /tmp/gopath /tmp/gocache
 
 # Atlassian MCP is part of the StackRox workflow image contract. The gateway
 # still owns credentials; no credential values are baked into this image.
