@@ -81,9 +81,6 @@ RUN uv python install "${PYTHON_VERSION}" \
 
 # Coding agents and the JSON-schema utility used by StackRox workflows. These
 # versions mirror the current StackRox sandbox profile where applicable.
-# tar is a Node library dependency; npm leaves the system GNU tar in /usr/bin
-# unchanged.
-ARG NPM_TAR_VERSION=7.5.11
 ARG NPM_HONO_VERSION=1.19.11
 ARG NPM_OPENCODE_VERSION=1.18.30
 ARG NPM_CODEX_VERSION=0.117.0
@@ -93,7 +90,6 @@ RUN mkdir -p /tmp/npm-global \
     && chown sandbox:sandbox /tmp/npm-global
 USER sandbox
 RUN NPM_CONFIG_PREFIX=/tmp/npm-global npm install -g \
-        "tar@${NPM_TAR_VERSION}" \
         "@hono/node-server@${NPM_HONO_VERSION}" \
         "opencode-ai@${NPM_OPENCODE_VERSION}" \
         "@openai/codex@${NPM_CODEX_VERSION}" \
@@ -104,16 +100,12 @@ USER root
 RUN cp -a /tmp/npm-global/lib/node_modules/. /usr/lib/node_modules/ \
     && for name in opencode codex copilot ajv; do \
          test -e "/tmp/npm-global/bin/${name}"; \
-         cp -a "/tmp/npm-global/bin/${name}" "/usr/bin/${name}"; \
-         chown -h root:root "/usr/bin/${name}"; \
+         cp -a "/tmp/npm-global/bin/${name}" "/usr/local/bin/${name}"; \
+         chown -h root:root "/usr/local/bin/${name}"; \
        done \
     && chown -R root:root /usr/lib/node_modules \
     && tar --version | grep -q 'GNU tar' \
     && rm -rf /tmp/npm-global
-
-# Keep the profile's command path stable even though npm puts the executable
-# in /usr/bin on this UBI-based image.
-RUN ln -sf /usr/bin/opencode /usr/local/bin/opencode
 
 # Claude Code's native binary. Pin both the release URL and its release
 # manifest checksum instead of executing a downloaded installer as root.
