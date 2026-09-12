@@ -377,4 +377,3 @@ gh api repos/:owner/:repo
 - **404 Not Found** — wrong owner/repo/number or private repo without access
 - **422 Unprocessable** — invalid payload; check field names and types
 - **Network error / timeout** — if you see connection refused on the graphql endpoint, you're hitting the sandbox restriction; switch to a REST endpoint
-
