@@ -9,8 +9,9 @@ are not part of the image.
 - Working directory: `/sandbox`
 - Writable paths: `/sandbox`, `/tmp`
 - Inference routes through the gateway proxy at `inference.local`
-- Repository build tools from the `collector-builder` build are available, including
-  Go, compilers, make, git, jq, and the StackRox CI toolchain.
+- Repository build tools from the `collector-builder` build are available,
+  including compilers, make, git, jq, and the StackRox CI toolchain. This
+  profile adds the pinned Go toolchain and `gopls` for Go repository analysis.
 
 ## Tools
 
