@@ -25,6 +25,9 @@ jobs:
           - profile: sandbox-stackrox-ci
             tag_prefix: sandbox-stackrox-ci
             platforms: linux/amd64
+          - profile: sandbox-collector-builder
+            tag_prefix: sandbox-collector-builder
+            platforms: linux/amd64
     env:
       IMAGE_PROFILE: ${{ matrix.profile }}
       IMAGE_TAG_PREFIX: ${{ matrix.tag_prefix }}
