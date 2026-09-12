@@ -126,8 +126,16 @@ RUN curl -fsSL "https://downloads.claude.ai/claude-code-releases/${CLAUDE_VERSIO
     && install -m 0755 /tmp/claude /usr/local/bin/claude \
     && rm -f /tmp/claude
 
-# Go-language MCP support for repository analysis. collector-builder image supplies the Go
-# toolchain; gopls is the only additional Go binary needed here.
+# Go-language MCP support for repository analysis. The Collector builder image
+# supplies C/C++ build tooling but not Go, so install the pinned Go toolchain
+# before building gopls.
+ARG GO_VERSION=1.24.2
+ARG GO_SHA256_AMD64=68097bd680839cbc9d464a0edce4f7c333975e27a90246890e9f1078c7e702ad
+RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tgz \
+    && echo "${GO_SHA256_AMD64}  /tmp/go.tgz" | sha256sum -c - \
+    && tar -C /usr/local -xzf /tmp/go.tgz \
+    && rm -f /tmp/go.tgz
+
 ARG GOPLS_VERSION=0.20.0
 RUN GOBIN=/usr/local/bin /usr/local/go/bin/go install "golang.org/x/tools/gopls@v${GOPLS_VERSION}" \
     && rm -rf /root/go /root/.cache/go-build
