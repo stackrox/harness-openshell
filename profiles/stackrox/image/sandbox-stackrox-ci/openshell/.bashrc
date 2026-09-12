@@ -1,0 +1,7 @@
+export PATH="/sandbox/.venv/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export VIRTUAL_ENV="/sandbox/.venv"
+export UV_PYTHON_INSTALL_DIR="/sandbox/.uv/python"
+export GOPATH="/sandbox/.cache/go"
+export GOCACHE="/sandbox/.cache/go-build"
+export GOMODCACHE="/sandbox/.cache/go-mod"
+export PS1="\u@\h:\w\$ "
