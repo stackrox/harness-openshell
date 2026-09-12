@@ -26,8 +26,9 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 USER root
 
 # Runtime tools used by the OpenShell sandbox contract and by agent skills.
-# collector-builder image already supplies the compiler toolchain, Go, Node, npm, git, jq,
-# and curl; install only the missing runtime pieces here.
+# collector-builder image already supplies the compiler toolchain, Go, git, jq,
+# and curl. Add Node/npm for the coding-agent CLIs, plus the missing runtime
+# pieces needed by the OpenShell sandbox contract.
 RUN dnf install -y --setopt=install_weak_deps=False \
         ca-certificates \
         findutils \
@@ -37,6 +38,8 @@ RUN dnf install -y --setopt=install_weak_deps=False \
         nano \
         net-tools \
         nmap-ncat \
+        nodejs \
+        npm \
         openssh-clients \
         perl-Digest-SHA \
         procps-ng \
