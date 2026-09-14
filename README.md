@@ -209,11 +209,11 @@ and is not added automatically. A `pull_request` trigger is appropriate only
 for a credential-free demonstration.
 
 The repository carries two initial workload bundles: pull-request review and
-read-only repository triage. They are examples and policy contracts, not
+explicit pull-request merge. They are examples and policy contracts, not
 automatically enabled GitHub Actions. Each workload documents its trigger,
-providers, allowed mutation, and native OpenShell invocation. Additional issue
-and PR automation archetypes are intentionally deferred until these two are
-validated in consuming repositories.
+providers, allowed mutation, and native OpenShell invocation. Pull-request
+creation, issue, watcher, and triage archetypes are intentionally deferred
+until these two are validated in consuming repositories.
 
 ## Commands
 

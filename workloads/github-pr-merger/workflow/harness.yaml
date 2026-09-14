@@ -1,0 +1,35 @@
+version: 1
+name: github-pr-merger
+inference:
+  route: inference.local
+  provider: vertex-review
+  model: gemini-2.5-pro
+sandbox:
+  image: ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e
+  policy:
+    file: ${MERGE_POLICY}
+  providers: [github-pr-merger]
+  env:
+    OPENCODE_CONFIG: /sandbox/opencode.json
+    OPENCODE_VERTEX_API_KEY: sk-openshell-proxy-managed
+    MERGE_REPOSITORY: ${MERGE_REPOSITORY}
+    MERGE_PR: ${MERGE_PR}
+    MERGE_HEAD_SHA: ${MERGE_HEAD_SHA}
+    MERGE_METHOD: ${MERGE_METHOD}
+    MERGE_ALLOWED: ${MERGE_ALLOWED}
+payloads:
+  - source: opencode.json
+    destination: /sandbox/opencode.json
+  - source: skills/merge/SKILL.md
+    destination: /sandbox/skills/merge/SKILL.md
+agent:
+  type: opencode
+  args:
+    - run
+    - --format
+    - json
+    - --model
+    - vertex/gemini-2.5-pro
+    - --agent
+    - merger
+    - Validate the explicit merge authorization and current PR checks, then merge only when the skill permits it.
