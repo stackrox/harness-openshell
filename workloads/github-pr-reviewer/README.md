@@ -9,10 +9,11 @@ untrusted data.
 
 - `workflow/` contains the Harness adapter, OpenCode configuration, review
   skill, and deterministic fixture.
-- `openshell/policy.yaml` is the task policy template. Render its repository
-  and pull-request variables before applying it.
-- `openshell/providers/` documents the provider boundary. The production
-  PR-review wrapper currently uses the gateway's `github-review` instance.
+- `openshell/` contains the task policy, its security explanation, and an
+  endpointless `github-review` provider profile. Render the repository and
+  pull-request variables before applying the policy.
+- The production PR-review wrapper uses the gateway's existing `github-review`
+  instance; the profile contains metadata only and never a credential.
 
 The workflow is trusted host-side code. The diff and GitHub responses are
 untrusted input and must never be treated as instructions. The only permitted

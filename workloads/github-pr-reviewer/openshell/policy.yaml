@@ -29,6 +29,8 @@ network_policies:
         protocol: rest
         tls: terminate
         enforcement: enforce
+        credential_binding:
+          provider: github-review
         rules:
           - allow:
               method: GET
