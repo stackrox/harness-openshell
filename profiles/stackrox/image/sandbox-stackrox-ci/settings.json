@@ -3,7 +3,6 @@
     "defaultMode": "acceptEdits",
     "allow": [
       "Bash(cd *)",
-      "Bash(cp *)",
       "Bash(curl *)",
       "Bash(for *)",
       "Bash(gh *)",
@@ -14,7 +13,6 @@
       "Bash(if *)",
       "Bash(jq *)",
       "Bash(mkdir *)",
-      "Bash(python3 *)",
       "Bash(test *)",
       "Bash(timeout *)",
       "Bash(while *)",

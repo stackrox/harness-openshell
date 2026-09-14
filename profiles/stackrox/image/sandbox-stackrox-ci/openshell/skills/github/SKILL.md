@@ -33,7 +33,6 @@ Use `required_permissions: ["full_network"]` for all `gh` commands (they need to
 ### Commands that are REST-safe
 
 - `gh api <REST-path>` — always REST when given a path (not `graphql`)
-- `gh pr create` — uses REST
 - `gh pr merge` — uses REST
 - `gh release *` — uses REST
 - `gh run *` — uses REST
@@ -151,13 +150,7 @@ gh api "repos/{owner}/{repo}/pulls/{number}/files?per_page=100" \
 
 ### Create a PR (REST-safe alternative)
 
-`gh pr create` is REST-safe and the easiest way:
-
-```bash
-gh pr create --title "PR title" --body "PR description" --base main --head feature-branch
-```
-
-Or via `gh api`:
+Create pull requests with the REST API:
 
 ```bash
 gh api repos/{owner}/{repo}/pulls \
