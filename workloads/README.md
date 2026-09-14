@@ -25,3 +25,13 @@ Every workload README must state its trigger contract, trusted and untrusted
 inputs, provider instance names, allowed mutations, policy rendering steps,
 and cleanup expectations. Examples are opt-in; this repository does not enable
 their GitHub Actions triggers automatically.
+
+The initial validated set is intentionally small:
+
+- `github-pr-reviewer` — read a staged pull-request diff and optionally publish
+  bounded inline comments.
+- `repository-triage` — read repository, CI, Git, and Jira context and write a
+  report artifact without mutations.
+
+Issue review, PR watching, issue-to-PR, and ACS-specific workflows are deferred
+until these two workload contracts have been exercised by consuming repos.

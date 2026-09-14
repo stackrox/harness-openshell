@@ -208,11 +208,12 @@ stages the pull-request diff as data. The `ai-review` label is explicit opt-in
 and is not added automatically. A `pull_request` trigger is appropriate only
 for a credential-free demonstration.
 
-The repository also carries narrowly scoped workload bundles for issue review,
-PR comment handling, issue-to-PR automation, and read-only repository triage.
-They are examples and policy contracts, not automatically enabled GitHub
-Actions. Each workload documents its trigger, provider, allowed mutation, and
-native OpenShell invocation.
+The repository carries two initial workload bundles: pull-request review and
+read-only repository triage. They are examples and policy contracts, not
+automatically enabled GitHub Actions. Each workload documents its trigger,
+providers, allowed mutation, and native OpenShell invocation. Additional issue
+and PR automation archetypes are intentionally deferred until these two are
+validated in consuming repositories.
 
 ## Commands
 

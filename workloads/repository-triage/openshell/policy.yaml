@@ -2,7 +2,7 @@ version: 1
 
 # Render the TRIAGE_* values before applying. This is a read-only policy:
 # GitHub has no POST/PUT/PATCH/DELETE routes, Git Smart HTTP has no receive-pack,
-# and Jira permits GET plus search POST only.
+# and Jira permits only read-only issue GETs.
 filesystem_policy:
   include_workdir: true
   read_only:
@@ -65,7 +65,6 @@ network_policies:
     binaries:
       - { path: /usr/bin/gh }
       - { path: /usr/local/bin/gh }
-      - { path: /usr/bin/curl }
   github_git_readonly:
     name: github-git-readonly
     endpoints:
