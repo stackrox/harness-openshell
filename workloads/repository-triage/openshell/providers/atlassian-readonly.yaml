@@ -3,7 +3,7 @@
 # stored by the gateway and is never checked into this workload.
 id: atlassian-readonly
 display_name: Atlassian read-only triage
-description: Jira token bound to read-only issue and search operations
+description: Jira token bound to read-only issue operations
 category: knowledge
 credentials:
   - name: api_token
@@ -26,12 +26,6 @@ endpoints:
       - allow:
           method: GET
           path: /rest/api/3/**
-      - allow:
-          method: POST
-          path: /rest/api/2/search
-      - allow:
-          method: POST
-          path: /rest/api/3/search
 binaries:
   - /sandbox/.venv/bin/python
   - /sandbox/.venv/bin/python3

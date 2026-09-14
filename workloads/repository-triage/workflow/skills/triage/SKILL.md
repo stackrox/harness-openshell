@@ -9,8 +9,8 @@ Use only these capabilities:
 - Use `gh api` for GET requests under `/repos/$TRIAGE_REPOSITORY/` to inspect
   repository metadata, contents, issues, pull requests, commits, checks, and
   Actions runs.
-- Use the read-only Atlassian tools `jira_get_issue` and `jira_search` for the
-  selected `JIRA_ISSUE_KEY`.
+- Use the read-only Atlassian tool `jira_get_issue` for the selected
+  `JIRA_ISSUE_KEY`.
 - Use `git log`, `git show`, and `git status` for local history inspection.
 
 Do not post comments, modify labels, update Jira, push branches, create pull

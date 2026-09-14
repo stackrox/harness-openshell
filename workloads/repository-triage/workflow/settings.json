@@ -9,8 +9,7 @@
       "Bash(git -C /sandbox/repo log *)",
       "Bash(git -C /sandbox/repo show *)",
       "Bash(git -C /sandbox/repo status *)",
-      "mcp__mcp-atlassian__jira_get_issue",
-      "mcp__mcp-atlassian__jira_search"
+      "mcp__mcp-atlassian__jira_get_issue"
     ],
     "deny": [
       "Edit(*)",

@@ -104,12 +104,6 @@ network_policies:
           - allow:
               method: GET
               path: /rest/api/3/**
-          - allow:
-              method: POST
-              path: /rest/api/2/search
-          - allow:
-              method: POST
-              path: /rest/api/3/search
     binaries:
       - { path: /sandbox/.venv/bin/mcp-atlassian }
       - { path: /sandbox/.venv/bin/python }

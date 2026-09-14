@@ -75,7 +75,9 @@ RUN curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_$
 # Use the same uv-managed Python contract as the community base image. The
 # collector-builder image system Python is 3.9, while current MCP integrations require
 # 3.10+.
-COPY --from=ghcr.io/astral-sh/uv:0.10.8 /uv /usr/local/bin/uv
+# Pin the amd64 manifest so a mutable registry tag cannot change the builder
+# executable without an intentional source update.
+COPY --from=ghcr.io/astral-sh/uv@sha256:f99c19c9683591761e0dc9d80db421b17d8c004adf4ac4031cac1fc92777f091 /uv /usr/local/bin/uv
 ARG PYTHON_VERSION=3.14.3
 ENV UV_PYTHON_INSTALL_DIR=/sandbox/.uv/python
 RUN uv python install "${PYTHON_VERSION}" \

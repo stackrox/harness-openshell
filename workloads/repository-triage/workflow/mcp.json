@@ -8,7 +8,7 @@
         "JIRA_USERNAME": "${JIRA_USERNAME}",
         "READ_ONLY_MODE": "true"
       },
-      "allowedTools": ["jira_get_issue", "jira_search"]
+      "allowedTools": ["jira_get_issue"]
     }
   }
 }

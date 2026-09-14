@@ -31,6 +31,24 @@ endpoints:
   - host: "*.atlassian.com"
     port: 443
     allow_uninspected_credentials: true
+  - host: issues.redhat.com
+    port: 443
+    protocol: rest
+    tls: terminate
+    enforcement: enforce
+    rules:
+      - allow:
+          method: GET
+          path: /rest/api/2/**
+      - allow:
+          method: GET
+          path: /rest/api/3/**
+      - allow:
+          method: POST
+          path: /rest/api/2/search
+      - allow:
+          method: POST
+          path: /rest/api/3/search
 binaries:
   - /sandbox/.venv/bin/python
   - /sandbox/.venv/bin/python3

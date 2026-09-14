@@ -9,9 +9,9 @@ untrusted data.
 
 - `workflow/` contains the Harness adapter, OpenCode configuration, review
   skill, and deterministic fixture.
-- `../openshell/policy.yaml` is the task policy template. Render its repository
+- `openshell/policy.yaml` is the task policy template. Render its repository
   and pull-request variables before applying it.
-- `../openshell/providers/` documents the provider boundary. The production
+- `openshell/providers/` documents the provider boundary. The production
   PR-review wrapper currently uses the gateway's `github-review` instance.
 
 The workflow is trusted host-side code. The diff and GitHub responses are
@@ -25,7 +25,7 @@ The same inputs can be used without Harness:
 
 ```bash
 openshell sandbox create \
-  --from ghcr.io/nvidia/openshell-community/sandboxes/base:21aa171 \
+  --from ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e \
   --policy /tmp/pr-review-policy.yaml \
   --provider github-review \
   -- opencode run --format json

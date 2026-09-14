@@ -71,9 +71,21 @@ RUN set -eux; \
 
 # Google Workspace CLI (Gmail, Calendar, Drive, Docs, Sheets)
 # https://github.com/googleworkspace/cli
-RUN ARCH=$(uname -m | sed 's/arm64/aarch64/') && \
-    curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v0.22.5/google-workspace-cli-${ARCH}-unknown-linux-gnu.tar.gz" \
-    | tar xz -C /usr/local/bin
+ARG GWS_VERSION=0.22.5
+ARG GWS_SHA256_AMD64=de78ecdbd2f1a84cca0063a7ecbc440240fc14b6ebccbb17f4646b792a8c5c1f
+ARG GWS_SHA256_ARM64=94490295d9580e1e88574e715a0a162991747d12d62f8c7b8dcc8268b6c1cea0
+RUN set -eux; \
+    case "$(uname -m)" in \
+      x86_64) gws_arch=x86_64; gws_sha256="$GWS_SHA256_AMD64" ;; \
+      aarch64|arm64) gws_arch=aarch64; gws_sha256="$GWS_SHA256_ARM64" ;; \
+      *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v${GWS_VERSION}/google-workspace-cli-${gws_arch}-unknown-linux-gnu.tar.gz" -o /tmp/gws.tgz; \
+    echo "${gws_sha256}  /tmp/gws.tgz" | sha256sum -c -; \
+    mkdir -p /tmp/gws-extract; \
+    tar -xzf /tmp/gws.tgz -C /tmp/gws-extract; \
+    install -m 0755 /tmp/gws-extract/gws /usr/local/bin/gws; \
+    rm -rf /tmp/gws.tgz /tmp/gws-extract
 
 # OpenCode AI coding agent
 # https://github.com/opencode-ai/opencode

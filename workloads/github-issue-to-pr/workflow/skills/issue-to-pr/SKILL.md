@@ -12,7 +12,9 @@ Use `gh api` only with these exact endpoints:
 - `POST /repos/$REVIEW_REPOSITORY/issues/$REVIEW_ISSUE/comments`
 
 Work only in `/sandbox/repo`. Create one short-lived branch from
-`REVIEW_BASE_REF`, make the smallest justified change, run the relevant local
+`REVIEW_BASE_REF`. Before any clone, fetch, pull, or push, run `gh auth
+setup-git` so Git uses the provider-managed credential without copying a token
+into configuration. Make the smallest justified change, run the relevant local
 checks, commit, and push the branch. Create exactly one pull request back to
 `REVIEW_BASE_REF`, then add one issue comment linking it. Never merge, change
 labels, alter settings, push the default branch, or access another repository.
