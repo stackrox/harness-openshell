@@ -48,7 +48,7 @@ docker build --platform linux/amd64 \
 
 An amd64 image based on the StackRox Collector builder image. The `master`
 builder manifest is pinned to
-`sha256:52a3cca5253abb0cd5c3606769d5fd5b8be4cdb4671396f38a792695f07d7696`.
+`sha256:1ed20fa2c2f650199a20d8625701ff39749b70031d9db178273fea7c4280d48f`.
 It keeps the Collector compiler and build toolchain and adds the same
 OpenShell contract, coding agents, GitHub skill, Atlassian MCP, Google
 Workspace CLI, and `gopls` support as the StackRox CI profile. It is separate

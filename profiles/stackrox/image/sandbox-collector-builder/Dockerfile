@@ -3,9 +3,9 @@
 # StackRox collector-builder sandbox image for OpenShell repository workflows.
 #
 # This profile starts from the latest StackRox Collector builder image so
-# collector build tools (Go, compilers, make, and the collector toolchain) are
-# available to the agent. It adds the OpenShell sandbox contract, coding-agent
-# tools, and selected vendored OpenShell assets.
+# collector build tools (compilers, make, and the collector toolchain) are
+# available to the agent. It adds Go, the OpenShell sandbox contract,
+# coding-agent tools, and selected vendored OpenShell assets.
 #
 # The collector builder is multi-architecture, but the bundled Claude and
 # Google Workspace binaries are amd64-only. Keep this profile amd64-only until
@@ -26,9 +26,9 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 USER root
 
 # Runtime tools used by the OpenShell sandbox contract and by agent skills.
-# collector-builder image already supplies the compiler toolchain, Go, git, jq,
-# and curl. Add Node/npm for the coding-agent CLIs, plus the missing runtime
-# pieces needed by the OpenShell sandbox contract.
+# collector-builder image already supplies the compiler toolchain, git, jq, and
+# curl. Add Go and Node/npm for repository analysis and coding-agent CLIs, plus
+# the missing runtime pieces needed by the OpenShell sandbox contract.
 RUN dnf install -y --setopt=install_weak_deps=False \
         ca-certificates \
         findutils \
