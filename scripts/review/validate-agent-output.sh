@@ -39,6 +39,7 @@ jq -Rse 'split("\n") | map(fromjson?) | . as $events |
       (
         .part.state.status == "completed" and
         (
+          ((.part.tool // "bash") != "bash" and (.part.state.metadata.exit == null)) or
           (.part.state.metadata.exit // -1) == 0 or
           recoverable_comment_location_failure or
           recoverable_shell_parse_failure
