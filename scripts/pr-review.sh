@@ -13,6 +13,7 @@ allow_draft_reviews="${ALLOW_DRAFT_REVIEWS:-false}"
 workspace="rev-$RANDOM-$$"
 max_diff_bytes=262144
 created_workspace=false
+imported_github_profile=false
 created_vertex_provider=false
 created_github_provider=false
 apply_pid=""
@@ -62,6 +63,9 @@ cleanup_runtime() {
     fi
     if $created_github_provider; then
       timeout 30s openshell provider delete --gateway "$gateway" --workspace "$workspace" github-review || cleanup_status=1
+    fi
+    if $imported_github_profile; then
+      timeout 30s openshell provider profile delete --gateway "$gateway" --workspace "$workspace" github-review || cleanup_status=1
     fi
     timeout 30s openshell workspace delete --gateway "$gateway" "$workspace" || cleanup_status=1
   fi
@@ -121,6 +125,7 @@ run_review() {
     ! jq -e 'any(.[]; .id == "github-review")' <<<"$profile_list" >/dev/null 2>&1; then
     timeout 60s openshell provider profile import --gateway "$gateway" --workspace "$workspace" \
       --file workloads/github-pr-reviewer/openshell/providers/github-review.yaml
+    imported_github_profile=true
   fi
   timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
     --name vertex-review --type google-vertex-ai --from-existing \
