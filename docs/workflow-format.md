@@ -94,6 +94,6 @@ bootstrap-owned route; isolated workspaces may use the compatibility write.
 
 ## Compatibility policy
 
-The Go parser in `internal/config` is the executable source of truth. Parser,
+The Go parser in `workflow/internal/config` is the executable source of truth. Parser,
 plan, apply, and redaction tests are the format contract. A future incompatible
 shape increments `version` and fails clearly; there is no migration layer.

@@ -1,0 +1,170 @@
+// Package config defines the canonical version 1 workflow configuration schema.
+//
+// This package is SDK-free and cobra-free, defining only the desired-resource model
+// and strict parsing. Secret values are never materialized.
+package config
+
+import (
+	"fmt"
+	"time"
+)
+
+// Harness is the root workflow configuration document.
+type Harness struct {
+	Version int    `yaml:"version"` // must equal 1
+	Name    string `yaml:"name"`    // required
+	Spec    Spec   `yaml:",inline"`
+}
+
+// Spec contains the workflow fields. It is an internal Go grouping; the inline
+// YAML tag keeps these fields at the workflow document root.
+type Spec struct {
+	Target    Target    `yaml:"target"`
+	Inference Inference `yaml:"inference,omitempty"`
+	Sandbox   Sandbox   `yaml:"sandbox,omitempty"`
+	Agent     Agent     `yaml:"agent,omitempty"`
+	Source    Source    `yaml:"source,omitempty"`
+	Payloads  []Payload `yaml:"payloads,omitempty"`
+	Outputs   []Output  `yaml:"outputs,omitempty"`
+}
+
+// ProviderReferences returns the unique providers required by inference or the
+// sandbox, preserving inference-first order for stable plans and output.
+func (s Spec) ProviderReferences() []string {
+	seen := make(map[string]struct{}, 1+len(s.Sandbox.Providers))
+	refs := make([]string, 0, 1+len(s.Sandbox.Providers))
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		refs = append(refs, name)
+	}
+	add(s.Inference.Provider)
+	for _, name := range s.Sandbox.Providers {
+		add(name)
+	}
+	return refs
+}
+
+// Target specifies the OpenShell gateway and workspace.
+type Target struct {
+	Gateway      string        `yaml:"gateway,omitempty"`   // logical name; CLI registration name when Registration is omitted
+	Workspace    string        `yaml:"workspace,omitempty"` // "" → default (owned by sdkclient)
+	Registration *Registration `yaml:"registration,omitempty"`
+}
+
+// Registration describes a direct, in-memory gateway connection. Despite being
+// part of the workflow document, apply does not persist a CLI gateway
+// registration.
+type Registration struct {
+	Endpoint string `yaml:"endpoint,omitempty"`
+	OIDC     *OIDC  `yaml:"oidc,omitempty"`
+}
+
+// OIDC holds OIDC issuer and client configuration.
+// The client secret is NOT stored here — sdkclient reads it exclusively from
+// OPENSHELL_OIDC_CLIENT_SECRET.
+type OIDC struct {
+	Issuer   string `yaml:"issuer,omitempty"`
+	ClientID string `yaml:"clientId,omitempty"`
+	Audience string `yaml:"audience,omitempty"`
+}
+
+// Inference specifies the LLM inference route configuration.
+type Inference struct {
+	Route    string `yaml:"route,omitempty"`
+	Provider string `yaml:"provider,omitempty"`
+	Model    string `yaml:"model,omitempty"`
+	Timeout  string `yaml:"timeout,omitempty"`
+	// Verify controls the gateway's synchronous endpoint validation on write.
+	// It is a *bool so "unset" is distinct from "false": unset (nil) means
+	// verify (the safe default), so only an explicit `verify: false` skips it.
+	// Verify is not part of the reconcile diff, so changing only this field does
+	// not by itself trigger a re-write; it takes effect on the next write caused
+	// by a provider/model/timeout change.
+	Verify *bool `yaml:"verify,omitempty"`
+}
+
+// VerifyEnabled reports whether endpoint verification should run on write.
+// Unset (nil) defaults to true; this is the single owner of the nil→verify rule.
+func (inf Inference) VerifyEnabled() bool {
+	return inf.Verify == nil || *inf.Verify
+}
+
+// TimeoutSecs parses Timeout (a Go duration string like "60s" or "2m") into
+// whole seconds. Empty → 0, meaning "let the gateway apply its default". A bare
+// number without a unit (e.g. "60") is an error — the unit is required so the
+// meaning is unambiguous. This is the single owner of the Timeout → seconds
+// conversion; the plan diff and the reconcile write both call it. Validated at
+// Resolve time, so by plan/reconcile time it cannot fail.
+func (inf Inference) TimeoutSecs() (uint64, error) {
+	if inf.Timeout == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(inf.Timeout)
+	if err != nil {
+		return 0, fmt.Errorf("invalid timeout %q: want a duration string like \"60s\" or \"2m\"", inf.Timeout)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("invalid timeout %q: must not be negative", inf.Timeout)
+	}
+	if d%time.Second != 0 {
+		return 0, fmt.Errorf("invalid timeout %q: must be a whole number of seconds", inf.Timeout)
+	}
+	return uint64(d / time.Second), nil
+}
+
+// Sandbox describes the execution sandbox for this run.
+type Sandbox struct {
+	Image     string            `yaml:"image,omitempty"`
+	Providers []string          `yaml:"providers,omitempty"` // provider proxies attached to the sandbox
+	Policy    *PolicyRef        `yaml:"policy,omitempty"`
+	Env       map[string]string `yaml:"env,omitempty"`
+	Keep      bool              `yaml:"keep,omitempty"`
+	TTY       bool              `yaml:"tty,omitempty"`
+}
+
+// PolicyRef refers to a policy file.
+type PolicyRef struct {
+	File string `yaml:"file,omitempty"`
+}
+
+// Agent specifies the agent to use in the sandbox.
+type Agent struct {
+	Type string   `yaml:"type,omitempty"`
+	Args []string `yaml:"args,omitempty"`
+}
+
+// Source specifies the source repository to clone.
+type Source struct {
+	Repo        string `yaml:"repo,omitempty"`
+	Ref         string `yaml:"ref,omitempty"`
+	Destination string `yaml:"destination,omitempty"`
+	Submodules  string `yaml:"submodules,omitempty"`
+}
+
+// Payload represents a file or content to be placed in the sandbox.
+type Payload struct {
+	Source      string `yaml:"source,omitempty"`  // local path
+	Content     string `yaml:"content,omitempty"` // inline content
+	Destination string `yaml:"destination"`       // target path in sandbox
+}
+
+// Output maps a path inside the sandbox to a path below the host output
+// directory supplied by the caller. Outputs are downloaded before the sandbox
+// is deleted. Required defaults to true; optional outputs can be used for
+// partial-result workflows.
+type Output struct {
+	Source      string `yaml:"source"`             // absolute sandbox path
+	Destination string `yaml:"destination"`        // relative host path
+	Required    *bool  `yaml:"required,omitempty"` // nil means required
+}
+
+// RequiredEnabled reports whether a missing output should fail the run.
+func (o Output) RequiredEnabled() bool {
+	return o.Required == nil || *o.Required
+}

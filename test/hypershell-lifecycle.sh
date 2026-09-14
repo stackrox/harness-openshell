@@ -80,7 +80,7 @@ echo "  issuer reachable: yes"
 # a stale harness binary left at the repo root by a prior build.
 HARNESS_BIN="$ROOT_DIR/harness"
 echo "building harness ..."
-( cd "$ROOT_DIR" && CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=dev' -o harness . ) \
+( cd "$ROOT_DIR" && CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=dev' -o harness ./workflow ) \
   || { echo "ERROR: harness build failed" >&2; exit 1; }
 
 # Gateway caps sandbox names at 19 chars. "hsl-" (4) + epoch (10) + "-" (1) +
