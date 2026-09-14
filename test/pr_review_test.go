@@ -142,6 +142,10 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	if !strings.Contains(string(script), "--name github-review --type github-review --credential GITHUB_TOKEN") {
 		t.Fatal("review wrapper does not use the endpointless github-review provider profile")
 	}
+	if !strings.Contains(string(script), "provider profile import") ||
+		!strings.Contains(string(script), "workloads/github-pr-reviewer/openshell/providers/github-review.yaml") {
+		t.Fatal("review wrapper does not bootstrap the endpointless github-review profile")
+	}
 	if !strings.Contains(string(script), `REVIEW_SKILL="${REVIEW_SKILL:-skills/pr-review/SKILL.md}"`) {
 		t.Fatal("review wrapper default skill path is not relative to the workflow file")
 	}

@@ -117,6 +117,11 @@ run_review() {
 
   timeout 60s openshell workspace create --gateway "$gateway" --name "$workspace"
   created_workspace=true
+  if ! profile_list="$(timeout 60s openshell provider list-profiles --gateway "$gateway" --workspace "$workspace" -o json)" ||
+    ! jq -e 'any(.[]; .id == "github-review")' <<<"$profile_list" >/dev/null 2>&1; then
+    timeout 60s openshell provider profile import --gateway "$gateway" --workspace "$workspace" \
+      --file workloads/github-pr-reviewer/openshell/providers/github-review.yaml
+  fi
   timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
     --name vertex-review --type google-vertex-ai --from-existing \
     --config "VERTEX_AI_PROJECT_ID=$VERTEX_AI_PROJECT_ID" --config "VERTEX_AI_REGION=${VERTEX_AI_REGION:-global}"
