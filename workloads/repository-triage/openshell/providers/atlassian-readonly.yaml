@@ -1,0 +1,39 @@
+# Read-only Atlassian provider for the ACS/StackRox triage deployment.
+# Adjust the host for another Jira deployment before importing. The token is
+# stored by the gateway and is never checked into this workload.
+id: atlassian-readonly
+display_name: Atlassian read-only triage
+description: Jira token bound to read-only issue and search operations
+category: knowledge
+credentials:
+  - name: api_token
+    description: Atlassian API token
+    env_vars: [JIRA_API_TOKEN]
+    required: true
+    auth_style: basic
+discovery:
+  credentials: [api_token]
+endpoints:
+  - host: issues.redhat.com
+    port: 443
+    protocol: rest
+    tls: terminate
+    enforcement: enforce
+    rules:
+      - allow:
+          method: GET
+          path: /rest/api/2/**
+      - allow:
+          method: GET
+          path: /rest/api/3/**
+      - allow:
+          method: POST
+          path: /rest/api/2/search
+      - allow:
+          method: POST
+          path: /rest/api/3/search
+binaries:
+  - /sandbox/.venv/bin/python
+  - /sandbox/.venv/bin/python3
+  - /sandbox/.uv/python/**
+  - /sandbox/.venv/bin/mcp-atlassian

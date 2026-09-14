@@ -1,0 +1,49 @@
+version: 1
+
+# Render ${REVIEW_REPOSITORY} and ${REVIEW_ISSUE} before applying this policy.
+# The provider profile is endpointless so this workload policy is the only
+# place that binds the GitHub credential to a concrete repository and issue.
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /lib64
+    - /bin
+    - /etc
+    - /proc
+    - /dev/urandom
+  read_write:
+    - /sandbox
+    - /tmp
+    - /dev/null
+landlock:
+  compatibility: best_effort
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+network_policies:
+  github_api:
+    name: github-api
+    endpoints:
+      - host: api.github.com
+        port: 443
+        protocol: rest
+        tls: terminate
+        enforcement: enforce
+        credential_binding:
+          provider: github-issue-reviewer
+        rules:
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/issues/${REVIEW_ISSUE}
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/issues/${REVIEW_ISSUE}/comments
+          - allow:
+              method: POST
+              path: /repos/${REVIEW_REPOSITORY}/issues/${REVIEW_ISSUE}/comments
+    binaries:
+      - { path: /usr/bin/gh }
+      - { path: /usr/local/bin/gh }
+      - { path: /usr/bin/opencode }

@@ -1,0 +1,21 @@
+# Endpointless provider profile for the issue-comment workload.
+# Import this profile into the gateway, then create the matching provider
+# instance named github-issue-reviewer. The workload policy supplies the exact
+# repository and issue endpoint binding; this file contains no credentials.
+id: github-issue-reviewer
+display_name: GitHub issue reviewer
+description: GitHub token bound by the issue-review workload policy
+category: source_control
+credentials:
+  - name: api_token
+    description: GitHub API token
+    env_vars: [GITHUB_TOKEN, GH_TOKEN]
+    required: true
+    auth_style: bearer
+    header_name: authorization
+discovery:
+  credentials: [api_token]
+binaries:
+  - /usr/bin/gh
+  - /usr/local/bin/gh
+  - /usr/bin/opencode

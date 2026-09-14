@@ -208,9 +208,11 @@ stages the pull-request diff as data. The `ai-review` label is explicit opt-in
 and is not added automatically. A `pull_request` trigger is appropriate only
 for a credential-free demonstration.
 
-Future archetypes such as issue triage, issue-to-PR, security review, or
-auto-merge require separate mutation and approval contracts; they are not
-implicitly enabled by the runner.
+The repository also carries narrowly scoped workload bundles for issue review,
+PR comment handling, issue-to-PR automation, and read-only repository triage.
+They are examples and policy contracts, not automatically enabled GitHub
+Actions. Each workload documents its trigger, provider, allowed mutation, and
+native OpenShell invocation.
 
 ## Commands
 
@@ -237,7 +239,8 @@ retain it for debugging.
 - [docs/workflow-format.md](docs/workflow-format.md) — version 1 workflow contract
 - [docs/ci.md](docs/ci.md) — trusted CI bootstrap and credential contract
 - [docs/compatibility.md](docs/compatibility.md) — tested OpenShell, ACP, and Go versions
-- [examples/github-pr-reviewer/](examples/github-pr-reviewer/) — workflow inputs and policy
+- [workloads/](workloads/) — workload bundles, native OpenShell artifacts, and Harness adapters
+- [images/](images/) — reusable sandbox image build contexts
 
 Fast checks:
 

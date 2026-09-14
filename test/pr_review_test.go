@@ -208,7 +208,7 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 		}
 	}
 
-	data, err := os.ReadFile("../examples/github-pr-reviewer/opencode-harness.yaml")
+	data, err := os.ReadFile("../workloads/github-pr-reviewer/workflow/opencode-harness.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

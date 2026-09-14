@@ -1,0 +1,37 @@
+version: 1
+name: github-issue-to-pr
+inference:
+  route: inference.local
+  provider: vertex-review
+  model: gemini-2.5-pro
+sandbox:
+  image: ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e
+  policy:
+    file: ${REVIEW_POLICY}
+  providers: [github-issue-to-pr]
+  env:
+    OPENCODE_CONFIG: /sandbox/opencode.json
+    OPENCODE_VERTEX_API_KEY: sk-openshell-proxy-managed
+    REVIEW_REPOSITORY: ${REVIEW_REPOSITORY}
+    REVIEW_ISSUE: ${REVIEW_ISSUE}
+    REVIEW_BASE_REF: ${REVIEW_BASE_REF}
+payloads:
+  - source: opencode.json
+    destination: /sandbox/opencode.json
+  - source: skills/issue-to-pr/SKILL.md
+    destination: /sandbox/skills/issue-to-pr/SKILL.md
+source:
+  repo: https://github.com/${REVIEW_REPOSITORY}.git
+  ref: ${REVIEW_BASE_REF}
+  destination: /sandbox/repo
+agent:
+  type: opencode
+  args:
+    - run
+    - --format
+    - json
+    - --model
+    - vertex/gemini-2.5-pro
+    - --agent
+    - implementer
+    - Implement the labeled issue in /sandbox/repo, create one pull request, and report the result.

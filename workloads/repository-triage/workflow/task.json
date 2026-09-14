@@ -1,0 +1,8 @@
+{
+  "repository": "${TRIAGE_REPOSITORY}",
+  "ref": "${TRIAGE_REF}",
+  "issue": "${TRIAGE_ISSUE}",
+  "jira_issue": "${JIRA_ISSUE_KEY}",
+  "report_schema": "/sandbox/triage-report.schema.json",
+  "report_path": "/sandbox/artifacts/triage-report.json"
+}

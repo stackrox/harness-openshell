@@ -1,8 +1,8 @@
-# Provider profile examples
+# ACS provider profile inputs
 
 These files use the upstream OpenShell provider-profile format. They describe
 credential discovery, proxy injection, refresh, endpoint policy, and allowed
-sandbox binaries for integrations not fully covered by built-in profiles.
+sandbox binaries for the ACS workload's integrations.
 
 They are inputs to the platform bootstrap process, not to `harness workflow apply`.
 Import and create providers with OpenShell before applying a workflow. The

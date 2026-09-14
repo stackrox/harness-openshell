@@ -42,7 +42,7 @@ jobs:
         run: |
           if [[ "$GITHUB_REF_TYPE" == tag || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
             changed=true
-          elif git diff --quiet "$BASE_SHA" HEAD -- "profiles/stackrox/image/${IMAGE_PROFILE}" .github/workflows/images.yml; then
+          elif git diff --quiet "$BASE_SHA" HEAD -- "images/stackrox/${IMAGE_PROFILE}" .github/workflows/images.yml; then
             changed=false
           else
             changed=true
@@ -73,7 +73,7 @@ jobs:
       - uses: docker/build-push-action@v6
         if: steps.changes.outputs.changed == 'true'
         with:
-          context: profiles/stackrox/image/${{ matrix.profile }}
+          context: images/stackrox/${{ matrix.profile }}
           platforms: ${{ matrix.platforms }}
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}

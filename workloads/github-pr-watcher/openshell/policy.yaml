@@ -1,0 +1,88 @@
+version: 1
+
+# Render ${REVIEW_REPOSITORY} and ${REVIEW_PR} before applying. This workload
+# may read one PR, post a status comment, and push a fix to that PR's existing
+# branch. Branch protection and the caller must prevent default-branch pushes.
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /lib64
+    - /bin
+    - /etc
+    - /proc
+    - /dev/urandom
+  read_write:
+    - /sandbox
+    - /tmp
+    - /dev/null
+landlock:
+  compatibility: best_effort
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+network_policies:
+  github_api:
+    name: github-api
+    endpoints:
+      - host: api.github.com
+        port: 443
+        protocol: rest
+        tls: terminate
+        enforcement: enforce
+        credential_binding:
+          provider: github-pr-watcher
+        rules:
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/issues/${REVIEW_PR}/comments
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/comments
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/reviews
+          - allow:
+              method: GET
+              path: /repos/${REVIEW_REPOSITORY}/pulls/${REVIEW_PR}/files
+          - allow:
+              method: POST
+              path: /repos/${REVIEW_REPOSITORY}/issues/${REVIEW_PR}/comments
+    binaries:
+      - { path: /usr/bin/gh }
+      - { path: /usr/local/bin/gh }
+      - { path: /usr/bin/opencode }
+  github_git:
+    name: github-git
+    endpoints:
+      - host: github.com
+        port: 443
+        protocol: rest
+        tls: terminate
+        enforcement: enforce
+        credential_binding:
+          provider: github-pr-watcher
+        rules:
+          - allow:
+              method: GET
+              path: /${REVIEW_REPOSITORY}/info/refs*
+          - allow:
+              method: POST
+              path: /${REVIEW_REPOSITORY}/git-upload-pack
+          - allow:
+              method: POST
+              path: /${REVIEW_REPOSITORY}.git/git-upload-pack
+          - allow:
+              method: POST
+              path: /${REVIEW_REPOSITORY}/git-receive-pack
+          - allow:
+              method: POST
+              path: /${REVIEW_REPOSITORY}.git/git-receive-pack
+    binaries:
+      - { path: /usr/bin/git }
+      - { path: /usr/local/bin/git }
+      - { path: /usr/bin/opencode }

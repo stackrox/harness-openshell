@@ -4,7 +4,7 @@ set -euo pipefail
 # Build the CLI and run Harness with the NVIDIA community base image.
 #
 # Set HARNESS_OS_IMAGE when a workflow needs a custom image, such as the
-# StackRox image built from profiles/stackrox/image/sandbox-default.
+# StackRox image built from images/stackrox/sandbox-default.
 #
 # Usage:
 #   ./scripts/dev-harness.sh workflow apply harness.yaml

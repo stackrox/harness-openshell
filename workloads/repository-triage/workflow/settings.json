@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "Write(/sandbox/artifacts/*)",
+      "Bash(gh api *)",
+      "Bash(git -C /sandbox/repo log *)",
+      "Bash(git -C /sandbox/repo show *)",
+      "Bash(git -C /sandbox/repo status *)",
+      "mcp__mcp-atlassian__jira_get_issue",
+      "mcp__mcp-atlassian__jira_search"
+    ],
+    "deny": [
+      "Edit(*)",
+      "Bash(git push *)",
+      "Bash(git -C /sandbox/repo commit *)",
+      "Bash(git -C /sandbox/repo checkout *)",
+      "Bash(git -C /sandbox/repo reset *)",
+      "mcp__mcp-atlassian__jira_update_issue",
+      "mcp__mcp-atlassian__jira_add_comment",
+      "mcp__mcp-atlassian__jira_transition_issue",
+      "mcp__mcp-atlassian__jira_create_issue",
+      "mcp__mcp-atlassian__jira_delete_issue"
+    ]
+  },
+  "enableAllProjectMcpServers": false,
+  "trustedMcpServers": ["mcp-atlassian"]
+}

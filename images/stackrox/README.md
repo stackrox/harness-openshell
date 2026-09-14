@@ -1,13 +1,13 @@
 # StackRox sandbox images
 
-StackRox profiles are optional OpenShell sandbox images for workflows that need
+StackRox images are optional OpenShell sandbox images for workloads that need
 repository-specific tools. Providers, credentials, skills supplied by a
 workflow, and task-specific policy remain outside the image.
 The image does not create or attach providers; a workflow must name providers
 that are already provisioned and attach them through `sandbox.providers` before
 provider credentials or inference routes are available.
 
-## Profiles
+## Images
 
 ### `sandbox-default`
 
@@ -41,7 +41,7 @@ Build it locally with:
 ```bash
 docker build --platform linux/amd64 \
   -t quay.io/rcochran/openshell:sandbox-stackrox-ci \
-  profiles/stackrox/image/sandbox-stackrox-ci
+  images/stackrox/sandbox-stackrox-ci
 ```
 
 ### `sandbox-collector-builder`
@@ -64,5 +64,5 @@ Build it locally with:
 ```bash
 docker build --platform linux/amd64 \
   -t quay.io/rcochran/openshell:sandbox-collector-builder \
-  profiles/stackrox/image/sandbox-collector-builder
+  images/stackrox/sandbox-collector-builder
 ```

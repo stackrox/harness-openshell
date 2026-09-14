@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["repository", "issue", "summary", "findings"],
+  "properties": {
+    "repository": {"type": "string"},
+    "issue": {"type": "string"},
+    "summary": {"type": "string"},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["area", "severity", "details"],
+        "properties": {
+          "area": {"type": "string"},
+          "severity": {"enum": ["info", "low", "medium", "high"]},
+          "details": {"type": "string"},
+          "evidence": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

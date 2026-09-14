@@ -1,0 +1,22 @@
+# Endpointless provider profile for issue-to-PR automation.
+# The matching provider instance is named github-issue-to-pr. The policy binds
+# it to one repository and issue; credentials are provisioned in OpenShell.
+id: github-issue-to-pr
+display_name: GitHub issue to pull request
+description: GitHub token bound by the issue-to-PR policy
+category: source_control
+credentials:
+  - name: api_token
+    description: GitHub API token
+    env_vars: [GITHUB_TOKEN, GH_TOKEN]
+    required: true
+    auth_style: bearer
+    header_name: authorization
+discovery:
+  credentials: [api_token]
+binaries:
+  - /usr/bin/gh
+  - /usr/local/bin/gh
+  - /usr/bin/git
+  - /usr/local/bin/git
+  - /usr/bin/opencode
