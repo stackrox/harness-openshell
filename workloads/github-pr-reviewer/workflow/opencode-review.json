@@ -1,7 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "share": "disabled",
-  "permission": {"*": "deny", "bash": "allow"},
+  "permission": {
+    "*": "deny",
+    "read": "allow",
+    "bash": {"*": "deny", "gh api *": "allow"}
+  },
   "agent": {
     "reviewer": {
       "mode": "primary",
