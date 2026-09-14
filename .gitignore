@@ -34,7 +34,7 @@ reviewer.yaml
 skills-lock.json
 
 # Repository-owned workload documents are not scratch configs.
-!workloads/**/harness.yaml
+!tasks/**/harness.yaml
 
 # Local audit working notes
 docs/audit-*.md

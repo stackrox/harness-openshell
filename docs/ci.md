@@ -100,7 +100,7 @@ comments only; they do not approve, request changes, or merge.
 The active reviewer runs OpenCode with Gemini 2.5 Pro through `inference.local`
 and Google Vertex AI. The model is selected in
 [`scripts/pr-review.sh`](../scripts/pr-review.sh) and
-[`opencode-harness.yaml`](../workloads/github-pr-reviewer/workflow/opencode-harness.yaml).
+[`opencode-harness.yaml`](../tasks/github-pr-reviewer/workflow/opencode-harness.yaml).
 Keep those selections aligned and verify model access with the CI identity
 when changing them.
 

@@ -39,6 +39,6 @@ cleanup or cancellation does not undo GitHub operations that already succeeded.
 
 Add another reusable workflow only when the capability has a distinct trigger,
 permission, or trust contract. Keep review and merge separate, and keep
-repository-specific task behavior in [workloads/](../../workloads/) rather than
+repository-specific task behavior in [tasks/](../../tasks/) rather than
 growing a single workflow with general-purpose image, policy, provider, or
 command inputs.

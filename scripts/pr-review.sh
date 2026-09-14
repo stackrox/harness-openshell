@@ -140,7 +140,7 @@ run_review() {
   export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
   export REVIEW_POLICY="$REVIEW_DIR/review-policy.yaml"
   export REVIEW_SKILL="${REVIEW_SKILL:-skills/pr-review/SKILL.md}"
-  policy_template="${REVIEW_POLICY_TEMPLATE:-workloads/github-pr-reviewer/openshell/policy.yaml}"
+  policy_template="${REVIEW_POLICY_TEMPLATE:-tasks/github-pr-reviewer/openshell/policy.yaml}"
   sed \
     -e "s|\${REVIEW_REPOSITORY}|$REVIEW_REPOSITORY|g" \
     -e "s|\${REVIEW_PR}|$REVIEW_PR|g" \
@@ -148,7 +148,7 @@ run_review() {
 
   (
     ulimit -f 2048 # Bound raw diagnostic output as well as runtime.
-    exec timeout -s TERM -k 35s 8m ./harness workflow apply workloads/github-pr-reviewer/workflow/opencode-harness.yaml \
+    exec timeout -s TERM -k 35s 8m ./harness workflow apply tasks/github-pr-reviewer/workflow/opencode-harness.yaml \
       --gateway "$gateway" --workspace "$workspace" --result-file "$REVIEW_DIR/execution.json"
   ) > "$REVIEW_DIR/agent.ndjson" 2> "$REVIEW_DIR/agent.stderr" &
   apply_pid=$!
