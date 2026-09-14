@@ -36,7 +36,7 @@ all: cli dev-sandbox
 
 ## Build the harness CLI binary
 cli:
-	CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)' -o harness ./workflow
+	CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)' -o harness ./runner
 	@echo "Built: ./harness ($(VERSION))"
 
 ## Install/refresh the pinned OpenShell CLI + gateway (reads .openshell-version)

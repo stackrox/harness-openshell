@@ -10,7 +10,7 @@ use Kubernetes-style `kind`, `apiVersion`, `metadata`, or `spec` wrappers.
 
 This illustrates the schema. Supply a usable image, existing providers, and
 the task's policy and payloads before applying it; see the
-[task bundles](../workloads/) for concrete inputs.
+[task bundles](../tasks/) for concrete inputs.
 
 ```yaml
 version: 1
@@ -68,7 +68,7 @@ optional. Unknown fields are rejected so a typo cannot silently change a run.
 Run a workflow with outputs by choosing an explicit host directory:
 
 ```bash
-harness workflow apply workflow.yaml --output-dir ./workflow-artifacts
+harness workflow apply workflow.yaml --output-dir ./runner-artifacts
 ```
 
 Downloads happen before the sandbox cleanup step, including when the agent
@@ -109,6 +109,6 @@ bootstrap-owned route; isolated workspaces may use the compatibility write.
 
 ## Compatibility policy
 
-The Go parser in `workflow/internal/config` is the executable source of truth. Parser,
+The Go parser in `runner/internal/config` is the executable source of truth. Parser,
 plan, apply, and redaction tests are the format contract. A future incompatible
 shape increments `version` and fails clearly; there is no migration layer.

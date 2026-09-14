@@ -59,7 +59,7 @@ jobs:
           path: harness
           persist-credentials: false
       - name: Install default review skill
-        run: install -D -m 0644 harness/workloads/github-pr-reviewer/workflow/skills/pr-review/SKILL.md harness/skills/pr-review/SKILL.md
+        run: install -D -m 0644 harness/tasks/github-pr-reviewer/workflow/skills/pr-review/SKILL.md harness/skills/pr-review/SKILL.md
       - name: Install caller skill
         if: inputs.skill-path != ''
         env:

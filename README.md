@@ -23,12 +23,12 @@ temporary workspace.
 
 | Task bundle | Allowed GitHub operation | Integration status |
 |---|---|---|
-| [PR reviewer](workloads/github-pr-reviewer/) | Read the selected PR and post inline comments to it | Used by the reusable review workflow |
-| [PR merger](workloads/github-pr-merger/) | Read the selected PR and head checks, then request a merge under a separate approval and credential contract | Opt-in bundle; consumer enablement and live validation are separate steps |
+| [PR reviewer](tasks/github-pr-reviewer/) | Read the selected PR and post inline comments to it | Used by the reusable review workflow |
+| [PR merger](tasks/github-pr-merger/) | Read the selected PR and head checks, then request a merge under a separate approval and credential contract | Opt-in bundle; consumer enablement and live validation are separate steps |
 
 For review, trusted setup obtains a repository-scoped GitHub App installation
 token with `Contents: read` and `Pull requests: write`. The
-[OpenShell REST policy](workloads/github-pr-reviewer/openshell/policy.yaml)
+[OpenShell REST policy](tasks/github-pr-reviewer/openshell/policy.yaml)
 further restricts sandbox requests to the chosen PR's read endpoints and inline
 comment `POST` endpoint. The agent uses `gh api`; OpenShell's network proxy
 enforces the permitted host, HTTP methods, and paths.
@@ -47,7 +47,7 @@ and a failed or cancelled run may already have performed permitted actions.
 
 `harness-openshell` packages the integration around OpenShell. The `harness`
 CLI is its generic composition and sandbox lifecycle component. A **task
-bundle**, called a workload in this repository, combines agent instructions,
+bundle** combines agent instructions,
 an image, native OpenShell policy, provider references, and payloads. A
 **harness workflow document** declares a run; a **GitHub Actions workflow**
 supplies its CI trigger and trusted host setup.
@@ -118,7 +118,7 @@ data. The `ai-review` label is explicit opt-in. See
 | [Reusable workflow](.github/workflows/pr-review-reusable.yml) | Trusted checkout, job permissions, App token, and setup/execution steps |
 | [`setup-openshell`](.github/actions/setup-openshell/action.yml) | Invoke the installer for the pinned OpenShell CLI release and wait for gateway readiness |
 | [`scripts/pr-review.sh`](scripts/pr-review.sh) | Stage the diff, create a temporary workspace and providers, configure inference, render the PR policy, and invoke the CLI |
-| [`harness` CLI](workflow/) | Compose the task and manage its sandbox lifecycle |
+| [`harness` CLI](runner/) | Compose the task and manage its sandbox lifecycle |
 
 The current reviewer uses a local gateway on the CI runner. The CLI's direct
 managed-gateway connection is implemented, but the reusable reviewer has not
@@ -159,8 +159,8 @@ openshell gateway add https://127.0.0.1:17670 --local --name openshell
 openshell gateway select openshell
 ```
 
-Choose a task from [workloads/](workloads/) and prepare its documented inputs.
-The [PR reviewer](workloads/github-pr-reviewer/) includes the native OpenShell
+Choose a task from [tasks/](tasks/) and prepare its documented inputs.
+The [PR reviewer](tasks/github-pr-reviewer/) includes the native OpenShell
 inputs; [docs/ci.md](docs/ci.md#label-driven-pr-review) gives the trusted wrapper
 commands for running it locally. For your own prepared workflow document:
 
@@ -183,11 +183,11 @@ agent, collects declared output files, and deletes the sandbox.
 | Component | Owns |
 |---|---|
 | Consuming repository | Opt-in triggers, trusted task inputs, review criteria, and approval rules |
-| [.github/workflows/](.github/workflows/) | Repository CI and reusable jobs with fixed permissions, trusted checkout, concurrency, and workload selection |
+| [.github/workflows/](.github/workflows/) | Repository CI and reusable jobs with fixed permissions, trusted checkout, concurrency, and task selection |
 | [.github/actions/setup-openshell/](.github/actions/setup-openshell/action.yml) | OpenShell installation and gateway readiness for the current local CI path |
 | [scripts/pr-review.sh](scripts/pr-review.sh) | Trusted review preparation and temporary workspace/provider bootstrap |
-| [workloads/](workloads/) | Task instructions, policy, provider references, image selection, payloads, and outputs |
-| [workflow/](workflow/) | Generic `plan`/`apply` composition and sandbox lifecycle |
+| [tasks/](tasks/) | Task instructions, policy, provider references, image selection, payloads, and outputs |
+| [runner/](runner/) | Generic `plan`/`apply` composition and sandbox lifecycle |
 | [images/](images/) | Reusable runtime toolchains |
 | Platform administration | Managed gateway access, workspace membership, provider credential lifecycle, and inference configuration |
 | OpenShell | Gateway resources, credential-backed proxies, inference routing, policy enforcement, and sandbox isolation |
@@ -231,7 +231,7 @@ and sandbox inspection.
 
 ## Documentation and validation
 
-- [workflow/](workflow/) — implementation and lifecycle of the `harness` CLI
+- [runner/](runner/) — implementation and lifecycle of the `harness` CLI
 - [docs/workflow-format.md](docs/workflow-format.md) — version 1 workflow contract
 - [docs/ci.md](docs/ci.md) — trusted CI setup and managed deployment requirements
 - [docs/compatibility.md](docs/compatibility.md) — tested dependency versions
