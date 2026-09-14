@@ -1,10 +1,16 @@
 # Workflow format
 
-This repository accepts one document shape: a version 1 OpenShell workflow.
-The CLI command already identifies the document type, so the format does not
+The `harness` CLI accepts one document shape: a version 1 harness workflow
+document that composes native OpenShell inputs. This differs from a GitHub
+Actions workflow, which supplies CI triggers and trusted setup. The CLI command
+already identifies the document type, so the format does not
 use Kubernetes-style `kind`, `apiVersion`, `metadata`, or `spec` wrappers.
 
 ## Minimal shape
+
+This illustrates the schema. Supply a usable image, existing providers, and
+the task's policy and payloads before applying it; see the
+[task bundles](../workloads/) for concrete inputs.
 
 ```yaml
 version: 1
@@ -71,7 +77,16 @@ run. The current SDK adapter transfers files through OpenShell's authenticated
 SSH tunnel; it does not invoke the OpenShell CLI or copy gateway credentials.
 
 String values may contain `${VAR}` references resolved from the calling
-process environment. Harness does not load `.env` files implicitly.
+process environment. The `harness` CLI does not load `.env` files implicitly.
+
+## External actions and downloaded outputs
+
+An agent may perform operations such as posting an inline PR comment during
+execution when provider permissions and OpenShell's REST policy allow them.
+The `outputs` field describes downloaded files, not external actions or an
+authorization record. Cleanup removes the sandbox; it does not undo a posted
+comment or completed merge. A failed or cancelled run may already have
+performed permitted operations.
 
 ## Security contract
 
@@ -85,7 +100,7 @@ Workflow, policy, and payload declarations are trusted host-side inputs. Do not
 run an untrusted PR-supplied workflow with a credentialed host context; the
 trusted PR-review workflow checks out its workflow from the default branch and
 stages the PR diff as data. Interpolated values are redacted from display
-projections, but Harness does not attempt to detect credentials embedded as
+projections, but the CLI does not attempt to detect credentials embedded as
 literal YAML values.
 
 Inference route reconciliation currently writes a changed route and therefore
