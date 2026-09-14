@@ -1,5 +1,5 @@
-name: Setup OpenShell
-description: Install the pinned OpenShell CLI and wait for the gateway to become ready.
+name: Set up local OpenShell for CI
+description: Install the pinned OpenShell CLI and wait for the local CI gateway; workspace and provider setup belong to the caller.
 
 runs:
   using: composite

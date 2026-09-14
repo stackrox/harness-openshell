@@ -26,7 +26,7 @@ write_summary() {
   [[ -d "$REVIEW_DIR" ]] || return
   {
     printf '## AI review: %s\n\nPR #%s; head: %s\n\n' "$state" "$REVIEW_PR" "$head"
-    printf 'Artifact-only model output; not an approval or a validated finding list.\n'
+    printf 'Advisory review; the agent may have posted inline comments. Artifacts are not an approval or a validated finding list.\n'
     if [[ -n "${GITHUB_RUN_ID:-}" ]]; then
       printf '\n[Review artifacts](%s/%s/actions/runs/%s#artifacts)\n' "${GITHUB_SERVER_URL:-https://github.com}" "$REVIEW_REPOSITORY" "$GITHUB_RUN_ID"
     fi

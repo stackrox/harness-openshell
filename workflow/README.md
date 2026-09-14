@@ -1,8 +1,9 @@
 # Workflow runner
 
-This directory contains the Go implementation of the Harness OpenShell workflow
-runner. It is the generic composition and lifecycle layer, not a GitHub Actions
-framework or a provider-management service.
+This directory contains the Go implementation of the `harness` CLI, the small
+composition and sandbox lifecycle component of `harness-openshell`. A harness
+workflow document declares one run; a GitHub Actions workflow supplies the CI
+trigger and trusted setup around that run.
 
 The runner:
 
@@ -15,9 +16,15 @@ The runner:
   deletes the sandbox by default.
 
 It does not start an OpenShell gateway, create workspaces or providers, handle
-provider credentials, or choose task-specific permissions. Platform bootstrap
-owns those resources, while workload bundles and their CI adapters own task
-behavior and trust decisions.
+provider credentials, or choose task-specific permissions. Trusted setup or
+platform administration owns those resources, while task bundles and their CI
+adapters own task behavior and trust decisions.
+
+The sandboxed agent can perform external operations through OpenShell's
+credential-backed network proxy when its token permissions and task policy
+allow them. Downloaded output files are separate from those operations.
+Deleting a sandbox does not reverse a posted comment or completed merge, and
+an execution failure does not prove that no external operation occurred.
 
 ## Layout
 
@@ -33,11 +40,14 @@ repository tooling remain one Go module. Build the CLI with:
 go build -o harness ./workflow
 ```
 
-Workload bundles remain under `workloads/`; they are inputs to this runner, not
+Task bundles remain under `workloads/`; they are inputs to this runner, not
 Go packages. Repository-level integration tests remain under `test/` because
 they exercise shell workflows and gateway lifecycle behavior rather than the
 runner packages themselves.
 
 The same binary can connect to a developer's selected local gateway or directly
-to a managed gateway. Moving CI to a managed gateway changes authentication and
-platform bootstrap around the runner, not this package's responsibility.
+to a managed gateway. The current reusable reviewer still uses
+[`setup-openshell`](../.github/actions/setup-openshell/action.yml) and the
+[trusted review wrapper](../scripts/pr-review.sh) for its local CI path.
+Moving that integration requires managed access and provider-lifecycle setup
+around the CLI; see [the transition requirements](../docs/ci.md#managed-reviewer-transition).

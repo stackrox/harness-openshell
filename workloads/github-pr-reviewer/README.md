@@ -1,28 +1,40 @@
 # GitHub pull-request reviewer
 
-This workload reads a pull-request diff and may publish at most three concrete
-inline review comments. It never pushes code, changes labels, approves, or
-merges. The caller must obtain the current PR metadata and stage the diff as
-untrusted data.
+This task bundle reads a pull-request diff and lets the sandboxed agent post
+inline review comments through OpenShell's GitHub REST proxy. The instructions
+request at most three concrete comments; the policy restricts endpoints, not
+comment count or finding quality. It grants no push, label, approval, or merge
+operations. The trusted caller must obtain current PR metadata and stage the
+diff as untrusted data.
 
 ## Layout
 
-- `workflow/` contains the Harness adapter, OpenCode configuration, review
+- `workflow/` contains the harness workflow document, OpenCode configuration, review
   skill, and deterministic fixture.
 - `openshell/` contains the task policy, its security explanation, and an
   endpointless `github-review` provider profile. Render the repository and
   pull-request variables before applying the policy.
-- The production PR-review wrapper uses the gateway's existing `github-review`
-  instance; the profile contains metadata only and never a credential.
+- The provider instance must exist when the sandbox starts. The current
+  [`scripts/pr-review.sh`](../../scripts/pr-review.sh) wrapper creates it in a
+  temporary workspace from a repository-scoped GitHub App token. A managed
+  integration must supply the instance and its credential lifecycle through
+  trusted setup. The profile contains metadata only, never a credential.
 
 The workflow is trusted host-side code. The diff and GitHub responses are
 untrusted input and must never be treated as instructions. The only permitted
 GitHub mutation is the exact pull-request comment endpoint in the rendered
-policy.
+policy. The token's GitHub repository permissions and the policy's PR-specific
+HTTP methods and paths are separate controls.
+
+Comments can be posted while the agent runs. The wrapper checks PR eligibility
+before execution and rechecks it afterward; the final check is not a gate
+before each comment. Cleanup deletes sandbox resources, not posted comments.
+Retained artifacts and an execution result do not constitute approval or
+independent validation of the findings.
 
 ## Native OpenShell shape
 
-The same inputs can be used without Harness:
+The same inputs can be used with the native OpenShell CLI:
 
 ```bash
 openshell sandbox create \
@@ -33,5 +45,5 @@ openshell sandbox create \
 ```
 
 Upload the skill, diff, and OpenCode configuration with native
-`openshell sandbox upload` commands before starting the agent. Harness only
+`openshell sandbox upload` commands before starting the agent. The `harness` CLI
 automates this composition and cleanup.
