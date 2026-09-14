@@ -1,0 +1,42 @@
+version: 1
+
+# Keep the image policy small. Provider profiles and workflow policy overlays
+# supply integration egress (GitHub, Atlassian, Google Workspace, and model
+# providers) at run time. No provider credentials or broad upstream policy is
+# baked into this image.
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /proc
+    - /dev/urandom
+    - /app
+    - /etc
+    - /var/log
+  read_write:
+    - /sandbox
+    - /tmp
+    - /dev/null
+
+landlock:
+  compatibility: best_effort
+
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+
+# gopls may resolve missing modules while analyzing a checked-out repository.
+# Keep its cache under /sandbox so this remains compatible with the filesystem
+# policy above. Other network access must come from a provider or an explicit
+# workflow overlay.
+network_policies:
+  go_modules:
+    name: go-modules
+    endpoints:
+      - { host: proxy.golang.org, port: 443 }
+      - { host: sum.golang.org, port: 443 }
+      - { host: go.dev, port: 443 }
+    binaries:
+      - { path: /usr/local/go/bin/go }
+      - { path: /usr/local/bin/gopls }
