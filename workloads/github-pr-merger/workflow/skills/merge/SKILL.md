@@ -15,7 +15,9 @@ verify all of the following from the current API response:
 - the PR is open and not a draft;
 - the current head SHA equals `MERGE_HEAD_SHA`;
 - the PR reports `mergeable_state` as `clean`;
-- every completed check run is successful, neutral, or skipped.
+- the check-runs response contains no run whose `status` is not `completed`;
+- every completed check run has a `conclusion` of `success`, `neutral`, or
+  `skipped`.
 
 Perform exactly one merge request using `MERGE_METHOD` and the expected head
 SHA. If any condition is false or unavailable, report that it was not merged.
