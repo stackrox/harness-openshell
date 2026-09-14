@@ -112,7 +112,10 @@ func (inf Inference) TimeoutSecs() (uint64, error) {
 	if d < 0 {
 		return 0, fmt.Errorf("invalid timeout %q: must not be negative", inf.Timeout)
 	}
-	return uint64(d.Round(time.Second) / time.Second), nil
+	if d%time.Second != 0 {
+		return 0, fmt.Errorf("invalid timeout %q: must be a whole number of seconds", inf.Timeout)
+	}
+	return uint64(d / time.Second), nil
 }
 
 // Sandbox describes the execution sandbox for this run.

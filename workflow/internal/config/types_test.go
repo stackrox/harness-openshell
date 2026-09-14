@@ -13,7 +13,7 @@ func TestInferenceTimeoutSecs(t *testing.T) {
 		{name: "seconds", timeout: "60s", want: 60},
 		{name: "minutes", timeout: "2m", want: 120},
 		{name: "mixed", timeout: "1m30s", want: 90},
-		{name: "sub-second rounds", timeout: "1500ms", want: 2},
+		{name: "fractional seconds are an error", timeout: "1500ms", wantErr: true},
 		{name: "bare integer is an error", timeout: "60", wantErr: true},
 		{name: "garbage is an error", timeout: "soon", wantErr: true},
 		{name: "negative is an error", timeout: "-5s", wantErr: true},

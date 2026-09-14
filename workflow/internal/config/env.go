@@ -15,6 +15,8 @@ import (
 // returns ErrInvalidArgument for unknown ones at apply.
 var routeNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$`)
 
+const protectedOIDCSecretEnv = "OPENSHELL_OIDC_CLIENT_SECRET"
+
 // expandStrict interpolates ${VAR} references in raw using getenv. A referenced
 // but unset variable is an error (strict — never os.ExpandEnv, which is lenient).
 // A $$ sequence and a bare $ not followed by { are non-special and left as-is.
@@ -123,9 +125,20 @@ func Resolve(h *Harness, getenv func(string) string) (*Harness, error) {
 
 	// exp expands a single field, recording any missing variables against path.
 	exp := func(path, val string) string {
-		out, missing := expand(val, getenv)
+		// The direct SDK adapter reads this credential itself. Never materialize it
+		// in a resolved workflow field where it could reach a sandbox or output.
+		out, missing := expand(val, func(name string) string {
+			if name == protectedOIDCSecretEnv {
+				return ""
+			}
+			return getenv(name)
+		})
 		for _, name := range missing {
-			errs = append(errs, fmt.Sprintf("unresolved variable ${%s} (%s)", name, path))
+			if name == protectedOIDCSecretEnv {
+				errs = append(errs, fmt.Sprintf("protected variable ${%s} must not be interpolated (%s)", name, path))
+			} else {
+				errs = append(errs, fmt.Sprintf("unresolved variable ${%s} (%s)", name, path))
+			}
 		}
 		return out
 	}

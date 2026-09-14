@@ -1,6 +1,7 @@
 package source
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
@@ -36,35 +37,41 @@ type Prepared struct {
 // the returned checkout contents are uploaded. The checkout is a real repository
 // (self-contained .git), so the agent can run git inside the sandbox.
 func (c *Cache) Prepare(repoURL, ref, runID string) (Prepared, error) {
-	dir := c.checkoutPath(runID, RepoName(repoURL))
+	repoName := RepoName(repoURL)
+	if !validRepoName(repoName) {
+		return Prepared{}, fmt.Errorf("invalid repository name %q", repoName)
+	}
+	dir := c.checkoutPath(runID, repoName)
 
 	if err := c.fetchIntoCheckout(repoURL, ref, dir); err != nil {
 		// The checkout dir may have been created before the failing step (a bad
 		// ref or a network blip on fetch is expected); don't leak it.
-		_ = os.RemoveAll(c.runDir(runID))
-		return Prepared{}, err
+		return Prepared{}, cleanupPrepareError(c.runDir(runID), err)
 	}
 
 	// checkout + submodules run outside the mirror lock: the checkout already
 	// holds every object it needs, so it no longer touches the shared mirror.
 	if err := git(dir, "checkout", "--detach", "--quiet", "FETCH_HEAD"); err != nil {
-		_ = os.RemoveAll(c.runDir(runID))
-		return Prepared{}, err
+		return Prepared{}, cleanupPrepareError(c.runDir(runID), err)
 	}
 	if err := git(dir, "submodule", "update", "--init", "--depth", "1"); err != nil {
-		_ = os.RemoveAll(c.runDir(runID))
-		return Prepared{}, err
+		return Prepared{}, cleanupPrepareError(c.runDir(runID), err)
 	}
 	commit, err := gitOutput(dir, "rev-parse", "--verify", "HEAD^{commit}")
 	if err != nil {
-		if cleanupErr := os.RemoveAll(c.runDir(runID)); cleanupErr != nil {
-			return Prepared{}, fmt.Errorf("resolving prepared source commit: %w; removing checkout: %w", err, cleanupErr)
-		}
-		return Prepared{}, fmt.Errorf("resolving prepared source commit: %w", err)
+		return Prepared{}, cleanupPrepareError(c.runDir(runID), fmt.Errorf("resolving prepared source commit: %w", err))
 	}
 
 	cleanup := func() error { return os.RemoveAll(c.runDir(runID)) }
 	return Prepared{Dir: dir, Commit: commit, Cleanup: cleanup}, nil
+}
+
+func cleanupPrepareError(runDir string, operationErr error) error {
+	cleanupErr := os.RemoveAll(runDir)
+	if cleanupErr == nil {
+		return operationErr
+	}
+	return errors.Join(operationErr, fmt.Errorf("removing checkout: %w", cleanupErr))
 }
 
 // fetchIntoCheckout, under the per-mirror lock, updates the shared mirror for
@@ -94,7 +101,7 @@ func (c *Cache) fetchIntoCheckout(repoURL, ref, dir string) error {
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("clearing checkout dir: %w", err)
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("creating checkout dir: %w", err)
 	}
 	if err := git(dir, "init", "--quiet"); err != nil {

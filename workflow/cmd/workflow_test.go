@@ -8,6 +8,7 @@ import (
 
 func TestLoadWorkflowBuildsDirectTargetAndDefaultsWorkspace(t *testing.T) {
 	t.Setenv("OPENSHELL_GATEWAY", "")
+	t.Setenv("OPENSHELL_WORKSPACE", "")
 	t.Setenv("DIRECT_ENDPOINT", "https://gateway.example.com")
 	t.Setenv("DIRECT_ISSUER", "https://issuer.example.com")
 	t.Setenv("DIRECT_CLIENT_ID", "ci-user")

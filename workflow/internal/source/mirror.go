@@ -57,10 +57,10 @@ type mirrorLock struct{ f *os.File }
 // and locks that instead, so both believe they hold the lock). There is exactly
 // one 0-byte lock file per distinct repo URL, so they do not accumulate per run.
 func lockMirror(mirrorPath string) (*mirrorLock, error) {
-	if err := os.MkdirAll(filepath.Dir(mirrorPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(mirrorPath), 0o700); err != nil {
 		return nil, fmt.Errorf("creating mirrors dir: %w", err)
 	}
-	f, err := os.OpenFile(mirrorPath+".lock", os.O_CREATE|os.O_RDWR, 0o644)
+	f, err := os.OpenFile(mirrorPath+".lock", os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("opening mirror lock: %w", err)
 	}
@@ -87,12 +87,15 @@ func (l *mirrorLock) unlock() {
 // early return). Callers hold the mirror lock, so this never races a peer.
 func ensureMirror(mirrorPath, repoURL string) error {
 	if !isGitDir(mirrorPath) {
-		if err := os.MkdirAll(mirrorPath, 0o755); err != nil {
+		if err := os.MkdirAll(mirrorPath, 0o700); err != nil {
 			return fmt.Errorf("creating mirror dir: %w", err)
 		}
 		if err := git(mirrorPath, "init", "--bare", "--quiet"); err != nil {
 			return err
 		}
+	}
+	if err := os.Chmod(mirrorPath, 0o700); err != nil {
+		return fmt.Errorf("restricting mirror dir: %w", err)
 	}
 	return ensureOrigin(mirrorPath, repoURL)
 }

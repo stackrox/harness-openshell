@@ -60,7 +60,7 @@ func redactValue(value string) string {
 	if index := strings.IndexByte(value, '='); index >= 0 {
 		return value[:index+1] + "***"
 	}
-	return value
+	return "***"
 }
 
 func isSensitive(value string) bool {

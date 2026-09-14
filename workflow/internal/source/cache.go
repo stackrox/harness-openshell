@@ -103,6 +103,10 @@ func (c *Cache) checkoutPath(runID, repoName string) string {
 	return filepath.Join(c.runDir(runID), repoName)
 }
 
+func validRepoName(name string) bool {
+	return name != "" && name != "." && name != ".."
+}
+
 // NewRunID returns a random hex id identifying one run's checkout. 128 bits so
 // concurrent runs never collide on a checkout path (a collision would let one
 // run's cleanup delete another's tree).

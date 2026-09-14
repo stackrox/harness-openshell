@@ -328,6 +328,29 @@ func TestResolveNonSecretField(t *testing.T) {
 	}
 }
 
+func TestResolveRejectsOIDCClientSecretInterpolation(t *testing.T) {
+	h := &Harness{
+		Version: 1,
+		Name:    "test",
+		Spec: Spec{Sandbox: Sandbox{Env: map[string]string{
+			"TOKEN": "${OPENSHELL_OIDC_CLIENT_SECRET}",
+		}}},
+	}
+
+	resolved, err := Resolve(h, func(name string) string {
+		if name == protectedOIDCSecretEnv {
+			return "should-not-be-materialized"
+		}
+		return ""
+	})
+	if err == nil || !strings.Contains(err.Error(), protectedOIDCSecretEnv) {
+		t.Fatalf("Resolve error = %v, want protected-variable error", err)
+	}
+	if resolved != nil && strings.Contains(resolved.Spec.Sandbox.Env["TOKEN"], "should-not-be-materialized") {
+		t.Fatal("protected OIDC secret was materialized in the resolved workflow")
+	}
+}
+
 func TestResolveMultipleMissingVars(t *testing.T) {
 	// Test that Resolve aggregates all missing vars into one error
 	h := &Harness{

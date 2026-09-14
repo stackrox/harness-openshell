@@ -15,7 +15,7 @@ func TestCmdRedactsCredentialValues(t *testing.T) {
 	}
 	os.Stderr = writer
 	Verbose = true
-	Cmd("example", "run", "--credential", "TOKEN=secret", "--env", "API_KEY=also-secret", "--env", "MODE=check")
+	Cmd("example", "run", "--credential", "TOKEN=secret", "--credential", "opaque-secret", "--env", "API_KEY=also-secret", "--env", "MODE=check")
 	_ = writer.Close()
 	os.Stderr = old
 	Verbose = false

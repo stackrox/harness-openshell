@@ -105,6 +105,17 @@ func TestRepoName(t *testing.T) {
 	}
 }
 
+func TestPrepareRejectsSpecialRepoNames(t *testing.T) {
+	c := NewCache(t.TempDir())
+	for _, repo := range []string{"https://example.com/.", "https://example.com/.."} {
+		t.Run(repo, func(t *testing.T) {
+			if _, err := c.Prepare(repo, "main", "run1"); err == nil {
+				t.Fatal("Prepare accepted a repository basename that escapes the checkout root")
+			}
+		})
+	}
+}
+
 // makeRemote creates a local non-bare git repo with one commit on `main` and a
 // file, then returns a file:// URL with the given basename so tests can exercise
 // real git without a network.
