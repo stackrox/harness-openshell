@@ -46,8 +46,8 @@
       "Read(**/.claude.json)"
     ]
   },
-  "enableAllProjectMcpServers": true,
-  "trustedMcpServers": ["atlassian"],
+  "enableAllProjectMcpServers": false,
+  "trustedMcpServers": ["atlassian", "gopls-mcp"],
   "skipDangerousModePermissionPrompt": true,
   "env": {
     "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"

@@ -1,11 +1,15 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "share": "disabled",
-  "permission": {"*": "deny", "bash": "allow"},
+  "permission": {
+    "*": "deny",
+    "read": "allow",
+    "bash": {"*": "deny", "gh api *": "allow"}
+  },
   "agent": {
-    "reviewer": {
+    "merger": {
       "mode": "primary",
-      "prompt": "Read /sandbox/review/skills/pr-review/SKILL.md and follow it exactly."
+      "prompt": "Read /sandbox/skills/merge/SKILL.md and follow it exactly."
     }
   },
   "provider": {

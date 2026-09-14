@@ -698,9 +698,9 @@ func TestCanonicalRunRequestRequiresOutputDirectory(t *testing.T) {
 
 func boolPtr(value bool) *bool { return &value }
 
-func TestGitHubReviewerCustomSkillUsesExamplePayloadPath(t *testing.T) {
+func TestGitHubReviewerCustomSkillUsesWorkflowPayloadPath(t *testing.T) {
 	dir := t.TempDir()
-	exampleDir := filepath.Join("..", "examples", "github-pr-reviewer")
+	exampleDir := filepath.Join("..", "workloads", "github-pr-reviewer", "workflow")
 	workflowPath := filepath.Join(dir, "opencode-harness.yaml")
 	workflowBytes, err := os.ReadFile(filepath.Join(exampleDir, "opencode-harness.yaml"))
 	if err != nil {

@@ -17,7 +17,7 @@ CONTAINER_CLI ?= podman
 PLATFORM      := linux/amd64
 VERSION       := $(shell git describe --tags --always 2>/dev/null || echo dev)
 LDFLAGS       := -s -w -X main.version=$(VERSION)
-STACKROX_IMAGE_DIR := profiles/stackrox/image/sandbox-default
+STACKROX_IMAGE_DIR := images/stackrox/sandbox-default
 
 # Pinned OpenShell CLI/gateway version — single source of truth for `make
 # openshell` and CI (.github/workflows/integration.yml).

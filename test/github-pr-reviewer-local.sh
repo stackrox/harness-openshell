@@ -8,7 +8,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HARNESS="$ROOT/harness"
 CLI="${OPENSHELL_CLI:-openshell}"
-WORKFLOW="$ROOT/examples/github-pr-reviewer/harness.yaml"
+WORKFLOW="$ROOT/workloads/github-pr-reviewer/workflow/harness.yaml"
 EXPECTED="PR_REVIEW_OK sha=fixture-pr-head-20260908"
 
 if [[ "${CI:-}" == "true" ]]; then

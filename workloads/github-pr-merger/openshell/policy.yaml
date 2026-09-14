@@ -1,0 +1,48 @@
+version: 1
+
+# Render MERGE_REPOSITORY, MERGE_PR, and MERGE_HEAD_SHA before applying. The
+# policy allows one exact PR read, one exact head-check read, and one merge
+# request. It does not grant Git transport, issue comments, labels, or settings.
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /lib64
+    - /bin
+    - /etc
+    - /proc
+    - /dev/urandom
+  read_write:
+    - /tmp
+    - /dev/null
+landlock:
+  compatibility: best_effort
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+network_policies:
+  github_api:
+    name: github-api
+    endpoints:
+      - host: api.github.com
+        port: 443
+        protocol: rest
+        tls: terminate
+        enforcement: enforce
+        credential_binding:
+          provider: github-pr-merger
+        rules:
+          - allow:
+              method: GET
+              path: /repos/${MERGE_REPOSITORY}/pulls/${MERGE_PR}
+          - allow:
+              method: GET
+              path: /repos/${MERGE_REPOSITORY}/commits/${MERGE_HEAD_SHA}/check-runs
+          - allow:
+              method: PUT
+              path: /repos/${MERGE_REPOSITORY}/pulls/${MERGE_PR}/merge
+    binaries:
+      - { path: /usr/bin/gh }
+      - { path: /usr/local/bin/gh }
+      - { path: /usr/bin/opencode }

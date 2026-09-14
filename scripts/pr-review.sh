@@ -130,7 +130,7 @@ run_review() {
   export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
   export REVIEW_POLICY="$REVIEW_DIR/review-policy.yaml"
   export REVIEW_SKILL="${REVIEW_SKILL:-skills/pr-review/SKILL.md}"
-  policy_template="${REVIEW_POLICY_TEMPLATE:-examples/github-pr-reviewer/review-policy.yaml}"
+  policy_template="${REVIEW_POLICY_TEMPLATE:-workloads/github-pr-reviewer/openshell/policy.yaml}"
   sed \
     -e "s|\${REVIEW_REPOSITORY}|$REVIEW_REPOSITORY|g" \
     -e "s|\${REVIEW_PR}|$REVIEW_PR|g" \
@@ -138,14 +138,21 @@ run_review() {
 
   (
     ulimit -f 2048 # Bound raw diagnostic output as well as runtime.
-    exec timeout -s TERM -k 35s 8m ./harness workflow apply examples/github-pr-reviewer/opencode-harness.yaml \
+    exec timeout -s TERM -k 35s 8m ./harness workflow apply workloads/github-pr-reviewer/workflow/opencode-harness.yaml \
       --gateway "$gateway" --workspace "$workspace" --result-file "$REVIEW_DIR/execution.json"
   ) > "$REVIEW_DIR/agent.ndjson" 2> "$REVIEW_DIR/agent.stderr" &
   apply_pid=$!
+  set +e
   wait "$apply_pid"
+  apply_status=$?
+  set -e
   apply_pid=""
 
   scripts/review/validate-agent-output.sh "$REVIEW_DIR"
+  if [[ -s "$REVIEW_DIR/execution.json" ]] && ! jq -e '.status == "succeeded" and .phase == "complete"' "$REVIEW_DIR/execution.json" >/dev/null; then
+    ((apply_status != 0)) && return "$apply_status"
+    return 1
+  fi
   ensure_current
   jq -Rr 'fromjson? | select(.type == "text") | .part.text' \
     "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"

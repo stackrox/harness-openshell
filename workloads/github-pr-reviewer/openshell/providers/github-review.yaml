@@ -1,0 +1,20 @@
+# Endpointless provider profile for pull-request review.
+# A gateway-owned provider instance supplies the credential; no secret belongs
+# in this repository.
+id: github-review
+display_name: GitHub pull-request review
+description: GitHub credential restricted by the reviewer policy
+category: source_control
+credentials:
+  - name: api_token
+    description: GitHub App or token credential for the exact review repository
+    env_vars: [GITHUB_TOKEN, GH_TOKEN]
+    required: true
+    auth_style: bearer
+    header_name: authorization
+discovery:
+  credentials: [api_token]
+binaries:
+  - /usr/bin/gh
+  - /usr/bin/curl
+  - /usr/bin/opencode

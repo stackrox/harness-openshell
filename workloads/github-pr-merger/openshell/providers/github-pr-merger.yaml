@@ -1,0 +1,20 @@
+# Endpointless provider profile for explicit pull-request merges.
+# The matching provider instance owns the GitHub credential; no credential
+# value belongs in this repository.
+id: github-pr-merger
+display_name: GitHub pull-request merger
+description: Merge-capable GitHub token bound by the merger policy
+category: source_control
+credentials:
+  - name: api_token
+    description: GitHub token with only the merge permissions required here
+    env_vars: [GITHUB_TOKEN, GH_TOKEN]
+    required: true
+    auth_style: bearer
+    header_name: authorization
+discovery:
+  credentials: [api_token]
+binaries:
+  - /usr/bin/gh
+  - /usr/local/bin/gh
+  - /usr/bin/opencode

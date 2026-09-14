@@ -13,7 +13,10 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   fi
 done < "$review_dir/agent.ndjson"
 
-jq -Rse 'split("\n") | map(fromjson?) |
+# OpenCode may retry a malformed shell invocation. Only shell parser failures
+# and the expected GitHub diff-location rejection are recoverable; every other
+# nonzero tool result remains fatal.
+jq -Rse 'split("\n") | map(fromjson?) | . as $events |
   def recoverable_comment_location_failure:
     (.part.state.metadata.exit // -1) == 1 and
     ((.part.state.output // .part.state.error // "") |
@@ -22,11 +25,26 @@ jq -Rse 'split("\n") | map(fromjson?) |
         test("comment|review|pull[[:space:]]+request"; "i") and
         test("position|line|side|diff[[:space:]]+hunk"; "i")))
     ;
-  any(.[]; .type == "text" and (.part.text | type == "string" and test("\\S"))) and
-  any(.[]; .type == "step_finish" and .part.reason == "stop") and
-  all(.[]; .type != "error" and
-    (.type != "tool_use" or
-      (.part.state.status == "completed" and
-        ((.part.state.metadata.exit // -1) == 0 or recoverable_comment_location_failure))) and
-    (.type != "step_finish" or .part.reason == "stop" or .part.reason == "tool-calls"))
+  def recoverable_shell_parse_failure:
+    (.part.state.metadata.exit // -1) > 0 and
+    ((.part.state.output // .part.state.error // "") |
+      test("unexpected EOF while looking for matching|syntax error near unexpected token"; "i"))
+    ;
+  any($events[]; .type == "text" and (.part.text | type == "string" and test("\\S"))) and
+  any($events[]; .type == "step_finish" and .part.reason == "stop") and
+  all($events[];
+    (.type != "error") and
+    (
+      .type != "tool_use" or
+      (
+        .part.state.status == "completed" and
+        (
+          (.part.state.metadata.exit // -1) == 0 or
+          recoverable_comment_location_failure or
+          recoverable_shell_parse_failure
+        )
+      )
+    ) and
+    (.type != "step_finish" or .part.reason == "stop" or .part.reason == "tool-calls")
+  )
   ' "$review_dir/agent.ndjson" >/dev/null
