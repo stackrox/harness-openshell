@@ -122,7 +122,7 @@ run_review() {
     --config "VERTEX_AI_PROJECT_ID=$VERTEX_AI_PROJECT_ID" --config "VERTEX_AI_REGION=${VERTEX_AI_REGION:-global}"
   created_vertex_provider=true
   timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
-    --name github-review --type github --credential GITHUB_TOKEN
+    --name github-review --type github-review --credential GITHUB_TOKEN
   created_github_provider=true
   timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" \
     --provider vertex-review --model gemini-2.5-pro --no-verify
