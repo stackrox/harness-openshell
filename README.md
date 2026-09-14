@@ -240,6 +240,7 @@ retain it for debugging.
 - [docs/workflow-format.md](docs/workflow-format.md) — version 1 workflow contract
 - [docs/ci.md](docs/ci.md) — trusted CI bootstrap and credential contract
 - [docs/compatibility.md](docs/compatibility.md) — tested OpenShell, ACP, and Go versions
+- [workflow/](workflow/) — Go implementation of the `harness workflow` runner
 - [workloads/](workloads/) — workload bundles, native OpenShell artifacts, and Harness adapters
 - [images/](images/) — reusable sandbox image build contexts
 

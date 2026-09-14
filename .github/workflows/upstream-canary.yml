@@ -30,7 +30,7 @@ jobs:
           openshell --help
       - name: Run credential-free local lifecycle
         run: |
-          CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=upstream-canary' -o harness .
+          CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=upstream-canary' -o harness ./workflow
           ./test/test-flow.sh local-container --ci
         env:
           TEST_LOG_FILE: /tmp/test-logs/upstream-canary.log

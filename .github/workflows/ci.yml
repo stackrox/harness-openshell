@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - run: CGO_ENABLED=0 go build -o harness .
+      - run: CGO_ENABLED=0 go build -o harness ./workflow
       - run: ./test/suite/run.sh
 
   lint:

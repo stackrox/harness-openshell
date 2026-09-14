@@ -6,6 +6,7 @@ project_name: harness
 
 builds:
   - binary: harness
+    main: ./workflow
     env:
       - CGO_ENABLED=0
     goos:

@@ -22,7 +22,7 @@ jobs:
 
       - name: Run local integration
         run: |
-          CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=ci' -o harness .
+          CGO_ENABLED=0 go build -ldflags '-s -w -X main.version=ci' -o harness ./workflow
           ./test/test-flow.sh local-container
         env:
           TEST_LOG_FILE: /tmp/test-logs/test-flow-local.log
