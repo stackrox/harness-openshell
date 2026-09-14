@@ -1,22 +1,63 @@
 # harness
 
-Harness is a declarative runner for [OpenShell](https://github.com/NVIDIA/OpenShell).
+Harness is a small declarative runner for [OpenShell](https://github.com/NVIDIA/OpenShell).
 A repository checks in workflow documents describing repository automation or a
 developer session. The same workflow can run from GitHub Actions, another CI
 system, or a local terminal with `--attach`. Harness resolves the document,
 runs it in an isolated OpenShell sandbox, returns the result, and cleans up the
 run.
 
-Its purpose is to remove repeated gateway, credential, policy, sandbox-lifecycle,
-and CI plumbing from repository workflows. Each workflow can combine a target,
-provider references, policies, skills, an agent, and an inference route for a
-specific use case. The repository still owns task behavior, prompts, review
-criteria, source checkout, and result handling.
+Its purpose is to remove repeated input composition and sandbox-lifecycle
+plumbing from repository workflows. Each workflow can combine a target,
+provider references, an image, policy, payloads, an agent command, and an
+inference route for a specific use case. The repository still owns task
+behavior, prompts, review criteria, source checkout, and result handling.
 
 Harness is not a second OpenShell, provider manager, credential store, policy
 language, scheduler, controller, or release manager. The closest operational
 model is submitting a Kubernetes `Job`: `plan` previews a run and `apply` runs
 one. There is no Harness database, release history, rollback, or watch loop.
+
+## Repository boundaries
+
+The useful boundary is deliberately narrower than a general agentic CI
+platform. The repository separates reusable execution mechanics from each
+automation capability:
+
+| Layer | Owns |
+|---|---|
+| `.github/workflows/` | Capability-specific CI triggers, permissions, trusted checkout, and host bootstrap |
+| `workloads/` | Task policy, provider references, image, agent behavior, payloads, and outputs |
+| `workflow/` | The generic `plan`/`apply` runner and one-shot sandbox lifecycle |
+| `images/` | Reusable sandbox toolchains, without credentials or task behavior |
+| OpenShell and platform bootstrap | Gateways, workspaces, provider credentials, inference routing, and sandbox isolation |
+
+The runner verifies provider references, attaches them to a new sandbox, runs
+the selected image and agent command, downloads declared outputs, and deletes
+the sandbox by default. It does not install or start a gateway, create provider
+credentials, choose a repository task, or decide which GitHub mutation is
+allowed. Those boundaries keep the runner reusable without turning it into a
+second CI product.
+
+GitHub integrations should expose one reusable workflow per bounded capability,
+such as review or merge. They should not expose arbitrary image, policy,
+provider, and command inputs as a general-purpose privileged action. A narrow
+caller contract makes permissions and trusted inputs reviewable for each use
+case.
+
+## Gateway deployment model
+
+The current reusable PR reviewer is self-contained: trusted host-side setup
+starts a local OpenShell gateway and creates an ephemeral workspace and
+providers, then invokes the same Harness runner used elsewhere. This bootstrap
+belongs to the PR-review adapter, not to the runner.
+
+The intended StackRox deployment replaces that setup with authentication to a
+managed gateway. Platform bootstrap will own workspace membership,
+pre-provisioned providers, and matching inference routes; the reusable workflow
+will select the workload and submit it. The workflow format and runner lifecycle
+do not need to change when the gateway moves from the GitHub-hosted runner to
+the managed service.
 
 ## The workflow model
 
@@ -121,8 +162,9 @@ calling shell or configure the values in CI. Defaults include workspace
 `default`, inference route `inference.local`, and the NVIDIA OpenShell
 community base image. `HARNESS_OS_IMAGE` is an explicit local or integration
 testing override: it takes precedence over both a workflow-selected image and
-the default image for `harness plan` and `harness apply`. Unset it when the
-workflow should select its own published StackRox image or use the default.
+the default image for `harness workflow plan` and `harness workflow apply`.
+Unset it when the workflow should select its own published StackRox image or
+use the default.
 
 The workflow file, policy file, and payload declarations are trusted host-side
 inputs. A workflow can intentionally interpolate host environment values or
@@ -240,6 +282,7 @@ retain it for debugging.
 - [docs/workflow-format.md](docs/workflow-format.md) — version 1 workflow contract
 - [docs/ci.md](docs/ci.md) — trusted CI bootstrap and credential contract
 - [docs/compatibility.md](docs/compatibility.md) — tested OpenShell, ACP, and Go versions
+- [.github/workflows/](.github/workflows/) — capability-specific reusable GitHub workflows
 - [workflow/](workflow/) — Go implementation of the `harness workflow` runner
 - [workloads/](workloads/) — workload bundles, native OpenShell artifacts, and Harness adapters
 - [images/](images/) — reusable sandbox image build contexts

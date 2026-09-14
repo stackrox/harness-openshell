@@ -21,6 +21,19 @@ without Harness by using the image, policy, provider, and agent command with
 the native `openshell sandbox create` and upload commands. Harness is an
 adapter that composes the same inputs and manages the one-shot lifecycle.
 
+For GitHub Actions, a capability-specific reusable workflow may select a bundle
+and provide its trusted host inputs. Keep that adapter narrow: review and merge,
+for example, remain separate because they have different provider credentials
+and allowed mutations. Do not turn a reusable workflow into a privileged
+general-purpose entrypoint that accepts arbitrary images, policies, providers,
+or commands from callers.
+
+Workloads reference platform-owned providers; they do not provision them. A
+self-contained demo may create ephemeral providers in its trusted wrapper, but
+managed deployments should use pre-provisioned workspace membership, providers,
+and inference routes. Switching from a local to a managed gateway must not
+change the workload's task or security contract.
+
 Every workload README must state its trigger contract, trusted and untrusted
 inputs, provider instance names, allowed mutations, policy rendering steps,
 and cleanup expectations. Examples are opt-in; this repository does not enable
