@@ -1,76 +1,91 @@
 # harness
 
-Harness is a small declarative runner for [OpenShell](https://github.com/NVIDIA/OpenShell).
-A repository checks in workflow documents describing repository automation or a
-developer session. The same workflow can run from GitHub Actions, another CI
-system, or a local terminal with `--attach`. Harness resolves the document,
-runs it in an isolated OpenShell sandbox, returns the result, and cleans up the
-run.
+Harness is a small declarative runner for
+[OpenShell](https://github.com/NVIDIA/OpenShell). It turns a repository-owned
+workflow document into one isolated sandbox run: compose the inputs, verify
+OpenShell references, execute the agent command, return declared outputs, and
+clean up.
 
-Its purpose is to remove repeated input composition and sandbox-lifecycle
-plumbing from repository workflows. Each workflow can combine a target,
-provider references, an image, policy, payloads, an agent command, and an
-inference route for a specific use case. The repository still owns task
-behavior, prompts, review criteria, source checkout, and result handling.
+The same runner works from a local terminal or a reusable GitHub workflow. The
+gateway can run beside the caller today and move to a managed service later
+without changing the workload contract.
 
-Harness is not a second OpenShell, provider manager, credential store, policy
-language, scheduler, controller, or release manager. The closest operational
-model is submitting a Kubernetes `Job`: `plan` previews a run and `apply` runs
-one. There is no Harness database, release history, rollback, or watch loop.
+## Why it exists
 
-## Repository boundaries
+OpenShell owns the hard runtime boundary: gateways, workspaces, providers,
+credentials, inference routing, policy enforcement, and sandbox isolation.
+Repositories still need a consistent way to combine those primitives for a
+specific task and manage a one-shot run.
 
-The useful boundary is deliberately narrower than a general agentic CI
-platform. The repository separates reusable execution mechanics from each
-automation capability:
+Harness standardizes only that seam. It is not a general agentic CI platform, a
+provider manager, a credential store, a scheduler, or a second policy language.
+The operational model is closer to submitting a Kubernetes `Job`: `plan`
+previews one run and `apply` performs it. Harness has no database, release
+history, rollback, or watch loop.
+
+This narrow boundary is intentional. New task behavior belongs in a workload;
+new CI permissions belong in a capability-specific reusable workflow; new
+provider and workspace setup belongs in trusted platform bootstrap.
+
+## How the pieces fit
+
+```text
+local CLI or capability-specific reusable workflow
+                      │
+                      ▼
+         workload bundle in workloads/
+       image + policy + provider references
+          + payloads + agent + outputs
+                      │
+                      ▼
+       harness workflow plan / apply
+       compose + create + observe + clean up
+                      │
+                      ▼
+       OpenShell gateway: local or managed
+                      │
+                      ▼
+               isolated sandbox
+```
 
 | Layer | Owns |
 |---|---|
-| `.github/workflows/` | Capability-specific CI triggers, permissions, trusted checkout, and host bootstrap |
+| `.github/workflows/` | CI trigger, permissions, trusted checkout, concurrency, and host bootstrap for one capability |
 | `workloads/` | Task policy, provider references, image, agent behavior, payloads, and outputs |
-| `workflow/` | The generic `plan`/`apply` runner and one-shot sandbox lifecycle |
-| `images/` | Reusable sandbox toolchains, without credentials or task behavior |
-| OpenShell and platform bootstrap | Gateways, workspaces, provider credentials, inference routing, and sandbox isolation |
+| `workflow/` | Generic `plan`/`apply` composition and one-shot sandbox lifecycle |
+| `images/` | Reusable runtime toolchains, without credentials or task behavior |
+| OpenShell and platform bootstrap | Gateway access, workspaces, provider credentials, inference routes, and sandbox isolation |
 
-The runner verifies provider references, attaches them to a new sandbox, runs
-the selected image and agent command, downloads declared outputs, and deletes
-the sandbox by default. It does not install or start a gateway, create provider
-credentials, choose a repository task, or decide which GitHub mutation is
-allowed. Those boundaries keep the runner reusable without turning it into a
-second CI product.
+The runner never creates, updates, deletes, stores, or serializes provider
+credentials. It verifies that provider references exist and asks OpenShell to
+attach their masked proxy interfaces to the sandbox.
 
-GitHub integrations should expose one reusable workflow per bounded capability,
-such as review or merge. They should not expose arbitrary image, policy,
-provider, and command inputs as a general-purpose privileged action. A narrow
-caller contract makes permissions and trusted inputs reviewable for each use
-case.
+## Run a workflow
 
-## Gateway deployment model
+Build Harness from this repository:
 
-The current reusable PR reviewer is self-contained: trusted host-side setup
-starts a local OpenShell gateway and creates an ephemeral workspace and
-providers, then invokes the same Harness runner used elsewhere. This bootstrap
-belongs to the PR-review adapter, not to the runner.
+```bash
+make cli
+```
 
-The intended StackRox deployment replaces that setup with authentication to a
-managed gateway. Platform bootstrap will own workspace membership,
-pre-provisioned providers, and matching inference routes; the reusable workflow
-will select the workload and submit it. The workflow format and runner lifecycle
-do not need to change when the gateway moves from the GitHub-hosted runner to
-the managed service.
+Select a local OpenShell gateway with the native CLI, or declare a direct
+managed target in the workflow:
 
-## The workflow model
+```bash
+openshell gateway add https://127.0.0.1:17670 --local --name openshell
+openshell gateway select openshell
 
-The workflow file is a desired input document, not a stored Harness resource:
+./harness workflow plan workflow.yaml
+./harness workflow apply workflow.yaml
+```
+
+A version 1 workflow composes native OpenShell inputs:
 
 ```yaml
 version: 1
 name: pr-review
-target:
-  gateway: acs
-  workspace: stackrox
 sandbox:
-  image: quay.io/example/reviewer:v1
+  image: ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:...
   providers: [github-review]
   policy:
     file: review-policy.yaml
@@ -81,154 +96,33 @@ outputs:
   - source: /sandbox/artifacts
     destination: artifacts
     required: false
-source:
-  repo: https://github.com/stackrox/stackrox
-  ref: main
-  destination: /sandbox/stackrox
 agent:
-  type: claude
-  args: [--print, "Review the supplied repository input"]
+  type: opencode
+  args: [run, --format, json]
 ```
 
-The document can declare a gateway/workspace target, an inference route,
-sandbox provider attachments, sandbox image/policy/environment, agent command,
-source checkout, payload files, and paths to download after execution. Provider
-credentials and permissions remain
-OpenShell-owned. Changing the target or policy lets the same repository
-workflow run with a different trust boundary.
-
-The one-shot lifecycle is:
+The lifecycle is deliberately one-shot:
 
 ```text
-load and validate YAML
-  → resolve flags, environment, and defaults
-  → read gateway state and build a plan
-  → verify references and reconcile compatibility settings
+load and validate
+  → resolve target and inputs
+  → inspect gateway state and build a plan
+  → verify provider references
   → create, run, and observe the sandbox
-  → return the result and clean up
+  → download outputs and delete the sandbox
 ```
 
-The current inference-route write is a compatibility bridge for gateways that do
-not yet own that configuration natively. It requires workspace-admin access when
-the route differs and should be used only with an isolated or explicitly
-administered workspace. Prefer a bootstrap-owned matching route for shared
-workspaces; this bridge should shrink as OpenShell does.
+Use `--attach` for the same workflow with a connected terminal. Set
+`sandbox.keep: true` only for post-run debugging with native
+`openshell sandbox` commands. The complete schema, target resolution order,
+direct OIDC contract, redaction rules, and defaults are in
+[docs/workflow-format.md](docs/workflow-format.md).
 
-## Use it locally
+## Use it across StackRox
 
-Install the OpenShell version in `.openshell-version`, then select a gateway
-using the native CLI or target a configured HyperShell gateway:
-
-```bash
-make openshell
-openshell gateway add https://127.0.0.1:17670 --local --name openshell
-openshell gateway select openshell
-
-harness workflow plan workflow.yaml
-harness workflow apply workflow.yaml
-harness workflow apply workflow.yaml --attach
-```
-
-`--attach` runs the same workflow with your terminal connected to the declared
-agent command. It does not open a host shell or bypass the workflow policy.
-For post-run debugging, set `sandbox.keep: true` and use native OpenShell
-commands such as:
-
-```bash
-openshell sandbox connect <name>
-openshell sandbox exec <name> -- <command>
-openshell sandbox logs <name>
-openshell sandbox delete <name>
-```
-
-## State, defaults, and configuration
-
-Harness owns no durable workflow state. OpenShell or the platform owns gateway
-registrations, workspaces, providers, inference routes, credential material,
-policies, and sandboxes. GitHub Actions owns workflow-run state, labels,
-artifacts, concurrency, and approvals. A host-side source cache and an explicit
-result file are outputs or performance optimizations, not workflow state.
-
-Resolution order for gateway and workspace targets is:
-
-1. explicit flags (`--gateway`, `--workspace`);
-2. `OPENSHELL_*` environment variables;
-3. the workflow target;
-4. the active/default OpenShell gateway.
-
-`${VAR}` references in workflow strings are expanded from the calling process
-environment. Harness does not implicitly load `.env` files; source one in the
-calling shell or configure the values in CI. Defaults include workspace
-`default`, inference route `inference.local`, and the NVIDIA OpenShell
-community base image. `HARNESS_OS_IMAGE` is an explicit local or integration
-testing override: it takes precedence over both a workflow-selected image and
-the default image for `harness workflow plan` and `harness workflow apply`.
-Unset it when the workflow should select its own published StackRox image or
-use the default.
-
-The workflow file, policy file, and payload declarations are trusted host-side
-inputs. A workflow can intentionally interpolate host environment values or
-upload readable host files, so do not run an untrusted PR-supplied workflow in a
-credentialed host context. The trusted PR-review path checks out workflow code
-from the caller's default branch and stages the pull-request diff only as data.
-
-Direct OIDC target registration in a workflow is in-memory for that invocation.
-The OIDC client secret is read from `OPENSHELL_OIDC_CLIENT_SECRET` and is never
-part of the workflow document.
-
-## Provider lifecycle
-
-Harness does not create, update, or delete providers or credentials. A platform
-administrator or trusted OpenShell bootstrap provisions them in the target
-HyperShell workspace, for example with the native `openshell provider create`
-flow. A workflow names providers where they are used: `inference.provider`
-selects the inference provider and `sandbox.providers` attaches masked provider
-proxies to the new sandbox. `plan` and `apply` verify those references before
-execution.
-
-If a referenced provider is absent, `apply` fails before creating the sandbox.
-The gateway keeps the provider credential and exposes only its masked proxy
-interface inside the sandbox. The runner's own gateway credential—local
-OpenShell login, OIDC service account, or mTLS—is separate and is used only to
-connect and create the sandbox; it is not automatically a sandbox provider.
-
-The PR-review demo currently has a trusted shell bootstrap that creates
-temporary providers for its self-contained test path. That is adapter-specific
-bootstrap, not Harness workflow behavior. A HyperShell deployment should move
-those providers to platform bootstrap and let the workflow reference the
-pre-provisioned names.
-
-## Credentials and policy
-
-Workflow files contain provider names, not credentials. OpenShell resolves the
-provider and exposes a proxy-backed, masked interface to authorized sandbox
-requests. Raw credentials must not appear in workflow YAML, `sandbox.env`,
-payloads, agent arguments, logs, artifacts, prompts, or structured JSON/YAML
-output. Use provider configuration and OpenShell policy to grant capabilities;
-provider attachment alone does not authorize comments, pushes, labels, or merges.
-
-This is a contract for trusted workflow authors and bootstrap code, not a secret
-scanner for arbitrary YAML. Interpolated values are redacted from resolved
-configuration, plan, and dry-run display output, but the runner cannot infer
-whether a literal host value is a credential.
-
-For GitHub Actions, trusted host-side setup mints a short-lived installation
-token from the repository's OpenShell GitHub App and uses it to register the
-native OpenShell GitHub provider. The token is not placed in the sandbox
-environment or agent payload. Configure `OPENSHELL_GITHUB_APP_CLIENT_ID` as a
-repository variable and `OPENSHELL_GITHUB_APP_PRIVATE_KEY` as a repository
-secret. The installed App must have repository permissions `Contents: read` and
-`Pull requests: read and write`, and must be installed on the target repository.
-See [docs/ci.md](docs/ci.md) for the bootstrap and secret contract.
-
-## GitHub Actions and local sessions
-
-The reusable PR reviewer is the first supported workflow archetype:
-`pr-reviewer-with-comments`. The consuming repository supplies its skill and
-review criteria; Harness supplies the execution boundary. The same runner can
-also execute repository maintenance, CI assistance, research, or interactive
-developer workflows when those workflows define the appropriate policy and
-provider boundary.
+The cross-repository GitHub Actions interface is a capability-specific reusable
+workflow, not an arbitrary privileged `action.yml`. This lets each integration
+fix its permissions, trusted inputs, concurrency, and workload selection.
 
 ```yaml
 jobs:
@@ -244,56 +138,83 @@ jobs:
       OPENSHELL_GITHUB_APP_PRIVATE_KEY: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}
 ```
 
-Use `pull_request_target` when the workflow needs secrets or write permissions;
-the called workflow reads trusted files from the caller’s default branch and
-stages the pull-request diff as data. The `ai-review` label is explicit opt-in
-and is not added automatically. A `pull_request` trigger is appropriate only
-for a credential-free demonstration.
+Pin both references to the same immutable commit. The current reviewer uses
+`pull_request_target`, checks out trusted workflow code from the caller's
+default branch, and stages the pull-request diff only as untrusted data. The
+`ai-review` label is explicit opt-in.
 
-The repository carries two initial workload bundles: pull-request review and
-explicit pull-request merge. They are examples and policy contracts, not
-automatically enabled GitHub Actions. Each workload documents its trigger,
-providers, allowed mutation, and native OpenShell invocation. Pull-request
-creation, issue, watcher, and triage archetypes are intentionally deferred
-until these two are validated in consuming repositories.
+Review and merge remain separate capabilities because they require different
+provider credentials and allowed mutations. Do not replace them with a single
+workflow that accepts arbitrary image, policy, provider, or command inputs.
 
-## Commands
+### Gateway transition
+
+Today the reusable reviewer installs a local OpenShell gateway, then its trusted
+wrapper creates an ephemeral workspace and providers before invoking Harness.
+That bootstrap makes the current integration self-contained; it is not runner
+behavior.
+
+The intended managed arrangement removes those steps. The GitHub job
+authenticates to the managed gateway, while platform bootstrap owns workspace
+membership, pre-provisioned providers, and matching inference routes. The
+reusable workflow still selects the workload, and Harness still performs the
+same one-shot sandbox lifecycle.
+
+## Security and ownership
+
+- Workflow files, policies, payload declarations, and reusable-workflow code
+  are trusted host-side inputs. Never execute versions supplied by an
+  untrusted pull request in a credentialed context.
+- Workflow provider fields contain names only. Raw credentials must not appear
+  in workflow YAML, sandbox environment values, payloads, agent arguments,
+  logs, prompts, or artifacts.
+- Provider attachment supplies a masked proxy interface; native OpenShell
+  policy separately controls which requests the sandbox may make.
+- Harness owns no durable runtime state. OpenShell or platform bootstrap owns
+  gateway resources; GitHub Actions owns run state, labels, artifacts,
+  concurrency, and approvals.
+- Sandboxes are deleted by default. Review and merge use separate provider and
+  policy boundaries.
+
+The current inference-route write is a compatibility bridge for isolated or
+explicitly administered workspaces. Shared managed workspaces should have a
+matching route provisioned by the platform so ordinary runs remain
+reference-only. See [docs/ci.md](docs/ci.md) for the CI bootstrap and credential
+contract.
+
+## CLI
 
 | Command | Purpose |
 |---|---|
-| `harness workflow plan FILE` | Render a read-only plan |
-| `harness workflow apply FILE` | Run the workflow headlessly |
-| `harness workflow apply FILE --attach` | Run it with an interactive terminal |
-| `harness workflow apply FILE --output-dir DIR` | Download declared workflow outputs below `DIR` |
-| `harness workflow apply FILE --setup-only` | Verify references and configure inference without running a sandbox |
+| `harness workflow plan FILE` | Read-only reconciliation plan |
+| `harness workflow apply FILE` | Execute one workflow headlessly |
+| `harness workflow apply FILE --attach` | Execute with an attached terminal |
+| `harness workflow apply FILE --output-dir DIR` | Download declared outputs below `DIR` |
+| `harness workflow apply FILE --setup-only` | Verify references and reconcile inference without starting a sandbox |
 
-Plan and dry-run output support `-o table`, `-o json`, and `-o yaml`; credential
-values are never serialized. `harness workflow apply FILE -o json` or `-o yaml`
-prints the resolved, redacted configuration without executing; use
-`--result-file result.json` for an execution result. The Harness CLI deliberately has no `doctor`,
-`init`, `delete`, `get`, or `describe` commands. Use native OpenShell commands
-for gateway health, sandbox inspection, and retained-sandbox deletion. Normal
-`apply` cleanup deletes a sandbox by default; set `sandbox.keep: true` only to
-retain it for debugging.
+`plan` and dry-run output support `-o table|json|yaml`; credential values are
+never serialized. Use `--result-file` for a host-derived execution result.
+Harness deliberately has no provider-management, sandbox-inspection, or
+deployment commands—use the native OpenShell CLI for those operations.
 
-## Documentation and validation
+## Repository map
 
-- [AGENTS.md](AGENTS.md) — architecture constraints and validation matrix
-- [docs/workflow-format.md](docs/workflow-format.md) — version 1 workflow contract
-- [docs/ci.md](docs/ci.md) — trusted CI bootstrap and credential contract
-- [docs/compatibility.md](docs/compatibility.md) — tested OpenShell, ACP, and Go versions
-- [.github/workflows/](.github/workflows/) — capability-specific reusable GitHub workflows
-- [workflow/](workflow/) — Go implementation of the `harness workflow` runner
-- [workloads/](workloads/) — workload bundles, native OpenShell artifacts, and Harness adapters
+- [.github/workflows/](.github/workflows/) — capability-specific reusable workflows
+- [workflow/](workflow/) — Go implementation of the runner
+- [workloads/](workloads/) — native OpenShell task bundles and optional Harness adapters
 - [images/](images/) — reusable sandbox image build contexts
+- [docs/workflow-format.md](docs/workflow-format.md) — version 1 workflow contract
+- [docs/ci.md](docs/ci.md) — trusted CI and managed-gateway bootstrap
+- [docs/compatibility.md](docs/compatibility.md) — tested dependency versions
+- [AGENTS.md](AGENTS.md) — contribution and upstream-alignment rules
 
-Fast checks:
+## Validate
 
 ```bash
 make test
 make test-suite
 ```
 
-Gateway lifecycle checks are available through `make test-local`, `make test-kind`,
-and `make test-remote`. Provider-capability checks require platform-provisioned
-credentials.
+Gateway lifecycle checks are available through `make test-local`,
+`make test-kind`, and `make test-remote`. Provider-capability checks require
+platform-provisioned credentials.
