@@ -7,6 +7,11 @@
       "env": {
         "READ_ONLY_MODE": "true"
       }
+    },
+    "gopls-mcp": {
+      "type": "stdio",
+      "command": "/usr/local/bin/gopls",
+      "args": ["mcp"]
     }
   }
 }
