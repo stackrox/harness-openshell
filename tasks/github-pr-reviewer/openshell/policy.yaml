@@ -30,7 +30,7 @@ network_policies:
         tls: terminate
         enforcement: enforce
         credential_binding:
-          provider: github-review
+          provider: "${REVIEW_GITHUB_PROVIDER}"
         rules:
           - allow:
               method: GET

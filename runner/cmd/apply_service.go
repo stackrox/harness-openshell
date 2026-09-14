@@ -15,17 +15,22 @@ import (
 )
 
 type applyRequest struct {
-	File       string
-	Name       string
-	Entrypoint string
-	Attach     bool
-	DryRun     bool
-	SetupOnly  bool
-	Output     string
-	OutputDir  string
-	ResultFile string
-	Gateway    string
-	Workspace  string
+	File                     string
+	Name                     string
+	Entrypoint               string
+	Attach                   bool
+	DryRun                   bool
+	SetupOnly                bool
+	Output                   string
+	OutputDir                string
+	ResultFile               string
+	Gateway                  string
+	Workspace                string
+	Variables                map[string]string
+	RequireExistingInference bool
+	RequireEphemeral         bool
+	Stdout                   io.Writer
+	Stderr                   io.Writer
 }
 
 type applyService struct {
@@ -58,10 +63,13 @@ func (s applyService) run(ctx context.Context, req applyRequest) (runErr error) 
 	}
 
 	workflow, err := loadWorkflow(req.File, req.Gateway, req.Workspace, applyOverrides{
-		Name: req.Name, AgentType: req.Entrypoint, ForceTTY: req.Attach,
+		Name: req.Name, AgentType: req.Entrypoint, ForceTTY: req.Attach, Variables: req.Variables,
 	})
 	if err != nil {
 		return err
+	}
+	if req.RequireEphemeral && (workflow.Desired.Spec.Sandbox.Keep || workflow.Desired.Spec.Sandbox.TTY) {
+		return fmt.Errorf("this integration requires sandbox.keep and sandbox.tty to be false")
 	}
 	if req.Output != "" && !req.DryRun {
 		return renderWorkflow(workflow, req.Output)
@@ -80,6 +88,7 @@ func (s applyService) run(ctx context.Context, req applyRequest) (runErr error) 
 	}
 	return executeResolvedWorkflow(ctx, workflow, planned, current, client, applyOptions{
 		SetupOnly: req.SetupOnly, DryRun: req.DryRun, Output: req.Output, OutputDir: req.OutputDir, Result: result,
+		RequireExistingInference: req.RequireExistingInference, Stdout: req.Stdout, Stderr: req.Stderr,
 	})
 }
 
@@ -124,7 +133,16 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 	}
 
 	opts.Result.setPhase("reconcile")
-	if inferenceConfigured(workflow.Desired.Spec.Inference) {
+	if opts.RequireExistingInference && inferenceConfigured(workflow.Desired.Spec.Inference) {
+		// Read again at execution time, but never reconcile a shared route.
+		state, err := plan.ReadInferenceState(ctx, client, workflow.Desired.Spec.Inference)
+		if err != nil {
+			return fmt.Errorf("checking existing inference: %w", err)
+		}
+		if plan.InferenceAction(workflow.Desired.Spec.Inference, state) != plan.ActionNoop {
+			return fmt.Errorf("inference route does not match the workflow; ask platform bootstrap to configure it")
+		}
+	} else if inferenceConfigured(workflow.Desired.Spec.Inference) {
 		result, err := reconcile.ReconcileInference(ctx, client, workflow.Desired.Spec.Inference)
 		if err != nil {
 			return fmt.Errorf("reconciling inference: %w", err)
@@ -144,5 +162,12 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 		return fmt.Errorf("configured OpenShell client does not support SDK sandbox execution")
 	}
 	opts.Result.setPhase("execute")
-	return run.Run(ctx, executor, req.SandboxRunRequest, os.Stdin, os.Stdout, os.Stderr)
+	stdout, stderr := opts.Stdout, opts.Stderr
+	if stdout == nil {
+		stdout = os.Stdout
+	}
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+	return run.Run(ctx, executor, req.SandboxRunRequest, os.Stdin, stdout, stderr)
 }

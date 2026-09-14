@@ -37,6 +37,7 @@ func main() {
 
 	root.AddCommand(
 		cmd.NewWorkflowCmd(sdkclient.New),
+		cmd.NewGitHubCmd(sdkclient.New),
 	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

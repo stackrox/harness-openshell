@@ -14,10 +14,10 @@ credential and mediates GitHub REST requests using a task-specific policy.
 
 The intended StackRox deployment connects repository workflows to a
 platform-managed gateway. The CLI already supports local and direct managed
-connections; the current reusable reviewer uses
-[`setup-openshell`](.github/actions/setup-openshell/action.yml) and a
-[trusted wrapper](scripts/pr-review.sh) to prepare a local CI gateway and
-temporary workspace.
+connections. The reusable reviewer selects temporary local CI setup or an
+existing managed target. Both use `harness github review`;
+[`setup-openshell`](.github/actions/setup-openshell/action.yml) and
+[local bootstrap](scripts/pr-review-local.sh) are confined to the local path.
 
 ## What an agent can do
 
@@ -46,34 +46,25 @@ and a failed or cancelled run may already have performed permitted actions.
 ## How a repository run works
 
 `harness-openshell` packages the integration around OpenShell. The `harness`
-CLI is its generic composition and sandbox lifecycle component. A **task
+CLI includes a generic runner and explicit repository integrations. A **task
 bundle** combines agent instructions,
 an image, native OpenShell policy, provider references, and payloads. A
 **harness workflow document** declares a run; a **GitHub Actions workflow**
 supplies its CI trigger and trusted host setup.
 
-```text
-Repository workflow or local caller
-  selects trusted task inputs and allowed operation
-                    |
-                    v
-               harness CLI
-  composes inputs and manages sandbox lifecycle
-                    |
-                    v
-          OpenShell-managed sandbox
-             agent runs the task
-               /           \
-              v             v
-       files and logs     GitHub REST request
-              |             |
-              v             v
-      retained artifacts  OpenShell network proxy
-                          provider credential + REST policy
-                              |
-                              v
-                         GitHub API
-                    permitted read or mutation
+```mermaid
+flowchart TD
+    Caller[Trusted GitHub workflow or local caller] --> Setup{Deployment setup}
+    Setup --> Local[setup-openshell and temporary local resources]
+    Setup --> Managed[Existing managed gateway and platform-owned providers]
+    Local --> Adapter[GitHub review adapter: exact PR inputs and scoped policy]
+    Managed --> Adapter
+    Task[Portable task bundle] --> Adapter
+    Adapter --> Runner[Generic runner: resolve, verify, execute, collect, delete]
+    Runner --> Sandbox[OpenShell sandbox]
+    Sandbox --> Artifacts[Files and diagnostic artifacts]
+    Sandbox --> Proxy[OpenShell REST proxy: provider credential and policy]
+    Proxy --> GitHub[GitHub API: permitted reads and inline comments]
 ```
 
 Trusted setup establishes gateway access and provider credentials before the
@@ -84,8 +75,10 @@ inference routing, credential handling, and network policy enforcement.
 
 The cross-repository interface is a reusable GitHub Actions workflow for a
 defined operation with fixed permissions and trusted inputs. The reviewer
-selects the `github-pr-reviewer` task bundle; it does not accept arbitrary
-image, policy, provider, or command inputs.
+uses the `github-pr-reviewer` task bundle by default. The managed path accepts
+a workflow document from the trusted caller default branch, containing its
+existing target and provider references. That document must preserve the
+review task protocol; it is trusted execution configuration, never PR input.
 
 Configure the GitHub App installation and Vertex credentials described in
 [docs/ci.md](docs/ci.md#label-driven-pr-review), then call the reviewer from a
@@ -117,12 +110,16 @@ data. The `ai-review` label is explicit opt-in. See
 |---|---|
 | [Reusable workflow](.github/workflows/pr-review-reusable.yml) | Trusted checkout, job permissions, App token, and setup/execution steps |
 | [`setup-openshell`](.github/actions/setup-openshell/action.yml) | Invoke the installer for the pinned OpenShell CLI release and wait for gateway readiness |
-| [`scripts/pr-review.sh`](scripts/pr-review.sh) | Stage the diff, create a temporary workspace and providers, configure inference, render the PR policy, and invoke the CLI |
-| [`harness` CLI](runner/) | Compose the task and manage its sandbox lifecycle |
+| [Local review action](.github/actions/run-local-review/action.yml) and [bootstrap script](scripts/pr-review-local.sh) | Acquire local credentials and bracket the review with temporary workspace/provider/inference setup and teardown |
+| [`harness github review`](integrations/github/review/) | Stage exact PR data, select the skill, bind policy, and interpret the review result |
+| [Generic runner](runner/) | Verify the existing target and references, then own sandbox execution and cleanup |
 
-The current reviewer uses a local gateway on the CI runner. The CLI's direct
-managed-gateway connection is implemented, but the reusable reviewer has not
-been switched to that connection and platform bootstrap contract.
+Local execution remains the default. Set `execution-target: managed`,
+`managed-workflow`, and a reachable `runner-label` to use pre-existing managed
+resources. The managed path skips the local installer, Google authentication,
+and temporary provisioning. Reviews require a matching declared inference route
+and never create or update it. This code path does not establish live
+HyperShell acceptance; platform provisioning and network access are required.
 
 In the intended managed deployment, the GitHub job authenticates to a gateway
 operated outside that job. The platform owns workspace membership, provider
@@ -161,8 +158,8 @@ openshell gateway select openshell
 
 Choose a task from [tasks/](tasks/) and prepare its documented inputs.
 The [PR reviewer](tasks/github-pr-reviewer/) includes the native OpenShell
-inputs; [docs/ci.md](docs/ci.md#label-driven-pr-review) gives the trusted wrapper
-commands for running it locally. For your own prepared workflow document:
+inputs; [docs/ci.md](docs/ci.md#label-driven-pr-review) gives the review CLI and local bootstrap
+commands. For your own prepared workflow document:
 
 ```bash
 ./harness workflow plan workflow.yaml
@@ -185,7 +182,8 @@ agent, collects declared output files, and deletes the sandbox.
 | Consuming repository | Opt-in triggers, trusted task inputs, review criteria, and approval rules |
 | [.github/workflows/](.github/workflows/) | Repository CI and reusable jobs with fixed permissions, trusted checkout, concurrency, and task selection |
 | [.github/actions/setup-openshell/](.github/actions/setup-openshell/action.yml) | OpenShell installation and gateway readiness for the current local CI path |
-| [scripts/pr-review.sh](scripts/pr-review.sh) | Trusted review preparation and temporary workspace/provider bootstrap |
+| [integrations/github/review/](integrations/github/review/) | GitHub-specific review preparation, policy binding and output interpretation |
+| [scripts/pr-review-local.sh](scripts/pr-review-local.sh) | Temporary local workspace/provider/inference bootstrap and teardown |
 | [tasks/](tasks/) | Task instructions, policy, provider references, image selection, payloads, and outputs |
 | [runner/](runner/) | Generic `plan`/`apply` composition and sandbox lifecycle |
 | [images/](images/) | Reusable runtime toolchains |
@@ -210,13 +208,16 @@ durable workflow database, scheduler, release history, or rollback mechanism.
 
 The current inference-route write is a compatibility bridge for isolated or
 explicitly administered workspaces. Shared managed workspaces should have a
-matching route provisioned by the platform so ordinary runs remain
-reference-only. See [docs/ci.md](docs/ci.md) for the credential and setup contract.
+matching route provisioned by the platform. Use
+`workflow apply --require-existing-inference` to enforce that constraint;
+`github review run` always enforces it. See [docs/ci.md](docs/ci.md) for the credential and setup contract.
 
 ## CLI
 
 | Command | Purpose |
 |---|---|
+| `harness github review prepare` | Fetch eligible PR metadata and its exact bounded diff |
+| `harness github review run` | Run the prepared review against existing OpenShell resources |
 | `harness workflow plan FILE` | Preview the configured run |
 | `harness workflow apply FILE` | Execute one task headlessly |
 | `harness workflow apply FILE --attach` | Execute with an attached terminal |

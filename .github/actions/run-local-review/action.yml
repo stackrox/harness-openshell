@@ -1,0 +1,44 @@
+name: Run review with temporary local OpenShell resources
+description: CI-only setup, credentials, and teardown around the target-neutral review command
+inputs:
+  github-token:
+    required: true
+    description: Repository-scoped GitHub App installation token
+  vertex-key:
+    required: true
+    description: Google service account key for local CI bootstrap
+  vertex-project:
+    required: true
+    description: Vertex project
+  vertex-region:
+    default: global
+    description: Vertex region
+  skill-path:
+    default: ''
+    description: Optional review skill relative to the trusted caller checkout
+runs:
+  using: composite
+  steps:
+    - uses: ./harness/.github/actions/setup-openshell
+      env:
+        OPENSHELL_ROOT: harness
+    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        project_id: ${{ inputs.vertex-project }}
+        credentials_json: ${{ inputs.vertex-key }}
+    - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+    - shell: bash
+      working-directory: harness
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        VERTEX_AI_PROJECT_ID: ${{ inputs.vertex-project }}
+        VERTEX_AI_REGION: ${{ inputs.vertex-region }}
+        SKILL_PATH: ${{ inputs.skill-path }}
+      run: |
+        token="$(gcloud auth print-access-token)"
+        echo "::add-mask::$token"
+        export GOOGLE_VERTEX_AI_TOKEN="$token"
+        args=()
+        if [[ -n "$SKILL_PATH" ]]; then args+=(--skill-root ../caller --skill "$SKILL_PATH"); fi
+        bash scripts/pr-review-local.sh "${args[@]}"

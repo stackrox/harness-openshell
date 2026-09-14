@@ -9,7 +9,8 @@ The runner:
 
 - loads and validates a versioned workflow document;
 - resolves a local or managed OpenShell target;
-- verifies referenced providers and reconciles the declared inference route;
+- verifies referenced providers and reconciles the declared inference route,
+  or requires it to match without writes under `--require-existing-inference`;
 - creates a sandbox with the selected image, policy, provider attachments, and
   command;
 - uploads source and payloads, observes execution, downloads outputs, and
@@ -29,7 +30,9 @@ an execution failure does not prove that no external operation occurred.
 ## Layout
 
 - `main.go` is the `harness` CLI entrypoint.
-- `cmd/` contains the CLI commands.
+- `cmd/` contains CLI commands and the thin wiring for repository integrations.
+- `../integrations/github/review/` owns GitHub review behavior and calls the
+  existing apply service through a single execution function.
 - `internal/` contains the workflow parser, planner, OpenShell adapter, and
   execution support.
 
@@ -45,9 +48,9 @@ Go packages. Repository-level integration tests remain under `test/` because
 they exercise shell workflows and gateway lifecycle behavior rather than the
 runner packages themselves.
 
-The same binary can connect to a developer's selected local gateway or directly
-to a managed gateway. The current reusable reviewer still uses
-[`setup-openshell`](../.github/actions/setup-openshell/action.yml) and the
-[trusted review wrapper](../scripts/pr-review.sh) for its local CI path.
-Moving that integration requires managed access and provider-lifecycle setup
-around the CLI; see [the transition requirements](../docs/ci.md#managed-reviewer-transition).
+The same binary connects to a selected local gateway or directly to a managed
+gateway. `harness github review` uses existing resources and shares this
+runner's execution service. Temporary local CI setup lives in
+[`pr-review-local.sh`](../scripts/pr-review-local.sh); managed setup belongs to
+the platform. See the [adapter architecture](../integrations/github/review/)
+and [managed setup](../docs/ci.md#managed-reviewer-transition).

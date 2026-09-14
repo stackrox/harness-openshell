@@ -9,7 +9,7 @@ import (
 
 func NewApplyCmd(newClient openshell.Factory) *cobra.Command {
 	var file, sandboxName, entrypoint, output, outputDir, resultFile string
-	var attach, dryRun, setupOnly bool
+	var attach, dryRun, setupOnly, requireExistingInference bool
 	var gatewayName, workspace *string
 
 	cmd := &cobra.Command{
@@ -29,17 +29,18 @@ host-interpolated and credential-bearing map values redacted.`,
 				file = args[0]
 			}
 			return runApply(cmd.Context(), newClient, applyRequest{
-				File:       file,
-				Name:       sandboxName,
-				Entrypoint: entrypoint,
-				Attach:     attach,
-				DryRun:     dryRun,
-				SetupOnly:  setupOnly,
-				Output:     output,
-				OutputDir:  outputDir,
-				ResultFile: resultFile,
-				Gateway:    *gatewayName,
-				Workspace:  *workspace,
+				File:                     file,
+				Name:                     sandboxName,
+				Entrypoint:               entrypoint,
+				Attach:                   attach,
+				DryRun:                   dryRun,
+				SetupOnly:                setupOnly,
+				Output:                   output,
+				OutputDir:                outputDir,
+				ResultFile:               resultFile,
+				Gateway:                  *gatewayName,
+				Workspace:                *workspace,
+				RequireExistingInference: requireExistingInference,
 			}, cmd.ErrOrStderr())
 		},
 	}
@@ -53,6 +54,7 @@ host-interpolated and credential-bearing map values redacted.`,
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: yaml or json (dry-run also supports table)")
 	cmd.Flags().StringVar(&outputDir, "output-dir", "", "Host directory for workflow outputs")
 	cmd.Flags().StringVar(&resultFile, "result-file", "", "Write host-derived execution result JSON to a new file")
+	cmd.Flags().BoolVar(&requireExistingInference, "require-existing-inference", false, "Require a matching inference route without creating or updating it")
 	gatewayName, workspace = registerTargetFlags(cmd)
 	return cmd
 }

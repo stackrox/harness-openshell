@@ -16,23 +16,20 @@ reference and its `harness-ref` input to the same immutable commit SHA.
 
 ## Gateway setup: local CI and managed deployment
 
-The reviewer invokes [`setup-openshell`](../actions/setup-openshell/action.yml)
-to install the pinned OpenShell CLI and wait for the local CI gateway. The
-trusted [`scripts/pr-review.sh`](../../scripts/pr-review.sh) wrapper stages the
-diff, creates the temporary workspace and providers, configures inference, and
-renders the PR-specific policy before invoking the `harness` CLI. The CLI
-composes the task and manages its sandbox lifecycle.
+The reviewer prepares the exact PR input through `harness github review`, then
+chooses local or managed setup. Local is the default: the
+[local review action](../actions/run-local-review/action.yml) calls
+[`setup-openshell`](../actions/setup-openshell/action.yml), obtains local Google
+credentials, and runs the temporary provisioning script around the review CLI.
 
-The CLI already supports a direct managed-gateway connection. Moving this
-review job to the intended managed StackRox deployment still requires platform
-ownership of workspace membership, provider credentials and their refresh or
-expiry, matching inference routes, and CI network access. A pre-provisioned
-provider name does not by itself keep a short-lived GitHub token usable.
-See [managed reviewer requirements](../../docs/ci.md#managed-reviewer-transition).
-
-Once that contract is established, replace the job's local setup and temporary
-provider bootstrap with the managed connection. Preserve the task's allowed
-operations and equivalent OpenShell policy and provider boundaries.
+`execution-target: managed` skips that action and executes the same CLI against
+`managed-workflow`, a version 1 workflow from the trusted caller default branch.
+The platform supplies existing resources and the credential lifecycle. The job
+requests a read-only host GitHub token; sandbox writes use the existing provider.
+`runner-label` must select a trusted runner with gateway/OIDC network access.
+The review command does not write inference, provision providers, or delete
+shared resources. See [managed setup](../../docs/ci.md#managed-reviewer-transition)
+and the [adapter architecture](../../integrations/github/review/).
 
 Comments may be posted during agent execution. Artifacts retain diagnostics;
 cleanup or cancellation does not undo GitHub operations that already succeeded.
@@ -40,5 +37,5 @@ cleanup or cancellation does not undo GitHub operations that already succeeded.
 Add another reusable workflow only when the capability has a distinct trigger,
 permission, or trust contract. Keep review and merge separate, and keep
 repository-specific task behavior in [tasks/](../../tasks/) rather than
-growing a single workflow with general-purpose image, policy, provider, or
-command inputs.
+adding a general plugin or hook framework. Managed workflow configuration is
+trusted host code and must preserve the review adapter protocol.

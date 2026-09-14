@@ -28,6 +28,7 @@ type applyOverrides struct {
 	Name      string
 	AgentType string
 	ForceTTY  bool
+	Variables map[string]string
 }
 
 func loadWorkflow(path, flagGateway, flagWorkspace string, overrides applyOverrides) (*resolvedWorkflow, error) {
@@ -35,7 +36,13 @@ func loadWorkflow(path, flagGateway, flagWorkspace string, overrides applyOverri
 	if err != nil {
 		return nil, fmt.Errorf("loading config: %w", err)
 	}
-	resolved, err := config.Resolve(h, os.Getenv)
+	getenv := func(name string) string {
+		if value, ok := overrides.Variables[name]; ok {
+			return value
+		}
+		return os.Getenv(name)
+	}
+	resolved, err := config.Resolve(h, getenv)
 	if err != nil {
 		return nil, fmt.Errorf("resolving config: %w", err)
 	}

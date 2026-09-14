@@ -732,6 +732,7 @@ func TestGitHubReviewerCustomSkillUsesWorkflowPayloadPath(t *testing.T) {
 	t.Setenv("REVIEW_REPOSITORY", "owner/repo")
 	t.Setenv("REVIEW_PR", "1")
 	t.Setenv("REVIEW_HEAD", "head")
+	t.Setenv("REVIEW_GITHUB_PROVIDER", "github-review")
 	t.Setenv("REVIEW_SKILL", skillPath)
 
 	workflow, err := loadWorkflow(workflowPath, "", "", applyOverrides{})

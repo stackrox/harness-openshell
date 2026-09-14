@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,11 +19,14 @@ import (
 )
 
 type applyOptions struct {
-	SetupOnly bool
-	DryRun    bool
-	Output    string
-	OutputDir string
-	Result    *applyResult
+	SetupOnly                bool
+	DryRun                   bool
+	Output                   string
+	OutputDir                string
+	Result                   *applyResult
+	RequireExistingInference bool
+	Stdout                   io.Writer
+	Stderr                   io.Writer
 }
 
 type preparedRun struct {
