@@ -48,6 +48,6 @@ runner packages themselves.
 The same binary can connect to a developer's selected local gateway or directly
 to a managed gateway. The current reusable reviewer still uses
 [`setup-openshell`](../.github/actions/setup-openshell/action.yml) and the
-[trusted review wrapper](../scripts/pr-review.sh) for its local CI path.
+[local setup wrapper](../scripts/pr-review-local.sh) for its local CI path.
 Moving that integration requires managed access and provider-lifecycle setup
 around the CLI; see [the transition requirements](../docs/ci.md#managed-reviewer-transition).

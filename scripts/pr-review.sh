@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Trusted host orchestration. PR content is data, never runner code.
+# Review using an already-configured OpenShell target. PR content is data.
 set -euo pipefail
 umask 077
 cd "$(dirname "$0")/.."
@@ -8,14 +8,8 @@ cd "$(dirname "$0")/.."
 [[ "$REVIEW_DIR" == /* && "$REVIEW_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ && "$REVIEW_PR" =~ ^[1-9][0-9]*$ ]] || exit 1
 mode="${1:?usage: pr-review.sh prepare|run}"
 [[ "$mode" == prepare || "$mode" == run ]] || exit 1
-gateway="${OPENSHELL_GATEWAY:-openshell}"
 allow_draft_reviews="${ALLOW_DRAFT_REVIEWS:-false}"
-workspace="rev-$RANDOM-$$"
 max_diff_bytes=262144
-created_workspace=false
-imported_github_profile=false
-created_vertex_provider=false
-created_github_provider=false
 apply_pid=""
 head="${REVIEW_HEAD:-}"
 base=""
@@ -38,38 +32,17 @@ write_summary() {
 
 cleanup_runtime() {
   trap - EXIT INT TERM
-  local cleanup_status=0
-  delete_sandbox() {
-    local output
-    if output=$(timeout 30s openshell sandbox delete --gateway "$gateway" --workspace "$workspace" ai-review 2>&1); then
-      return 0
-    fi
-    # A workflow with keep:false lets Harness delete the sandbox before this
-    # wrapper's best-effort cleanup runs. That is already the desired state.
-    if [[ "$output" == *"sandbox not found"* ]]; then
-      return 0
-    fi
-    printf '%s\n' "$output" >&2
-    return 1
-  }
+  # The runner owns sandbox deletion, including on normal cancellation.
   if [[ -n "$apply_pid" ]]; then
+    # timeout can exit before its command child handles a forwarded signal.
+    # Signal the runner child first, then reap the timeout wrapper.
+    runner_pids="$(pgrep -P "$apply_pid" 2>/dev/null || true)"
+    for runner_pid in $runner_pids; do
+      kill -TERM "$runner_pid" 2>/dev/null || true
+    done
     kill -TERM "$apply_pid" 2>/dev/null || true
     wait "$apply_pid" || true
   fi
-  if $created_workspace; then
-    delete_sandbox || cleanup_status=1
-    if $created_vertex_provider; then
-      timeout 30s openshell provider delete --gateway "$gateway" --workspace "$workspace" vertex-review || cleanup_status=1
-    fi
-    if $created_github_provider; then
-      timeout 30s openshell provider delete --gateway "$gateway" --workspace "$workspace" github-review || cleanup_status=1
-    fi
-    if $imported_github_profile; then
-      timeout 30s openshell provider profile delete --gateway "$gateway" --workspace "$workspace" github-review || cleanup_status=1
-    fi
-    timeout 30s openshell workspace delete --gateway "$gateway" "$workspace" || cleanup_status=1
-  fi
-  return "$cleanup_status"
 }
 
 finish() {
@@ -116,40 +89,20 @@ run_review() {
   base="$(jq -er '.base | select(test("^[0-9a-f]{40}$"))' "$REVIEW_DIR/input.json")"
   (cd "$REVIEW_DIR" && shasum -a 256 -c pr.diff.sha256 >/dev/null)
   ensure_current
-  : "${GOOGLE_VERTEX_AI_TOKEN:?set a short-lived Vertex token}" "${VERTEX_AI_PROJECT_ID:?set Vertex project}"
-  : "${GITHUB_TOKEN:?set the workflow GitHub token for provider bootstrap}"
-
-  timeout 60s openshell workspace create --gateway "$gateway" --name "$workspace"
-  created_workspace=true
-  if ! profile_list="$(timeout 60s openshell provider list-profiles --gateway "$gateway" --workspace "$workspace" -o json)" ||
-    ! jq -e 'any(.[]; .id == "github-review")' <<<"$profile_list" >/dev/null 2>&1; then
-    timeout 60s openshell provider profile import --gateway "$gateway" --workspace "$workspace" \
-      --file workloads/github-pr-reviewer/openshell/providers/github-review.yaml
-    imported_github_profile=true
-  fi
-  timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
-    --name vertex-review --type google-vertex-ai --from-existing \
-    --config "VERTEX_AI_PROJECT_ID=$VERTEX_AI_PROJECT_ID" --config "VERTEX_AI_REGION=${VERTEX_AI_REGION:-global}"
-  created_vertex_provider=true
-  timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
-    --name github-review --type github-review --credential GITHUB_TOKEN
-  created_github_provider=true
-  timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" \
-    --provider vertex-review --model gemini-2.5-pro --no-verify
-
   export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
   export REVIEW_POLICY="$REVIEW_DIR/review-policy.yaml"
-  export REVIEW_SKILL="${REVIEW_SKILL:-skills/pr-review/SKILL.md}"
+  export REVIEW_SKILL="${REVIEW_SKILL:-$PWD/tasks/github-pr-reviewer/workflow/skills/pr-review/SKILL.md}"
   policy_template="${REVIEW_POLICY_TEMPLATE:-tasks/github-pr-reviewer/openshell/policy.yaml}"
   sed \
     -e "s|\${REVIEW_REPOSITORY}|$REVIEW_REPOSITORY|g" \
     -e "s|\${REVIEW_PR}|$REVIEW_PR|g" \
     "$policy_template" > "$REVIEW_POLICY"
 
+  sandbox_name="review-$(openssl rand -hex 12)"
   (
     ulimit -f 2048 # Bound raw diagnostic output as well as runtime.
     exec timeout -s TERM -k 35s 8m ./harness workflow apply tasks/github-pr-reviewer/workflow/opencode-harness.yaml \
-      --gateway "$gateway" --workspace "$workspace" --result-file "$REVIEW_DIR/execution.json"
+      --name "$sandbox_name" --result-file "$REVIEW_DIR/execution.json"
   ) > "$REVIEW_DIR/agent.ndjson" 2> "$REVIEW_DIR/agent.stderr" &
   apply_pid=$!
   set +e
@@ -158,9 +111,9 @@ run_review() {
   set -e
   apply_pid=""
 
+  ((apply_status == 0)) || return "$apply_status"
   scripts/review/validate-agent-output.sh "$REVIEW_DIR"
   if [[ -s "$REVIEW_DIR/execution.json" ]] && ! jq -e '.status == "succeeded" and .phase == "complete"' "$REVIEW_DIR/execution.json" >/dev/null; then
-    ((apply_status != 0)) && return "$apply_status"
     return 1
   fi
   ensure_current

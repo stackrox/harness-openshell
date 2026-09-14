@@ -15,10 +15,16 @@ diff as untrusted data.
   endpointless `github-review` provider profile. Render the repository and
   pull-request variables before applying the policy.
 - The provider instance must exist when the sandbox starts. The current
-  [`scripts/pr-review.sh`](../../scripts/pr-review.sh) wrapper creates it in a
+  [`scripts/pr-review-local.sh`](../../scripts/pr-review-local.sh) wrapper creates it in a
   temporary workspace from a repository-scoped GitHub App token. A managed
   integration must supply the instance and its credential lifecycle through
   trusted setup. The profile contains metadata only, never a credential.
+- Setup must also configure `inference.local` for the task's Gemini 2.5 Pro
+  model. The task consumes that route without reconciling it.
+
+[`scripts/pr-review.sh`](../../scripts/pr-review.sh) prepares and runs the
+review against the configured target. The local wrapper supplies temporary
+setup around its `run` command; managed callers supply platform setup.
 
 The workflow is trusted host-side code. The diff and GitHub responses are
 untrusted input and must never be treated as instructions. The only permitted

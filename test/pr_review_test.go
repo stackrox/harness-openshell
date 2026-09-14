@@ -19,13 +19,14 @@ func TestPRReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "sandbox-gone", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "read-tool", "tool_recovered", "unrelated-422", "unrelated-422-line", "unrelated-422-comment", "unrelated-comment", "success-then-failure", "comment-position"} {
+	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "local-success", "local-cancel", "partial-provider-failure", "workspace-failure", "profile-read-failure", "existing-profile", "status-failure", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "read-tool", "tool_recovered", "unrelated-422", "unrelated-422-line", "unrelated-422-comment", "unrelated-comment", "success-then-failure", "comment-position"} {
 		t.Run(scenario, func(t *testing.T) {
+			local := scenario == "provider-failure" || scenario == "cleanup-failure" || scenario == "local-success" || scenario == "local-cancel" || scenario == "partial-provider-failure" || scenario == "workspace-failure" || scenario == "profile-read-failure" || scenario == "existing-profile"
 			root := t.TempDir()
 			stepSummary := filepath.Join(root, "step-summary")
 			t.Cleanup(func() {
 				data, err := os.ReadFile(stepSummary)
-				if err != nil || strings.Count(string(data), "## AI review:") != 1 || strings.Contains(string(data), "AI review: prepared") {
+				if !local && (err != nil || strings.Count(string(data), "## AI review:") != 1 || strings.Contains(string(data), "AI review: prepared")) {
 					t.Errorf("expected exactly one terminal step summary: %v\n%s", err, data)
 				}
 			})
@@ -47,7 +48,7 @@ func TestPRReview(t *testing.T) {
 			if validatorMode&0o111 == 0 {
 				t.Fatalf("validator must be executable: mode %o", validatorMode)
 			}
-			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/review/validate-agent-output.sh": validator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
+			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/pr-review-local.sh": mustRead(t, "../scripts/pr-review-local.sh"), "scripts/review/validate-agent-output.sh": validator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
 				mode := os.FileMode(0o700)
 				if name == "scripts/review/validate-agent-output.sh" {
 					mode = validatorMode
@@ -62,7 +63,7 @@ func TestPRReview(t *testing.T) {
 			prepare.Env = append(os.Environ(), "PATH="+root+string(os.PathListSeparator)+os.Getenv("PATH"),
 				"FAKE_SCENARIO="+scenario, "TRACE="+filepath.Join(root, "trace"), "READY="+filepath.Join(root, "ready"),
 				"REVIEW_DIR="+filepath.Join(root, "review"), "REVIEW_REPOSITORY=owner/repo", "REVIEW_PR=1", "REVIEW_HEAD=", "GITHUB_OUTPUT="+filepath.Join(root, "output"),
-				"GITHUB_STEP_SUMMARY="+stepSummary, "GOOGLE_VERTEX_AI_TOKEN=fake", "VERTEX_AI_PROJECT_ID=test-project", "GITHUB_TOKEN=fake", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
+				"GITHUB_STEP_SUMMARY="+stepSummary, "GOOGLE_VERTEX_AI_TOKEN=", "VERTEX_AI_PROJECT_ID=", "GITHUB_TOKEN=", "OPENSHELL_GATEWAY=managed-test", "OPENSHELL_WORKSPACE=shared-test", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
 			out, err := prepare.CombinedOutput()
 			if scenario == "oversized" {
 				if err == nil {
@@ -87,13 +88,19 @@ func TestPRReview(t *testing.T) {
 				}
 			}
 			cmd := exec.CommandContext(ctx, "bash", filepath.Join(root, "scripts/pr-review.sh"), "run")
+			if local {
+				cmd = exec.CommandContext(ctx, "bash", filepath.Join(root, "scripts/pr-review-local.sh"))
+			}
 			cmd.Env = prepare.Env
+			if local {
+				cmd.Env = append(cmd.Env, "GOOGLE_VERTEX_AI_TOKEN=fake", "VERTEX_AI_PROJECT_ID=test-project", "GITHUB_TOKEN=fake")
+			}
 			var logs bytes.Buffer
 			cmd.Stdout, cmd.Stderr = &logs, &logs
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
 			}
-			if scenario == "cancel" {
+			if scenario == "cancel" || scenario == "local-cancel" {
 				for {
 					if _, err := os.Stat(filepath.Join(root, "ready")); err == nil {
 						_ = cmd.Process.Signal(syscall.SIGTERM)
@@ -108,26 +115,57 @@ func TestPRReview(t *testing.T) {
 				}
 			}
 			err = cmd.Wait()
-			if (err == nil) != (scenario == "success" || scenario == "stale" || scenario == "sandbox-gone" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") {
+			if (err == nil) != (scenario == "success" || scenario == "stale" || scenario == "local-success" || scenario == "existing-profile" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") {
 				t.Fatalf("unexpected result: %v\n%s", err, logs.String())
 			}
 			trace, _ := os.ReadFile(filepath.Join(root, "trace"))
 			if scenario == "tampered" {
-				if strings.Contains(string(trace), "workspace create") {
-					t.Fatal("changed diff reached workspace creation")
+				if strings.Contains(string(trace), "workflow apply") {
+					t.Fatal("changed diff reached the runner")
 				}
 				return
 			}
-			for _, action := range []string{"sandbox delete", "workspace delete"} {
-				if !strings.Contains(string(trace), action) {
-					t.Fatalf("missing cleanup: %s", trace)
+			if strings.Contains(string(trace), "sandbox delete") {
+				t.Fatal("review wrapper must leave sandbox cleanup to the runner")
+			}
+			if !local {
+				for _, action := range []string{"workspace ", "provider ", "inference ", "--gateway", "--workspace"} {
+					if strings.Contains(string(trace), action) {
+						t.Fatalf("existing-target review performed setup or forced a target: %s", trace)
+					}
+				}
+				if !strings.Contains(string(trace), "target managed-test shared-test") {
+					t.Fatal("configured target environment was not preserved")
+				}
+			} else {
+				if strings.Contains(string(trace), "workspace delete") == (scenario == "workspace-failure") {
+					t.Fatalf("incorrect workspace cleanup: %s", trace)
+				}
+				if scenario == "provider-failure" && strings.Contains(string(trace), "provider delete") {
+					t.Fatal("deleted a provider that was not created")
+				}
+				if scenario == "existing-profile" && strings.Contains(string(trace), "provider profile delete") {
+					t.Fatal("deleted an existing profile")
+				}
+				if scenario == "profile-read-failure" && strings.Contains(string(trace), "provider profile import") {
+					t.Fatal("profile read failure triggered an import")
+				}
+				if scenario == "partial-provider-failure" {
+					if !strings.Contains(string(trace), "provider delete") {
+						t.Fatal("missing cleanup of created Vertex provider")
+					}
+					for _, line := range strings.Split(string(trace), "\n") {
+						if strings.HasPrefix(line, "provider delete ") && strings.HasSuffix(line, " github-review") {
+							t.Fatal("deleted uncreated GitHub provider")
+						}
+					}
+				}
+				if scenario == "local-cancel" && (strings.Index(string(trace), "runner stopped") < 0 || strings.Index(string(trace), "runner stopped") > strings.Index(string(trace), "workspace delete")) {
+					t.Fatal("workspace deleted before runner stopped")
 				}
 			}
-			if strings.Contains(string(trace), "provider delete") == (scenario == "provider-failure") {
-				t.Fatal("provider cleanup must follow creation")
-			}
 			summary, _ := os.ReadFile(filepath.Join(root, "review/summary.md"))
-			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success" || scenario == "sandbox-gone" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") || strings.Contains(string(summary), "MODEL_OUTPUT") {
+			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success" || scenario == "local-success" || scenario == "existing-profile" || scenario == "cleanup-failure" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") || strings.Contains(string(summary), "MODEL_OUTPUT") {
 				t.Fatalf("incorrect or model-controlled summary: %s", summary)
 			}
 		})
@@ -135,7 +173,7 @@ func TestPRReview(t *testing.T) {
 }
 
 func TestGitHubAppTokenIsHostOnly(t *testing.T) {
-	script, err := os.ReadFile("../scripts/pr-review.sh")
+	script, err := os.ReadFile("../scripts/pr-review-local.sh")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,14 +181,14 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 		t.Fatal("review wrapper does not use the endpointless github-review provider profile")
 	}
 	if !strings.Contains(string(script), "provider profile import") ||
-		!strings.Contains(string(script), "workloads/github-pr-reviewer/openshell/providers/github-review.yaml") {
+		!strings.Contains(string(script), "tasks/github-pr-reviewer/openshell/providers/github-review.yaml") {
 		t.Fatal("review wrapper does not bootstrap the endpointless github-review profile")
 	}
 	if !strings.Contains(string(script), "provider profile delete") {
 		t.Fatal("review wrapper does not clean up an imported provider profile")
 	}
-	if !strings.Contains(string(script), `REVIEW_SKILL="${REVIEW_SKILL:-skills/pr-review/SKILL.md}"`) {
-		t.Fatal("review wrapper default skill path is not relative to the workflow file")
+	if !strings.Contains(string(mustRead(t, "../scripts/pr-review.sh")), `REVIEW_SKILL="${REVIEW_SKILL:-$PWD/tasks/github-pr-reviewer/workflow/skills/pr-review/SKILL.md}"`) {
+		t.Fatal("review wrapper default skill must resolve from the trusted checkout")
 	}
 
 	caller := string(mustRead(t, "../.github/workflows/ai-review.yml"))
@@ -221,6 +259,13 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	data, err := os.ReadFile("../tasks/github-pr-reviewer/workflow/opencode-harness.yaml")
 	if err != nil {
 		t.Fatal(err)
+	}
+	var task map[string]any
+	if err := yaml.Unmarshal(data, &task); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := task["inference"]; ok {
+		t.Fatal("review task must consume the route owned by setup")
 	}
 	example := string(data)
 	if !strings.Contains(example, "providers: [github-review]") {
@@ -302,14 +347,20 @@ if [[ "${0##*/}" == gh ]]; then
   exit 0
 fi
 case "$1 ${2:-}" in
-  'sandbox delete') [[ "$FAKE_SCENARIO" != sandbox-gone ]] || { echo 'sandbox not found' >&2; exit 1; } ;;
-  'provider create') [[ "$FAKE_SCENARIO" != provider-failure ]] ;;
+  'workspace create') [[ "$FAKE_SCENARIO" != workspace-failure ]] ;;
+  'provider list-profiles')
+    [[ "$FAKE_SCENARIO" != profile-read-failure ]] || exit 1
+    if [[ "$FAKE_SCENARIO" == existing-profile ]]; then echo '[{"id":"github-review"}]'; else echo '[]'; fi ;;
+  'provider create')
+    [[ "$FAKE_SCENARIO" != provider-failure ]] || exit 1
+    if [[ "$FAKE_SCENARIO" == partial-provider-failure && "$*" == *'--name github-review '* ]]; then exit 1; fi ;;
   'workspace delete') [[ "$FAKE_SCENARIO" != cleanup-failure ]] ;;
   'workflow apply')
+    printf 'target %s %s\n' "${OPENSHELL_GATEWAY:-}" "${OPENSHELL_WORKSPACE:-}" >> "$TRACE"
     touch "$READY"
     printf 'diagnostic without trailing newline' >&2
     case "$FAKE_SCENARIO" in
-      cancel) trap 'exit 143' TERM; while :; do sleep 0.1; done ;;
+      cancel|local-cancel) trap 'echo "runner stopped" >> "$TRACE"; exit 143' TERM; while :; do sleep 0.1; done ;;
       agent-failure) exit 42 ;;
     esac
     printf '%s\n' 'harness status'
@@ -334,6 +385,7 @@ case "$1 ${2:-}" in
       success-then-failure) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":0},"output":"unrelated success"}}}'; printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"ordinary command failed"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
       comment-position) printf '%s\n' '{"type":"tool_use","part":{"state":{"status":"completed","metadata":{"exit":1},"output":"comment position is invalid"}}}'; printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
       *) printf '%s\n' '{"type":"step_finish","part":{"reason":"stop"}}' ;;
-    esac ;;
+    esac
+    [[ "$FAKE_SCENARIO" != status-failure ]] || exit 42 ;;
 esac
 `

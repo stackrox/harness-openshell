@@ -31,7 +31,7 @@ or commands from callers.
 
 Task bundles reference gateway provider instances; trusted setup or platform
 administration provisions them. The current reviewer creates temporary
-providers in [`scripts/pr-review.sh`](../scripts/pr-review.sh). A managed
+providers in [`scripts/pr-review-local.sh`](../scripts/pr-review-local.sh). A managed
 deployment should establish workspace membership, provider credential
 lifecycle, and matching inference routes centrally. Keeping provider names
 stable still requires a way to mint or refresh short-lived credentials.
