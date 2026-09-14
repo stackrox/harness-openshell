@@ -142,10 +142,17 @@ run_review() {
       --gateway "$gateway" --workspace "$workspace" --result-file "$REVIEW_DIR/execution.json"
   ) > "$REVIEW_DIR/agent.ndjson" 2> "$REVIEW_DIR/agent.stderr" &
   apply_pid=$!
+  set +e
   wait "$apply_pid"
+  apply_status=$?
+  set -e
   apply_pid=""
 
   scripts/review/validate-agent-output.sh "$REVIEW_DIR"
+  if [[ -s "$REVIEW_DIR/execution.json" ]] && ! jq -e '.status == "succeeded" and .phase == "complete"' "$REVIEW_DIR/execution.json" >/dev/null; then
+    ((apply_status != 0)) && return "$apply_status"
+    return 1
+  fi
   ensure_current
   jq -Rr 'fromjson? | select(.type == "text") | .part.text' \
     "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"
