@@ -1,0 +1,40 @@
+version: 1
+name: acs-ci-nightly
+
+inference:
+  route: inference.local
+  provider: vertex-claude-triage
+  model: claude-opus-4-1@20250805
+
+sandbox:
+  image: ${ACS_TRIAGE_IMAGE}
+  policy:
+    file: ../openshell/policy.yaml
+  providers:
+    - atlassian-triage-read
+    - prow-gcs-read
+  env:
+    JIRA_URL: https://redhat.atlassian.net
+    CONFLUENCE_URL: https://redhat.atlassian.net/wiki
+    READ_ONLY_MODE: "true"
+    TRIAGE_RUN_URL: ${TRIAGE_RUN_URL}
+
+source:
+  repo: https://github.com/stackrox/acs-triage-agent.git
+  ref: ${ACS_TRIAGE_REF}
+  destination: /sandbox/acs-triage-agent
+
+payloads:
+  - source: CI-NIGHTLY.md
+    destination: /sandbox/CI-NIGHTLY.md
+
+agent:
+  type: claude
+  args:
+    - --print
+    - Read /sandbox/CI-NIGHTLY.md and execute the read-only CI nightly task exactly as instructed.
+
+outputs:
+  - source: /sandbox/acs-triage-agent/artifacts/ci-triage.json
+    destination: ci-triage.json
+    required: false

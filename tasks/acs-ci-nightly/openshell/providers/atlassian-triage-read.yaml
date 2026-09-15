@@ -1,0 +1,22 @@
+# Endpointless read-only Atlassian profile for ACS triage.
+# Provider instances and credential values are gateway-owned.
+id: atlassian-triage-read
+display_name: Atlassian triage read-only
+description: Jira and Confluence credentials restricted by the ACS CI triage policy
+category: knowledge
+credentials:
+  - name: username
+    description: Gateway-managed Atlassian username
+    env_vars: [JIRA_EMAIL, JIRA_USERNAME, CONFLUENCE_USERNAME]
+    required: true
+  - name: api_token
+    description: Gateway-managed Atlassian API token
+    env_vars: [JIRA_API_TOKEN, CONFLUENCE_API_TOKEN]
+    required: true
+    auth_style: basic
+    header_name: authorization
+discovery:
+  credentials: [username, api_token]
+binaries:
+  - /sandbox/.venv/bin/mcp-atlassian
+  - /usr/bin/curl
