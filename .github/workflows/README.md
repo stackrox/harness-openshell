@@ -16,7 +16,7 @@ reference and its `harness-ref` input to the same immutable commit SHA.
 
 ## Gateway setup: local CI and managed deployment
 
-The reviewer invokes [`setup-openshell`](../actions/setup-openshell/action.yml)
+For local CI, the reviewer invokes [`setup-openshell`](../actions/setup-openshell/action.yml)
 to install the pinned OpenShell CLI and wait for the local CI gateway. The
 [`scripts/pr-review-local.sh`](../../scripts/pr-review-local.sh) wrapper creates
 the temporary workspace/providers and configures inference. It calls
@@ -25,16 +25,18 @@ afterward. The review script stages the diff in `prepare`, checks eligibility,
 renders the PR-specific policy, invokes the CLI, and validates output. The CLI
 composes the task and manages its sandbox lifecycle.
 
-The CLI already supports a direct managed-gateway connection. Moving this
-review job to the intended managed StackRox deployment still requires platform
-ownership of workspace membership, provider credentials and their refresh or
-expiry, matching inference routes, and CI network access. A pre-provisioned
-provider name does not by itself keep a short-lived GitHub token usable.
-See [managed reviewer requirements](../../docs/ci.md#managed-reviewer-transition).
+Set the caller repository's `OPENSHELL_GATEWAY_ENDPOINT` and complete the
+[managed connection configuration](../../docs/ci.md#managed-reviewer-transition)
+to run the same review against HyperShell. This path calls `pr-review.sh run`
+directly with OIDC connection metadata and a gateway service-account secret.
+It skips local OpenShell installation, Google authentication, and temporary
+provider setup. Partial managed configuration fails before the task runs.
 
-Once that contract is established, replace the job's local setup and temporary
-provider bootstrap with managed authentication and `pr-review.sh run`. Preserve the task's allowed
-operations and equivalent OpenShell policy and provider boundaries.
+The platform supplies workspace membership, the `github-review` provider and
+credential refresh, and the Gemini 2.5 Pro `inference.local` route. The host's
+GitHub App token still serves PR metadata checks; it does not update the managed
+provider. `OPENSHELL_RUNNER` selects a Linux runner with access to the gateway
+and issuer. The default remains `ubuntu-latest`.
 
 Comments may be posted during agent execution. Artifacts retain diagnostics;
 cleanup or cancellation does not undo GitHub operations that already succeeded.

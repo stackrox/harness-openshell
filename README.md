@@ -12,13 +12,13 @@ inside the sandbox. Trusted setup supplies a GitHub App token scoped to the
 target repository and required permissions. OpenShell holds the provider
 credential and mediates GitHub REST requests using a task-specific policy.
 
-The intended StackRox deployment connects repository workflows to a
-platform-managed gateway. The CLI already supports local and direct managed
-connections; the current reusable reviewer uses
-[`setup-openshell`](.github/actions/setup-openshell/action.yml) and a
-[local setup wrapper](scripts/pr-review-local.sh) to prepare a local CI gateway
-and temporary workspace. [`pr-review.sh`](scripts/pr-review.sh) prepares and
-runs the review against that target or an already-configured target.
+Repository workflows can use a HyperShell-managed gateway through the existing
+OpenShell SDK connection. The reusable reviewer selects that path when the
+caller configures `OPENSHELL_GATEWAY_ENDPOINT`; platform setup supplies workspace
+access, providers, and the v0.0.109 `inference.local` route. Without managed
+connection settings, [`setup-openshell`](.github/actions/setup-openshell/action.yml)
+and the [local wrapper](scripts/pr-review-local.sh) prepare temporary CI resources.
+[`pr-review.sh`](scripts/pr-review.sh) prepares and runs the same review task.
 
 ## What an agent can do
 
@@ -122,23 +122,17 @@ data. The `ai-review` label is explicit opt-in. See
 | [`scripts/pr-review.sh`](scripts/pr-review.sh) | Stage the diff, check PR eligibility, render the PR policy, invoke the CLI, and validate the output |
 | [`harness` CLI](runner/) | Compose the task and manage its sandbox lifecycle |
 
-The current reviewer uses a local gateway on the CI runner. The CLI's direct
-managed-gateway connection is implemented, but the reusable reviewer has not
-been switched to that connection and platform bootstrap contract.
+The managed path authenticates to an existing gateway with a service account
+and creates only the task sandbox. The platform owns workspace membership,
+provider credentials and refresh, and the matching inference route. The local
+path uses the setup action and wrapper above.
 
-In the intended managed deployment, the GitHub job authenticates to a gateway
-operated outside that job. The platform owns workspace membership, provider
-lifecycle, and matching inference routes. The task retains its behavior and
-allowed operations when the managed environment supplies equivalent providers,
-policy support, and inference configuration.
-
-A pre-provisioned provider name still needs usable credentials. The managed
-integration must establish who mints or refreshes short-lived GitHub App tokens,
-how their repository and permission scope is selected, and how credentials
-expire or are replaced. It also needs an agreed workspace boundary and CI
-network access. The documented HyperShell environment, for example, currently
-requires access to its VPN-only OIDC issuer. See
-[the managed transition requirements](docs/ci.md#managed-reviewer-transition).
+Configure the caller's connection variables and secret using the
+[managed reviewer instructions](docs/ci.md#managed-reviewer-transition).
+The selected Linux runner must reach both the gateway and its OIDC issuer;
+use a runner on the Red Hat network when the issuer is private. The integration
+target is HyperShell's OpenShell v0.0.109 deployment. Local CLI and SDK pins
+remain unchanged; the exact SDK/server combination still requires live validation.
 
 ## Run a task locally
 

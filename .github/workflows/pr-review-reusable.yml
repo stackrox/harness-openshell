@@ -23,9 +23,11 @@ on:
         type: string
     secrets:
       VERTEX_AI_SERVICE_ACCOUNT_KEY:
-        required: true
+        required: false # Local gateway only.
       OPENSHELL_GITHUB_APP_PRIVATE_KEY:
         required: true
+      OPENSHELL_OIDC_CLIENT_SECRET:
+        required: false # Managed gateway only.
 
 permissions:
   contents: read
@@ -36,16 +38,37 @@ jobs:
       (!github.event.pull_request.draft || inputs.allow-draft-reviews) &&
       (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
       (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
-    runs-on: ubuntu-latest
+    # Use a Linux runner with access to the managed gateway AND its OIDC issuer.
+    runs-on: ${{ vars.OPENSHELL_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     concurrency:
       group: ai-review-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
+    env:
+      # An endpoint selects the existing direct SDK connection; no CLI registration.
+      OPENSHELL_GATEWAY: ''
+      OPENSHELL_GATEWAY_ENDPOINT: ${{ vars.OPENSHELL_GATEWAY_ENDPOINT }}
+      OPENSHELL_WORKSPACE: ${{ vars.OPENSHELL_WORKSPACE }}
+      OPENSHELL_OIDC_ISSUER: ${{ vars.OPENSHELL_OIDC_ISSUER }}
+      OPENSHELL_OIDC_CLIENT_ID: ${{ vars.OPENSHELL_OIDC_CLIENT_ID }}
+      OPENSHELL_OIDC_AUDIENCE: ${{ vars.OPENSHELL_OIDC_AUDIENCE }}
     steps:
       - name: Validate immutable Harness revision
         env:
           HARNESS_REF: ${{ inputs.harness-ref }}
         run: '[[ "$HARNESS_REF" =~ ^[0-9a-f]{40}$ ]]'
+      - name: Validate gateway configuration
+        env:
+          OPENSHELL_OIDC_CLIENT_SECRET: ${{ secrets.OPENSHELL_OIDC_CLIENT_SECRET }}
+          VERTEX_AI_SERVICE_ACCOUNT_KEY: ${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}
+        run: |
+          if [[ -n "$OPENSHELL_GATEWAY_ENDPOINT$OPENSHELL_WORKSPACE$OPENSHELL_OIDC_ISSUER$OPENSHELL_OIDC_CLIENT_ID$OPENSHELL_OIDC_AUDIENCE$OPENSHELL_OIDC_CLIENT_SECRET" ]]; then
+            for key in OPENSHELL_GATEWAY_ENDPOINT OPENSHELL_WORKSPACE OPENSHELL_OIDC_ISSUER OPENSHELL_OIDC_CLIENT_ID OPENSHELL_OIDC_AUDIENCE OPENSHELL_OIDC_CLIENT_SECRET; do
+              [[ -n "${!key}" ]] || { echo "::error::Managed review requires $key"; exit 1; }
+            done
+          else
+            [[ -n "$VERTEX_AI_SERVICE_ACCOUNT_KEY" ]] || { echo '::error::Local review requires VERTEX_AI_SERVICE_ACCOUNT_KEY'; exit 1; }
+          fi
       # Checkout only default-branch content from the caller. The PR head is data.
       - uses: actions/checkout@v7
         with:
@@ -96,19 +119,19 @@ jobs:
           REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
         run: bash scripts/pr-review.sh prepare
       - uses: ./harness/.github/actions/setup-openshell
-        if: steps.prepare.outputs.eligible == 'true'
+        if: steps.prepare.outputs.eligible == 'true' && vars.OPENSHELL_GATEWAY_ENDPOINT == ''
         env:
           OPENSHELL_ROOT: harness
       - name: Authenticate to Google Cloud
-        if: steps.prepare.outputs.eligible == 'true'
+        if: steps.prepare.outputs.eligible == 'true' && vars.OPENSHELL_GATEWAY_ENDPOINT == ''
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           project_id: ${{ vars.VERTEX_AI_PROJECT_ID }}
           credentials_json: ${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-        if: steps.prepare.outputs.eligible == 'true'
+        if: steps.prepare.outputs.eligible == 'true' && vars.OPENSHELL_GATEWAY_ENDPOINT == ''
       - name: Review in isolated OpenShell workspace
-        if: steps.prepare.outputs.eligible == 'true'
+        if: steps.prepare.outputs.eligible == 'true' && vars.OPENSHELL_GATEWAY_ENDPOINT == ''
         working-directory: harness
         env:
           GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
@@ -125,6 +148,18 @@ jobs:
           echo "::add-mask::$token"
           export GOOGLE_VERTEX_AI_TOKEN="$token"
           bash scripts/pr-review-local.sh
+      - name: Review on managed OpenShell
+        if: steps.prepare.outputs.eligible == 'true' && vars.OPENSHELL_GATEWAY_ENDPOINT != ''
+        working-directory: harness
+        env:
+          OPENSHELL_OIDC_CLIENT_SECRET: ${{ secrets.OPENSHELL_OIDC_CLIENT_SECRET }}
+          GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
+          ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
+          REVIEW_REPOSITORY: ${{ github.repository }}
+          REVIEW_PR: ${{ github.event.pull_request.number }}
+          REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
+          REVIEW_SKILL: ${{ github.workspace }}/harness/skills/pr-review/SKILL.md
+        run: bash scripts/pr-review.sh run
       - uses: actions/upload-artifact@v7
         if: always() && steps.prepare.outputs.eligible == 'true'
         with:
