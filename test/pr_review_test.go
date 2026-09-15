@@ -335,6 +335,17 @@ func mustRead(t *testing.T, path string) []byte {
 const fakeReviewCommand = `#!/usr/bin/env bash
 set -eu
 printf '%s\n' "$*" >> "$TRACE"
+assert_name_length() {
+  local name="" next
+  for ((i = 1; i <= $#; i++)); do
+    if [[ "${!i}" == --name ]]; then
+      next=$((i + 1))
+      ((next <= $#)) || return 1
+      name="${!next}"
+    fi
+  done
+  [[ -n "$name" && ${#name} -le 19 ]]
+}
 if [[ "${0##*/}" == gh ]]; then
   if [[ "$2" == */compare/* ]]; then
     if [[ "$FAKE_SCENARIO" == oversized ]]; then head -c 262145 /dev/zero; else printf 'diff data\n'; fi
@@ -347,7 +358,7 @@ if [[ "${0##*/}" == gh ]]; then
   exit 0
 fi
 case "$1 ${2:-}" in
-  'workspace create') [[ "$FAKE_SCENARIO" != workspace-failure ]] ;;
+  'workspace create') assert_name_length "$@" && [[ "$FAKE_SCENARIO" != workspace-failure ]] ;;
   'provider list-profiles')
     [[ "$FAKE_SCENARIO" != profile-read-failure ]] || exit 1
     if [[ "$FAKE_SCENARIO" == existing-profile ]]; then echo '[{"id":"github-review"}]'; else echo '[]'; fi ;;
@@ -356,6 +367,7 @@ case "$1 ${2:-}" in
     if [[ "$FAKE_SCENARIO" == partial-provider-failure && "$*" == *'--name github-review '* ]]; then exit 1; fi ;;
   'workspace delete') [[ "$FAKE_SCENARIO" != cleanup-failure ]] ;;
   'workflow apply')
+    assert_name_length "$@" || exit 1
     printf 'target %s %s\n' "${OPENSHELL_GATEWAY:-}" "${OPENSHELL_WORKSPACE:-}" >> "$TRACE"
     touch "$READY"
     printf 'diagnostic without trailing newline' >&2
