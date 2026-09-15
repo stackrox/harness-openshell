@@ -113,9 +113,7 @@ run_review() {
 
   ((apply_status == 0)) || return "$apply_status"
   scripts/review/validate-agent-output.sh "$REVIEW_DIR"
-  if [[ -s "$REVIEW_DIR/execution.json" ]] && ! jq -e '.status == "succeeded" and .phase == "complete"' "$REVIEW_DIR/execution.json" >/dev/null; then
-    return 1
-  fi
+  jq -e '.status == "succeeded" and .phase == "complete"' "$REVIEW_DIR/execution.json" >/dev/null
   ensure_current
   jq -Rr 'fromjson? | select(.type == "text") | .part.text' \
     "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"

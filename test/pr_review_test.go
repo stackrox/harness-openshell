@@ -160,7 +160,7 @@ func TestPRReview(t *testing.T) {
 						}
 					}
 				}
-				if scenario == "local-cancel" && (strings.Index(string(trace), "runner stopped") < 0 || strings.Index(string(trace), "runner stopped") > strings.Index(string(trace), "workspace delete")) {
+				if scenario == "local-cancel" && (!strings.Contains(string(trace), "runner stopped") || strings.Index(string(trace), "runner stopped") > strings.Index(string(trace), "workspace delete")) {
 					t.Fatal("workspace deleted before runner stopped")
 				}
 			}
@@ -363,6 +363,16 @@ case "$1 ${2:-}" in
       cancel|local-cancel) trap 'echo "runner stopped" >> "$TRACE"; exit 143' TERM; while :; do sleep 0.1; done ;;
       agent-failure) exit 42 ;;
     esac
+    result_file=""
+    for ((i = 1; i <= $#; i++)); do
+      if [[ "${!i}" == --result-file ]]; then
+        next=$((i + 1))
+        ((next <= $#)) && result_file="${!next}"
+      fi
+    done
+    if [[ -n "$result_file" ]]; then
+      printf '%s\n' '{"status":"succeeded","phase":"complete"}' > "$result_file"
+    fi
     printf '%s\n' 'harness status'
     if [[ "$FAKE_SCENARIO" == empty ]]; then
       printf '%s\n' '{"type":"text","part":{"text":" "}}'

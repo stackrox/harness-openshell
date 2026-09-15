@@ -55,7 +55,7 @@ timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspa
   --name github-review --type github-review --credential GITHUB_TOKEN
 created_github=true
 timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" \
-  --provider vertex-review --model gemini-2.5-pro --no-verify
+  --provider vertex-review --model gemini-2.5-pro
 OPENSHELL_GATEWAY="$gateway" OPENSHELL_WORKSPACE="$workspace" bash scripts/pr-review.sh run &
 review_pid=$!
 set +e
