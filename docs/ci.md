@@ -99,8 +99,9 @@ comments only; they do not approve, request changes, or merge.
 
 The active reviewer runs OpenCode with Gemini 2.5 Pro through `inference.local`
 and Google Vertex AI. The model is selected in
-[`scripts/pr-review.sh`](../scripts/pr-review.sh) and
-[`opencode-harness.yaml`](../tasks/github-pr-reviewer/workflow/opencode-harness.yaml).
+[`scripts/pr-review-local.sh`](../scripts/pr-review-local.sh) and the agent
+arguments in [`opencode-harness.yaml`](../tasks/github-pr-reviewer/workflow/opencode-harness.yaml).
+The task consumes the existing inference route; it does not configure it.
 Keep those selections aligned and verify model access with the CI identity
 when changing them.
 
@@ -132,8 +133,22 @@ make cli
 export REVIEW_REPOSITORY=stackrox/harness-openshell REVIEW_PR=123
 export REVIEW_DIR="$PWD/review-artifacts-123"
 bash scripts/pr-review.sh prepare
-bash scripts/pr-review.sh run
+bash scripts/pr-review-local.sh
 ```
+
+The local wrapper needs a reachable local gateway and a repository-scoped
+`GITHUB_TOKEN` for provider bootstrap, in addition to the Vertex variables.
+It creates a fresh workspace, runs the review, and removes its setup resources.
+A setup or teardown failure fails the command.
+
+For an already-configured target, run `bash scripts/pr-review.sh run` after
+preparation instead. Select a registered gateway/workspace with
+`OPENSHELL_GATEWAY` and `OPENSHELL_WORKSPACE`, or use the existing
+`target.registration` fields in the trusted task document for a direct
+connection (see [workflow contract](#workflow-contract)). The review command
+uses the selected target and only creates its task sandbox. It needs host `gh`
+authentication for PR checks, while the platform supplies the `github-review`
+provider with usable credentials and the Gemini 2.5 Pro inference route.
 
 Unit tests use fake commands, not Vertex. The agent can already publish inline
 comments directly through the allowed API endpoint. A structured findings
@@ -144,14 +159,15 @@ format and a separate publication stage remain deferred.
 The [reusable workflow](../.github/workflows/pr-review-reusable.yml) invokes
 [`setup-openshell`](../.github/actions/setup-openshell/action.yml), which installs
 the pinned OpenShell CLI and waits for gateway readiness. This CI path uses a
-local gateway. The trusted [`scripts/pr-review.sh`](../scripts/pr-review.sh)
-wrapper creates a temporary workspace, registers `github-review` and
-`vertex-review`, configures inference, renders the PR-specific policy, and
-invokes the `harness` CLI. The wrapper removes the temporary providers and
-workspace during cleanup.
+local gateway. [`scripts/pr-review-local.sh`](../scripts/pr-review-local.sh)
+creates a temporary workspace, registers `github-review` and `vertex-review`,
+and configures inference. It calls [`pr-review.sh run`](../scripts/pr-review.sh),
+then removes the providers, any profile it imported, and the workspace.
 
-The CLI verifies provider references and manages sandbox execution. It does
-not perform the wrapper's provider provisioning or handle provider credentials.
+`pr-review.sh` handles PR checks, diff preparation, policy rendering, and output
+validation. It invokes the existing `harness workflow apply` command with a
+unique sandbox name. The CLI owns sandbox execution and deletion, including
+normal cancellation; the local wrapper waits for it before tearing down setup.
 
 ## Managed reviewer transition
 
@@ -171,10 +187,16 @@ agreed managed integration contract:
 - **Inference and policy:** a matching provider/model route and equivalent
   policy enforcement, so ordinary task runs can use existing references.
 
-Once these requirements are met, replace the reviewer's local gateway and
-temporary provider setup with managed authentication and platform-owned
-resources. Preserve the task inputs and allowed GitHub operations. This
-transition does not require adding provider management to the `harness` CLI.
+Once these requirements are met, replace `setup-openshell`, Google bootstrap,
+and `pr-review-local.sh` in the job with managed authentication and
+`bash scripts/pr-review.sh run`. Keep host GitHub authentication for preparation
+and PR checks. The task inputs, review command, and allowed GitHub operations
+stay the same. The reusable workflow currently exposes only the local CI path;
+the review command provides the execution step for a future managed caller.
+
+The POC deliberately fixes the task document, `github-review` provider name,
+and Gemini 2.5 Pro model. Configure a managed target through the existing
+workflow format and provide those resources before invoking it.
 
 The following bootstrap examples describe the managed validation environment;
 they are not evidence that the reusable reviewer has completed this transition.

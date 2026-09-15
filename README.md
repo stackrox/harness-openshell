@@ -16,8 +16,9 @@ The intended StackRox deployment connects repository workflows to a
 platform-managed gateway. The CLI already supports local and direct managed
 connections; the current reusable reviewer uses
 [`setup-openshell`](.github/actions/setup-openshell/action.yml) and a
-[trusted wrapper](scripts/pr-review.sh) to prepare a local CI gateway and
-temporary workspace.
+[local setup wrapper](scripts/pr-review-local.sh) to prepare a local CI gateway
+and temporary workspace. [`pr-review.sh`](scripts/pr-review.sh) prepares and
+runs the review against that target or an already-configured target.
 
 ## What an agent can do
 
@@ -117,7 +118,8 @@ data. The `ai-review` label is explicit opt-in. See
 |---|---|
 | [Reusable workflow](.github/workflows/pr-review-reusable.yml) | Trusted checkout, job permissions, App token, and setup/execution steps |
 | [`setup-openshell`](.github/actions/setup-openshell/action.yml) | Invoke the installer for the pinned OpenShell CLI release and wait for gateway readiness |
-| [`scripts/pr-review.sh`](scripts/pr-review.sh) | Stage the diff, create a temporary workspace and providers, configure inference, render the PR policy, and invoke the CLI |
+| [`scripts/pr-review-local.sh`](scripts/pr-review-local.sh) | Create temporary workspace/providers, configure inference, run the review, and remove its setup resources |
+| [`scripts/pr-review.sh`](scripts/pr-review.sh) | Stage the diff, check PR eligibility, render the PR policy, invoke the CLI, and validate the output |
 | [`harness` CLI](runner/) | Compose the task and manage its sandbox lifecycle |
 
 The current reviewer uses a local gateway on the CI runner. The CLI's direct
@@ -185,7 +187,8 @@ agent, collects declared output files, and deletes the sandbox.
 | Consuming repository | Opt-in triggers, trusted task inputs, review criteria, and approval rules |
 | [.github/workflows/](.github/workflows/) | Repository CI and reusable jobs with fixed permissions, trusted checkout, concurrency, and task selection |
 | [.github/actions/setup-openshell/](.github/actions/setup-openshell/action.yml) | OpenShell installation and gateway readiness for the current local CI path |
-| [scripts/pr-review.sh](scripts/pr-review.sh) | Trusted review preparation and temporary workspace/provider bootstrap |
+| [scripts/pr-review.sh](scripts/pr-review.sh) | Trusted review preparation, execution, and output validation |
+| [scripts/pr-review-local.sh](scripts/pr-review-local.sh) | Temporary workspace/provider bootstrap and teardown for local CI |
 | [tasks/](tasks/) | Task instructions, policy, provider references, image selection, payloads, and outputs |
 | [runner/](runner/) | Generic `plan`/`apply` composition and sandbox lifecycle |
 | [images/](images/) | Reusable runtime toolchains |
@@ -208,10 +211,11 @@ durable workflow database, scheduler, release history, or rollback mechanism.
 - GitHub Actions owns run state, labels, artifacts, concurrency, and approvals.
   OpenShell and the platform own gateway runtime resources.
 
-The current inference-route write is a compatibility bridge for isolated or
-explicitly administered workspaces. Shared managed workspaces should have a
-matching route provisioned by the platform so ordinary runs remain
-reference-only. See [docs/ci.md](docs/ci.md) for the credential and setup contract.
+The PR review task consumes `inference.local`; setup owns its configuration.
+The local wrapper configures the route in its temporary workspace, while a
+managed platform supplies the matching route before review execution. Other
+workflow documents can still explicitly request inference reconciliation. See
+[docs/ci.md](docs/ci.md) for the credential and setup contract.
 
 ## CLI
 

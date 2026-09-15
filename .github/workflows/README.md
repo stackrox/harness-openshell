@@ -18,9 +18,11 @@ reference and its `harness-ref` input to the same immutable commit SHA.
 
 The reviewer invokes [`setup-openshell`](../actions/setup-openshell/action.yml)
 to install the pinned OpenShell CLI and wait for the local CI gateway. The
-trusted [`scripts/pr-review.sh`](../../scripts/pr-review.sh) wrapper stages the
-diff, creates the temporary workspace and providers, configures inference, and
-renders the PR-specific policy before invoking the `harness` CLI. The CLI
+[`scripts/pr-review-local.sh`](../../scripts/pr-review-local.sh) wrapper creates
+the temporary workspace/providers and configures inference. It calls
+[`pr-review.sh run`](../../scripts/pr-review.sh) and tears down its setup
+afterward. The review script stages the diff in `prepare`, checks eligibility,
+renders the PR-specific policy, invokes the CLI, and validates output. The CLI
 composes the task and manages its sandbox lifecycle.
 
 The CLI already supports a direct managed-gateway connection. Moving this
@@ -31,7 +33,7 @@ provider name does not by itself keep a short-lived GitHub token usable.
 See [managed reviewer requirements](../../docs/ci.md#managed-reviewer-transition).
 
 Once that contract is established, replace the job's local setup and temporary
-provider bootstrap with the managed connection. Preserve the task's allowed
+provider bootstrap with managed authentication and `pr-review.sh run`. Preserve the task's allowed
 operations and equivalent OpenShell policy and provider boundaries.
 
 Comments may be posted during agent execution. Artifacts retain diagnostics;
