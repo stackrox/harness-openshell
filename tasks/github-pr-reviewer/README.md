@@ -17,8 +17,8 @@ diff as untrusted data.
 - The provider instance must exist when the sandbox starts. The current
   [`scripts/pr-review-local.sh`](../../scripts/pr-review-local.sh) wrapper creates it in a
   temporary workspace from a repository-scoped GitHub App token. A managed
-  integration must supply the instance and its credential lifecycle through
-  trusted setup. The profile contains metadata only, never a credential.
+  integration supplies the instance and its credential lifecycle through
+  platform setup (see [managed CI](../../docs/ci.md#managed-reviewer-transition)). The profile contains metadata only, never a credential.
 - Setup must also configure `inference.local` for the task's Gemini 2.5 Pro
   model. The task consumes that route without reconciling it.
 

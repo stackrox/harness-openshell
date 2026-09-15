@@ -7,8 +7,9 @@ main/tag pushes publish images and update the shared registry cache.
 ## HyperShell validation
 
 HyperShell is the managed OpenShell environment used by these validation
-examples. Validation runs locally from the Red Hat network because its OIDC
-issuer is VPN-only. The `harness` CLI connects directly through the
+examples. The existing local smoke tests use the Red Hat network because that
+issuer is private. Managed review CI can use a Linux runner with the same network
+access; a public gateway alone does not establish issuer reachability. The `harness` CLI connects directly through the
 OpenShell Go SDK. It does not persist a gateway registration or use a gateway
 administrator account at runtime.
 
@@ -74,10 +75,12 @@ endpoints. The Actions job's `contents: read` permission is a separate token
 boundary from these explicitly requested GitHub App permissions.
 
 The workflow accepts the App Client ID as
-`openshell-github-app-client-id`; callers explicitly forward only
-`VERTEX_AI_SERVICE_ACCOUNT_KEY` and `OPENSHELL_GITHUB_APP_PRIVATE_KEY`. The
-token is used on the trusted host for `gh` and native provider bootstrap, then
-passed to OpenShell as the provider credential. It is never included in
+`openshell-github-app-client-id`; callers explicitly forward
+`OPENSHELL_GITHUB_APP_PRIVATE_KEY` and the credential for their gateway path:
+`VERTEX_AI_SERVICE_ACCOUNT_KEY` for local setup, or
+`OPENSHELL_OIDC_CLIENT_SECRET` for managed execution. The App token is used on
+the trusted host for `gh`. Local setup also registers it as the provider
+credential; the managed platform supplies its own scoped provider credential. It is never included in
 sandbox environment variables, payloads, agent arguments, or artifacts.
 Installation tokens expire after one hour and are revoked by the token action
 after the job.
@@ -92,7 +95,8 @@ default branch.
 Once `AI review` is on the default branch, add `ai-review` to an open, non-draft
 PR. It reviews the full diff on labeling and each pushed head; newer runs cancel
 older ones. Removing the label, closing, or drafting the PR disables review.
-It uses the Vertex secret/variables above. Summaries show status, head SHA, and
+Local runs use the Vertex secret/variables above; managed runs use the connection
+configuration below. Summaries show status, head SHA, and
 an artifact link. Seven-day artifacts hold input revisions, diff/hash, execution
 metadata, raw output/diagnostics, and `review.txt`. Reviews are advisory inline
 comments only; they do not approve, request changes, or merge.
@@ -156,50 +160,115 @@ format and a separate publication stage remain deferred.
 
 ## Current reviewer setup
 
-The [reusable workflow](../.github/workflows/pr-review-reusable.yml) invokes
-[`setup-openshell`](../.github/actions/setup-openshell/action.yml), which installs
-the pinned OpenShell CLI and waits for gateway readiness. This CI path uses a
-local gateway. [`scripts/pr-review-local.sh`](../scripts/pr-review-local.sh)
-creates a temporary workspace, registers `github-review` and `vertex-review`,
-and configures inference. It calls [`pr-review.sh run`](../scripts/pr-review.sh),
-then removes the providers, any profile it imported, and the workspace.
+The [reusable workflow](../.github/workflows/pr-review-reusable.yml) uses the
+caller's repository or organization variables to select the connection. With no
+managed connection settings, it invokes [`setup-openshell`](../.github/actions/setup-openshell/action.yml)
+and [`pr-review-local.sh`](../scripts/pr-review-local.sh) for temporary local
+workspace, providers, and inference setup. With a complete managed connection,
+it runs [`pr-review.sh run`](../scripts/pr-review.sh) directly.
 
-`pr-review.sh` handles PR checks, diff preparation, policy rendering, and output
-validation. It invokes the existing `harness workflow apply` command with a
-unique sandbox name. The CLI owns sandbox execution and deletion, including
-normal cancellation; the local wrapper waits for it before tearing down setup.
+`pr-review.sh` handles PR checks, policy rendering, and output validation. The
+existing CLI owns sandbox execution and deletion, including normal cancellation.
+Generated sandbox and temporary workspace names fit v0.0.109's 19-character limit.
 
 ## Managed reviewer transition
 
-Direct managed-gateway connectivity is already implemented in the CLI. The
-reusable reviewer still uses the local setup above; moving it requires an
-agreed managed integration contract:
+This path targets an existing HyperShell OpenShell **v0.0.109** gateway. Keep
+`inference.local` for now. Configure these **repository or organization Actions
+variables in the caller**, not environment-scoped variables:
 
-- **Runtime access:** a CI identity with the required workspace membership,
-  plus network access to the gateway and OIDC issuer. The HyperShell issuer
-  described here is reachable only from the Red Hat network/VPN.
-- **Workspace isolation:** an explicit choice of shared or dedicated workspace
-  and the task's provider names and allowed operations.
-- **Provider credential lifecycle:** platform ownership of GitHub App token
-  minting or refresh, repository and permission selection, and credential
-  replacement or expiry. Pre-provisioning a provider name does not keep an
-  expired installation token usable.
-- **Inference and policy:** a matching provider/model route and equivalent
-  policy enforcement, so ordinary task runs can use existing references.
+| Variable | Value |
+|---|---|
+| `OPENSHELL_GATEWAY_ENDPOINT` | HTTPS gateway URL; selects managed execution |
+| `OPENSHELL_WORKSPACE` | Workspace the service-account subject can access |
+| `OPENSHELL_OIDC_ISSUER` | HTTPS issuer from the gateway connection metadata |
+| `OPENSHELL_OIDC_CLIENT_ID` | Gateway service-account client ID |
+| `OPENSHELL_OIDC_AUDIENCE` | That gateway's audience |
+| `OPENSHELL_RUNNER` | Optional Linux runner label, such as a dedicated `hypershell-ci` label; default `ubuntu-latest` |
 
-Once these requirements are met, replace `setup-openshell`, Google bootstrap,
-and `pr-review-local.sh` in the job with managed authentication and
-`bash scripts/pr-review.sh run`. Keep host GitHub authentication for preparation
-and PR checks. The task inputs, review command, and allowed GitHub operations
-stay the same. The reusable workflow currently exposes only the local CI path;
-the review command provides the execution step for a future managed caller.
+Store `OPENSHELL_OIDC_CLIENT_SECRET` as an Actions secret and forward it explicitly
+from the caller. Any partial managed connection fails validation; it does not
+fall back to creating a local gateway. The workflow clears `OPENSHELL_GATEWAY`
+so a runner's named CLI registration cannot override the direct connection.
+The secret is supplied only to configuration validation and managed execution.
 
-The POC deliberately fixes the task document, `github-review` provider name,
-and Gemini 2.5 Pro model. Configure a managed target through the existing
-workflow format and provide those resources before invoking it.
+The runner needs Bash, `gh`, `jq`, GNU `timeout`, OpenSSL, and access to both the
+gateway and issuer. The workflow installs Go and builds the trusted harness.
+The managed path does not install the OpenShell CLI or authenticate to Google.
+Use a runner on the Red Hat network for a private issuer. A runner label selects
+an existing runner; it does not provision network access.
 
-The following bootstrap examples describe the managed validation environment;
-they are not evidence that the reusable reviewer has completed this transition.
+Before enabling review, the platform owner must:
+
+1. Grant the gateway service-account subject `user` access to the selected
+   workspace. Use a repository-specific workspace for this POC's fixed provider
+   names and repository-scoped credentials.
+2. Import the task's endpointless `github-review` profile and create the provider
+   instance named `github-review`, using a token scoped to the target repository
+   with `Contents: read` and `Pull requests: read/write`. Own its refresh or
+   replacement. The host's newly minted App token is only used for metadata
+   checks on this path; it is not uploaded to the managed provider.
+3. Configure and verify the workspace's `inference.local` route for Gemini 2.5
+   Pro and keep its Vertex credentials usable. The Haiku smoke example below
+   exercises a different model and is not proof that this review route works.
+4. Verify the effective REST method/path restrictions and credential binding on
+   the deployed gateway. HyperShell's reviewed v109 gateway configuration
+   disables process-binary-aware network policy, so do not assume the task's
+   binary restrictions are enforced there.
+
+Native profile import already accepts a directory in v109:
+`openshell provider profile import --from tasks/github-pr-reviewer/openshell/providers`.
+Run it under platform bootstrap authority with the intended gateway/workspace.
+It imports definitions only and is create-only; it does not refresh credentials
+or provision provider instances. Ordinary review jobs do not call it.
+
+### Activate a consuming repository
+
+After publishing this change, update both the reusable workflow `uses` reference
+and `harness-ref` to the same full commit SHA containing this integration. Then
+forward the gateway secret in that caller's existing `secrets` block:
+
+```yaml
+secrets:
+  OPENSHELL_GITHUB_APP_PRIVATE_KEY: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}
+  OPENSHELL_OIDC_CLIENT_SECRET: ${{ secrets.OPENSHELL_OIDC_CLIENT_SECRET }}
+```
+
+Keep the existing GitHub App client-ID input. A managed-only caller can omit the
+Vertex secret. The repository's checked-in `ai-review.yml` still pins the older
+workflow; this change deliberately does not invent a future commit SHA or
+activate a deployment. Do not forward the new secret while still calling the
+old workflow, which does not declare it.
+
+### Verification and later changes
+
+On the chosen runner, first verify service-account access with the existing
+SDK lifecycle smoke, then run the review against a designated test PR. Verify
+an allowed inline comment, denial outside the allowed PR/methods, and sandbox
+cleanup on success, failure, and cancellation. Confirm authentication still
+works after access-token expiry. Static checks and fake commands do not prove
+any of those live properties. The existing `test/hypershell-lifecycle.sh` is a
+local/VPN helper and skips in CI; it cannot be the CI acceptance check. The
+configured managed review path above executes in CI without that helper.
+
+The local CLI/SDK remain at their existing v0.0.110 pins. Qualify the SDK against
+the actual vendor v109 gateway image; no server upgrade is required by this
+patch. Upstream [#2907](https://github.com/NVIDIA/OpenShell/pull/2907) provides a
+future replacement for custom OIDC token plumbing. Upstream
+[#3195](https://github.com/NVIDIA/OpenShell/pull/3195) removes `inference.local`;
+migrate setup and agent/provider configuration when HyperShell adopts it.
+Neither change needs a new task runner interface now. HyperShell
+[#267](https://github.com/openshift-online/hypershell/pull/267) provisions and tests
+its own platform; the reviewer does not depend on that pipeline or its cluster
+administration credentials.
+
+Review remains advisory. A later approval task can submit an explicit review for
+the reviewed commit with separately granted permissions. Issue-to-PR can use its
+own task policy. Merge decisions stay in repository workflows; a successful
+runner result is not an approval.
+
+The following bootstrap examples describe the separate managed smoke-test
+environment, not the reviewer workspace or evidence of a completed CI run.
 
 ## One-time platform bootstrap
 

@@ -19,7 +19,7 @@ func TestPRReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "local-success", "local-cancel", "partial-provider-failure", "workspace-failure", "profile-read-failure", "existing-profile", "status-failure", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "read-tool", "tool_recovered", "unrelated-422", "unrelated-422-line", "unrelated-422-comment", "unrelated-comment", "success-then-failure", "comment-position"} {
+	for _, scenario := range []string{"success", "direct-success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "local-success", "local-cancel", "partial-provider-failure", "workspace-failure", "profile-read-failure", "existing-profile", "status-failure", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "read-tool", "tool_recovered", "unrelated-422", "unrelated-422-line", "unrelated-422-comment", "unrelated-comment", "success-then-failure", "comment-position"} {
 		t.Run(scenario, func(t *testing.T) {
 			local := scenario == "provider-failure" || scenario == "cleanup-failure" || scenario == "local-success" || scenario == "local-cancel" || scenario == "partial-provider-failure" || scenario == "workspace-failure" || scenario == "profile-read-failure" || scenario == "existing-profile"
 			root := t.TempDir()
@@ -92,6 +92,9 @@ func TestPRReview(t *testing.T) {
 				cmd = exec.CommandContext(ctx, "bash", filepath.Join(root, "scripts/pr-review-local.sh"))
 			}
 			cmd.Env = prepare.Env
+			if scenario == "direct-success" {
+				cmd.Env = append(cmd.Env, "OPENSHELL_GATEWAY=", "OPENSHELL_GATEWAY_ENDPOINT=https://gateway.example.test", "OPENSHELL_OIDC_ISSUER=https://issuer.example.test", "OPENSHELL_OIDC_CLIENT_ID=review-ci", "OPENSHELL_OIDC_AUDIENCE=review-gateway", "OPENSHELL_OIDC_CLIENT_SECRET=fake-oidc-secret")
+			}
 			if local {
 				cmd.Env = append(cmd.Env, "GOOGLE_VERTEX_AI_TOKEN=fake", "VERTEX_AI_PROJECT_ID=test-project", "GITHUB_TOKEN=fake")
 			}
@@ -115,7 +118,7 @@ func TestPRReview(t *testing.T) {
 				}
 			}
 			err = cmd.Wait()
-			if (err == nil) != (scenario == "success" || scenario == "stale" || scenario == "local-success" || scenario == "existing-profile" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") {
+			if (err == nil) != (scenario == "success" || scenario == "direct-success" || scenario == "stale" || scenario == "local-success" || scenario == "existing-profile" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") {
 				t.Fatalf("unexpected result: %v\n%s", err, logs.String())
 			}
 			trace, _ := os.ReadFile(filepath.Join(root, "trace"))
@@ -134,7 +137,11 @@ func TestPRReview(t *testing.T) {
 						t.Fatalf("existing-target review performed setup or forced a target: %s", trace)
 					}
 				}
-				if !strings.Contains(string(trace), "target managed-test shared-test") {
+				target := "target managed-test shared-test"
+				if scenario == "direct-success" {
+					target = "target  shared-test"
+				}
+				if !strings.Contains(string(trace), target) {
 					t.Fatal("configured target environment was not preserved")
 				}
 			} else {
@@ -165,8 +172,86 @@ func TestPRReview(t *testing.T) {
 				}
 			}
 			summary, _ := os.ReadFile(filepath.Join(root, "review/summary.md"))
-			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success" || scenario == "local-success" || scenario == "existing-profile" || scenario == "cleanup-failure" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") || strings.Contains(string(summary), "MODEL_OUTPUT") {
+			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success" || scenario == "direct-success" || scenario == "local-success" || scenario == "existing-profile" || scenario == "cleanup-failure" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") || strings.Contains(string(summary), "MODEL_OUTPUT") {
 				t.Fatalf("incorrect or model-controlled summary: %s", summary)
+			}
+		})
+	}
+}
+
+func TestPRReviewGatewayConfiguration(t *testing.T) {
+	workflow := parseWorkflow(t, string(mustRead(t, "../.github/workflows/pr-review-reusable.yml")))
+	job := workflow.Jobs["review"]
+	var validate, managed workflowStep
+	localSteps := 0
+	for _, step := range job.Steps {
+		if step.Name == "Validate gateway configuration" {
+			validate = step
+		}
+		if step.Run == "bash scripts/pr-review.sh run" {
+			managed = step
+		}
+		if step.Uses == "./harness/.github/actions/setup-openshell" || strings.HasPrefix(step.Uses, "google-github-actions/") || strings.Contains(step.Run, "bash scripts/pr-review-local.sh") {
+			localSteps++
+			if step.If != "steps.prepare.outputs.eligible == 'true' && vars.OPENSHELL_GATEWAY_ENDPOINT == ''" {
+				t.Fatalf("managed review could execute local setup: %+v", step)
+			}
+		}
+	}
+	if localSteps != 4 || validate.Run == "" || managed.If != "steps.prepare.outputs.eligible == 'true' && vars.OPENSHELL_GATEWAY_ENDPOINT != ''" {
+		t.Fatal("missing gateway validation or mutually exclusive review paths")
+	}
+	if job.RunsOn != "${{ vars.OPENSHELL_RUNNER || 'ubuntu-latest' }}" || job.Env["OPENSHELL_GATEWAY"] != "" {
+		t.Fatal("managed job must select its runner and use the direct gateway connection")
+	}
+	if managed.Env["OPENSHELL_OIDC_CLIENT_SECRET"] != "${{ secrets.OPENSHELL_OIDC_CLIENT_SECRET }}" || managed.Env["GH_TOKEN"] != "${{ steps.openshell-app-token.outputs.token }}" {
+		t.Fatal("managed execution needs gateway authentication and host GitHub authentication")
+	}
+	trigger := workflow.On["workflow_call"]
+	for _, key := range []string{"VERTEX_AI_SERVICE_ACCOUNT_KEY", "OPENSHELL_OIDC_CLIENT_SECRET"} {
+		secret, ok := trigger.Secrets[key]
+		if !ok || secret.Required {
+			t.Fatalf("%s must be validated only for its gateway path", key)
+		}
+	}
+	values := map[string]string{
+		"OPENSHELL_GATEWAY_ENDPOINT":   "https://gateway.example.test",
+		"OPENSHELL_WORKSPACE":          "review-ci",
+		"OPENSHELL_OIDC_ISSUER":        "https://issuer.example.test",
+		"OPENSHELL_OIDC_CLIENT_ID":     "review-ci",
+		"OPENSHELL_OIDC_AUDIENCE":      "review-gateway",
+		"OPENSHELL_OIDC_CLIENT_SECRET": "fake-oidc-secret",
+	}
+	for key := range values {
+		if key != "OPENSHELL_OIDC_CLIENT_SECRET" && job.Env[key] != "${{ vars."+key+" }}" {
+			t.Fatalf("managed connection does not forward %s", key)
+		}
+	}
+	cases := []string{"local", "local-missing-secret", "managed", "secret-only"}
+	for key := range values {
+		cases = append(cases, key)
+	}
+	for _, scenario := range cases {
+		t.Run(scenario, func(t *testing.T) {
+			cmd := exec.CommandContext(t.Context(), "bash", "-eu", "-c", validate.Run)
+			cmd.Env = os.Environ()
+			for key, value := range values {
+				if strings.HasPrefix(scenario, "local") || scenario == key || (scenario == "secret-only" && key != "OPENSHELL_OIDC_CLIENT_SECRET") {
+					value = ""
+				}
+				cmd.Env = append(cmd.Env, key+"="+value)
+			}
+			vertex := ""
+			if scenario == "local" {
+				vertex = "fake-vertex-secret"
+			}
+			cmd.Env = append(cmd.Env, "VERTEX_AI_SERVICE_ACCOUNT_KEY="+vertex)
+			out, err := cmd.CombinedOutput()
+			if (err == nil) != (scenario == "local" || scenario == "managed") {
+				t.Fatalf("unexpected configuration result: %v\n%s", err, out)
+			}
+			if strings.Contains(string(out), "fake-oidc-secret") || strings.Contains(string(out), "fake-vertex-secret") {
+				t.Fatal("configuration validation disclosed a credential")
 			}
 		})
 	}
@@ -290,6 +375,8 @@ type workflowSecret struct {
 }
 
 type workflowJob struct {
+	RunsOn  string            `yaml:"runs-on"`
+	Env     map[string]string `yaml:"env"`
 	Uses    string            `yaml:"uses"`
 	With    map[string]string `yaml:"with"`
 	Secrets map[string]string `yaml:"secrets"`
@@ -297,6 +384,9 @@ type workflowJob struct {
 }
 
 type workflowStep struct {
+	Name string            `yaml:"name"`
+	If   string            `yaml:"if"`
+	Run  string            `yaml:"run"`
 	Uses string            `yaml:"uses"`
 	With map[string]string `yaml:"with"`
 	Env  map[string]string `yaml:"env"`
@@ -346,6 +436,16 @@ if [[ "${0##*/}" == gh ]]; then
   fi
   exit 0
 fi
+# Match the v0.0.109 gateway's routable-name constraint, not the generator.
+if [[ "$1 ${2:-}" == 'workspace create' || "$1 ${2:-}" == 'workflow apply' ]]; then
+  args=("$@")
+  for ((i=0; i<${#args[@]}; i++)); do
+    if [[ "${args[i]}" == --name ]]; then
+      name="${args[i+1]}"
+      [[ -n "$name" && ${#name} -le 19 ]] || exit 1
+    fi
+  done
+fi
 case "$1 ${2:-}" in
   'workspace create') [[ "$FAKE_SCENARIO" != workspace-failure ]] ;;
   'provider list-profiles')
@@ -356,6 +456,11 @@ case "$1 ${2:-}" in
     if [[ "$FAKE_SCENARIO" == partial-provider-failure && "$*" == *'--name github-review '* ]]; then exit 1; fi ;;
   'workspace delete') [[ "$FAKE_SCENARIO" != cleanup-failure ]] ;;
   'workflow apply')
+    if [[ "$FAKE_SCENARIO" == direct-success ]]; then
+      [[ -z "${OPENSHELL_GATEWAY:-}" && "$OPENSHELL_GATEWAY_ENDPOINT" == https://gateway.example.test &&
+         "$OPENSHELL_OIDC_ISSUER" == https://issuer.example.test && "$OPENSHELL_OIDC_CLIENT_ID" == review-ci &&
+         "$OPENSHELL_OIDC_AUDIENCE" == review-gateway && "$OPENSHELL_OIDC_CLIENT_SECRET" == fake-oidc-secret ]] || exit 1
+    fi
     printf 'target %s %s\n' "${OPENSHELL_GATEWAY:-}" "${OPENSHELL_WORKSPACE:-}" >> "$TRACE"
     touch "$READY"
     printf 'diagnostic without trailing newline' >&2
