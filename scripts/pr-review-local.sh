@@ -6,7 +6,8 @@ cd "$(dirname "$0")/.."
 : "${GOOGLE_VERTEX_AI_TOKEN:?set a short-lived Vertex token}" "${VERTEX_AI_PROJECT_ID:?set Vertex project}"
 : "${GITHUB_TOKEN:?set the repository-scoped GitHub App token for bootstrap}"
 gateway="${OPENSHELL_GATEWAY:-openshell}"
-workspace="review-$(openssl rand -hex 12)"
+# OpenShell limits resource names to 19 characters.
+workspace="review-$(openssl rand -hex 6)"
 created_workspace=false
 created_vertex=false
 created_github=false

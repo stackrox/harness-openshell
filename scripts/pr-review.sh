@@ -98,7 +98,8 @@ run_review() {
     -e "s|\${REVIEW_PR}|$REVIEW_PR|g" \
     "$policy_template" > "$REVIEW_POLICY"
 
-  sandbox_name="review-$(openssl rand -hex 12)"
+  # OpenShell limits resource names to 19 characters.
+  sandbox_name="review-$(openssl rand -hex 6)"
   (
     ulimit -f 2048 # Bound raw diagnostic output as well as runtime.
     exec timeout -s TERM -k 35s 8m ./harness workflow apply tasks/github-pr-reviewer/workflow/opencode-harness.yaml \
