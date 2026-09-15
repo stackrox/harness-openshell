@@ -1,0 +1,17 @@
+# Endpointless read-only Prow result profile for ACS triage.
+# The gateway resolves the service identity; no token or key is stored here.
+id: prow-gcs-read
+display_name: Prow GCS read-only
+description: Gateway-managed read-only access to StackRox test-platform-results
+category: cloud_storage
+credentials:
+  - name: service_identity
+    description: Gateway-managed identity authorized to read test-platform-results
+    env_vars: [GOOGLE_APPLICATION_CREDENTIALS]
+    required: true
+    auth_style: oauth2
+discovery:
+  credentials: [service_identity]
+binaries:
+  - /sandbox/.gsutil/bin/gsutil
+  - /usr/bin/curl

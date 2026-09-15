@@ -1,0 +1,134 @@
+version: 1
+
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /lib64
+    - /bin
+    - /proc
+    - /etc
+    - /dev/urandom
+    - /var/log
+  read_write:
+    - /sandbox
+    - /tmp
+    - /dev/null
+
+landlock:
+  compatibility: best_effort
+
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+
+network_policies:
+  github_git:
+    name: github-git-read-only
+    endpoints:
+      - host: github.com
+        port: 443
+        protocol: rest
+        tls: terminate
+        enforcement: enforce
+        rules:
+          - allow:
+              method: GET
+              path: "/**/info/refs*"
+          - allow:
+              method: POST
+              path: "/**/git-upload-pack"
+    binaries:
+      - { path: /usr/bin/git }
+
+  github_api:
+    name: github-api-read-only
+    endpoints:
+      - host: api.github.com
+        port: 443
+        protocol: rest
+        tls: terminate
+        enforcement: enforce
+        rules:
+          - allow:
+              method: GET
+              path: /repos/stackrox/**
+          - allow:
+              method: GET
+              path: /orgs/stackrox/**
+          - allow:
+              method: GET
+              path: /users/**
+          - allow:
+              method: POST
+              path: /graphql
+    binaries:
+      - { path: /usr/bin/gh }
+      - { path: /usr/bin/curl }
+
+  github_downloads:
+    name: github-downloads-read-only
+    endpoints:
+      - { host: "*.githubusercontent.com", port: 443 }
+      - { host: codeload.github.com, port: 443 }
+    binaries:
+      - { path: /usr/bin/curl }
+      - { path: /usr/bin/gh }
+      - { path: /usr/bin/git }
+
+  atlassian_api:
+    name: atlassian-read-only
+    endpoints:
+      - host: "*.atlassian.net"
+        port: 443
+        protocol: rest
+        tls: terminate
+        enforcement: enforce
+        credential_binding:
+          provider: atlassian-triage-read
+        rules:
+          - allow:
+              method: GET
+              path: /rest/api/2/**
+          - allow:
+              method: GET
+              path: /rest/api/3/**
+          - allow:
+              method: GET
+              path: /wiki/rest/api/**
+    binaries:
+      - { path: /sandbox/.venv/bin/mcp-atlassian }
+      - { path: /usr/bin/curl }
+
+  prow_gcs:
+    name: prow-gcs-read-only
+    endpoints:
+      - host: storage.googleapis.com
+        port: 443
+        protocol: rest
+        tls: terminate
+        enforcement: enforce
+        credential_binding:
+          provider: prow-gcs-read
+        rules:
+          - allow:
+              method: GET
+              path: /test-platform-results/**
+          - allow:
+              method: GET
+              path: /storage/v1/b/test-platform-results/**
+          - allow:
+              method: GET
+              path: /download/storage/v1/b/test-platform-results/**
+    binaries:
+      - { path: /sandbox/.gsutil/bin/gsutil }
+      - { path: /sandbox/.gsutil/** }
+      - { path: /usr/bin/curl }
+
+  cve_api:
+    name: cve-read-only
+    endpoints:
+      - { host: cveawg.mitre.org, port: 443 }
+    binaries:
+      - { path: /usr/bin/curl }

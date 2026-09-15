@@ -22,10 +22,11 @@ runs the review against that target or an already-configured target.
 
 ## What an agent can do
 
-| Task bundle | Allowed GitHub operation | Integration status |
+| Task bundle | Allowed external operation | Integration status |
 |---|---|---|
 | [PR reviewer](tasks/github-pr-reviewer/) | Read the selected PR and post inline comments to it | Used by the reusable review workflow |
 | [PR merger](tasks/github-pr-merger/) | Read the selected PR and head checks, then request a merge under a separate approval and credential contract | Opt-in bundle; consumer enablement and live validation are separate steps |
+| [ACS CI nightly](tasks/acs-ci-nightly/) | Read public StackRox repositories, Prow results, and Jira context; produce a triage artifact | Opt-in bundle; consumer validation is planned in `stackrox/acs-triage-agent` |
 
 For review, trusted setup obtains a repository-scoped GitHub App installation
 token with `Contents: read` and `Pull requests: write`. The

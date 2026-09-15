@@ -56,11 +56,16 @@ The initial set is intentionally small:
 - `github-pr-merger` — validate an explicitly authorized pull request and merge
   it with a separate merge-capable provider credential. This is an opt-in
   bundle without a reusable merge workflow in this repository.
+- `acs-ci-nightly` — analyze recent StackRox Prow nightly failures in read-only
+  mode and download a schema-validated triage artifact. The task uses the
+  shared `sandbox-stackrox-ci` image and is an opt-in consumer contract.
 
 Bundle availability, configured integrations, and live validation in a
 consuming repository are separate milestones. Gateway lifecycle tests alone
 do not establish successful GitHub mutations or review quality.
 
-Pull-request creation, issue review, PR watching, issue-to-PR, repository
-triage, and ACS-specific workflows are deferred until these two task
-contracts have been exercised by consuming repos.
+Pull-request creation, issue review, PR watching, and issue-to-PR workflows
+remain deferred until their task contracts are exercised by consuming repos.
+The ACS CI nightly bundle is the first repository-triage contract and should be
+validated by `stackrox/acs-triage-agent` before adding Jira writes, Slack
+publication, or broader ACS phases.
