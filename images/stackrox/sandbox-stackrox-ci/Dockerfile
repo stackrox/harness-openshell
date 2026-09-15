@@ -83,13 +83,16 @@ RUN uv python install "${PYTHON_VERSION}" \
 
 # gsutil currently supports Python through 3.13, while the shared image uses
 # Python 3.14 for its other integrations. Keep the Prow client isolated in a
-# compatible environment so ACS CI triage can read test results without
-# adding gcloud or service-account files to the image.
+# compatible, root-owned environment so ACS CI triage can read test results
+# without adding gcloud or service-account files to the image.
 ARG GSUTIL_PYTHON_VERSION=3.13.7
 ARG GSUTIL_VERSION=5.35
-RUN uv python install "${GSUTIL_PYTHON_VERSION}" \
-    && uv venv --python "${GSUTIL_PYTHON_VERSION}" /sandbox/.gsutil \
-    && uv pip install --python /sandbox/.gsutil/bin/python "gsutil==${GSUTIL_VERSION}" \
+RUN install -d -o root -g root /opt/gsutil-python /opt/gsutil \
+    && UV_PYTHON_INSTALL_DIR=/opt/gsutil-python uv python install "${GSUTIL_PYTHON_VERSION}" \
+    && UV_PYTHON_INSTALL_DIR=/opt/gsutil-python uv venv --python "${GSUTIL_PYTHON_VERSION}" /opt/gsutil \
+    && uv pip install --python /opt/gsutil/bin/python "gsutil==${GSUTIL_VERSION}" \
+    && chown -R root:root /opt/gsutil-python /opt/gsutil \
+    && chmod -R a+rX,go-w /opt/gsutil-python /opt/gsutil \
     && uv cache clean
 
 # Coding agents and the JSON-schema utility used by StackRox workflows. These
@@ -157,7 +160,7 @@ RUN curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v${GWS_
     && rm -rf /tmp/gws-extract \
     && rm -f /tmp/gws.tgz
 
-ENV PATH="/sandbox/.venv/bin:/sandbox/.gsutil/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+ENV PATH="/sandbox/.venv/bin:/opt/gsutil/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     VIRTUAL_ENV=/sandbox/.venv \
     GOPATH=/sandbox/.cache/go \
     GOCACHE=/sandbox/.cache/go-build \

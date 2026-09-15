@@ -3,6 +3,7 @@ version: 1
 filesystem_policy:
   include_workdir: true
   read_only:
+    - /opt
     - /usr
     - /lib
     - /lib64
@@ -122,8 +123,8 @@ network_policies:
               method: GET
               path: /download/storage/v1/b/test-platform-results/**
     binaries:
-      - { path: /sandbox/.gsutil/bin/gsutil }
-      - { path: /sandbox/.gsutil/** }
+      - { path: /opt/gsutil/bin/gsutil }
+      - { path: /opt/gsutil/bin/python }
       - { path: /usr/bin/curl }
 
   cve_api:

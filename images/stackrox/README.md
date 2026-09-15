@@ -30,8 +30,10 @@ adds the OpenShell sandbox contract, coding agents, `gh`, `uv`, `ajv-cli`, the
 GitHub skill, Atlassian MCP, Google Workspace CLI, and the `gopls` MCP server.
 Go module and build caches stay below `/sandbox`. It deliberately does not
 install `gcloud` or copy service-account keys; OpenShell providers own those
-credentials and inference routes. It includes an isolated Python 3.13
-`gsutil` environment for read-only Prow result analysis.
+credentials and inference routes. It includes a root-owned, isolated Python
+3.13 `gsutil` environment under `/opt` for read-only Prow result analysis.
+The task policy allows only its fixed executables, not a writable `/sandbox`
+subtree.
 
 The `rox-ci-image` build currently provides an amd64 toolchain, so this profile
 is published for `linux/amd64` only. It is an experimental alternative to

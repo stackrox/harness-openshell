@@ -3,7 +3,7 @@
 id: atlassian-triage-read
 display_name: Atlassian triage read-only
 description: Jira and Confluence credentials restricted by the ACS CI triage policy
-category: project_management
+category: knowledge
 credentials:
   - name: username
     description: Gateway-managed Atlassian username

@@ -32,8 +32,6 @@ agent:
   type: claude
   args:
     - --print
-    - --permission-mode
-    - bypassPermissions
     - Read /sandbox/CI-NIGHTLY.md and execute the read-only CI nightly task exactly as instructed.
 
 outputs:

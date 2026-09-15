@@ -14,8 +14,8 @@ validated.
 
 - Trigger: a trusted repository workflow chooses when to run it. The task has
   no scheduler or GitHub Actions trigger of its own.
-- Trusted inputs: the workflow document, `ACS_TRIAGE_REF`, the gateway target,
-  provider names, and the pinned `stackrox-ci` image.
+- Trusted inputs: the workflow document, `ACS_TRIAGE_REF`, `TRIAGE_RUN_URL`,
+  the gateway target, provider names, and the pinned `stackrox-ci` image.
 - Untrusted input: the checked-out `stackrox/acs-triage-agent` source and the
   Prow result data it reads. Neither is allowed to define providers, policy,
   image, or commands.
@@ -36,13 +36,15 @@ workflow:
 
 - `vertex-claude-triage` and the matching `inference.local` route;
 - `atlassian-triage-read`, configured for read-only Jira/Confluence access;
-- `prow-gcs-read`, configured for read-only access to the
-  `test-platform-results` bucket.
+- `prow-gcs-read`, created from OpenShell's built-in `google-cloud` provider
+  profile and configured with gateway-managed Google service-account JWT
+  refresh for read-only access to the `test-platform-results` bucket.
 
-The provider profiles in `openshell/providers/` contain metadata only. They do
+The Atlassian profile in `openshell/providers/` contains metadata only. It does
 not create providers or contain credentials. Provider credentials must never
 be placed in workflow environment variables, payloads, agent arguments, or
-artifacts.
+artifacts. The Prow provider uses the upstream `google-cloud` profile so its
+refresh and gsutil-compatible metadata behavior stay aligned with OpenShell.
 
 The workflow uses the shared `sandbox-stackrox-ci` image. Because image
 publication is independent of task publication, the trusted caller must set
@@ -56,6 +58,7 @@ From a trusted caller with a reachable managed gateway:
 ```bash
 export ACS_TRIAGE_IMAGE='quay.io/rcochran/openshell:sandbox-stackrox-ci@sha256:<digest>'
 export ACS_TRIAGE_REF='main'
+export TRIAGE_RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 harness workflow apply tasks/acs-ci-nightly/workflow/harness.yaml \
   --output-dir ./triage-artifacts
 ```
