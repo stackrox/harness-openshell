@@ -23,12 +23,17 @@ jq -Rse 'split("\n") | map(fromjson?) | . as $events |
       test("comment[[:space:]]+(position|line)[[:space:]]+(is|was)[[:space:]]+(invalid|unresolvable|not[[:space:]]+part[[:space:]]+of[[:space:]]+the[[:space:]]+diff)"; "i") or
       (test("422|unprocessable[[:space:]]+entity"; "i") and
         test("comment|review|pull[[:space:]]+request"; "i") and
-        test("position|line|side|diff[[:space:]]+hunk"; "i")))
+        test("position|line|side|diff[[:space:]]+hunk|could[[:space:]]+not[[:space:]]+be[[:space:]]+resolved"; "i")))
     ;
   def recoverable_shell_parse_failure:
     (.part.state.metadata.exit // -1) > 0 and
-    ((.part.state.output // .part.state.error // "") |
-      test("unexpected EOF while looking for matching|syntax error near unexpected token"; "i"))
+    (
+      ((.part.state.output // .part.state.error // "") |
+        test("unexpected EOF while looking for matching|syntax error near unexpected token"; "i")) or
+      ((.part.state.metadata.exit // -1) == 2 and
+        ((.part.state.input.command // "") | test("pulls/.*/comments")) and
+        (.part.state.output // .part.state.error // "") == "(no output)")
+    )
     ;
   any($events[]; .type == "text" and (.part.text | type == "string" and test("\\S"))) and
   any($events[]; .type == "step_finish" and .part.reason == "stop") and

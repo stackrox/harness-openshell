@@ -17,6 +17,16 @@ on:
         required: false
         type: boolean
         default: false
+      review-label:
+        description: Label that opts a pull request into this review workflow
+        required: false
+        type: string
+        default: ai-review
+      sandbox-image:
+        description: Immutable sandbox image reference for the review
+        required: false
+        type: string
+        default: ''
       openshell-github-app-client-id:
         description: GitHub App Client ID used for the trusted review token
         required: true
@@ -34,8 +44,8 @@ jobs:
   review:
     if: >-
       (!github.event.pull_request.draft || inputs.allow-draft-reviews) &&
-      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
-      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
+      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == inputs.review-label) ||
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, inputs.review-label)))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -91,6 +101,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
+          REVIEW_LABEL: ${{ inputs.review-label }}
           REVIEW_REPOSITORY: ${{ github.repository }}
           REVIEW_PR: ${{ github.event.pull_request.number }}
           REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
@@ -113,12 +124,14 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
+          REVIEW_LABEL: ${{ inputs.review-label }}
           GITHUB_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           REVIEW_REPOSITORY: ${{ github.repository }}
           REVIEW_PR: ${{ github.event.pull_request.number }}
           REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
           VERTEX_AI_PROJECT_ID: ${{ vars.VERTEX_AI_PROJECT_ID }}
           VERTEX_AI_REGION: ${{ vars.VERTEX_AI_REGION }}
+          HARNESS_OS_IMAGE: ${{ inputs.sandbox-image }}
           REVIEW_SKILL: ${{ github.workspace }}/harness/skills/pr-review/SKILL.md
         run: |
           token="$(gcloud auth print-access-token)"

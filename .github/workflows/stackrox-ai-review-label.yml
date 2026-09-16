@@ -1,0 +1,24 @@
+name: Label StackRox AI review pull requests
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add StackRox AI review label
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # ratchet:actions/github-script@v9.0.0
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['stackrox-ai-review']
+            });
