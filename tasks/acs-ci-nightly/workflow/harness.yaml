@@ -25,7 +25,7 @@ sandbox:
 source:
   repo: https://github.com/stackrox/acs-triage-agent.git
   ref: ${ACS_TRIAGE_REF}
-  destination: /sandbox/acs-triage-agent
+  destination: /sandbox
 
 payloads:
   - source: CI-NIGHTLY.md
