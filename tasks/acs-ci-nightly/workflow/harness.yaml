@@ -35,10 +35,17 @@ agent:
   type: claude
   args:
     - --dangerously-skip-permissions
+    - --verbose
     - --print
     - Read /sandbox/CI-NIGHTLY.md and execute the read-only CI nightly task exactly as instructed.
 
 outputs:
   - source: /sandbox/acs-triage-agent/artifacts/ci-triage.json
     destination: ci-triage.json
+    required: false
+  - source: /sandbox/acs-triage-agent/artifacts/debug/gcs_listing.txt
+    destination: gcs_listing.txt
+    required: false
+  - source: /sandbox/acs-triage-agent/artifacts/debug/gcs_error.txt
+    destination: gcs_error.txt
     required: false
