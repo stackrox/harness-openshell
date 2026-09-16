@@ -96,6 +96,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
+          REVIEW_LABEL: ${{ inputs.review-label }}
           REVIEW_REPOSITORY: ${{ github.repository }}
           REVIEW_PR: ${{ github.event.pull_request.number }}
           REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
@@ -118,6 +119,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
+          REVIEW_LABEL: ${{ inputs.review-label }}
           GITHUB_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           REVIEW_REPOSITORY: ${{ github.repository }}
           REVIEW_PR: ${{ github.event.pull_request.number }}

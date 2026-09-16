@@ -9,6 +9,7 @@ cd "$(dirname "$0")/.."
 mode="${1:?usage: pr-review.sh prepare|run}"
 [[ "$mode" == prepare || "$mode" == run ]] || exit 1
 allow_draft_reviews="${ALLOW_DRAFT_REVIEWS:-false}"
+review_label="${REVIEW_LABEL:-ai-review}"
 max_diff_bytes=262144
 apply_pid=""
 head="${REVIEW_HEAD:-}"
@@ -59,8 +60,8 @@ trap 'exit 143' TERM
 
 ensure_current() {
   current="$(timeout 60s gh api "$endpoint")"
-  if ! jq -e --arg head "$head" --arg base "$base" --arg allow_drafts "$allow_draft_reviews" '
-    .state == "open" and (($allow_drafts == "true") or (.draft | not)) and any(.labels[]?; .name == "ai-review")
+  if ! jq -e --arg head "$head" --arg base "$base" --arg allow_drafts "$allow_draft_reviews" --arg review_label "$review_label" '
+    .state == "open" and (($allow_drafts == "true") or (.draft | not)) and any(.labels[]?; .name == $review_label)
     and ($head == "" or .head.sha == $head) and ($base == "" or .base.sha == $base)
   ' <<< "$current" >/dev/null; then
     state="skipped or superseded"
