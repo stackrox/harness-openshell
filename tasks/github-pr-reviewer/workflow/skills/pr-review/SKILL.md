@@ -30,6 +30,12 @@ the selected side, not the diff position or a guess. Target only added or
 context lines GitHub can resolve. Omit unresolvable locations. Use multi-line
 ranges only when both endpoints are present in the same hunk.
 
+Compute added-line numbers from the second number in each hunk header. Advance
+the current-file line for context and added lines, but not deleted lines. For
+example, in `@@ -87,6 +87,7 @@`, three context lines followed by an added
+line place that added line at current-file line 90, regardless of its display
+line in the diff.
+
 Before posting, verify that the target file and line are present in the current
 diff and are on the RIGHT side. Do not post a guessed comment for a deleted file,
 deleted line, or a line outside the supplied diff. If GitHub rejects a location,
