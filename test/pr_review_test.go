@@ -229,6 +229,9 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	if !ok {
 		t.Fatal("shared review workflow is not callable")
 	}
+	if input, ok := sharedTrigger.Inputs["review-label"]; !ok || input.Default != "ai-review" {
+		t.Fatalf("shared review workflow default label = %#v, want ai-review", input)
+	}
 	for _, name := range []string{"VERTEX_AI_SERVICE_ACCOUNT_KEY", "OPENSHELL_GITHUB_APP_PRIVATE_KEY"} {
 		if _, ok := sharedTrigger.Secrets[name]; !ok {
 			t.Fatalf("shared review workflow does not declare secret %s", name)
@@ -282,7 +285,12 @@ type workflowDocument struct {
 }
 
 type workflowTrigger struct {
+	Inputs  map[string]workflowInput  `yaml:"inputs"`
 	Secrets map[string]workflowSecret `yaml:"secrets"`
+}
+
+type workflowInput struct {
+	Default string `yaml:"default"`
 }
 
 type workflowSecret struct {

@@ -17,6 +17,11 @@ on:
         required: false
         type: boolean
         default: false
+      review-label:
+        description: Label that opts a pull request into this review workflow
+        required: false
+        type: string
+        default: ai-review
       openshell-github-app-client-id:
         description: GitHub App Client ID used for the trusted review token
         required: true
@@ -34,8 +39,8 @@ jobs:
   review:
     if: >-
       (!github.event.pull_request.draft || inputs.allow-draft-reviews) &&
-      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
-      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
+      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == inputs.review-label) ||
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, inputs.review-label)))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
