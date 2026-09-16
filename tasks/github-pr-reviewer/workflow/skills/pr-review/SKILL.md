@@ -45,4 +45,10 @@ Post each finding at most once. Do not retry the same finding or location after
 either a successful post or a tool error. After the permitted comment attempts,
 write the final review summary and stop.
 
+For inline comments, use the exact `gh api` argument shape shown above: use
+`-f body='...'`, `-f path='...'`, `-F line=...`, `-f side=RIGHT`, and
+`-f commit_id="$REVIEW_HEAD"`. Do not quote the entire `body=...` or `path=...`
+argument. Keep comment bodies plain text without shell quotes or backticks so
+the permitted command remains parseable.
+
 If no substantive defect is supported, say so. Never reproduce secrets.
