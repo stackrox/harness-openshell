@@ -29,20 +29,7 @@
       "TaskGet",
       "mcp__*"
     ],
-    "deny": [
-      "Bash(rm *)",
-      "Bash(chmod *)",
-      "Bash(chown *)",
-      "Bash(apt *)",
-      "Bash(pip *)",
-      "Bash(npm *)",
-      "Bash(git push *)",
-      "Read(**/.env*)",
-      "Read(**/.ssh/*)",
-      "Read(**/.gnupg/*)",
-      "Read(**/.config/gh/*)",
-      "Read(**/.claude.json)"
-    ]
+    "deny": []
   },
   "enableAllProjectMcpServers": false,
   "trustedMcpServers": ["atlassian", "gopls-mcp"],
