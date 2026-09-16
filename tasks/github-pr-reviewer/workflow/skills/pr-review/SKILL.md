@@ -41,4 +41,8 @@ diff and are on the RIGHT side. Do not post a guessed comment for a deleted file
 deleted line, or a line outside the supplied diff. If GitHub rejects a location,
 continue the review without retrying that location.
 
+Post each finding at most once. Do not retry the same finding or location after
+either a successful post or a tool error. After the permitted comment attempts,
+write the final review summary and stop.
+
 If no substantive defect is supported, say so. Never reproduce secrets.
