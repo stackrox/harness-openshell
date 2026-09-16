@@ -4,7 +4,7 @@ name: acs-ci-nightly
 inference:
   route: inference.local
   provider: vertex-claude-triage
-  model: claude-opus-4-1@20250805
+  model: claude-haiku-4-5@20251001
 
 sandbox:
   image: ${ACS_TRIAGE_IMAGE}
