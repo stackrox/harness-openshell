@@ -6,14 +6,31 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
+  label:
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add StackRox AI review label
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # ratchet:actions/github-script@v9.0.0
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['stackrox-ai-review']
+            });
+
   review:
-    uses: stackrox/harness-openshell/.github/workflows/pr-review-reusable.yml@f4cc67eb2658e66d89add95d518f4020c595d6cf
+    uses: stackrox/harness-openshell/.github/workflows/pr-review-reusable.yml@83fe9cb5690fadbd9078ac3d46cf83bc5cf8c5f7
     with:
       # `uses` pins the workflow adapter; harness-ref pins the checked-out
       # Harness CLI/scripts. Keep both at the same release commit.
-      harness-ref: f4cc67eb2658e66d89add95d518f4020c595d6cf
+      harness-ref: 83fe9cb5690fadbd9078ac3d46cf83bc5cf8c5f7
+      review-label: stackrox-ai-review
       allow-draft-reviews: false
       openshell-github-app-client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}
     secrets:
