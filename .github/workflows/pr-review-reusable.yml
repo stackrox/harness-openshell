@@ -22,6 +22,11 @@ on:
         required: false
         type: string
         default: ai-review
+      sandbox-image:
+        description: Immutable sandbox image reference for the review
+        required: false
+        type: string
+        default: ''
       openshell-github-app-client-id:
         description: GitHub App Client ID used for the trusted review token
         required: true
@@ -126,6 +131,7 @@ jobs:
           REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
           VERTEX_AI_PROJECT_ID: ${{ vars.VERTEX_AI_PROJECT_ID }}
           VERTEX_AI_REGION: ${{ vars.VERTEX_AI_REGION }}
+          HARNESS_OS_IMAGE: ${{ inputs.sandbox-image }}
           REVIEW_SKILL: ${{ github.workspace }}/harness/skills/pr-review/SKILL.md
         run: |
           token="$(gcloud auth print-access-token)"
