@@ -11,11 +11,12 @@ sandbox:
   env:
     JIRA_URL: https://redhat.atlassian.net
     GCS_BUCKET: test-platform-results-public
+    BASH_ENV: /sandbox/.bash_env
     CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE: /etc/openshell-tls/ca-bundle.pem
     CURL_CA_BUNDLE: /etc/openshell-tls/ca-bundle.pem
 
 agent:
-  type: /bin/sh
+  type: /bin/bash
   args:
     - -c
     - |
@@ -54,8 +55,7 @@ agent:
         if ! printenv GCP_SA_ACCESS_TOKEN >/dev/null; then
           echo "GCS: FAIL (OpenShell provider token GCP_SA_ACCESS_TOKEN is missing)"
           status=1
-        elif CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN" \
-          timeout 30s /opt/google-cloud-sdk/bin/gcloud storage ls "gs://$GCS_BUCKET" \
+        elif timeout 30s /opt/google-cloud-sdk/bin/gcloud storage ls "gs://$GCS_BUCKET" \
           >/dev/null 2>"$gcs_error"; then
           echo "GCS: PASS"
         else
@@ -69,6 +69,13 @@ agent:
 
       cat "$log"
       exit "$status"
+
+payloads:
+  - content: |
+      if [ -n "$GCP_SA_ACCESS_TOKEN" ]; then
+        export CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"
+      fi
+    destination: /sandbox/.bash_env
 
 outputs:
   - source: /sandbox/artifacts/preflight.log

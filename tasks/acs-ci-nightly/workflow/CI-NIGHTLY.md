@@ -14,11 +14,9 @@ Run only the CI failure analysis portion of the ACS triage agent.
    under `gs://${GCS_BUCKET:-test-platform-results}/logs/`. Use
    `TRIAGE_LOOKBACK_DAYS` (default `1`) as the number of days to include. Use
    the bounded GCS JSON prefix query in the coordinator instructions for
-   discovery, enumerate each job's build-directory prefixes, and read the
-   root `<build>/finished.json` object through the authenticated direct GCS
-   object endpoint. The public results bucket does not provide a
-   `latest-build.txt` marker. Use `GCP_SA_ACCESS_TOKEN` as the bearer token
-   without logging it.
+   top-level job discovery, then use `gcloud storage` to enumerate exact
+   job/build prefixes and read the root `<build>/finished.json` object. Do not
+   infer a job's result from a `latest-build.txt` marker.
 5. Spawn the repository's CI analysis agents as instructed and wait for their
    results.
 6. Write exactly `/sandbox/acs-triage-agent/artifacts/ci-triage.json` using

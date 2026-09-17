@@ -18,10 +18,11 @@ points Google Cloud CLI tools at OpenShell's combined CA bundle so the
 sandbox verifies the proxy certificate without disabling TLS. The image keeps
 standalone `gsutil` only as a temporary compatibility fallback.
 
-The Google Cloud CLI is invoked with
-`CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"` so it uses the
-OpenShell-managed short-lived provider token rather than a local gcloud
-account or service-account key.
+The task payload sets `BASH_ENV` to a runtime-only shell fragment that maps
+the provider-injected `GCP_SA_ACCESS_TOKEN` to gcloud's
+`CLOUDSDK_AUTH_ACCESS_TOKEN`. The token value is never interpolated into the
+workflow or payload, and gcloud therefore uses the OpenShell-managed
+short-lived provider token rather than a local account or service-account key.
 
 The `github_git` policy is intentionally unauthenticated and read-only because
 the StackRox repositories used by this task are public. The Atlassian and Prow
