@@ -32,8 +32,8 @@ agent:
         echo "Jira URL: $JIRA_URL"
         echo
 
-        echo "GCS: gsutil ls gs://$GCS_BUCKET/logs/"
-        if /opt/gsutil/bin/gsutil ls "gs://$GCS_BUCKET/logs/" >/dev/null 2>"$gcs_error"; then
+        echo "GCS: gsutil ls -b gs://$GCS_BUCKET"
+        if /opt/gsutil/bin/gsutil ls -b "gs://$GCS_BUCKET" >/dev/null 2>"$gcs_error"; then
           echo "GCS: PASS"
         else
           gcs_status=$?
