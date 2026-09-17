@@ -33,7 +33,7 @@ agent:
         echo
 
         echo "GCS: gsutil ls -b gs://$GCS_BUCKET"
-        if /opt/gsutil/bin/gsutil ls -b "gs://$GCS_BUCKET" >/dev/null 2>"$gcs_error"; then
+        if timeout 30s /opt/gsutil/bin/gsutil ls -b "gs://$GCS_BUCKET" >/dev/null 2>"$gcs_error"; then
           echo "GCS: PASS"
         else
           gcs_status=$?
