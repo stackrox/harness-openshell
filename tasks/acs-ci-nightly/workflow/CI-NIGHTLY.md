@@ -11,8 +11,9 @@ Run only the CI failure analysis portion of the ACS triage agent.
    `git clone` or `git fetch` for these public repositories; do not run
    `gh auth login` or push to them.
 4. Find failures from the last 24 hours in the Prow nightly jobs under
-   `gs://${GCS_BUCKET:-test-platform-results}/logs/` using `gcloud storage`.
-   Prefix each gcloud command with
+   `gs://${GCS_BUCKET:-test-platform-results}/logs/`. Use the bounded GCS JSON
+   prefix query in the coordinator instructions for discovery, then use
+   `gcloud storage` for object reads. Prefix each gcloud command with
    `CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"`; this uses the
    OpenShell-managed provider token without requiring `gcloud auth login`.
 5. Spawn the repository's CI analysis agents as instructed and wait for their
