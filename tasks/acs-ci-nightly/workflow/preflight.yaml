@@ -1,5 +1,5 @@
 version: 1
-name: acs-ci-nightly-preflight
+name: acs-preflight
 
 sandbox:
   image: ${ACS_TRIAGE_IMAGE}
