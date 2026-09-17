@@ -26,6 +26,7 @@ sandbox:
     CURL_CA_BUNDLE: /etc/openshell-tls/ca-bundle.pem
     BOTO_CONFIG: /tmp/openshell-boto.cfg
     GCE_METADATA_ROOT: 127.0.0.1:8174
+    GCE_METADATA_IP: 127.0.0.1:8174
 
 source:
   repo: https://github.com/stackrox/acs-triage-agent.git
