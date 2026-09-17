@@ -63,9 +63,12 @@ agent:
         echo
 
         echo "GCE metadata configuration"
-        echo "GCE_METADATA_ROOT: ${GCE_METADATA_ROOT:-unset}"
-        echo "GCE_METADATA_IP: ${GCE_METADATA_IP:-unset}"
-        echo "GCE_METADATA_HOST: ${GCE_METADATA_HOST:-unset}"
+        echo -n "GCE_METADATA_ROOT: "
+        printenv GCE_METADATA_ROOT 2>/dev/null || echo unset
+        echo -n "GCE_METADATA_IP: "
+        printenv GCE_METADATA_IP 2>/dev/null || echo unset
+        echo -n "GCE_METADATA_HOST: "
+        printenv GCE_METADATA_HOST 2>/dev/null || echo unset
         for metadata_url in \
           "http://127.0.0.1:8174/" \
           "http://127.0.0.1:8174/computeMetadata/v1/instance/service-accounts" \
