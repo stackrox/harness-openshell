@@ -115,13 +115,13 @@ network_policies:
         rules:
           - allow:
               method: GET
-              path: /test-platform-results/**
+              path: /test-platform-results-public/**
           - allow:
               method: GET
-              path: /storage/v1/b/test-platform-results/**
+              path: /storage/v1/b/test-platform-results-public/**
           - allow:
               method: GET
-              path: /download/storage/v1/b/test-platform-results/**
+              path: /download/storage/v1/b/test-platform-results-public/**
     binaries:
       - { path: /opt/gsutil/bin/gsutil }
       - { path: /opt/gsutil/bin/python }

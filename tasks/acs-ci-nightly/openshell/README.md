@@ -13,7 +13,7 @@ credentials.
 
 The built-in Google Cloud profile supplies the gateway-managed metadata path
 that gsutil uses. The task policy binds that provider instance only to the
-read-only `test-platform-results` endpoints.
+read-only `test-platform-results-public` endpoints.
 
 The `github_git` policy is intentionally unauthenticated and read-only because
 the StackRox repositories used by this task are public. The Atlassian and Prow

@@ -11,7 +11,7 @@ Run only the CI failure analysis portion of the ACS triage agent.
    `git clone` or `git fetch` for these public repositories; do not run
    `gh auth login` or push to them.
 4. Find failures from the last 24 hours in the Prow nightly jobs under
-   `gs://test-platform-results/logs/`.
+   `gs://${GCS_BUCKET:-test-platform-results}/logs/`.
 5. Spawn the repository's CI analysis agents as instructed and wait for their
    results.
 6. Write exactly `/sandbox/acs-triage-agent/artifacts/ci-triage.json` using

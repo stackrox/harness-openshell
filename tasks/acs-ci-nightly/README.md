@@ -38,7 +38,7 @@ workflow:
 - `atlassian-triage-read`, configured for read-only Jira/Confluence access;
 - `prow-gcs-read`, created from OpenShell's built-in `google-cloud` provider
   profile and configured with gateway-managed Google service-account JWT
-  refresh for read-only access to the `test-platform-results` bucket.
+  refresh for read-only access to the `test-platform-results-public` bucket.
 
 The Atlassian profile in `openshell/providers/` contains metadata only. It does
 not create providers or contain credentials. Provider credentials must never

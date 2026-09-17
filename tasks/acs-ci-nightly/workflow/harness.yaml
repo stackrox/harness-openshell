@@ -21,6 +21,7 @@ sandbox:
     CONFLUENCE_URL: https://redhat.atlassian.net/wiki
     READ_ONLY_MODE: "true"
     TRIAGE_RUN_URL: ${TRIAGE_RUN_URL}
+    GCS_BUCKET: test-platform-results-public
 
 source:
   repo: https://github.com/stackrox/acs-triage-agent.git
@@ -35,17 +36,10 @@ agent:
   type: claude
   args:
     - --dangerously-skip-permissions
-    - --verbose
     - --print
     - Read /sandbox/CI-NIGHTLY.md and execute the read-only CI nightly task exactly as instructed.
 
 outputs:
   - source: /sandbox/acs-triage-agent/artifacts/ci-triage.json
     destination: ci-triage.json
-    required: false
-  - source: /sandbox/acs-triage-agent/artifacts/debug/gcs_listing.txt
-    destination: gcs_listing.txt
-    required: false
-  - source: /sandbox/acs-triage-agent/artifacts/debug/gcs_error.txt
-    destination: gcs_error.txt
     required: false
