@@ -68,7 +68,7 @@ agent:
         fi
 
         echo
-        echo "GCS object probe: latest-build.txt and finished.json"
+        echo "GCS object probe: newest build directory and finished.json"
         if ! printenv GCP_SA_ACCESS_TOKEN >/dev/null; then
           echo "GCS object probe: FAIL (OpenShell provider token GCP_SA_ACCESS_TOKEN is missing)"
           status=1
@@ -92,20 +92,30 @@ agent:
             if [ -z "$nightly_prefix" ]; then
               echo "GCS object probe: FAIL (no nightly prefixes returned)"
               status=1
+          else
+            nightly_prefix=$(printf '%s' "$nightly_prefix" | sed 's:/*$::')
+            nightly_job="gs://$GCS_BUCKET/$nightly_prefix"
+            build_response=$(curl --silent --show-error --fail \
+              --connect-timeout 10 --max-time 30 \
+              --header "Authorization: Bearer $GCP_SA_ACCESS_TOKEN" \
+              --get \
+              --data-urlencode "prefix=$nightly_prefix/" \
+              --data-urlencode 'delimiter=/' \
+              --data-urlencode 'maxResults=1000' \
+              "https://storage.googleapis.com/storage/v1/b/$GCS_BUCKET/o" \
+              2>"$gcs_prefix_error")
+            build_list_status=$?
+            if [ "$build_list_status" -ne 0 ]; then
+              echo "GCS object probe: FAIL (build prefix listing, exit $build_list_status)"
+              sed -n '1,20p' "$gcs_prefix_error"
+              status=1
             else
-              nightly_prefix=$(printf '%s' "$nightly_prefix" | sed 's:/*$::')
-              nightly_job="gs://$GCS_BUCKET/$nightly_prefix"
-              build_path=$(printf '%s/latest-build.txt' "$nightly_prefix" | jq -sRr @uri)
-              build=$(curl --silent --show-error --fail \
-                --connect-timeout 10 --max-time 30 \
-                --header "Authorization: Bearer $GCP_SA_ACCESS_TOKEN" \
-                "https://storage.googleapis.com/download/storage/v1/b/$GCS_BUCKET/o/$build_path?alt=media" \
-                2>"$gcs_object_error")
-              build_status=$?
-              build=$(printf '%s' "$build" | tr -d '\r\n')
-              if [ "$build_status" -ne 0 ] || [ -z "$build" ]; then
-                echo "GCS object probe: FAIL (latest-build.txt via JSON API, exit $build_status)"
-                sed -n '1,20p' "$gcs_object_error"
+              build=$(printf '%s' "$build_response" | jq -r \
+                --arg prefix "$nightly_prefix/" \
+                '.prefixes[]? | select(startswith($prefix)) | ltrimstr($prefix) | rtrimstr("/")' \
+                | sort -n | tail -n 1)
+              if [ -z "$build" ]; then
+                echo "GCS object probe: FAIL (no build prefixes returned)"
                 status=1
               else
                 finished_path=$(printf '%s/%s/finished.json' "$nightly_prefix" "$build" | jq -sRr @uri)
@@ -125,6 +135,7 @@ agent:
                   echo "GCS object probe: PASS (job=$nightly_job build=$build timestamp=$timestamp result=$result)"
                 fi
               fi
+            fi
             fi
           fi
         fi

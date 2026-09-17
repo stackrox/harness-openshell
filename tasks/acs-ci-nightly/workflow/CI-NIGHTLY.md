@@ -14,9 +14,11 @@ Run only the CI failure analysis portion of the ACS triage agent.
    under `gs://${GCS_BUCKET:-test-platform-results}/logs/`. Use
    `TRIAGE_LOOKBACK_DAYS` (default `1`) as the number of days to include. Use
    the bounded GCS JSON prefix query in the coordinator instructions for
-   discovery, then use `gcloud storage` for object reads. Prefix each gcloud
-   command with `CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"`; this uses
-   the OpenShell-managed provider token without requiring `gcloud auth login`.
+   discovery, enumerate each job's build-directory prefixes, and read the
+   root `<build>/finished.json` object through the authenticated GCS JSON media
+   API. The public results bucket does not provide a `latest-build.txt` marker,
+   and its OpenShell `gcloud storage cat` path is not reliable for these
+   objects. Use `GCP_SA_ACCESS_TOKEN` as the bearer token without logging it.
 5. Spawn the repository's CI analysis agents as instructed and wait for their
    results.
 6. Write exactly `/sandbox/acs-triage-agent/artifacts/ci-triage.json` using
