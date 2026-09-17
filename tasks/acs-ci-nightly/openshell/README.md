@@ -14,8 +14,9 @@ credentials.
 The built-in Google Cloud profile supplies the gateway-managed metadata path
 that gsutil uses. The workflow's Boto configuration enables gsutil's
 `[GoogleCompute]` metadata credential lookup without placing a credential in
-the sandbox. The task policy binds that provider instance only to the
-read-only `test-platform-results-public` endpoints.
+the sandbox, and `GCE_METADATA_ROOT` points legacy gsutil's metadata client at
+OpenShell's loopback emulator. The task policy binds that provider instance
+only to the read-only `test-platform-results-public` endpoints.
 The task also points Google Cloud CLI tools at OpenShell's combined CA bundle
 so `gsutil` verifies the sandbox proxy certificate without disabling TLS.
 
