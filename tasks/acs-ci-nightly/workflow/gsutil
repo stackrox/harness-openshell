@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Compatibility shim for the existing ACS triage instructions. Exact reads
+# use the image's gcloud binary. The top-level logs listing is bounded because
+# recursively listing the bucket is too large for this task.
+gcloud_bin=/opt/google-cloud-sdk/bin/gcloud
+configured_bucket="${GCS_BUCKET:-test-platform-results-public}"
+
+rewrite_uri() {
+  local uri=$1
+  case "$uri" in
+    gs://test-platform-results|gs://test-platform-results/*)
+      printf 'gs://%s%s\n' "$configured_bucket" "${uri#gs://test-platform-results}"
+      ;;
+    *)
+      printf '%s\n' "$uri"
+      ;;
+  esac
+}
+
+list_nightly_jobs() {
+  local token=${GCP_SA_ACCESS_TOKEN:-}
+  local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
+  local page_token=""
+
+  if [[ -z "$token" ]]; then
+    echo "gsutil compatibility wrapper: GCP_SA_ACCESS_TOKEN is missing" >&2
+    return 1
+  fi
+
+  while :; do
+    local response
+    local -a page_args=()
+    if [[ -n "$page_token" ]]; then
+      page_args=(--data-urlencode "pageToken=$page_token")
+    fi
+
+    response=$(timeout 90s curl --silent --show-error --fail \
+      --connect-timeout 10 --max-time 60 \
+      --header "Authorization: Bearer $token" \
+      --get \
+      --data-urlencode "prefix=logs/branch-ci-stackrox-stackrox-nightlies-" \
+      --data-urlencode "delimiter=/" \
+      --data-urlencode "maxResults=1000" \
+      "${page_args[@]}" "$api")
+
+    printf '%s' "$response" \
+      | jq -r --arg bucket "$configured_bucket" \
+        '.prefixes[]? | "gs://" + $bucket + "/" + .'
+
+    page_token=$(printf '%s' "$response" | jq -r '.nextPageToken // empty')
+    [[ -z "$page_token" ]] && break
+  done
+}
+
+command=${1:-}
+shift || true
+
+case "$command" in
+  ls)
+    if [[ $# -ne 1 ]]; then
+      echo "gsutil compatibility wrapper supports: gsutil ls URI" >&2
+      exit 2
+    fi
+    uri=$(rewrite_uri "$1")
+    if [[ "$uri" == "gs://${configured_bucket}/logs/" ]]; then
+      list_nightly_jobs
+    else
+      if [[ -n "${GCP_SA_ACCESS_TOKEN:-}" && -z "${CLOUDSDK_AUTH_ACCESS_TOKEN:-}" ]]; then
+        export CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"
+      fi
+      exec timeout 90s "$gcloud_bin" storage ls "$uri"
+    fi
+    ;;
+  cat)
+    if [[ $# -ne 1 ]]; then
+      echo "gsutil compatibility wrapper supports: gsutil cat URI" >&2
+      exit 2
+    fi
+    uri=$(rewrite_uri "$1")
+    if [[ -n "${GCP_SA_ACCESS_TOKEN:-}" && -z "${CLOUDSDK_AUTH_ACCESS_TOKEN:-}" ]]; then
+      export CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"
+    fi
+    exec timeout 90s "$gcloud_bin" storage cat "$uri"
+    ;;
+  *)
+    echo "gsutil compatibility wrapper supports only ls and cat" >&2
+    exit 2
+    ;;
+esac

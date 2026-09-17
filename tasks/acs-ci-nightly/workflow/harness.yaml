@@ -34,7 +34,10 @@ source:
 payloads:
   - source: CI-NIGHTLY.md
     destination: /sandbox/CI-NIGHTLY.md
+  - source: gsutil
+    destination: /sandbox/tools/gsutil
   - content: |
+      export PATH="/sandbox/tools:$PATH"
       if [ -n "$GCP_SA_ACCESS_TOKEN" ]; then
         export CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"
       fi

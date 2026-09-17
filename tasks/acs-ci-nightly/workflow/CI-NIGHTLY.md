@@ -10,13 +10,10 @@ Run only the CI failure analysis portion of the ACS triage agent.
    repositories only when needed for the analysis. Use unauthenticated HTTPS
    `git clone` or `git fetch` for these public repositories; do not run
    `gh auth login` or push to them.
-4. Find failures from the configured lookback window in the Prow nightly jobs
-   under `gs://${GCS_BUCKET:-test-platform-results}/logs/`. Use
-   the existing 24-hour triage window. Use the bounded GCS JSON prefix query
-   in the coordinator instructions for top-level job discovery, then use
-   `gcloud storage` to enumerate exact job/build prefixes and read the root
-   `<build>/finished.json` object. Do not infer a job's result from a
-   `latest-build.txt` marker.
+4. Follow the repository's existing `ci-coordinator.md` instructions for the
+   Prow failure lookup. The trusted task provides a `gsutil` compatibility
+   command backed by the configured bucket and `gcloud storage`; do not replace
+   it with a recursive bucket or wildcard listing.
 5. Spawn the repository's CI analysis agents as instructed and wait for their
    results.
 6. Write exactly `/sandbox/acs-triage-agent/artifacts/ci-triage.json` using
