@@ -50,8 +50,8 @@ agent:
         fi
         echo
 
-        echo "GCS: gcloud storage ls gs://$GCS_BUCKET"
-        if timeout 30s gcloud storage ls "gs://$GCS_BUCKET" \
+        echo "GCS: /opt/google-cloud-sdk/bin/gcloud storage ls gs://$GCS_BUCKET"
+        if timeout 30s /opt/google-cloud-sdk/bin/gcloud storage ls "gs://$GCS_BUCKET" \
           >/dev/null 2>"$gcs_error"; then
           echo "GCS: PASS"
         else
