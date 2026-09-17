@@ -28,12 +28,12 @@ An opt-in image based on the StackRox `rox-ci-image` build image
 the StackRox CI toolchain (Go, compilers, make, and scanner build tools) and
 adds the OpenShell sandbox contract, coding agents, `gh`, `uv`, `ajv-cli`, the
 GitHub skill, Atlassian MCP, Google Workspace CLI, and the `gopls` MCP server.
-Go module and build caches stay below `/sandbox`. It deliberately does not
-install `gcloud` or copy service-account keys; OpenShell providers own those
-credentials and inference routes. It includes a root-owned, isolated Python
-3.13 `gsutil` environment under `/opt` for read-only Prow result analysis.
-The task policy allows only its fixed executables, not a writable `/sandbox`
-subtree.
+Go module and build caches stay below `/sandbox`. It includes a pinned
+`gcloud` CLI for read-only Prow result analysis and retains a root-owned,
+isolated Python 3.13 `gsutil` environment for legacy workflows. OpenShell
+providers own credentials and inference routes; no service-account keys are
+copied into the sandbox. The task policy allows only its fixed executables,
+not a writable `/sandbox` subtree.
 
 The `rox-ci-image` build currently provides an amd64 toolchain, so this profile
 is published for `linux/amd64` only. It is an experimental alternative to

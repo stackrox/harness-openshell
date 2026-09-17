@@ -47,7 +47,7 @@ The Atlassian profile in `openshell/providers/` contains metadata only. It does
 not create providers or contain credentials. Provider credentials must never
 be placed in workflow environment variables, payloads, agent arguments, or
 artifacts. The Prow provider uses the upstream `google-cloud` profile so its
-refresh and gsutil-compatible metadata behavior stay aligned with OpenShell.
+refresh and `gcloud storage` metadata behavior stay aligned with OpenShell.
 
 The workflow uses the shared `sandbox-stackrox-ci` image. Because image
 publication is independent of task publication, the trusted caller must set

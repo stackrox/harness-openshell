@@ -13,18 +13,6 @@ sandbox:
     GCS_BUCKET: test-platform-results-public
     CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE: /etc/openshell-tls/ca-bundle.pem
     CURL_CA_BUNDLE: /etc/openshell-tls/ca-bundle.pem
-    BOTO_CONFIG: /tmp/openshell-boto.cfg
-    GCE_METADATA_ROOT: 127.0.0.1:8174
-    GCE_METADATA_IP: 127.0.0.1:8174
-
-payloads:
-  - content: |
-      [Boto]
-      ca_certificates_file = /etc/openshell-tls/ca-bundle.pem
-
-      [GoogleCompute]
-      service_account = default
-    destination: /tmp/openshell-boto.cfg
 
 agent:
   type: /bin/sh
@@ -62,10 +50,8 @@ agent:
         fi
         echo
 
-        echo "GCS: gsutil ls -b gs://$GCS_BUCKET"
-        if env GCE_METADATA_ROOT=127.0.0.1:8174 \
-          GCE_METADATA_IP=127.0.0.1:8174 \
-          timeout 30s /opt/gsutil/bin/gsutil ls -b "gs://$GCS_BUCKET" \
+        echo "GCS: gcloud storage ls gs://$GCS_BUCKET"
+        if timeout 30s gcloud storage ls "gs://$GCS_BUCKET" \
           >/dev/null 2>"$gcs_error"; then
           echo "GCS: PASS"
         else

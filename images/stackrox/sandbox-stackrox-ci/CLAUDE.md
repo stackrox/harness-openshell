@@ -16,9 +16,9 @@ are not part of the image.
 
 - `gh` — GitHub CLI. Use the bundled GitHub skill for REST-only API access.
 - `gws` — Google Workspace CLI when the provider is attached.
-- `python3`, `uv`, `node`, `npm`, `go`, `gopls`, `ajv`, `git`, `curl`
+- `gcloud`, `python3`, `uv`, `node`, `npm`, `go`, `gopls`, `ajv`, `git`, `curl`
 - `claude`, `opencode`, `codex`, and `copilot` coding agents
 - Atlassian and Go-analysis MCP servers through `.mcp.json` when configured
 
-The OpenShell Vertex provider supplies model access and credentials. The image
-does not install `gcloud` or copy service-account keys into the sandbox.
+The OpenShell Vertex and Google Cloud providers supply model access and
+credentials. The image does not copy service-account keys into the sandbox.
