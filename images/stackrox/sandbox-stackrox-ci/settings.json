@@ -17,7 +17,6 @@
       "Bash(timeout *)",
       "Bash(while *)",
       "Read",
-      "Write(artifacts/*)",
       "Edit(artifacts/*)",
       "Glob",
       "Grep",
