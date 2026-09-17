@@ -21,7 +21,6 @@ sandbox:
     CONFLUENCE_URL: https://redhat.atlassian.net/wiki
     READ_ONLY_MODE: "true"
     TRIAGE_RUN_URL: ${TRIAGE_RUN_URL}
-    TRIAGE_LOOKBACK_DAYS: ${TRIAGE_LOOKBACK_DAYS}
     GCS_BUCKET: test-platform-results-public
     BASH_ENV: /sandbox/.bash_env
     CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE: /etc/openshell-tls/ca-bundle.pem
