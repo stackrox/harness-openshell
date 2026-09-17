@@ -118,15 +118,15 @@ agent:
                 echo "GCS object probe: FAIL (no build prefixes returned)"
                 status=1
               else
-                finished_path=$(printf '%s/%s/finished.json' "$nightly_prefix" "$build" | jq -sRr @uri)
+                finished_object=$(printf '%s/%s/finished.json' "$nightly_prefix" "$build")
                 finished=$(curl --silent --show-error --fail \
                   --connect-timeout 10 --max-time 30 \
                   --header "Authorization: Bearer $GCP_SA_ACCESS_TOKEN" \
-                  "https://storage.googleapis.com/download/storage/v1/b/$GCS_BUCKET/o/$finished_path?alt=media" \
+                  "https://storage.googleapis.com/$GCS_BUCKET/$finished_object" \
                   2>"$gcs_object_error")
                 finished_status=$?
                 if [ "$finished_status" -ne 0 ] || [ -z "$finished" ]; then
-                  echo "GCS object probe: FAIL (finished.json via JSON API, exit $finished_status)"
+                  echo "GCS object probe: FAIL (finished.json via direct object endpoint, exit $finished_status)"
                   sed -n '1,20p' "$gcs_object_error"
                   status=1
                 else
