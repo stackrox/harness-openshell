@@ -1,0 +1,68 @@
+version: 1
+name: acs-ci-nightly-preflight
+
+sandbox:
+  image: ${ACS_TRIAGE_IMAGE}
+  policy:
+    file: ../openshell/policy.yaml
+  providers:
+    - atlassian-triage-read
+    - prow-gcs-read
+  env:
+    JIRA_URL: https://redhat.atlassian.net
+    GCS_BUCKET: test-platform-results-public
+    CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE: /etc/openshell-tls/ca-bundle.pem
+    CURL_CA_BUNDLE: /etc/openshell-tls/ca-bundle.pem
+
+agent:
+  type: /bin/sh
+  args:
+    - -c
+    - |
+      set -u
+      mkdir -p /sandbox/artifacts
+      log=/sandbox/artifacts/preflight.log
+      gcs_error=/tmp/preflight-gcs-error
+      jira_error=/tmp/preflight-jira-error
+      status=0
+
+      {
+        echo "OpenShell ACS preflight"
+        echo "GCS bucket: $GCS_BUCKET"
+        echo "Jira URL: $JIRA_URL"
+        echo
+
+        echo "GCS: gsutil ls gs://$GCS_BUCKET/logs/"
+        if /opt/gsutil/bin/gsutil ls "gs://$GCS_BUCKET/logs/" >/dev/null 2>"$gcs_error"; then
+          echo "GCS: PASS"
+        else
+          gcs_status=$?
+          echo "GCS: FAIL (exit $gcs_status)"
+          sed -n '1,20p' "$gcs_error"
+          status=1
+        fi
+        echo
+
+        echo "Jira: GET $JIRA_URL/rest/api/2/myself"
+        jira_status=$(curl --silent --show-error --output /dev/null \
+          --write-out '%{http_code}' --connect-timeout 10 --max-time 30 \
+          "$JIRA_URL/rest/api/2/myself" 2>"$jira_error")
+        jira_exit=$?
+        if [ "$jira_exit" -ne 0 ]; then
+          echo "Jira: FAIL (curl exit $jira_exit)"
+          sed -n '1,20p' "$jira_error"
+          status=1
+        elif [ "$jira_status" = 200 ]; then
+          echo "Jira: PASS (HTTP 200)"
+        else
+          echo "Jira: FAIL (HTTP $jira_status)"
+          status=1
+        fi
+      } >"$log" 2>&1
+
+      cat "$log"
+      exit "$status"
+
+outputs:
+  - source: /sandbox/artifacts/preflight.log
+    destination: preflight.log
