@@ -38,6 +38,8 @@ payloads:
     destination: /sandbox/tools/gsutil
   - content: |
       export PATH="/sandbox/tools:$PATH"
+      gsutil() { /bin/bash /sandbox/tools/gsutil "$@"; }
+      export -f gsutil
       if [ -n "$GCP_SA_ACCESS_TOKEN" ]; then
         export CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"
       fi
