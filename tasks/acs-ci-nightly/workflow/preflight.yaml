@@ -95,22 +95,28 @@ agent:
             else
               nightly_prefix=$(printf '%s' "$nightly_prefix" | sed 's:/*$::')
               nightly_job="gs://$GCS_BUCKET/$nightly_prefix"
-              build=$(CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN" \
-                timeout 30s /opt/google-cloud-sdk/bin/gcloud storage cat \
-                "$nightly_job/latest-build.txt" 2>"$gcs_object_error")
+              build_path=$(printf '%s/latest-build.txt' "$nightly_prefix" | jq -sRr @uri)
+              build=$(curl --silent --show-error --fail \
+                --connect-timeout 10 --max-time 30 \
+                --header "Authorization: Bearer $GCP_SA_ACCESS_TOKEN" \
+                "https://storage.googleapis.com/download/storage/v1/b/$GCS_BUCKET/o/$build_path?alt=media" \
+                2>"$gcs_object_error")
               build_status=$?
               build=$(printf '%s' "$build" | tr -d '\r\n')
               if [ "$build_status" -ne 0 ] || [ -z "$build" ]; then
-                echo "GCS object probe: FAIL (latest-build.txt, exit $build_status)"
+                echo "GCS object probe: FAIL (latest-build.txt via JSON API, exit $build_status)"
                 sed -n '1,20p' "$gcs_object_error"
                 status=1
               else
-                finished=$(CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN" \
-                  timeout 30s /opt/google-cloud-sdk/bin/gcloud storage cat \
-                  "$nightly_job/$build/finished.json" 2>"$gcs_object_error")
+                finished_path=$(printf '%s/%s/finished.json' "$nightly_prefix" "$build" | jq -sRr @uri)
+                finished=$(curl --silent --show-error --fail \
+                  --connect-timeout 10 --max-time 30 \
+                  --header "Authorization: Bearer $GCP_SA_ACCESS_TOKEN" \
+                  "https://storage.googleapis.com/download/storage/v1/b/$GCS_BUCKET/o/$finished_path?alt=media" \
+                  2>"$gcs_object_error")
                 finished_status=$?
                 if [ "$finished_status" -ne 0 ] || [ -z "$finished" ]; then
-                  echo "GCS object probe: FAIL (finished.json, exit $finished_status)"
+                  echo "GCS object probe: FAIL (finished.json via JSON API, exit $finished_status)"
                   sed -n '1,20p' "$gcs_object_error"
                   status=1
                 else
