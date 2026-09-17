@@ -17,9 +17,8 @@ Run only the CI failure analysis portion of the ACS triage agent.
    discovery, enumerate each job's build-directory prefixes, and read the
    root `<build>/finished.json` object through the authenticated direct GCS
    object endpoint. The public results bucket does not provide a
-   `latest-build.txt` marker, and the OpenShell JSON media/gcloud object-read
-   routes are not reliable for these objects. Use `GCP_SA_ACCESS_TOKEN` as the
-   bearer token without logging it.
+   `latest-build.txt` marker. Use `GCP_SA_ACCESS_TOKEN` as the bearer token
+   without logging it.
 5. Spawn the repository's CI analysis agents as instructed and wait for their
    results.
 6. Write exactly `/sandbox/acs-triage-agent/artifacts/ci-triage.json` using

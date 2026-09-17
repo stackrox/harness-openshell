@@ -26,8 +26,9 @@ validated.
   the caller's output directory. The output is optional so partial diagnostics
   can still be retained when analysis fails.
 - Preflight: the trusted caller may run `workflow/preflight.yaml` in the same
-  workspace before the main task. It verifies read-only GCS and Jira access
-  from inside the sandbox without exposing response bodies or credentials.
+  workspace before the main task. It verifies read-only GCS bucket-listing and
+  Jira access from inside the sandbox without exposing response bodies or
+  credentials.
 - Cleanup: the sandbox and host-side source staging are removed after outputs
   are downloaded. Downloaded artifacts and any external reads remain with the
   caller.
