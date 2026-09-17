@@ -93,7 +93,8 @@ agent:
               echo "GCS object probe: FAIL (no nightly prefixes returned)"
               status=1
             else
-              nightly_job="gs://$GCS_BUCKET/${nightly_prefix%/}"
+              nightly_prefix=$(printf '%s' "$nightly_prefix" | sed 's:/*$::')
+              nightly_job="gs://$GCS_BUCKET/$nightly_prefix"
               build=$(CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN" \
                 timeout 30s /opt/google-cloud-sdk/bin/gcloud storage cat \
                 "$nightly_job/latest-build.txt" 2>"$gcs_object_error")
