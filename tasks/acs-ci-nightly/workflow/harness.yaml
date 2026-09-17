@@ -24,6 +24,7 @@ sandbox:
     GCS_BUCKET: test-platform-results-public
     CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE: /etc/openshell-tls/ca-bundle.pem
     CURL_CA_BUNDLE: /etc/openshell-tls/ca-bundle.pem
+    BOTO_CONFIG: /tmp/openshell-boto.cfg
 
 source:
   repo: https://github.com/stackrox/acs-triage-agent.git
@@ -33,6 +34,10 @@ source:
 payloads:
   - source: CI-NIGHTLY.md
     destination: /sandbox/CI-NIGHTLY.md
+  - content: |
+      [Boto]
+      ca_certificates_file = /etc/openshell-tls/ca-bundle.pem
+    destination: /tmp/openshell-boto.cfg
 
 agent:
   type: claude
