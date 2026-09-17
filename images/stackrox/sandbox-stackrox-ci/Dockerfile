@@ -70,6 +70,17 @@ RUN curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_$
     && install -m 0755 /tmp/gh-extract/gh /usr/bin/gh \
     && rm -rf /tmp/gh-extract /tmp/gh.tgz
 
+# Google Cloud CLI for read-only Prow result access. Use the standalone
+# archive so the version and checksum are explicit; credentials remain
+# provider-owned and are resolved through OpenShell's GCP metadata emulator.
+ARG GCLOUD_VERSION=585.0.0
+ARG GCLOUD_SHA256_AMD64=82be040c2d899ddb7560c1532e809a685e2c605b97b8c24570a68638d634dcbf
+RUN curl -fsSL "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz" -o /tmp/google-cloud-cli.tgz \
+    && echo "${GCLOUD_SHA256_AMD64}  /tmp/google-cloud-cli.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/google-cloud-cli.tgz --no-same-owner --no-same-permissions -C /opt \
+    && test -x /opt/google-cloud-sdk/bin/gcloud \
+    && rm -f /tmp/google-cloud-cli.tgz
+
 # Use the same uv-managed Python contract as the community base image. The
 # rox-ci-image system Python is 3.9, while current MCP integrations require
 # 3.10+.
@@ -81,10 +92,9 @@ ENV UV_PYTHON_INSTALL_DIR=/sandbox/.uv/python
 RUN uv python install "${PYTHON_VERSION}" \
     && uv cache clean
 
-# gsutil currently supports Python through 3.13, while the shared image uses
-# Python 3.14 for its other integrations. Keep the Prow client isolated in a
-# compatible, root-owned environment so ACS CI triage can read test results
-# without adding gcloud or service-account files to the image.
+# Keep the legacy standalone gsutil client available during migration. It is
+# isolated in a root-owned environment so older workflows can still read
+# results while ACS CI moves to gcloud storage.
 ARG GSUTIL_PYTHON_VERSION=3.13.7
 ARG GSUTIL_VERSION=5.35
 RUN install -d -o root -g root /opt/gsutil-python /opt/gsutil \
@@ -160,7 +170,7 @@ RUN curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v${GWS_
     && rm -rf /tmp/gws-extract \
     && rm -f /tmp/gws.tgz
 
-ENV PATH="/sandbox/.venv/bin:/opt/gsutil/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+ENV PATH="/opt/google-cloud-sdk/bin:/sandbox/.venv/bin:/opt/gsutil/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     VIRTUAL_ENV=/sandbox/.venv \
     GOPATH=/sandbox/.cache/go \
     GOCACHE=/sandbox/.cache/go-build \

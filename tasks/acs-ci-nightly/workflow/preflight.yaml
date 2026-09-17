@@ -13,18 +13,6 @@ sandbox:
     GCS_BUCKET: test-platform-results-public
     CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE: /etc/openshell-tls/ca-bundle.pem
     CURL_CA_BUNDLE: /etc/openshell-tls/ca-bundle.pem
-    BOTO_CONFIG: /tmp/openshell-boto.cfg
-    GCE_METADATA_ROOT: 127.0.0.1:8174
-    GCE_METADATA_IP: 127.0.0.1:8174
-
-payloads:
-  - content: |
-      [Boto]
-      ca_certificates_file = /etc/openshell-tls/ca-bundle.pem
-
-      [GoogleCompute]
-      service_account = default
-    destination: /tmp/openshell-boto.cfg
 
 agent:
   type: /bin/sh
@@ -62,35 +50,8 @@ agent:
         fi
         echo
 
-        echo "GCE metadata configuration"
-        echo -n "GCE_METADATA_ROOT: "
-        printenv GCE_METADATA_ROOT 2>/dev/null || echo unset
-        echo -n "GCE_METADATA_IP: "
-        printenv GCE_METADATA_IP 2>/dev/null || echo unset
-        echo -n "GCE_METADATA_HOST: "
-        printenv GCE_METADATA_HOST 2>/dev/null || echo unset
-        for metadata_url in \
-          "http://127.0.0.1:8174/" \
-          "http://127.0.0.1:8174/computeMetadata/v1/instance/service-accounts" \
-          "http://127.0.0.1:8174/computeMetadata/v1/instance/service-accounts/default/token"; do
-          metadata_error=/tmp/preflight-metadata-error
-          metadata_status=$(curl --noproxy '*' --silent --show-error --output /dev/null \
-            --write-out '%{http_code}' --connect-timeout 3 --max-time 5 \
-            -H 'Metadata-Flavor: Google' "$metadata_url" 2>"$metadata_error")
-          metadata_exit=$?
-          if [ "$metadata_exit" -eq 0 ]; then
-            echo "Metadata: $metadata_url (HTTP $metadata_status)"
-          else
-            echo "Metadata: $metadata_url (curl exit $metadata_exit)"
-            sed -n '1,5p' "$metadata_error"
-          fi
-        done
-        echo
-
-        echo "GCS: gsutil ls -b gs://$GCS_BUCKET"
-        if env GCE_METADATA_ROOT=127.0.0.1:8174 \
-          GCE_METADATA_IP=127.0.0.1:8174 \
-          timeout 30s /opt/gsutil/bin/gsutil ls -b "gs://$GCS_BUCKET" \
+        echo "GCS: gcloud storage ls gs://$GCS_BUCKET"
+        if timeout 30s gcloud storage ls "gs://$GCS_BUCKET" \
           >/dev/null 2>"$gcs_error"; then
           echo "GCS: PASS"
         else

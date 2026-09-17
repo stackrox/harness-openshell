@@ -123,6 +123,8 @@ network_policies:
               method: GET
               path: /download/storage/v1/b/test-platform-results-public/**
     binaries:
+      - { path: /opt/google-cloud-sdk/bin/gcloud }
+      - { path: /opt/google-cloud-sdk/platform/bundledpythonunix/bin/python3 }
       - { path: /opt/gsutil/bin/gsutil }
       - { path: /opt/gsutil/bin/python }
       - { path: /usr/bin/curl }

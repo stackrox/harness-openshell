@@ -12,14 +12,11 @@ and attaches those instances; it does not provision or manage their
 credentials.
 
 The built-in Google Cloud profile supplies the gateway-managed metadata path
-that gsutil uses. The workflow's Boto configuration enables gsutil's
-`[GoogleCompute]` metadata credential lookup without placing a credential in
-the sandbox, and the workflow sets both legacy metadata variables explicitly
-for gsutil's metadata client. They point at OpenShell's loopback emulator. The
-task policy binds that provider instance only to the read-only
-`test-platform-results-public` endpoints.
-The task also points Google Cloud CLI tools at OpenShell's combined CA bundle
-so `gsutil` verifies the sandbox proxy certificate without disabling TLS.
+that `gcloud storage` uses. The task policy binds that provider instance only
+to the read-only `test-platform-results-public` endpoints. The task also
+points Google Cloud CLI tools at OpenShell's combined CA bundle so the
+sandbox verifies the proxy certificate without disabling TLS. The image keeps
+standalone `gsutil` only as a temporary compatibility fallback.
 
 The `github_git` policy is intentionally unauthenticated and read-only because
 the StackRox repositories used by this task are public. The Atlassian and Prow
