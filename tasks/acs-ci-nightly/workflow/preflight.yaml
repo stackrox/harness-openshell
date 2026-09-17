@@ -23,6 +23,8 @@ agent:
       mkdir -p /sandbox/artifacts
       log=/sandbox/artifacts/preflight.log
       gcs_error=/tmp/preflight-gcs-error
+      gcs_prefix_error=/tmp/preflight-gcs-prefix-error
+      gcs_object_error=/tmp/preflight-gcs-object-error
       jira_error=/tmp/preflight-jira-error
       status=0
 
@@ -63,6 +65,61 @@ agent:
           echo "GCS: FAIL (exit $gcs_status)"
           sed -n '1,20p' "$gcs_error"
           status=1
+        fi
+
+        echo
+        echo "GCS object probe: latest-build.txt and finished.json"
+        if ! printenv GCP_SA_ACCESS_TOKEN >/dev/null; then
+          echo "GCS object probe: FAIL (OpenShell provider token GCP_SA_ACCESS_TOKEN is missing)"
+          status=1
+        else
+          nightly_response=$(curl --silent --show-error --fail \
+            --connect-timeout 10 --max-time 30 \
+            --header "Authorization: Bearer $GCP_SA_ACCESS_TOKEN" \
+            --get \
+            --data-urlencode 'prefix=logs/branch-ci-stackrox-stackrox-nightlies-' \
+            --data-urlencode 'delimiter=/' \
+            --data-urlencode 'maxResults=1' \
+            "https://storage.googleapis.com/storage/v1/b/$GCS_BUCKET/o" \
+            2>"$gcs_prefix_error")
+          prefix_status=$?
+          if [ "$prefix_status" -ne 0 ]; then
+            echo "GCS object probe: FAIL (nightly prefix listing, exit $prefix_status)"
+            sed -n '1,20p' "$gcs_prefix_error"
+            status=1
+          else
+            nightly_prefix=$(printf '%s' "$nightly_response" | jq -r '.prefixes[0] // empty')
+            if [ -z "$nightly_prefix" ]; then
+              echo "GCS object probe: FAIL (no nightly prefixes returned)"
+              status=1
+            else
+              nightly_job="gs://$GCS_BUCKET/${nightly_prefix%/}"
+              build=$(CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN" \
+                timeout 30s /opt/google-cloud-sdk/bin/gcloud storage cat \
+                "$nightly_job/latest-build.txt" 2>"$gcs_object_error")
+              build_status=$?
+              build=$(printf '%s' "$build" | tr -d '\r\n')
+              if [ "$build_status" -ne 0 ] || [ -z "$build" ]; then
+                echo "GCS object probe: FAIL (latest-build.txt, exit $build_status)"
+                sed -n '1,20p' "$gcs_object_error"
+                status=1
+              else
+                finished=$(CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN" \
+                  timeout 30s /opt/google-cloud-sdk/bin/gcloud storage cat \
+                  "$nightly_job/$build/finished.json" 2>"$gcs_object_error")
+                finished_status=$?
+                if [ "$finished_status" -ne 0 ] || [ -z "$finished" ]; then
+                  echo "GCS object probe: FAIL (finished.json, exit $finished_status)"
+                  sed -n '1,20p' "$gcs_object_error"
+                  status=1
+                else
+                  timestamp=$(printf '%s' "$finished" | jq -r '.timestamp // "unknown"')
+                  result=$(printf '%s' "$finished" | jq -r '.result // "unknown"')
+                  echo "GCS object probe: PASS (job=$nightly_job build=$build timestamp=$timestamp result=$result)"
+                fi
+              fi
+            fi
+          fi
         fi
       } >"$log" 2>&1
 
