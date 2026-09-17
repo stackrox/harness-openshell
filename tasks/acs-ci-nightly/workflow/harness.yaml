@@ -37,6 +37,9 @@ payloads:
   - content: |
       [Boto]
       ca_certificates_file = /etc/openshell-tls/ca-bundle.pem
+
+      [GoogleCompute]
+      service_account = default
     destination: /tmp/openshell-boto.cfg
 
 agent:
