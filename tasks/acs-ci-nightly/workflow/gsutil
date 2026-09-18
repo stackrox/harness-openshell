@@ -54,10 +54,48 @@ list_nightly_jobs() {
   done
 }
 
+collect_failures() {
+  local cutoff
+  local jobs
+  cutoff=$(date -u -d '24 hours ago' +%s 2>/dev/null || date -u -v-1d +%s)
+  jobs=$(list_nightly_jobs)
+  printf '# job\tbuild\tgcs_path\ttimestamp\n'
+
+  while IFS= read -r job; do
+    [[ -z "$job" ]] && continue
+    (
+      job_prefix="${job%/}/"
+      build=$(timeout 90s "$gcloud_bin" storage ls "$job_prefix" \
+        | awk -v prefix="$job_prefix" 'index($0, prefix) == 1 {
+            rest = substr($0, length(prefix) + 1)
+            if (rest ~ /^[0-9]+\/$/) {
+              sub(/\/$/, "", rest)
+              print rest
+            }
+          }' \
+        | sort -n | tail -n 1)
+      [[ -n "$build" ]] || exit 0
+      gcs_path="${job_prefix}${build}"
+      finished=$(timeout 90s "$gcloud_bin" storage cat \
+        "${gcs_path}/finished.json")
+      timestamp=$(printf '%s' "$finished" | jq -r '.timestamp // 0')
+      result=$(printf '%s' "$finished" | jq -r '.result // ""')
+      if [[ "$timestamp" -ge "$cutoff" && "$result" == FAILURE ]]; then
+        printf '%s\t%s\t%s\t%s\n' \
+          "${job#gs://${configured_bucket}/}" "$build" "$gcs_path" "$timestamp"
+      fi
+    ) &
+  done <<<"$jobs"
+  wait
+}
+
 command=${1:-}
 shift || true
 
 case "$command" in
+  collect)
+    collect_failures
+    ;;
   ls)
     if [[ $# -ne 1 ]]; then
       echo "gsutil compatibility wrapper supports: gsutil ls URI" >&2

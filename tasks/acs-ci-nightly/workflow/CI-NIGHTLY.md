@@ -13,7 +13,9 @@ Run only the CI failure analysis portion of the ACS triage agent.
 4. Follow the repository's existing `ci-coordinator.md` instructions for the
    Prow failure lookup. The trusted task provides a `gsutil` compatibility
    command backed by the configured bucket and `gcloud storage`; do not replace
-   it with a recursive bucket or wildcard listing.
+   it with a recursive bucket or wildcard listing. Treat
+   `/tmp/openshell-nightly-failures.tsv` as authoritative and do not invent
+   job, build, or GCS path values.
 5. Spawn the repository's CI analysis agents as instructed and wait for their
    results.
 6. Write exactly `/sandbox/acs-triage-agent/artifacts/ci-triage.json` using
