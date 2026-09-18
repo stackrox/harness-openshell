@@ -15,6 +15,11 @@ jobs:
       # Harness CLI/scripts. Keep both at the same release commit.
       harness-ref: 929aaa327ffa7bc7edff4d68becd6aa4d464e43c
       allow-draft-reviews: false
+      review-label: ai-review
+      review-agent: codex
+      codex-inference-provider: openai-review
+      codex-model: gpt-5.6-luna
+      codex-workspace: codex-review
       openshell-github-app-client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}
     secrets:
       VERTEX_AI_SERVICE_ACCOUNT_KEY: ${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}

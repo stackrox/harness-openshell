@@ -96,6 +96,39 @@ validated default is `claude-haiku-4-5@20251001` / `haiku`. Vertex identifies
 Sonnet 4.5 as `claude-sonnet-4-5@20250929`; switch both values together only
 after the CI service account can invoke that model.
 
+### Opt-in Codex reviewer
+
+The reusable workflow also supports `review-agent: codex` with a separate
+`codex-review` label. This runs the pinned Codex CLI inside OpenShell and keeps
+the existing OpenCode/Vertex path unchanged. Codex uses the gateway's
+`inference.local` Responses API route, so the caller must arrange a
+platform-owned OpenAI-compatible provider first (the default name is
+`openai-review`); no OpenAI key is passed through the workflow or sandbox.
+The Codex path does not require `VERTEX_AI_SERVICE_ACCOUNT_KEY`, but it does
+require a dedicated workspace containing that provider and matching inference
+route because OpenShell providers and inference routes are workspace-scoped.
+
+Add these inputs to a trusted `pull_request_target` caller:
+
+```yaml
+with:
+  review-label: codex-review
+  review-agent: codex
+  codex-inference-provider: openai-review
+  codex-model: gpt-5.6-luna
+  codex-workspace: codex-review
+```
+
+The repository's primary caller keeps the existing `ai-review` label while
+selecting this Codex configuration. `xhigh` reasoning is fixed in the Codex
+workflow configuration so callers cannot accidentally select the model without
+the intended effort setting.
+
+The same GitHub App secret and client-ID variable are still required. The
+outer OpenShell policy remains responsible for filesystem and GitHub egress;
+Codex's inner sandbox is only configured to run the non-interactive review
+without approval prompts.
+
 Only trusted default-branch code runs on the host. The pinned sandbox receives
 the PR diff and a PR-scoped GitHub token; OpenShell permits only inline comment
 POSTs to that exact PR. Label/head/base are rechecked before execution and
