@@ -143,7 +143,7 @@ The reusable workflow also supports `review-agent: codex` with the
 keeps the existing OpenCode/Vertex path available. Codex uses the gateway's
 `inference.local` Responses API route, so the caller must arrange a
 platform-owned OpenAI-compatible provider first (the default name is
-`openai-review`) in a dedicated workspace. No OpenAI key is passed through the
+`openai-inference`) in a dedicated workspace. No OpenAI key is passed through the
 workflow or sandbox.
 
 Trusted callers select it with:
@@ -152,10 +152,14 @@ Trusted callers select it with:
 with:
   review-label: stackrox-ai-review
   review-agent: codex
-  codex-inference-provider: openai-review
+  codex-inference-provider: openai-inference
   codex-model: gpt-5.6-luna
   codex-workspace: codex-review
+  required-providers: '["github-review", "openai-inference"]'
 ```
+
+The simple harness verifies each declared provider before creating the sandbox
+and fails the run if one is unavailable in the selected gateway workspace.
 
 The Codex task fixes reasoning effort to `xhigh`. The outer OpenShell policy
 continues to control filesystem and GitHub egress, and the Codex path does not

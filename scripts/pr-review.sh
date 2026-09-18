@@ -12,7 +12,7 @@ gateway="${OPENSHELL_GATEWAY:-openshell}"
 allow_draft_reviews="${ALLOW_DRAFT_REVIEWS:-false}"
 review_agent="${REVIEW_AGENT:-opencode}"
 review_label="${REVIEW_LABEL:-stackrox-ai-review}"
-codex_inference_provider="${CODEX_INFERENCE_PROVIDER:-openai-review}"
+codex_inference_provider="${CODEX_INFERENCE_PROVIDER:-openai-inference}"
 codex_model="${CODEX_MODEL:-gpt-5.6-luna}"
 codex_workspace="${CODEX_WORKSPACE:-}"
 case "$review_agent" in
@@ -37,6 +37,8 @@ configured_target=false
 if [[ "$review_agent" == codex ]]; then
   workspace="$codex_workspace"
   sandbox_name="codex-$(openssl rand -hex 6)"
+  configured_target=true
+  github_provider=github-review
 else
   workspace="${OPENSHELL_WORKSPACE:-rev-$RANDOM-$$}"
   sandbox_name="review-$(openssl rand -hex 6)"

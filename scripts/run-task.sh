@@ -26,6 +26,38 @@ kill_after="${TASK_KILL_AFTER:-35s}"
   exit 1
 }
 
+check_required_providers() {
+  local required="${TASK_PROVIDERS:-[]}"
+  mkdir -p "$output_dir"
+  if ! jq -e 'type == "array" and all(.[]; type == "string" and test("^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$"))' <<< "$required" >/dev/null; then
+    echo "TASK_PROVIDERS must be a JSON array of provider names" >&2
+    exit 1
+  fi
+
+  local report="$output_dir/provider-check.json"
+  local provider
+  local provider_args=(--gateway "$gateway")
+  [[ -n "$workspace" ]] && provider_args+=(--workspace "$workspace")
+  if [[ "$required" == '[]' ]]; then
+    jq -n --arg gateway "$gateway" --arg workspace "$workspace" \
+      '{status:"skipped", gateway:$gateway, workspace:$workspace, providers:[]}' > "$report"
+    return
+  fi
+  while IFS= read -r provider; do
+    if ! timeout 60s openshell provider get "${provider_args[@]}" "$provider" >/dev/null 2>&1; then
+      jq -n --arg gateway "$gateway" --arg workspace "$workspace" --arg provider "$provider" \
+        '{status:"failed", gateway:$gateway, workspace:$workspace, missing:[$provider]}' > "$report"
+      echo "required OpenShell provider is unavailable: $provider (gateway=$gateway workspace=${workspace:-default})" >&2
+      exit 1
+    fi
+  done < <(jq -r '.[]' <<< "$required")
+
+  jq -n --arg gateway "$gateway" --arg workspace "$workspace" --argjson providers "$required" \
+    '{status:"available", gateway:$gateway, workspace:$workspace, providers:$providers}' > "$report"
+}
+
+check_required_providers
+
 args=(workflow apply "$workflow_file" --output-dir "$output_dir" --result-file "$result_file")
 [[ -n "$gateway" ]] && args+=(--gateway "$gateway")
 [[ -n "$workspace" ]] && args+=(--workspace "$workspace")

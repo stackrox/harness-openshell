@@ -13,6 +13,10 @@ the sandboxed agent to read the selected PR and post inline comments to it.
 The token's repository permissions and the policy's PR-specific HTTP methods
 and paths are separate restrictions. Consumers should pin both the workflow
 reference and its `harness-ref` input to the same immutable commit SHA.
+Codex callers also declare the pre-provisioned provider names through
+`required-providers`; the run records the availability check as
+`provider-check.json` and stops before sandbox creation when a provider is
+missing.
 
 ## Gateway setup: local CI and managed deployment
 

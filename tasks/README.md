@@ -25,6 +25,11 @@ attachments, payloads, source checkout, and outputs. The shared
 [`scripts/run-task.sh`](../scripts/run-task.sh) adapter executes one trusted
 workflow and captures its result.
 
+Callers may set `TASK_PROVIDERS` to a JSON array of pre-provisioned provider
+names. The adapter checks those names in the selected gateway workspace before
+starting the workflow and writes the result to `provider-check.json`; it never
+creates providers or handles their credentials.
+
 The initial Codex pull-request reviewer composes Codex inference with
 read-only GitHub pull-request access and the narrowly scoped comment
 operation. A future triage task can use the same adapter and add providers

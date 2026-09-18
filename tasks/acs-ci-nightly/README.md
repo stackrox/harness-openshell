@@ -60,13 +60,9 @@ From a trusted caller with a reachable managed gateway:
 export ACS_TRIAGE_IMAGE='quay.io/rcochran/openshell:sandbox-stackrox-ci@sha256:<digest>'
 export ACS_TRIAGE_REF='main'
 export TRIAGE_RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-scripts/run-task.sh tasks/acs-ci-nightly/workflow/harness.yaml \
-  "$PWD/triage-artifacts" "$PWD/triage-artifacts/execution.json"
+harness workflow apply tasks/acs-ci-nightly/workflow/harness.yaml \
+  --output-dir ./triage-artifacts
 ```
-
-This uses the same trusted task adapter as the Codex pull-request reviewer.
-The additional Jira, GitHub-read, and GCS provider attachments come from this
-task's workflow and policy, not from the adapter or the PR-review flow.
 
 For a pull-request test, `ACS_TRIAGE_REF` may be the public ACS repository
 commit under test. The workflow itself remains trusted host-side configuration;
