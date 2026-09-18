@@ -49,7 +49,8 @@ func TestPRReview(t *testing.T) {
 				t.Fatalf("validator must be executable: mode %o", validatorMode)
 			}
 			codexValidator := mustRead(t, "../scripts/review/validate-codex-output.sh")
-			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/pr-review-local.sh": mustRead(t, "../scripts/pr-review-local.sh"), "scripts/review/validate-agent-output.sh": validator, "scripts/review/validate-codex-output.sh": codexValidator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
+			taskRunner := mustRead(t, "../scripts/run-task.sh")
+			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/pr-review-local.sh": mustRead(t, "../scripts/pr-review-local.sh"), "scripts/run-task.sh": taskRunner, "scripts/review/validate-agent-output.sh": validator, "scripts/review/validate-codex-output.sh": codexValidator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
 				mode := os.FileMode(0o700)
 				if name == "scripts/review/validate-agent-output.sh" {
 					mode = validatorMode

@@ -193,6 +193,10 @@ then removes the providers, any profile it imported, and the workspace.
 validation. It invokes the existing `harness workflow apply` command with a
 unique sandbox name. The CLI owns sandbox execution and deletion, including
 normal cancellation; the local wrapper waits for it before tearing down setup.
+The review wrapper delegates that execution through the shared
+[`scripts/run-task.sh`](../scripts/run-task.sh) adapter, which is also suitable
+for task bundles with additional provider attachments such as the read-only
+ACS triage task.
 
 ## Managed reviewer transition
 

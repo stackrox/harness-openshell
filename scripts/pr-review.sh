@@ -199,9 +199,8 @@ run_review() {
 
   (
     ulimit -f 2048 # Bound raw diagnostic output as well as runtime.
-    exec timeout -s TERM -k 35s 8m ./harness workflow apply "$workflow_file" \
-      --gateway "$gateway" --workspace "$workspace" --output-dir "$REVIEW_DIR" \
-      --result-file "$REVIEW_DIR/execution.json"
+    OPENSHELL_GATEWAY="$gateway" OPENSHELL_WORKSPACE="$workspace" \
+      exec scripts/run-task.sh "$workflow_file" "$REVIEW_DIR" "$REVIEW_DIR/execution.json"
   ) > "$REVIEW_DIR/agent.ndjson" 2> "$REVIEW_DIR/agent.stderr" &
   apply_pid=$!
   set +e
