@@ -77,7 +77,20 @@ list_builds() {
 
 read_finished() {
   local gcs_path=$1
-  timeout 90s "$gcloud_bin" storage cat "${gcs_path}/finished.json"
+  local object_path="${gcs_path#gs://${configured_bucket}/}/finished.json"
+  local response
+  response=$(timeout 30s curl \
+    --silent --show-error \
+    --connect-timeout 10 --max-time 15 \
+    --write-out $'\n__HTTP_STATUS__%{http_code}\n' \
+    "https://storage.googleapis.com/${configured_bucket}/${object_path}") || return 1
+  local status="${response##*$'\n__HTTP_STATUS__'}"
+  local body="${response%$'\n__HTTP_STATUS__'*}"
+  if [[ "$status" != 200 ]]; then
+    printf 'GCS finished read status=%s: %s\n' "$status" "$gcs_path" >&2
+    return 1
+  fi
+  printf '%s' "$body"
 }
 
 collect_failures() {
