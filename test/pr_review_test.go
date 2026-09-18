@@ -19,7 +19,7 @@ func TestPRReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "local-success", "local-cancel", "partial-provider-failure", "workspace-failure", "profile-read-failure", "existing-profile", "status-failure", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "read-tool", "tool_recovered", "unrelated-422", "unrelated-422-line", "unrelated-422-comment", "unrelated-comment", "success-then-failure", "comment-position"} {
+	for _, scenario := range []string{"success", "codex-success", "unlabeled", "stale", "oversized", "tampered", "agent-failure", "provider-failure", "cleanup-failure", "local-success", "local-cancel", "partial-provider-failure", "workspace-failure", "profile-read-failure", "existing-profile", "status-failure", "cancel", "truncated", "malformed-trailing", "incomplete", "empty", "error", "tool_use", "tool_exit", "tool_missing_exit", "read-tool", "tool_recovered", "unrelated-422", "unrelated-422-line", "unrelated-422-comment", "unrelated-comment", "success-then-failure", "comment-position"} {
 		t.Run(scenario, func(t *testing.T) {
 			local := scenario == "provider-failure" || scenario == "cleanup-failure" || scenario == "local-success" || scenario == "local-cancel" || scenario == "partial-provider-failure" || scenario == "workspace-failure" || scenario == "profile-read-failure" || scenario == "existing-profile"
 			root := t.TempDir()
@@ -48,10 +48,14 @@ func TestPRReview(t *testing.T) {
 			if validatorMode&0o111 == 0 {
 				t.Fatalf("validator must be executable: mode %o", validatorMode)
 			}
-			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/pr-review-local.sh": mustRead(t, "../scripts/pr-review-local.sh"), "scripts/review/validate-agent-output.sh": validator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
+			codexValidator := mustRead(t, "../scripts/review/validate-codex-output.sh")
+			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/pr-review-local.sh": mustRead(t, "../scripts/pr-review-local.sh"), "scripts/review/validate-agent-output.sh": validator, "scripts/review/validate-codex-output.sh": codexValidator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
 				mode := os.FileMode(0o700)
 				if name == "scripts/review/validate-agent-output.sh" {
 					mode = validatorMode
+				}
+				if name == "scripts/review/validate-codex-output.sh" {
+					mode = 0o700
 				}
 				if err := os.WriteFile(filepath.Join(root, name), data, mode); err != nil {
 					t.Fatal(err)
@@ -63,7 +67,10 @@ func TestPRReview(t *testing.T) {
 			prepare.Env = append(os.Environ(), "PATH="+root+string(os.PathListSeparator)+os.Getenv("PATH"),
 				"FAKE_SCENARIO="+scenario, "TRACE="+filepath.Join(root, "trace"), "READY="+filepath.Join(root, "ready"),
 				"REVIEW_DIR="+filepath.Join(root, "review"), "REVIEW_REPOSITORY=owner/repo", "REVIEW_PR=1", "REVIEW_HEAD=", "GITHUB_OUTPUT="+filepath.Join(root, "output"),
-				"GITHUB_STEP_SUMMARY="+stepSummary, "GOOGLE_VERTEX_AI_TOKEN=", "VERTEX_AI_PROJECT_ID=", "GITHUB_TOKEN=", "OPENSHELL_GATEWAY=managed-test", "OPENSHELL_WORKSPACE=shared-test", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
+				"GITHUB_STEP_SUMMARY="+stepSummary, "GOOGLE_VERTEX_AI_TOKEN=", "VERTEX_AI_PROJECT_ID=", "GITHUB_TOKEN=", "OPENSHELL_GATEWAY=managed-test", "OPENSHELL_WORKSPACE=shared-test", "REVIEW_AGENT=", "REVIEW_LABEL=stackrox-ai-review", "CODEX_INFERENCE_PROVIDER=fake-openai", "CODEX_MODEL=gpt-5.6-luna", "CODEX_WORKSPACE=codex-workspace", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
+			if scenario == "codex-success" {
+				prepare.Env = append(prepare.Env, "REVIEW_AGENT=codex", "FAKE_AGENT=codex", "GITHUB_TOKEN=fake")
+			}
 			out, err := prepare.CombinedOutput()
 			if scenario == "oversized" {
 				if err == nil {
@@ -115,7 +122,7 @@ func TestPRReview(t *testing.T) {
 				}
 			}
 			err = cmd.Wait()
-			if (err == nil) != (scenario == "success" || scenario == "stale" || scenario == "local-success" || scenario == "existing-profile" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") {
+			if (err == nil) != (scenario == "success" || scenario == "codex-success" || scenario == "stale" || scenario == "local-success" || scenario == "existing-profile" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") {
 				t.Fatalf("unexpected result: %v\n%s", err, logs.String())
 			}
 			trace, _ := os.ReadFile(filepath.Join(root, "trace"))
@@ -125,17 +132,22 @@ func TestPRReview(t *testing.T) {
 				}
 				return
 			}
-			if strings.Contains(string(trace), "sandbox delete") {
+			if scenario != "codex-success" && strings.Contains(string(trace), "sandbox delete") {
 				t.Fatal("review wrapper must leave sandbox cleanup to the runner")
 			}
 			if !local {
-				for _, action := range []string{"workspace ", "provider ", "inference ", "--gateway", "--workspace"} {
-					if strings.Contains(string(trace), action) {
-						t.Fatalf("existing-target review performed setup or forced a target: %s", trace)
+				if scenario != "codex-success" {
+					for _, action := range []string{"workspace create", "provider create", "inference set"} {
+						if strings.Contains(string(trace), action) {
+							t.Fatalf("existing-target review performed setup or forced a target: %s", trace)
+						}
 					}
 				}
-				if !strings.Contains(string(trace), "target managed-test shared-test") {
+				if scenario != "codex-success" && !strings.Contains(string(trace), "target managed-test shared-test") {
 					t.Fatal("configured target environment was not preserved")
+				}
+				if scenario == "codex-success" && !strings.Contains(string(trace), "sandbox delete") {
+					t.Fatal("Codex review did not clean up its sandbox")
 				}
 			} else {
 				if strings.Contains(string(trace), "workspace delete") == (scenario == "workspace-failure") {
@@ -165,7 +177,7 @@ func TestPRReview(t *testing.T) {
 				}
 			}
 			summary, _ := os.ReadFile(filepath.Join(root, "review/summary.md"))
-			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success" || scenario == "local-success" || scenario == "existing-profile" || scenario == "cleanup-failure" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") || strings.Contains(string(summary), "MODEL_OUTPUT") {
+			if strings.Contains(string(summary), "AI review: completed") != (scenario == "success" || scenario == "codex-success" || scenario == "local-success" || scenario == "existing-profile" || scenario == "cleanup-failure" || scenario == "comment-position" || scenario == "read-tool" || scenario == "tool_recovered") || strings.Contains(string(summary), "MODEL_OUTPUT") {
 				t.Fatalf("incorrect or model-controlled summary: %s", summary)
 			}
 		})
@@ -229,8 +241,18 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	if !ok {
 		t.Fatal("shared review workflow is not callable")
 	}
-	if input, ok := sharedTrigger.Inputs["review-label"]; !ok || input.Default != "ai-review" {
-		t.Fatalf("shared review workflow default label = %#v, want ai-review", input)
+	if input, ok := sharedTrigger.Inputs["review-label"]; !ok || input.Default != "stackrox-ai-review" {
+		t.Fatalf("shared review workflow default label = %#v, want stackrox-ai-review", input)
+	}
+	for name, want := range map[string]string{
+		"review-agent":             "opencode",
+		"codex-inference-provider": "openai-review",
+		"codex-model":              "gpt-5.6-luna",
+	} {
+		input, ok := sharedTrigger.Inputs[name]
+		if !ok || input.Default != want {
+			t.Fatalf("shared review workflow default %s = %#v, want %s", name, input, want)
+		}
 	}
 	for _, name := range []string{"VERTEX_AI_SERVICE_ACCOUNT_KEY", "OPENSHELL_GITHUB_APP_PRIVATE_KEY"} {
 		if _, ok := sharedTrigger.Secrets[name]; !ok {
@@ -267,15 +289,28 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	if err := yaml.Unmarshal(data, &task); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := task["inference"]; ok {
-		t.Fatal("review task must consume the route owned by setup")
+	if inference, ok := task["inference"].(map[string]any); !ok || inference["route"] != "inference.local" {
+		t.Fatal("review task must declare the inference.local route")
 	}
 	example := string(data)
-	if !strings.Contains(example, "providers: [github-review]") {
+	if !strings.Contains(example, `providers: ["${REVIEW_GITHUB_PROVIDER}"]`) {
 		t.Fatal("review workflow does not attach the native GitHub provider")
 	}
 	if strings.Contains(example, "GITHUB_TOKEN") {
 		t.Fatal("review workflow passes the GitHub token into the sandbox configuration")
+	}
+	codex := string(mustRead(t, "../tasks/github-pr-reviewer/workflow/codex-harness.yaml"))
+	for _, required := range []string{"type: codex", "CODEX_INFERENCE_PROVIDER", "CODEX_MODEL", "${CODEX_MODEL}", "model_reasoning_effort = \"xhigh\"", "inference.local/v1", "codex-final.txt"} {
+		if !strings.Contains(codex, required) {
+			t.Fatalf("Codex workflow is missing %s", required)
+		}
+	}
+	if strings.Contains(codex, "OPENAI_API_KEY") || strings.Contains(codex, "openai-api-key") {
+		t.Fatal("Codex workflow must not carry an OpenAI credential")
+	}
+	policy := string(mustRead(t, "../tasks/github-pr-reviewer/openshell/policy.yaml"))
+	if !strings.Contains(policy, "/usr/bin/codex") {
+		t.Fatal("review policy does not authorize Codex")
 	}
 }
 
@@ -344,21 +379,22 @@ const fakeReviewCommand = `#!/usr/bin/env bash
 set -eu
 printf '%s\n' "$*" >> "$TRACE"
 assert_name_length() {
-  local name="" next
+  local name="" next saw_name=false
   for ((i = 1; i <= $#; i++)); do
     if [[ "${!i}" == --name ]]; then
       next=$((i + 1))
       ((next <= $#)) || return 1
       name="${!next}"
+      saw_name=true
     fi
   done
-  [[ -n "$name" && ${#name} -le 19 ]]
+  [[ "$saw_name" != true || ( -n "$name" && ${#name} -le 19 ) ]]
 }
 if [[ "${0##*/}" == gh ]]; then
   if [[ "$2" == */compare/* ]]; then
     if [[ "$FAKE_SCENARIO" == oversized ]]; then head -c 262145 /dev/zero; else printf 'diff data\n'; fi
   else
-    labels='[{"name":"ai-review"}]'
+    labels='[{"name":"stackrox-ai-review"}]'
     [[ "$FAKE_SCENARIO" != unlabeled ]] || labels='[]'
     [[ "$FAKE_SCENARIO" != stale || ! -f "$READY" ]] || labels='[]'
     printf '{"state":"open","draft":false,"labels":%s,"head":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"base":{"sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}\n' "$labels"
@@ -392,6 +428,12 @@ case "$1 ${2:-}" in
     done
     if [[ -n "$result_file" ]]; then
       printf '%s\n' '{"status":"succeeded","phase":"complete"}' > "$result_file"
+    fi
+    if [[ "${FAKE_AGENT:-}" == codex ]]; then
+      printf '%s\n' '{"type":"thread.started","thread_id":"fake"}'
+      printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"CODEX_OUTPUT"}}'
+      printf '%s\n' '{"type":"turn.completed"}'
+      exit 0
     fi
     printf '%s\n' 'harness status'
     if [[ "$FAKE_SCENARIO" == empty ]]; then

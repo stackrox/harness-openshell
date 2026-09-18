@@ -13,7 +13,8 @@ provider credentials or inference routes are available.
 
 The general StackRox image, based on the NVIDIA OpenShell community image. It
 adds the integrations shared by StackRox workflows, including Atlassian MCP,
-Google Workspace, and the ACS triage toolchain (`gopls` and `ajv-cli`).
+Google Workspace, the Codex/OpenCode CLIs, and the ACS triage toolchain
+(`gopls` and `ajv-cli`).
 
 Build it locally with:
 

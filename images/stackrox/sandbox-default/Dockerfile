@@ -87,10 +87,11 @@ RUN set -eux; \
     install -m 0755 /tmp/gws-extract/gws /usr/local/bin/gws; \
     rm -rf /tmp/gws.tgz /tmp/gws-extract
 
-# OpenCode AI coding agent
+# OpenCode and Codex coding agents
 # https://github.com/opencode-ai/opencode
+# https://github.com/openai/codex
 # JSON Schema validation used by the ACS triage workflow.
-RUN npm install -g opencode-ai@1.18.30 ajv-cli@5.0.0 && \
+RUN npm install -g opencode-ai@1.18.30 @openai/codex@0.117.0 ajv-cli@5.0.0 && \
     npm cache clean --force
 
 ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:${PATH}"
@@ -99,7 +100,7 @@ ENV PATH="/sandbox/.venv/bin:/usr/local/go/bin:${PATH}"
 # additional endpoints at runtime via providers v2 composition)
 COPY policy.yaml /etc/openshell/policy.yaml
 
-# Agent instructions + config (Claude Code + OpenCode)
+# Agent instructions + config (Claude Code + OpenCode; Codex uses its runtime config)
 # These are defaults. Override any file via payloads: in the agent YAML:
 #   payloads:
 #     - destination: /sandbox/.claude/CLAUDE.md

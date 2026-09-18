@@ -89,7 +89,7 @@ branch; before then, use `actionlint` and the local `scripts/pr-review.sh`
 commands below. Normal reviews remain `pull_request_target` runs from the
 default branch.
 
-Once `AI review` is on the default branch, add `ai-review` to an open, non-draft
+Once `AI review` is on the default branch, add `stackrox-ai-review` to an open, non-draft
 PR. It reviews the full diff on labeling and each pushed head; newer runs cancel
 older ones. Removing the label, closing, or drafting the PR disables review.
 It uses the Vertex secret/variables above. Summaries show status, head SHA, and
@@ -97,7 +97,7 @@ an artifact link. Seven-day artifacts hold input revisions, diff/hash, execution
 metadata, raw output/diagnostics, and `review.txt`. Reviews are advisory inline
 comments only; they do not approve, request changes, or merge.
 
-The active reviewer runs OpenCode with Gemini 2.5 Pro through `inference.local`
+The default reviewer runs OpenCode with Gemini 2.5 Pro through `inference.local`
 and Google Vertex AI. The model is selected in
 [`scripts/pr-review-local.sh`](../scripts/pr-review-local.sh) and the agent
 arguments in [`opencode-harness.yaml`](../tasks/github-pr-reviewer/workflow/opencode-harness.yaml).
@@ -126,7 +126,7 @@ comments that have already been posted.
 
 Locally, use `gh` authentication, `jq`, GNU `timeout` (Homebrew `coreutils` on
 macOS), and the Vertex token/project variables above. Use a new absolute artifact
-directory each time and an open, non-draft PR carrying `ai-review`:
+directory each time and an open, non-draft PR carrying `stackrox-ai-review`:
 
 ```bash
 make cli
@@ -135,6 +135,31 @@ export REVIEW_DIR="$PWD/review-artifacts-123"
 bash scripts/pr-review.sh prepare
 bash scripts/pr-review-local.sh
 ```
+
+### Opt-in Codex reviewer
+
+The reusable workflow also supports `review-agent: codex` with the
+`stackrox-ai-review` label. This runs the pinned Codex CLI inside OpenShell and
+keeps the existing OpenCode/Vertex path available. Codex uses the gateway's
+`inference.local` Responses API route, so the caller must arrange a
+platform-owned OpenAI-compatible provider first (the default name is
+`openai-review`) in a dedicated workspace. No OpenAI key is passed through the
+workflow or sandbox.
+
+Trusted callers select it with:
+
+```yaml
+with:
+  review-label: stackrox-ai-review
+  review-agent: codex
+  codex-inference-provider: openai-review
+  codex-model: gpt-5.6-luna
+  codex-workspace: codex-review
+```
+
+The Codex task fixes reasoning effort to `xhigh`. The outer OpenShell policy
+continues to control filesystem and GitHub egress, and the Codex path does not
+require the Vertex service-account secret.
 
 The local wrapper needs a reachable local gateway and a repository-scoped
 `GITHUB_TOKEN` for provider bootstrap, in addition to the Vertex variables.
