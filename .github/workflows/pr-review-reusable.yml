@@ -87,7 +87,7 @@ jobs:
           [[ "$REVIEW_AGENT" == opencode || "$REVIEW_AGENT" == codex ]]
           jq -e 'type == "array" and all(.[]; type == "string" and test("^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$"))' <<< "$REQUIRED_PROVIDERS" >/dev/null
           if [[ "$REVIEW_AGENT" == codex ]]; then
-            [[ "$CODEX_PROVIDER" =~ ^[A-Za-z0-9_.-]+$ ]]
+            [[ "$CODEX_PROVIDER" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$ ]]
             [[ "$CODEX_MODEL" =~ ^[A-Za-z0-9_.@/-]+$ ]]
             [[ "$CODEX_WORKSPACE" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$ ]]
             jq -e --arg provider "$CODEX_PROVIDER" 'index($provider) != null' <<< "$REQUIRED_PROVIDERS" >/dev/null
