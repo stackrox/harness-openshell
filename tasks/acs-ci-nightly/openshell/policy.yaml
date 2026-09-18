@@ -51,6 +51,8 @@ network_policies:
         protocol: rest
         tls: terminate
         enforcement: enforce
+        credential_binding:
+          provider: github-triage-read
         rules:
           - allow:
               method: GET

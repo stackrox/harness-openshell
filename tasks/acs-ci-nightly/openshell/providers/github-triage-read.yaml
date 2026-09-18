@@ -1,0 +1,18 @@
+# Endpointless read-only GitHub profile for ACS triage.
+# The provider instance is gateway-owned; no token belongs in this repository.
+id: github-triage-read
+display_name: GitHub ACS triage read-only
+description: Gateway-managed GitHub credential for read-only project and issue queries
+category: source_control
+credentials:
+  - name: api_token
+    description: Gateway-managed GitHub token
+    env_vars: [GITHUB_TOKEN, GH_TOKEN]
+    required: true
+    auth_style: bearer
+    header_name: authorization
+discovery:
+  credentials: [api_token]
+binaries:
+  - /usr/bin/gh
+  - /usr/bin/curl
