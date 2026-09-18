@@ -77,7 +77,7 @@ list_builds() {
 
 read_finished() {
   local gcs_path=$1
-  local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
+  local api="https://storage.googleapis.com/download/storage/v1/b/${configured_bucket}/o"
   local object_path="${gcs_path#gs://${configured_bucket}/}/finished.json"
   local encoded_object
   encoded_object=$(jq -rn --arg object "$object_path" '$object | @uri')
