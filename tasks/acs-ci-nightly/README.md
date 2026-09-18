@@ -1,9 +1,10 @@
 # ACS CI nightly
 
-This task runs the read-only CI-failure portion of the ACS triage agent. It
-queries the StackRox Prow result bucket, analyzes recent nightly
-failures, and writes `ci-triage.json` without creating or updating Jira
-issues.
+This task runs the read-only CI-failure portion of the ACS triage agent. The
+ACS repository owns the Prow/GCS lookup and analysis; this Harness bundle
+provides the generic OpenShell task wiring and provider-backed connection.
+The task analyzes recent nightly failures and writes `ci-triage.json` without
+creating or updating Jira issues.
 
 The task is intentionally narrower than the full ACS triage workflow. It is a
 first consumer contract for `acs-triage-agent`; Jira/community triage and
@@ -16,9 +17,9 @@ validated.
   no scheduler or GitHub Actions trigger of its own.
 - Trusted inputs: the workflow document, `ACS_TRIAGE_REF`, `TRIAGE_RUN_URL`,
   the gateway target, provider names, and the pinned `stackrox-ci` image.
-- Untrusted input: the checked-out `stackrox/acs-triage-agent` source and the
-  Prow result data it reads. Neither is allowed to define providers, policy,
-  image, or commands.
+- Task input: the checked-out `stackrox/acs-triage-agent` source owns the
+  collector and analysis logic. The source and Prow result data cannot change
+  the provider identities, policy, image, or workflow wiring defined here.
 - External operations: public GitHub clone/fetch and read-only Prow GCS and
   Jira queries. The task cannot push source, create or update Jira issues, or
   publish to Slack.

@@ -32,26 +32,14 @@ source:
   destination: /sandbox
 
 payloads:
-  - source: CI-NIGHTLY.md
-    destination: /sandbox/CI-NIGHTLY.md
-  - source: gsutil
-    destination: /sandbox/tools/gsutil
   - content: |
-      # OpenShell injects the short-lived provider token; gcloud needs this
-      # runtime-only compatibility mapping.
-      export PATH="/sandbox/tools:$PATH"
-      gsutil() { /bin/bash /sandbox/tools/gsutil "$@"; }
+      # OpenShell injects the short-lived provider token; the ACS repository
+      # owns the bounded Prow/GCS compatibility command.
+      export PATH="/sandbox/scripts:$PATH"
+      gsutil() { /bin/bash /sandbox/scripts/gsutil "$@"; }
       export -f gsutil
       if [ -n "$GCP_SA_ACCESS_TOKEN" ]; then
         export CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"
-      fi
-      if ! printenv OPENSHELL_GCS_MANIFEST_STARTED >/dev/null 2>&1; then
-        export OPENSHELL_GCS_MANIFEST_STARTED=1
-        /bin/bash /sandbox/tools/gsutil collect \
-          >/tmp/openshell-nightly-failures.tsv \
-          2>/tmp/openshell-nightly-failures.err || {
-          echo "collection failed; see /tmp/openshell-nightly-failures.err" >&2
-        }
       fi
     destination: /sandbox/.bash_env
 
