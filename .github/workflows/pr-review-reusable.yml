@@ -91,6 +91,7 @@ jobs:
             [[ "$CODEX_MODEL" =~ ^[A-Za-z0-9_.@/-]+$ ]]
             [[ "$CODEX_WORKSPACE" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$ ]]
             jq -e --arg provider "$CODEX_PROVIDER" 'index($provider) != null' <<< "$REQUIRED_PROVIDERS" >/dev/null
+            jq -e 'index("github-review") != null' <<< "$REQUIRED_PROVIDERS" >/dev/null
           fi
       # Checkout only default-branch content from the caller. The PR head is data.
       - uses: actions/checkout@v7
