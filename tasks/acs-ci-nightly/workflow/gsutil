@@ -42,6 +42,8 @@ list_nightly_jobs() {
       "$api"
     )
     response=$(timeout 90s curl "${curl_args[@]}")
+    printf 'GCS job-list response: %s\n' \
+      "$(printf '%s' "$response" | jq -c '{kind, prefixes: (.prefixes | length), items: (.items | length), error}')" >&2
 
     printf '%s' "$response" \
       | jq -r --arg bucket "$configured_bucket" \
@@ -90,6 +92,8 @@ collect_failures() {
   local jobs
   cutoff=$(date -u -d '24 hours ago' +%s 2>/dev/null || date -u -v-1d +%s)
   jobs=$(list_nightly_jobs)
+  job_count=$(printf '%s\n' "$jobs" | awk 'NF { count++ } END { print count + 0 }')
+  printf 'GCS jobs discovered: %s\n' "$job_count" >&2
   printf '# job\tbuild\tgcs_path\ttimestamp\n'
 
   while IFS= read -r job; do
