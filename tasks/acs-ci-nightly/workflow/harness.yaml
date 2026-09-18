@@ -21,7 +21,6 @@ sandbox:
     JIRA_URL: https://redhat.atlassian.net
     CONFLUENCE_URL: https://redhat.atlassian.net/wiki
     READ_ONLY_MODE: "true"
-    ACS_OPENSHELL_TASK: "true"
     TRIAGE_RUN_URL: ${TRIAGE_RUN_URL}
     GCS_BUCKET: test-platform-results-public
     BASH_ENV: /sandbox/.bash_env
