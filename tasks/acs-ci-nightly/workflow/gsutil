@@ -106,21 +106,27 @@ collect_failures() {
 
   while IFS= read -r job; do
     [[ -z "$job" ]] && continue
-    (
-      job_prefix="${job%/}/"
-      build=$(list_builds "$job" | sort -n | tail -n 1)
-      [[ -n "$build" ]] || exit 0
-      gcs_path="${job_prefix}${build}"
-      finished=$(read_finished "$gcs_path")
-      timestamp=$(printf '%s' "$finished" | jq -r '.timestamp // 0')
-      result=$(printf '%s' "$finished" | jq -r '.result // ""')
-      if [[ "$timestamp" -ge "$cutoff" && "$result" == FAILURE ]]; then
-        printf '%s\t%s\t%s\t%s\n' \
-          "${job#gs://${configured_bucket}/}" "$build" "$gcs_path" "$timestamp"
+    job_prefix="${job%/}/"
+    finished=""
+    build=""
+    while IFS= read -r candidate; do
+      [[ -z "$candidate" ]] && continue
+      candidate_path="${job_prefix}${candidate}"
+      if candidate_finished=$(read_finished "$candidate_path" 2>/dev/null); then
+        build="$candidate"
+        gcs_path="$candidate_path"
+        finished="$candidate_finished"
+        break
       fi
-    ) &
+    done < <(list_builds "$job" | sort -nr || true)
+    [[ -n "$build" && -n "$finished" ]] || continue
+    timestamp=$(printf '%s' "$finished" | jq -r '.timestamp // 0')
+    result=$(printf '%s' "$finished" | jq -r '.result // ""')
+    if [[ "$timestamp" -ge "$cutoff" && "$result" == FAILURE ]]; then
+      printf '%s\t%s\t%s\t%s\n' \
+        "${job#gs://${configured_bucket}/}" "$build" "$gcs_path" "$timestamp"
+    fi
   done <<<"$jobs"
-  wait
 }
 
 command=${1:-}
