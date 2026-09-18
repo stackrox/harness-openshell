@@ -24,11 +24,6 @@ list_nightly_jobs() {
   local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
   local page_token=""
 
-  if [[ -z "$token" ]]; then
-    echo "gsutil compatibility wrapper: GCP_SA_ACCESS_TOKEN is missing" >&2
-    return 1
-  fi
-
   while :; do
     local response
     local -a query_args=(
@@ -40,11 +35,17 @@ list_nightly_jobs() {
       query_args+=(--data-urlencode "pageToken=$page_token")
     fi
 
-    response=$(timeout 90s curl --silent --show-error --fail \
-      --connect-timeout 10 --max-time 60 \
-      --header "Authorization: Bearer $token" \
-      --get \
-      "${query_args[@]}" "$api")
+    local -a curl_args=(
+      --silent --show-error --fail
+      --connect-timeout 10 --max-time 60
+      --get
+      "${query_args[@]}"
+      "$api"
+    )
+    if [[ -n "$token" ]]; then
+      curl_args+=(--header "Authorization: Bearer $token")
+    fi
+    response=$(timeout 90s curl "${curl_args[@]}")
 
     printf '%s' "$response" \
       | jq -r --arg bucket "$configured_bucket" \
@@ -53,6 +54,47 @@ list_nightly_jobs() {
     page_token=$(printf '%s' "$response" | jq -r '.nextPageToken // empty')
     [[ -z "$page_token" ]] && break
   done
+}
+
+list_builds() {
+  local job=$1
+  local token=${GCP_SA_ACCESS_TOKEN:-}
+  local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
+  local object_prefix="${job#gs://${configured_bucket}/}"
+  local -a curl_args=(
+    --silent --show-error --fail
+    --connect-timeout 10 --max-time 60
+    --get
+    --data-urlencode "prefix=$object_prefix"
+    --data-urlencode "delimiter=/"
+    --data-urlencode "maxResults=1000"
+    "$api"
+  )
+  if [[ -n "$token" ]]; then
+    curl_args+=(--header "Authorization: Bearer $token")
+  fi
+  timeout 90s curl "${curl_args[@]}" \
+    | jq -r '.prefixes[]? | capture("/(?<build>[0-9]+)/$").build'
+}
+
+read_finished() {
+  local gcs_path=$1
+  local token=${GCP_SA_ACCESS_TOKEN:-}
+  local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
+  local object_path="${gcs_path#gs://${configured_bucket}/}/finished.json"
+  local encoded_object
+  encoded_object=$(jq -rn --arg object "$object_path" '$object | @uri')
+  local -a curl_args=(
+    --silent --show-error --fail
+    --connect-timeout 10 --max-time 60
+    --get
+    --data-urlencode "alt=media"
+    "$api/$encoded_object"
+  )
+  if [[ -n "$token" ]]; then
+    curl_args+=(--header "Authorization: Bearer $token")
+  fi
+  timeout 90s curl "${curl_args[@]}"
 }
 
 collect_failures() {
@@ -66,19 +108,10 @@ collect_failures() {
     [[ -z "$job" ]] && continue
     (
       job_prefix="${job%/}/"
-      build=$(timeout 90s "$gcloud_bin" storage ls "$job_prefix" \
-        | awk -v prefix="$job_prefix" 'index($0, prefix) == 1 {
-            rest = substr($0, length(prefix) + 1)
-            if (rest ~ /^[0-9]+\/$/) {
-              sub(/\/$/, "", rest)
-              print rest
-            }
-          }' \
-        | sort -n | tail -n 1)
+      build=$(list_builds "$job" | sort -n | tail -n 1)
       [[ -n "$build" ]] || exit 0
       gcs_path="${job_prefix}${build}"
-      finished=$(timeout 90s "$gcloud_bin" storage cat \
-        "${gcs_path}/finished.json")
+      finished=$(read_finished "$gcs_path")
       timestamp=$(printf '%s' "$finished" | jq -r '.timestamp // 0')
       result=$(printf '%s' "$finished" | jq -r '.result // ""')
       if [[ "$timestamp" -ge "$cutoff" && "$result" == FAILURE ]]; then
