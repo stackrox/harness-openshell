@@ -12,8 +12,12 @@ rewrite_uri() {
     gs://test-platform-results|gs://test-platform-results/*)
       printf 'gs://%s%s\n' "$configured_bucket" "${uri#gs://test-platform-results}"
       ;;
-    *)
+    gs://$configured_bucket|gs://$configured_bucket/*)
       printf '%s\n' "$uri"
+      ;;
+    *)
+      echo "gsutil compatibility wrapper: unsupported bucket in $uri" >&2
+      return 2
       ;;
   esac
 }
@@ -55,19 +59,33 @@ list_builds() {
   local job=$1
   local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
   local object_prefix="${job#gs://${configured_bucket}/}"
-  local -a curl_args=(
-    --silent --show-error --fail
-    --connect-timeout 10 --max-time 60
-    --get
-    --data-urlencode "prefix=$object_prefix"
-    --data-urlencode "delimiter=/"
-    --data-urlencode "maxResults=1000"
-    "$api"
-  )
-  local response
-  response=$(timeout 90s curl "${curl_args[@]}")
-  printf '%s' "$response" \
-      | jq -r '.prefixes[]? | capture("/(?<build>[0-9]+)/$").build'
+  local page_token=""
+
+  while :; do
+    local response
+    local -a query_args=(
+      --data-urlencode "prefix=$object_prefix"
+      --data-urlencode "delimiter=/"
+      --data-urlencode "maxResults=1000"
+    )
+    if [[ -n "$page_token" ]]; then
+      query_args+=(--data-urlencode "pageToken=$page_token")
+    fi
+
+    local -a curl_args=(
+      --silent --show-error --fail
+      --connect-timeout 10 --max-time 60
+      --get
+      "${query_args[@]}"
+      "$api"
+    )
+    response=$(timeout 90s curl "${curl_args[@]}")
+    printf '%s' "$response" \
+      | jq -r '.prefixes[]? | rtrimstr("/") | split("/") | .[-1] | select(test("^[0-9]+$"))'
+
+    page_token=$(printf '%s' "$response" | jq -r '.nextPageToken // empty')
+    [[ -z "$page_token" ]] && break
+  done
 }
 
 list_objects() {
@@ -106,7 +124,18 @@ read_finished() {
 collect_failures() {
   local cutoff
   local jobs
-  cutoff=$(date -u -d '24 hours ago' +%s 2>/dev/null || date -u -v-1d +%s)
+  local job
+  local job_prefix
+  local finished
+  local build
+  local gcs_path
+  local timestamp
+  local result
+  local candidates
+  case "$(uname -s)" in
+    Darwin) cutoff=$(date -u -v-1d +%s) ;;
+    *) cutoff=$(date -u -d '24 hours ago' +%s) ;;
+  esac
   jobs=$(list_nightly_jobs)
   printf '# Every data row below is a verified CI failure.\n'
   printf '# job\tbuild\tgcs_path\ttimestamp\tresult\n'
@@ -116,6 +145,10 @@ collect_failures() {
     job_prefix="${job%/}/"
     finished=""
     build=""
+    if ! candidates=$(list_builds "$job"); then
+      echo "gsutil compatibility wrapper: failed to list builds for $job" >&2
+      return 1
+    fi
     while IFS= read -r candidate; do
       [[ -z "$candidate" ]] && continue
       candidate_path="${job_prefix}${candidate}"
@@ -125,7 +158,7 @@ collect_failures() {
         finished="$candidate_finished"
         break
       fi
-    done < <(list_builds "$job" | sort -nr || true)
+    done < <(printf '%s\n' "$candidates" | sort -nr)
     [[ -n "$build" && -n "$finished" ]] || continue
     timestamp=$(printf '%s' "$finished" | jq -r '.timestamp // 0')
     result=$(printf '%s' "$finished" | jq -r '.result // ""')

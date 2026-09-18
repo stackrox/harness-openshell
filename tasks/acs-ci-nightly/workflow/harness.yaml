@@ -37,6 +37,8 @@ payloads:
   - source: gsutil
     destination: /sandbox/tools/gsutil
   - content: |
+      # OpenShell injects the short-lived provider token; gcloud needs this
+      # runtime-only compatibility mapping.
       export PATH="/sandbox/tools:$PATH"
       gsutil() { /bin/bash /sandbox/tools/gsutil "$@"; }
       export -f gsutil
@@ -48,8 +50,7 @@ payloads:
         /bin/bash /sandbox/tools/gsutil collect \
           >/tmp/openshell-nightly-failures.tsv \
           2>/tmp/openshell-nightly-failures.err || {
-          echo "collection failed; see /tmp/openshell-nightly-failures.err" \
-            >>/tmp/openshell-nightly-failures.tsv
+          echo "collection failed; see /tmp/openshell-nightly-failures.err" >&2
         }
       fi
     destination: /sandbox/.bash_env

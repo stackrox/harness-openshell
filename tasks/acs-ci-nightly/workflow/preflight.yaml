@@ -52,7 +52,7 @@ agent:
         echo
 
         echo "GCS: /opt/google-cloud-sdk/bin/gcloud storage ls gs://$GCS_BUCKET"
-        if ! printenv GCP_SA_ACCESS_TOKEN >/dev/null; then
+        if [ -z "${GCP_SA_ACCESS_TOKEN:-}" ]; then
           echo "GCS: FAIL (OpenShell provider token GCP_SA_ACCESS_TOKEN is missing)"
           status=1
         elif timeout 30s /opt/google-cloud-sdk/bin/gcloud storage ls "gs://$GCS_BUCKET" \
