@@ -17,6 +17,27 @@ gateway; provider instances and their credentials remain gateway-owned. The
 `workflow/` directory contains the task-specific agent behavior and the
 optional version 1 harness workflow document.
 
+## Composable execution
+
+Task bundles are composable through the version 1 workflow document. The
+workflow combines the agent, inference route, sandbox policy, provider
+attachments, payloads, source checkout, and outputs. The shared
+[`scripts/run-task.sh`](../scripts/run-task.sh) adapter executes one trusted
+workflow and captures its result.
+
+Callers may set `TASK_PROVIDERS` to a JSON array of pre-provisioned provider
+names. The adapter checks those names in the selected gateway workspace before
+starting the workflow and writes the result to `provider-check.json`; it never
+creates providers or handles their credentials.
+
+The initial Codex pull-request reviewer composes Codex inference with
+read-only GitHub pull-request access and the narrowly scoped comment
+operation. A future triage task can use the same adapter and add providers
+such as read-only GCS and Jira in its own workflow without adding
+triage-specific logic to the reviewer runner. The provider list and policy
+remain the executable capability boundary; a separate capability allowlist is
+intentionally deferred.
+
 OpenShell has no single native task-bundle file abstraction. A task can run
 with native OpenShell by using the image, policy, provider, and agent command
 with `openshell sandbox create` and upload commands. The `harness` CLI composes

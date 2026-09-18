@@ -143,7 +143,7 @@ The reusable workflow also supports `review-agent: codex` with the
 keeps the existing OpenCode/Vertex path available. Codex uses the gateway's
 `inference.local` Responses API route, so the caller must arrange a
 platform-owned OpenAI-compatible provider first (the default name is
-`openai-review`) in a dedicated workspace. No OpenAI key is passed through the
+`openai-inference`) in a dedicated workspace. No OpenAI key is passed through the
 workflow or sandbox.
 
 Trusted callers select it with:
@@ -152,10 +152,14 @@ Trusted callers select it with:
 with:
   review-label: stackrox-ai-review
   review-agent: codex
-  codex-inference-provider: openai-review
+  codex-inference-provider: openai-inference
   codex-model: gpt-5.6-luna
   codex-workspace: codex-review
+  required-providers: '["github-review", "openai-inference"]'
 ```
+
+The simple harness verifies each declared provider before creating the sandbox
+and fails the run if one is unavailable in the selected gateway workspace.
 
 The Codex task fixes reasoning effort to `xhigh`. The outer OpenShell policy
 continues to control filesystem and GitHub egress, and the Codex path does not
@@ -173,7 +177,9 @@ preparation instead. Select a registered gateway/workspace with
 connection (see [workflow contract](#workflow-contract)). The review command
 uses the selected target and only creates its task sandbox. It needs host `gh`
 authentication for PR checks, while the platform supplies the `github-review`
-provider with usable credentials and the Gemini 2.5 Pro inference route.
+provider with usable credentials. OpenCode requires the Gemini 2.5 Pro inference
+route; Codex requires the configured `CODEX_INFERENCE_PROVIDER` (default:
+`openai-inference`).
 
 Unit tests use fake commands, not Vertex. The agent can already publish inline
 comments directly through the allowed API endpoint. A structured findings
@@ -193,6 +199,10 @@ then removes the providers, any profile it imported, and the workspace.
 validation. It invokes the existing `harness workflow apply` command with a
 unique sandbox name. The CLI owns sandbox execution and deletion, including
 normal cancellation; the local wrapper waits for it before tearing down setup.
+The review wrapper delegates that execution through the shared
+[`scripts/run-task.sh`](../scripts/run-task.sh) adapter, which is also suitable
+for task bundles with additional provider attachments such as the read-only
+ACS triage task.
 
 ## Managed reviewer transition
 

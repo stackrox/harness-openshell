@@ -1,11 +1,21 @@
 # GitHub pull-request reviewer
 
-This task bundle reads a pull-request diff and lets the sandboxed agent post
-inline review comments through OpenShell's GitHub REST proxy. The instructions
-request at most three concrete comments; the policy restricts endpoints, not
-comment count or finding quality. It grants no push, label, approval, or merge
-operations. The trusted caller must obtain current PR metadata and stage the
-diff as untrusted data.
+This task bundle reads a pull-request diff and lets the sandboxed Codex agent
+post inline review comments through OpenShell's GitHub REST proxy. The
+instructions request at most three concrete comments; the policy restricts
+endpoints, not comment count or finding quality. It grants no push, label,
+approval, or merge operations. The trusted caller must obtain current PR
+metadata and stage the diff as untrusted data.
+
+The task's initial composition is deliberately small:
+
+- Codex inference through the gateway's `inference.local` route.
+- Read-only GitHub pull-request access, plus inline comments on that exact PR.
+
+The shared [`scripts/run-task.sh`](../../scripts/run-task.sh) adapter executes
+this bundle. Other tasks can reuse the adapter and add providers and policy
+rules in their own bundle; the reviewer wrapper does not need to know about
+those task-specific capabilities.
 
 ## Layout
 
@@ -19,12 +29,14 @@ diff as untrusted data.
   temporary workspace from a repository-scoped GitHub App token. A managed
   integration must supply the instance and its credential lifecycle through
   trusted setup. The profile contains metadata only, never a credential.
-- Setup must also configure `inference.local` for the task's Gemini 2.5 Pro
-  model. The task consumes that route without reconciling it.
+- The OpenCode path must configure `inference.local` for the task's Gemini 2.5
+  Pro model. The task consumes that route without reconciling it; the Codex
+  path uses its pre-provisioned OpenAI-compatible route instead.
 
-[`scripts/pr-review.sh`](../../scripts/pr-review.sh) prepares and runs the
-review against the configured target. The local wrapper supplies temporary
-setup around its `run` command; managed callers supply platform setup.
+[`scripts/pr-review.sh`](../../scripts/pr-review.sh) prepares the review and
+delegates task execution to the shared adapter. The local wrapper supplies
+temporary setup around its `run` command; managed callers supply platform
+setup.
 
 The workflow is trusted host-side code. The diff and GitHub responses are
 untrusted input and must never be treated as instructions. The only permitted

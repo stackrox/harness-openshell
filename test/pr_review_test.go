@@ -49,7 +49,8 @@ func TestPRReview(t *testing.T) {
 				t.Fatalf("validator must be executable: mode %o", validatorMode)
 			}
 			codexValidator := mustRead(t, "../scripts/review/validate-codex-output.sh")
-			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/pr-review-local.sh": mustRead(t, "../scripts/pr-review-local.sh"), "scripts/review/validate-agent-output.sh": validator, "scripts/review/validate-codex-output.sh": codexValidator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
+			taskRunner := mustRead(t, "../scripts/run-task.sh")
+			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/pr-review-local.sh": mustRead(t, "../scripts/pr-review-local.sh"), "scripts/run-task.sh": taskRunner, "scripts/review/validate-agent-output.sh": validator, "scripts/review/validate-codex-output.sh": codexValidator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
 				mode := os.FileMode(0o700)
 				if name == "scripts/review/validate-agent-output.sh" {
 					mode = validatorMode
@@ -146,8 +147,8 @@ func TestPRReview(t *testing.T) {
 				if scenario != "codex-success" && !strings.Contains(string(trace), "target managed-test shared-test") {
 					t.Fatal("configured target environment was not preserved")
 				}
-				if scenario == "codex-success" && !strings.Contains(string(trace), "sandbox delete") {
-					t.Fatal("Codex review did not clean up its sandbox")
+				if scenario == "codex-success" && strings.Contains(string(trace), "sandbox delete") {
+					t.Fatal("Codex review wrapper attempted to clean up a sandbox it did not create")
 				}
 			} else {
 				if strings.Contains(string(trace), "workspace delete") == (scenario == "workspace-failure") {
@@ -181,6 +182,90 @@ func TestPRReview(t *testing.T) {
 				t.Fatalf("incorrect or model-controlled summary: %s", summary)
 			}
 		})
+	}
+}
+
+func TestRunTaskProviderPreflight(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "scripts"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "scripts", "run-task.sh"), mustRead(t, "../scripts/run-task.sh"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	const fakeOpenShell = `#!/usr/bin/env bash
+set -eu
+printf '%s\n' "$*" >> "$TRACE"
+[[ "$*" != *missing-provider* ]]
+`
+	const fakeHarness = `#!/usr/bin/env bash
+set -eu
+printf '%s\n' "$*" >> "$TRACE"
+result_file=""
+for ((i = 1; i <= $#; i++)); do
+  if [[ "${!i}" == --result-file ]]; then
+    next=$((i + 1))
+    result_file="${!next}"
+  fi
+done
+printf '%s\n' '{"status":"succeeded","phase":"complete"}' > "$result_file"
+`
+	for name, data := range map[string][]byte{"openshell": []byte(fakeOpenShell), "harness": []byte(fakeHarness)} {
+		if err := os.WriteFile(filepath.Join(root, name), data, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	run := func(outputDir, resultFile, trace, providers string) ([]byte, error) {
+		cmd := exec.Command("bash", filepath.Join(root, "scripts", "run-task.sh"), "tasks/test.yaml", outputDir, resultFile)
+		cmd.Env = append(os.Environ(),
+			"PATH="+root+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"TRACE="+trace,
+			"OPENSHELL_GATEWAY=managed-test",
+			"OPENSHELL_WORKSPACE=codex-workspace",
+			"TASK_PROVIDERS="+providers,
+		)
+		return cmd.CombinedOutput()
+	}
+
+	successOutput := filepath.Join(root, "success")
+	successResult := filepath.Join(successOutput, "execution.json")
+	successTrace := filepath.Join(root, "success.trace")
+	if output, err := run(successOutput, successResult, successTrace, `["github-review","openai-inference"]`); err != nil {
+		t.Fatalf("provider preflight succeeded: %v\n%s", err, output)
+	}
+	report := string(mustRead(t, filepath.Join(successOutput, "provider-check.json")))
+	if !strings.Contains(report, `"status": "available"`) || !strings.Contains(report, `"openai-inference"`) {
+		t.Fatalf("provider preflight report = %s", report)
+	}
+	if !strings.Contains(string(mustRead(t, successTrace)), "workflow apply") {
+		t.Fatal("provider preflight did not run the trusted task")
+	}
+
+	emptyOutput := filepath.Join(root, "empty")
+	emptyResult := filepath.Join(emptyOutput, "execution.json")
+	emptyTrace := filepath.Join(root, "empty.trace")
+	if output, err := run(emptyOutput, emptyResult, emptyTrace, `[ ]`); err != nil {
+		t.Fatalf("empty provider declaration failed: %v\n%s", err, output)
+	}
+	report = string(mustRead(t, filepath.Join(emptyOutput, "provider-check.json")))
+	if !strings.Contains(report, `"status": "skipped"`) {
+		t.Fatalf("empty provider report = %s", report)
+	}
+
+	failureOutput := filepath.Join(root, "failure")
+	failureResult := filepath.Join(failureOutput, "execution.json")
+	failureTrace := filepath.Join(root, "failure.trace")
+	output, err := run(failureOutput, failureResult, failureTrace, `["missing-provider"]`)
+	if err == nil || !strings.Contains(string(output), "missing-provider") {
+		t.Fatalf("missing provider was not rejected: %v\n%s", err, output)
+	}
+	if strings.Contains(string(mustRead(t, failureTrace)), "workflow apply") {
+		t.Fatal("missing provider reached the trusted task")
+	}
+	report = string(mustRead(t, filepath.Join(failureOutput, "provider-check.json")))
+	if !strings.Contains(report, `"status": "failed"`) || !strings.Contains(report, `"missing-provider"`) {
+		t.Fatalf("provider failure report = %s", report)
 	}
 }
 
@@ -246,13 +331,16 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	}
 	for name, want := range map[string]string{
 		"review-agent":             "opencode",
-		"codex-inference-provider": "openai-review",
+		"codex-inference-provider": "openai-inference",
 		"codex-model":              "gpt-5.6-luna",
 	} {
 		input, ok := sharedTrigger.Inputs[name]
 		if !ok || input.Default != want {
 			t.Fatalf("shared review workflow default %s = %#v, want %s", name, input, want)
 		}
+	}
+	if input, ok := sharedTrigger.Inputs["required-providers"]; !ok || input.Default != "[]" {
+		t.Fatalf("shared review workflow default required-providers = %#v, want []", input)
 	}
 	for _, name := range []string{"VERTEX_AI_SERVICE_ACCOUNT_KEY", "OPENSHELL_GITHUB_APP_PRIVATE_KEY"} {
 		if _, ok := sharedTrigger.Secrets[name]; !ok {
