@@ -43,7 +43,7 @@ payloads:
       if [ -n "$GCP_SA_ACCESS_TOKEN" ]; then
         export CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"
       fi
-      if [ -z "${OPENSHELL_GCS_MANIFEST_STARTED:-}" ]; then
+      if ! printenv OPENSHELL_GCS_MANIFEST_STARTED >/dev/null 2>&1; then
         export OPENSHELL_GCS_MANIFEST_STARTED=1
         /bin/bash /sandbox/tools/gsutil collect \
           >/tmp/openshell-nightly-failures.tsv \
