@@ -20,7 +20,6 @@ rewrite_uri() {
 }
 
 list_nightly_jobs() {
-  local token=${GCP_SA_ACCESS_TOKEN:-}
   local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
   local page_token=""
 
@@ -42,9 +41,6 @@ list_nightly_jobs() {
       "${query_args[@]}"
       "$api"
     )
-    if [[ -n "$token" ]]; then
-      curl_args+=(--header "Authorization: Bearer $token")
-    fi
     response=$(timeout 90s curl "${curl_args[@]}")
 
     printf '%s' "$response" \
@@ -58,7 +54,6 @@ list_nightly_jobs() {
 
 list_builds() {
   local job=$1
-  local token=${GCP_SA_ACCESS_TOKEN:-}
   local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
   local object_prefix="${job#gs://${configured_bucket}/}"
   local -a curl_args=(
@@ -70,16 +65,12 @@ list_builds() {
     --data-urlencode "maxResults=1000"
     "$api"
   )
-  if [[ -n "$token" ]]; then
-    curl_args+=(--header "Authorization: Bearer $token")
-  fi
   timeout 90s curl "${curl_args[@]}" \
     | jq -r '.prefixes[]? | capture("/(?<build>[0-9]+)/$").build'
 }
 
 read_finished() {
   local gcs_path=$1
-  local token=${GCP_SA_ACCESS_TOKEN:-}
   local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
   local object_path="${gcs_path#gs://${configured_bucket}/}/finished.json"
   local encoded_object
@@ -91,9 +82,6 @@ read_finished() {
     --data-urlencode "alt=media"
     "$api/$encoded_object"
   )
-  if [[ -n "$token" ]]; then
-    curl_args+=(--header "Authorization: Bearer $token")
-  fi
   timeout 90s curl "${curl_args[@]}"
 }
 
