@@ -77,7 +77,7 @@ func TestPRReview(t *testing.T) {
 			prepare.Env = append(os.Environ(), "PATH="+root+string(os.PathListSeparator)+os.Getenv("PATH"),
 				"FAKE_SCENARIO="+scenario, "TRACE="+filepath.Join(root, "trace"), "READY="+filepath.Join(root, "ready"),
 				"REVIEW_DIR="+filepath.Join(root, "review"), "REVIEW_REPOSITORY=owner/repo", "REVIEW_PR=1", "REVIEW_HEAD=", "GITHUB_OUTPUT="+filepath.Join(root, "output"),
-				"GITHUB_STEP_SUMMARY="+stepSummary, "FAKE_AGENT="+reviewAgent, "REVIEW_AGENT="+reviewAgent, "REVIEW_LABEL=ai-review", "CODEX_INFERENCE_PROVIDER=fake-openai", "CODEX_MODEL=gpt-5.6-luna", "CODEX_WORKSPACE=codex-workspace", "GOOGLE_VERTEX_AI_TOKEN=fake", "VERTEX_AI_PROJECT_ID=test-project", "GITHUB_TOKEN=fake", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
+				"GITHUB_STEP_SUMMARY="+stepSummary, "FAKE_AGENT="+reviewAgent, "REVIEW_AGENT="+reviewAgent, "REVIEW_LABEL=stackrox-ai-review", "CODEX_INFERENCE_PROVIDER=fake-openai", "CODEX_MODEL=gpt-5.6-luna", "CODEX_WORKSPACE=codex-workspace", "GOOGLE_VERTEX_AI_TOKEN=fake", "VERTEX_AI_PROJECT_ID=test-project", "GITHUB_TOKEN=fake", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
 			out, err := prepare.CombinedOutput()
 			if scenario == "oversized" {
 				if err == nil {
@@ -180,7 +180,7 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 		t.Fatal("caller does not pass the GitHub App client ID variable")
 	}
 	for name, want := range map[string]string{
-		"review-label":             "ai-review",
+		"review-label":             "stackrox-ai-review",
 		"review-agent":             "codex",
 		"codex-inference-provider": "openai-review",
 		"codex-model":              "gpt-5.6-luna",
@@ -334,7 +334,7 @@ if [[ "${0##*/}" == gh ]]; then
   if [[ "$2" == */compare/* ]]; then
     if [[ "$FAKE_SCENARIO" == oversized ]]; then head -c 262145 /dev/zero; else printf 'diff data\n'; fi
   else
-    labels='[{"name":"ai-review"}]'
+    labels='[{"name":"stackrox-ai-review"}]'
     [[ "$FAKE_SCENARIO" != unlabeled ]] || labels='[]'
     [[ "$FAKE_SCENARIO" != stale || ! -f "$READY" ]] || labels='[]'
     printf '{"state":"open","draft":false,"labels":%s,"head":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"base":{"sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}\n' "$labels"

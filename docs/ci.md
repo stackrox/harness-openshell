@@ -82,7 +82,7 @@ branch; before then, use `actionlint` and the local `scripts/pr-review.sh`
 commands below. Normal reviews remain `pull_request_target` runs from the
 default branch.
 
-Once `AI review` is on the default branch, add `ai-review` to an open, non-draft
+Once `AI review` is on the default branch, add `stackrox-ai-review` to an open, non-draft
 PR. It reviews the full diff on labeling and each pushed head; newer runs cancel
 older ones. Removing the label, closing, or drafting the PR disables review.
 It uses the Vertex secret/variables above. Summaries show status, head SHA, and
@@ -98,8 +98,8 @@ after the CI service account can invoke that model.
 
 ### Opt-in Codex reviewer
 
-The reusable workflow also supports `review-agent: codex` with a separate
-`codex-review` label. This runs the pinned Codex CLI inside OpenShell and keeps
+The reusable workflow also supports `review-agent: codex` with the
+`stackrox-ai-review` label. This runs the pinned Codex CLI inside OpenShell and keeps
 the existing OpenCode/Vertex path unchanged. Codex uses the gateway's
 `inference.local` Responses API route, so the caller must arrange a
 platform-owned OpenAI-compatible provider first (the default name is
@@ -112,14 +112,14 @@ Add these inputs to a trusted `pull_request_target` caller:
 
 ```yaml
 with:
-  review-label: codex-review
+  review-label: stackrox-ai-review
   review-agent: codex
   codex-inference-provider: openai-review
   codex-model: gpt-5.6-luna
   codex-workspace: codex-review
 ```
 
-The repository's primary caller keeps the existing `ai-review` label while
+The repository's primary caller uses the `stackrox-ai-review` label while
 selecting this Codex configuration. `xhigh` reasoning is fixed in the Codex
 workflow configuration so callers cannot accidentally select the model without
 the intended effort setting.
@@ -140,7 +140,7 @@ success, failure, and normal cancellation, but cannot guarantee runner-loss clea
 
 Locally, use `gh` authentication, `jq`, GNU `timeout` (Homebrew `coreutils` on
 macOS), and the Vertex token/project variables above. Use a new absolute artifact
-directory each time and an open, non-draft PR carrying `ai-review`:
+directory each time and an open, non-draft PR carrying `stackrox-ai-review`:
 
 ```bash
 make cli

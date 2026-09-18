@@ -21,7 +21,7 @@ on:
         description: Label that opts a pull request into this reviewer
         required: false
         type: string
-        default: ai-review
+        default: stackrox-ai-review
       review-agent:
         description: Agent executable used inside the OpenShell sandbox
         required: false

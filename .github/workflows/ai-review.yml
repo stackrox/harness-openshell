@@ -15,7 +15,7 @@ jobs:
       # Harness CLI/scripts. Keep both at the same release commit.
       harness-ref: a56377eb56f1ff664254afd41f2148df80724012
       allow-draft-reviews: false
-      review-label: ai-review
+      review-label: stackrox-ai-review
       review-agent: codex
       codex-inference-provider: openai-review
       codex-model: gpt-5.6-luna
