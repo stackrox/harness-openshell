@@ -9,12 +9,17 @@ permissions:
 
 jobs:
   review:
-    uses: stackrox/harness-openshell/.github/workflows/pr-review-reusable.yml@929aaa327ffa7bc7edff4d68becd6aa4d464e43c
+    uses: stackrox/harness-openshell/.github/workflows/pr-review-reusable.yml@a56377eb56f1ff664254afd41f2148df80724012
     with:
       # `uses` pins the workflow adapter; harness-ref pins the checked-out
       # Harness CLI/scripts. Keep both at the same release commit.
-      harness-ref: 929aaa327ffa7bc7edff4d68becd6aa4d464e43c
+      harness-ref: a56377eb56f1ff664254afd41f2148df80724012
       allow-draft-reviews: false
+      review-label: stackrox-ai-review
+      review-agent: codex
+      codex-inference-provider: openai-review
+      codex-model: gpt-5.6-luna
+      codex-workspace: codex-review
       openshell-github-app-client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}
     secrets:
       VERTEX_AI_SERVICE_ACCOUNT_KEY: ${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}

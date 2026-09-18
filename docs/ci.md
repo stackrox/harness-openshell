@@ -82,7 +82,7 @@ branch; before then, use `actionlint` and the local `scripts/pr-review.sh`
 commands below. Normal reviews remain `pull_request_target` runs from the
 default branch.
 
-Once `AI review` is on the default branch, add `ai-review` to an open, non-draft
+Once `AI review` is on the default branch, add `stackrox-ai-review` to an open, non-draft
 PR. It reviews the full diff on labeling and each pushed head; newer runs cancel
 older ones. Removing the label, closing, or drafting the PR disables review.
 It uses the Vertex secret/variables above. Summaries show status, head SHA, and
@@ -96,6 +96,39 @@ validated default is `claude-haiku-4-5@20251001` / `haiku`. Vertex identifies
 Sonnet 4.5 as `claude-sonnet-4-5@20250929`; switch both values together only
 after the CI service account can invoke that model.
 
+### Opt-in Codex reviewer
+
+The reusable workflow also supports `review-agent: codex` with the
+`stackrox-ai-review` label. This runs the pinned Codex CLI inside OpenShell and keeps
+the existing OpenCode/Vertex path unchanged. Codex uses the gateway's
+`inference.local` Responses API route, so the caller must arrange a
+platform-owned OpenAI-compatible provider first (the default name is
+`openai-review`); no OpenAI key is passed through the workflow or sandbox.
+The Codex path does not require `VERTEX_AI_SERVICE_ACCOUNT_KEY`, but it does
+require a dedicated workspace containing that provider and matching inference
+route because OpenShell providers and inference routes are workspace-scoped.
+
+Add these inputs to a trusted `pull_request_target` caller:
+
+```yaml
+with:
+  review-label: stackrox-ai-review
+  review-agent: codex
+  codex-inference-provider: openai-review
+  codex-model: gpt-5.6-luna
+  codex-workspace: codex-review
+```
+
+The repository's primary caller uses the `stackrox-ai-review` label while
+selecting this Codex configuration. `xhigh` reasoning is fixed in the Codex
+workflow configuration so callers cannot accidentally select the model without
+the intended effort setting.
+
+The same GitHub App secret and client-ID variable are still required. The
+outer OpenShell policy remains responsible for filesystem and GitHub egress;
+Codex's inner sandbox is only configured to run the non-interactive review
+without approval prompts.
+
 Only trusted default-branch code runs on the host. The pinned sandbox receives
 the PR diff and a PR-scoped GitHub token; OpenShell permits only inline comment
 POSTs to that exact PR. Label/head/base are rechecked before execution and
@@ -107,7 +140,7 @@ success, failure, and normal cancellation, but cannot guarantee runner-loss clea
 
 Locally, use `gh` authentication, `jq`, GNU `timeout` (Homebrew `coreutils` on
 macOS), and the Vertex token/project variables above. Use a new absolute artifact
-directory each time and an open, non-draft PR carrying `ai-review`:
+directory each time and an open, non-draft PR carrying `stackrox-ai-review`:
 
 ```bash
 make cli

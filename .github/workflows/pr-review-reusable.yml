@@ -17,13 +17,38 @@ on:
         required: false
         type: boolean
         default: false
+      review-label:
+        description: Label that opts a pull request into this reviewer
+        required: false
+        type: string
+        default: stackrox-ai-review
+      review-agent:
+        description: Agent executable used inside the OpenShell sandbox
+        required: false
+        type: string
+        default: opencode
+      codex-inference-provider:
+        description: Existing OpenShell provider used by the Codex Responses API route
+        required: false
+        type: string
+        default: openai-review
+      codex-model:
+        description: Model requested by the Codex reviewer
+        required: false
+        type: string
+        default: gpt-5.6-luna
+      codex-workspace:
+        description: Pre-provisioned OpenShell workspace containing the Codex provider and route
+        required: false
+        type: string
+        default: ''
       openshell-github-app-client-id:
         description: GitHub App Client ID used for the trusted review token
         required: true
         type: string
     secrets:
       VERTEX_AI_SERVICE_ACCOUNT_KEY:
-        required: true
+        required: false
       OPENSHELL_GITHUB_APP_PRIVATE_KEY:
         required: true
 
@@ -34,18 +59,31 @@ jobs:
   review:
     if: >-
       (!github.event.pull_request.draft || inputs.allow-draft-reviews) &&
-      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'ai-review') ||
-      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, 'ai-review')))
+      (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == inputs.review-label) ||
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled' && contains(github.event.pull_request.labels.*.name, inputs.review-label)))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      group: ai-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: pr-review-${{ inputs.review-label }}-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
       - name: Validate immutable Harness revision
         env:
           HARNESS_REF: ${{ inputs.harness-ref }}
         run: '[[ "$HARNESS_REF" =~ ^[0-9a-f]{40}$ ]]'
+      - name: Validate review mode
+        env:
+          REVIEW_AGENT: ${{ inputs.review-agent }}
+          CODEX_PROVIDER: ${{ inputs.codex-inference-provider }}
+          CODEX_MODEL: ${{ inputs.codex-model }}
+          CODEX_WORKSPACE: ${{ inputs.codex-workspace }}
+        run: |
+          [[ "$REVIEW_AGENT" == opencode || "$REVIEW_AGENT" == codex ]]
+          if [[ "$REVIEW_AGENT" == codex ]]; then
+            [[ "$CODEX_PROVIDER" =~ ^[A-Za-z0-9_.-]+$ ]]
+            [[ "$CODEX_MODEL" =~ ^[A-Za-z0-9_.@/-]+$ ]]
+            [[ "$CODEX_WORKSPACE" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$ ]]
+          fi
       # Checkout only default-branch content from the caller. The PR head is data.
       - uses: actions/checkout@v7
         with:
@@ -91,43 +129,55 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
+          CODEX_INFERENCE_PROVIDER: ${{ inputs.codex-inference-provider }}
+          CODEX_MODEL: ${{ inputs.codex-model }}
+          CODEX_WORKSPACE: ${{ inputs.codex-workspace }}
           REVIEW_REPOSITORY: ${{ github.repository }}
           REVIEW_PR: ${{ github.event.pull_request.number }}
           REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
+          REVIEW_AGENT: ${{ inputs.review-agent }}
+          REVIEW_LABEL: ${{ inputs.review-label }}
         run: bash scripts/pr-review.sh prepare
       - uses: ./harness/.github/actions/setup-openshell
         if: steps.prepare.outputs.eligible == 'true'
         env:
           OPENSHELL_ROOT: harness
       - name: Authenticate to Google Cloud
-        if: steps.prepare.outputs.eligible == 'true'
+        if: steps.prepare.outputs.eligible == 'true' && inputs.review-agent == 'opencode'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           project_id: ${{ vars.VERTEX_AI_PROJECT_ID }}
           credentials_json: ${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-        if: steps.prepare.outputs.eligible == 'true'
+        if: steps.prepare.outputs.eligible == 'true' && inputs.review-agent == 'opencode'
       - name: Review in isolated OpenShell workspace
         if: steps.prepare.outputs.eligible == 'true'
         working-directory: harness
         env:
           GH_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           ALLOW_DRAFT_REVIEWS: ${{ inputs.allow-draft-reviews }}
+          CODEX_INFERENCE_PROVIDER: ${{ inputs.codex-inference-provider }}
+          CODEX_MODEL: ${{ inputs.codex-model }}
+          CODEX_WORKSPACE: ${{ inputs.codex-workspace }}
           GITHUB_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           REVIEW_REPOSITORY: ${{ github.repository }}
           REVIEW_PR: ${{ github.event.pull_request.number }}
           REVIEW_HEAD: ${{ github.event.pull_request.head.sha }}
+          REVIEW_AGENT: ${{ inputs.review-agent }}
+          REVIEW_LABEL: ${{ inputs.review-label }}
           VERTEX_AI_PROJECT_ID: ${{ vars.VERTEX_AI_PROJECT_ID }}
           VERTEX_AI_REGION: ${{ vars.VERTEX_AI_REGION }}
           REVIEW_SKILL: ${{ github.workspace }}/harness/skills/pr-review/SKILL.md
         run: |
-          token="$(gcloud auth print-access-token)"
-          echo "::add-mask::$token"
-          export GOOGLE_VERTEX_AI_TOKEN="$token"
+          if [[ "$REVIEW_AGENT" == opencode ]]; then
+            token="$(gcloud auth print-access-token)"
+            echo "::add-mask::$token"
+            export GOOGLE_VERTEX_AI_TOKEN="$token"
+          fi
           bash scripts/pr-review.sh run
       - uses: actions/upload-artifact@v7
         if: always() && steps.prepare.outputs.eligible == 'true'
         with:
-          name: ai-review-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
+          name: ${{ inputs.review-label }}-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ai-review/
           retention-days: 7
