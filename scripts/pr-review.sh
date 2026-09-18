@@ -33,13 +33,22 @@ if [[ "$review_agent" == codex ]]; then
     exit 1
   }
 fi
-if [[ "$review_agent" == codex ]]; then
-  workspace="$codex_workspace"
-  sandbox_name="codex-review-$RANDOM-$$"
-else
-  workspace="rev-$RANDOM-$$"
-  sandbox_name=ai-review
-fi
+needs_vertex=false
+case "$review_agent" in
+  opencode)
+    workspace="rev-$RANDOM-$$"
+    sandbox_name=ai-review
+    workflow_file=workloads/github-pr-reviewer/workflow/opencode-harness.yaml
+    validator=scripts/review/validate-agent-output.sh
+    needs_vertex=true
+    ;;
+  codex)
+    workspace="$codex_workspace"
+    sandbox_name="codex-review-$RANDOM-$$"
+    workflow_file=workloads/github-pr-reviewer/workflow/codex-harness.yaml
+    validator=scripts/review/validate-codex-output.sh
+    ;;
+esac
 github_provider="github-review-$RANDOM-$$"
 max_diff_bytes=262144
 created_workspace=false
@@ -145,15 +154,15 @@ run_review() {
   (cd "$REVIEW_DIR" && shasum -a 256 -c pr.diff.sha256 >/dev/null)
   ensure_current
   : "${GITHUB_TOKEN:?set the workflow GitHub token for provider bootstrap}"
-  if [[ "$review_agent" == opencode ]]; then
+  if $needs_vertex; then
     : "${GOOGLE_VERTEX_AI_TOKEN:?set a short-lived Vertex token}" "${VERTEX_AI_PROJECT_ID:?set Vertex project}"
   fi
 
-  if [[ "$review_agent" == opencode ]]; then
+  if $needs_vertex; then
     timeout 60s openshell workspace create --gateway "$gateway" --name "$workspace"
     created_workspace=true
   fi
-  if [[ "$review_agent" == opencode ]]; then
+  if $needs_vertex; then
     timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
       --name vertex-review --type google-vertex-ai --from-existing \
       --config "VERTEX_AI_PROJECT_ID=$VERTEX_AI_PROJECT_ID" --config "VERTEX_AI_REGION=${VERTEX_AI_REGION:-global}"
@@ -162,14 +171,9 @@ run_review() {
   timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
     --name "$github_provider" --type github --credential GITHUB_TOKEN
   created_github_provider=true
-  if [[ "$review_agent" == opencode ]]; then
+  if $needs_vertex; then
     timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" \
       --provider vertex-review --model gemini-2.5-pro --no-verify
-    workflow_file=workloads/github-pr-reviewer/workflow/opencode-harness.yaml
-    validator=scripts/review/validate-agent-output.sh
-  else
-    workflow_file=workloads/github-pr-reviewer/workflow/codex-harness.yaml
-    validator=scripts/review/validate-codex-output.sh
   fi
 
   export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
@@ -203,15 +207,20 @@ run_review() {
     return 1
   fi
   ensure_current
-  if [[ "$review_agent" == opencode ]]; then
-    jq -Rr 'fromjson? | select(.type == "text") | .part.text' \
-      "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"
-  elif [[ -s "$REVIEW_DIR/codex-final.txt" ]]; then
-    cp "$REVIEW_DIR/codex-final.txt" "$REVIEW_DIR/review.txt"
-  else
-    jq -Rr 'fromjson? | select(.type == "item.completed" and .item.type == "agent_message") | .item.text' \
-      "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"
-  fi
+  case "$review_agent" in
+    opencode)
+      jq -Rr 'fromjson? | select(.type == "text") | .part.text' \
+        "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"
+      ;;
+    codex)
+      if [[ -s "$REVIEW_DIR/codex-final.txt" ]]; then
+        cp "$REVIEW_DIR/codex-final.txt" "$REVIEW_DIR/review.txt"
+      else
+        jq -Rr 'fromjson? | select(.type == "item.completed" and .item.type == "agent_message") | .item.text' \
+          "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"
+      fi
+      ;;
+  esac
   state=completed
 }
 

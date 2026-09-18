@@ -7,8 +7,8 @@ untrusted data.
 
 ## Layout
 
-- `workflow/` contains the Harness adapters, OpenCode and Codex configurations,
-  review skill, and deterministic fixture.
+- `workflow/` contains the Harness adapters, the production OpenCode and Codex
+  configurations, the review skill, and a deterministic Claude fixture.
 - `openshell/` contains the task policy, its security explanation, and an
   endpointless `github-review` provider profile. Render the repository and
   pull-request variables before applying the policy.
@@ -40,3 +40,7 @@ The opt-in Codex variant uses the same policy and review skill. It requires a
 pre-provisioned OpenAI-compatible OpenShell inference provider because Codex
 uses the Responses API, and a dedicated workspace containing that provider;
 the existing Vertex/OpenCode route remains unchanged.
+
+The production PR-review wrapper selects only the OpenCode or Codex adapter.
+`workflow/harness.yaml` remains a Claude fixture for the offline configuration
+suite and is not a third production PR-review mode.
