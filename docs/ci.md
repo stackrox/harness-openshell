@@ -124,6 +124,10 @@ selecting this Codex configuration. `xhigh` reasoning is fixed in the Codex
 workflow configuration so callers cannot accidentally select the model without
 the intended effort setting.
 
+The production wrapper has two agent adapters: OpenCode for the legacy Vertex
+route and Codex for the OpenAI-compatible route. The Claude entrypoint in the
+review workload is retained only as an offline configuration fixture.
+
 The same GitHub App secret and client-ID variable are still required. The
 outer OpenShell policy remains responsible for filesystem and GitHub egress;
 Codex's inner sandbox is only configured to run the non-interactive review
