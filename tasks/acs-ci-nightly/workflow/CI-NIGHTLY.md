@@ -10,8 +10,13 @@ Run only the CI failure analysis portion of the ACS triage agent.
    repositories only when needed for the analysis. Use unauthenticated HTTPS
    `git clone` or `git fetch` for these public repositories; do not run
    `gh auth login` or push to them.
-4. Find failures from the last 24 hours in the Prow nightly jobs under
-   `gs://${GCS_BUCKET:-test-platform-results}/logs/` using `gcloud storage`.
+4. Follow the repository's existing `ci-coordinator.md` instructions for the
+   Prow failure lookup. The trusted task provides a bounded `gsutil` compatibility
+   command backed by the configured bucket; do not replace it with a recursive
+   bucket or wildcard listing. Treat
+   `/tmp/openshell-nightly-failures.tsv` as authoritative; every data row is a
+   verified `FAILURE` and must be analyzed as such. Do not invent job, build,
+   or GCS path values.
 5. Spawn the repository's CI analysis agents as instructed and wait for their
    results.
 6. Write exactly `/sandbox/acs-triage-agent/artifacts/ci-triage.json` using

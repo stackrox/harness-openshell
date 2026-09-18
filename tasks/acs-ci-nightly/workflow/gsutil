@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Compatibility shim for the existing ACS triage instructions. The public
+# bucket is read through bounded GCS JSON/object requests because the image's
+# gcloud object reads do not work reliably through the OpenShell proxy.
+configured_bucket="${GCS_BUCKET:-test-platform-results-public}"
+
+rewrite_uri() {
+  local uri=$1
+  local lower_uri
+  lower_uri=$(printf '%s' "$uri" | tr '[:upper:]' '[:lower:]')
+  case "$uri" in
+    gs://test-platform-results|gs://test-platform-results/*)
+      uri="gs://${configured_bucket}${uri#gs://test-platform-results}"
+      ;;
+    "gs://${configured_bucket}"|"gs://${configured_bucket}"/*) ;;
+    *)
+      echo "gsutil compatibility wrapper: unsupported bucket in $uri" >&2
+      return 2
+      ;;
+  esac
+
+  case "$lower_uri" in
+    */../*|*/./*|*/..|*/.|*%2e*)
+      echo "gsutil compatibility wrapper: unsupported path in $uri" >&2
+      return 2
+      ;;
+  esac
+  printf '%s\n' "$uri"
+}
+
+list_nightly_jobs() {
+  local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
+  local page_token=""
+
+  while :; do
+    local response
+    local -a query_args=(
+      --data-urlencode "prefix=logs/branch-ci-stackrox-stackrox-nightlies-"
+      --data-urlencode "delimiter=/"
+      --data-urlencode "maxResults=1000"
+    )
+    if [[ -n "$page_token" ]]; then
+      query_args+=(--data-urlencode "pageToken=$page_token")
+    fi
+
+    local -a curl_args=(
+      --silent --show-error --fail
+      --connect-timeout 10 --max-time 60
+      --get
+      "${query_args[@]}"
+      "$api"
+    )
+    response=$(timeout 90s curl "${curl_args[@]}")
+
+    printf '%s' "$response" \
+      | jq -r --arg bucket "$configured_bucket" \
+        '.prefixes[]? | "gs://" + $bucket + "/" + .'
+
+    page_token=$(printf '%s' "$response" | jq -r '.nextPageToken // empty')
+    [[ -z "$page_token" ]] && break
+  done
+}
+
+list_builds() {
+  local job=$1
+  local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
+  local object_prefix="${job#gs://${configured_bucket}/}"
+  local page_token=""
+
+  while :; do
+    local response
+    local -a query_args=(
+      --data-urlencode "prefix=$object_prefix"
+      --data-urlencode "delimiter=/"
+      --data-urlencode "maxResults=1000"
+    )
+    if [[ -n "$page_token" ]]; then
+      query_args+=(--data-urlencode "pageToken=$page_token")
+    fi
+
+    local -a curl_args=(
+      --silent --show-error --fail
+      --connect-timeout 10 --max-time 60
+      --get
+      "${query_args[@]}"
+      "$api"
+    )
+    response=$(timeout 90s curl "${curl_args[@]}")
+    printf '%s' "$response" \
+      | jq -r '.prefixes[]? | rtrimstr("/") | split("/") | .[-1] | select(test("^[0-9]+$"))'
+
+    page_token=$(printf '%s' "$response" | jq -r '.nextPageToken // empty')
+    [[ -z "$page_token" ]] && break
+  done
+}
+
+list_objects() {
+  local uri=$1
+  local api="https://storage.googleapis.com/storage/v1/b/${configured_bucket}/o"
+  local object_prefix="${uri#gs://${configured_bucket}/}"
+  local -a curl_args=(
+    --silent --show-error --fail
+    --connect-timeout 10 --max-time 60
+    --get
+    --data-urlencode "prefix=$object_prefix"
+    --data-urlencode "delimiter=/"
+    --data-urlencode "maxResults=1000"
+    "$api"
+  )
+  local response
+  response=$(timeout 90s curl "${curl_args[@]}")
+  printf '%s' "$response" \
+    | jq -r --arg bucket "$configured_bucket" \
+      '(.items[]?.name, .prefixes[]?) | "gs://" + $bucket + "/" + .'
+}
+
+read_object() {
+  local uri=$1
+  local object_path="${uri#gs://${configured_bucket}/}"
+  timeout 30s curl --silent --show-error --fail \
+    --connect-timeout 10 --max-time 15 \
+    "https://storage.googleapis.com/${configured_bucket}/${object_path}"
+}
+
+read_finished() {
+  local gcs_path=$1
+  read_object "${gcs_path%/}/finished.json"
+}
+
+collect_failures() {
+  local cutoff
+  local jobs
+  local job
+  local job_prefix
+  local finished
+  local build
+  local gcs_path
+  local timestamp
+  local result
+  local candidates
+  cutoff=$(date -u -d '24 hours ago' +%s)
+  jobs=$(list_nightly_jobs)
+  printf '# Every data row below is a verified CI failure.\n'
+  printf '# job\tbuild\tgcs_path\ttimestamp\tresult\n'
+
+  while IFS= read -r job; do
+    [[ -z "$job" ]] && continue
+    job_prefix="${job%/}/"
+    finished=""
+    build=""
+    if ! candidates=$(list_builds "$job"); then
+      echo "gsutil compatibility wrapper: failed to list builds for $job" >&2
+      return 1
+    fi
+    while IFS= read -r candidate; do
+      [[ -z "$candidate" ]] && continue
+      candidate_path="${job_prefix}${candidate}"
+      if candidate_finished=$(read_finished "$candidate_path" 2>/dev/null); then
+        build="$candidate"
+        gcs_path="$candidate_path"
+        finished="$candidate_finished"
+        break
+      fi
+    done < <(printf '%s\n' "$candidates" | sort -nr)
+    [[ -n "$build" && -n "$finished" ]] || continue
+    timestamp=$(printf '%s' "$finished" | jq -r '.timestamp // 0')
+    result=$(printf '%s' "$finished" | jq -r '.result // ""')
+    if [[ "$timestamp" -ge "$cutoff" && "$result" == FAILURE ]]; then
+      printf '%s\t%s\t%s\t%s\tFAILURE\n' \
+        "${job#gs://${configured_bucket}/}" "$build" "$gcs_path" "$timestamp"
+    fi
+  done <<<"$jobs"
+}
+
+command=${1:-}
+shift || true
+
+case "$command" in
+  collect)
+    collect_failures
+    ;;
+  ls)
+    if [[ $# -ne 1 ]]; then
+      echo "gsutil compatibility wrapper supports: gsutil ls URI" >&2
+      exit 2
+    fi
+    uri=$(rewrite_uri "$1")
+    if [[ "$uri" == "gs://${configured_bucket}/logs/" ]]; then
+      list_nightly_jobs
+    else
+      list_objects "$uri"
+    fi
+    ;;
+  cat)
+    if [[ $# -ne 1 ]]; then
+      echo "gsutil compatibility wrapper supports: gsutil cat URI" >&2
+      exit 2
+    fi
+    uri=$(rewrite_uri "$1")
+    if [[ "$uri" == gs://*/logs/*/latest-build.txt ]]; then
+      job_prefix="${uri%/latest-build.txt}/"
+      build=$(list_builds "$job_prefix" | sort -n | tail -n 1)
+      if [[ -z "$build" ]]; then
+        echo "gsutil compatibility wrapper: no numeric build for $job_prefix" >&2
+        exit 1
+      fi
+      printf '%s\n' "$build"
+      exit 0
+    fi
+    read_object "$uri"
+    ;;
+  *)
+    echo "gsutil compatibility wrapper supports only ls and cat" >&2
+    exit 2
+    ;;
+esac

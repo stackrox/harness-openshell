@@ -22,6 +22,7 @@ sandbox:
     READ_ONLY_MODE: "true"
     TRIAGE_RUN_URL: ${TRIAGE_RUN_URL}
     GCS_BUCKET: test-platform-results-public
+    BASH_ENV: /sandbox/.bash_env
     CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE: /etc/openshell-tls/ca-bundle.pem
     CURL_CA_BUNDLE: /etc/openshell-tls/ca-bundle.pem
 
@@ -33,6 +34,26 @@ source:
 payloads:
   - source: CI-NIGHTLY.md
     destination: /sandbox/CI-NIGHTLY.md
+  - source: gsutil
+    destination: /sandbox/tools/gsutil
+  - content: |
+      # OpenShell injects the short-lived provider token; gcloud needs this
+      # runtime-only compatibility mapping.
+      export PATH="/sandbox/tools:$PATH"
+      gsutil() { /bin/bash /sandbox/tools/gsutil "$@"; }
+      export -f gsutil
+      if [ -n "$GCP_SA_ACCESS_TOKEN" ]; then
+        export CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"
+      fi
+      if ! printenv OPENSHELL_GCS_MANIFEST_STARTED >/dev/null 2>&1; then
+        export OPENSHELL_GCS_MANIFEST_STARTED=1
+        /bin/bash /sandbox/tools/gsutil collect \
+          >/tmp/openshell-nightly-failures.tsv \
+          2>/tmp/openshell-nightly-failures.err || {
+          echo "collection failed; see /tmp/openshell-nightly-failures.err" >&2
+        }
+      fi
+    destination: /sandbox/.bash_env
 
 agent:
   type: claude
