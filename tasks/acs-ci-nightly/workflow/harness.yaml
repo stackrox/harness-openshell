@@ -65,3 +65,9 @@ outputs:
   - source: /sandbox/acs-triage-agent/artifacts/ci-triage.json
     destination: ci-triage.json
     required: false
+  - source: /tmp/openshell-nightly-failures.tsv
+    destination: nightly-failures.tsv
+    required: false
+  - source: /tmp/openshell-nightly-failures.err
+    destination: nightly-failures.err
+    required: false
