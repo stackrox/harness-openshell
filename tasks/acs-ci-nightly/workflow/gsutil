@@ -77,16 +77,11 @@ list_builds() {
 
 read_finished() {
   local gcs_path=$1
-  local api="https://storage.googleapis.com/download/storage/v1/b/${configured_bucket}/o"
   local object_path="${gcs_path#gs://${configured_bucket}/}/finished.json"
-  local encoded_object
-  encoded_object=$(jq -rn --arg object "$object_path" '$object | @uri')
   local -a curl_args=(
     --silent --show-error --fail
     --connect-timeout 10 --max-time 60
-    --get
-    --data-urlencode "alt=media"
-    "$api/$encoded_object"
+    "https://storage.googleapis.com/${configured_bucket}/${object_path}"
   )
   timeout 90s curl "${curl_args[@]}"
 }
