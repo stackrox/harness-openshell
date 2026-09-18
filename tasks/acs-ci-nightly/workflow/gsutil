@@ -8,6 +8,8 @@ configured_bucket="${GCS_BUCKET:-test-platform-results-public}"
 
 rewrite_uri() {
   local uri=$1
+  local lower_uri
+  lower_uri=$(printf '%s' "$uri" | tr '[:upper:]' '[:lower:]')
   case "$uri" in
     gs://test-platform-results|gs://test-platform-results/*)
       uri="gs://${configured_bucket}${uri#gs://test-platform-results}"
@@ -19,8 +21,8 @@ rewrite_uri() {
       ;;
   esac
 
-  case "$uri" in
-    */../*|*/./*|*/..|*/.)
+  case "$lower_uri" in
+    */../*|*/./*|*/..|*/.|*%2e*)
       echo "gsutil compatibility wrapper: unsupported path in $uri" >&2
       return 2
       ;;
@@ -138,10 +140,7 @@ collect_failures() {
   local timestamp
   local result
   local candidates
-  case "$(uname -s)" in
-    Darwin) cutoff=$(date -u -v-1d +%s) ;;
-    *) cutoff=$(date -u -d '24 hours ago' +%s) ;;
-  esac
+  cutoff=$(date -u -d '24 hours ago' +%s)
   jobs=$(list_nightly_jobs)
   printf '# Every data row below is a verified CI failure.\n'
   printf '# job\tbuild\tgcs_path\ttimestamp\tresult\n'
