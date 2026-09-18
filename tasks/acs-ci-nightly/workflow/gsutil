@@ -67,7 +67,11 @@ list_builds() {
     --data-urlencode "maxResults=1000"
     "$api"
   )
-  timeout 90s curl "${curl_args[@]}" \
+  local response
+  response=$(timeout 90s curl "${curl_args[@]}")
+  printf 'GCS build-list response: %s\n' \
+    "$(printf '%s' "$response" | jq -c '{prefixes: (.prefixes | length), items: (.items | length), error}')" >&2
+  printf '%s' "$response" \
     | jq -r '.prefixes[]? | capture("/(?<build>[0-9]+)/$").build'
 }
 
@@ -111,7 +115,10 @@ collect_failures() {
         break
       fi
     done < <(list_builds "$job" | sort -nr || true)
-    [[ -n "$build" && -n "$finished" ]] || continue
+    if [[ -z "$build" || -z "$finished" ]]; then
+      printf 'GCS no completed build: %s\n' "$job" >&2
+      continue
+    fi
     timestamp=$(printf '%s' "$finished" | jq -r '.timestamp // 0')
     result=$(printf '%s' "$finished" | jq -r '.result // ""')
     if [[ "$timestamp" -ge "$cutoff" && "$result" == FAILURE ]]; then
