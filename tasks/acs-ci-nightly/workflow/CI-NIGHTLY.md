@@ -11,9 +11,9 @@ Run only the CI failure analysis portion of the ACS triage agent.
    `git clone` or `git fetch` for these public repositories; do not run
    `gh auth login` or push to them.
 4. Follow the repository's existing `ci-coordinator.md` instructions for the
-   Prow failure lookup. The trusted task provides a `gsutil` compatibility
-   command backed by the configured bucket and `gcloud storage`; do not replace
-   it with a recursive bucket or wildcard listing. Treat
+   Prow failure lookup. The trusted task provides a bounded `gsutil` compatibility
+   command backed by the configured bucket; do not replace it with a recursive
+   bucket or wildcard listing. Treat
    `/tmp/openshell-nightly-failures.tsv` as authoritative; every data row is a
    verified `FAILURE` and must be analyzed as such. Do not invent job, build,
    or GCS path values.
