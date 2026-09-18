@@ -177,7 +177,9 @@ preparation instead. Select a registered gateway/workspace with
 connection (see [workflow contract](#workflow-contract)). The review command
 uses the selected target and only creates its task sandbox. It needs host `gh`
 authentication for PR checks, while the platform supplies the `github-review`
-provider with usable credentials and the Gemini 2.5 Pro inference route.
+provider with usable credentials. OpenCode requires the Gemini 2.5 Pro inference
+route; Codex requires the configured `CODEX_INFERENCE_PROVIDER` (default:
+`openai-inference`).
 
 Unit tests use fake commands, not Vertex. The agent can already publish inline
 comments directly through the allowed API endpoint. A structured findings

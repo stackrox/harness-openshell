@@ -38,7 +38,7 @@ check_required_providers() {
   local provider
   local provider_args=(--gateway "$gateway")
   [[ -n "$workspace" ]] && provider_args+=(--workspace "$workspace")
-  if [[ "$required" == '[]' ]]; then
+  if jq -e 'length == 0' <<< "$required" >/dev/null; then
     jq -n --arg gateway "$gateway" --arg workspace "$workspace" \
       '{status:"skipped", gateway:$gateway, workspace:$workspace, providers:[]}' > "$report"
     return

@@ -242,6 +242,17 @@ printf '%s\n' '{"status":"succeeded","phase":"complete"}' > "$result_file"
 		t.Fatal("provider preflight did not run the trusted task")
 	}
 
+	emptyOutput := filepath.Join(root, "empty")
+	emptyResult := filepath.Join(emptyOutput, "execution.json")
+	emptyTrace := filepath.Join(root, "empty.trace")
+	if output, err := run(emptyOutput, emptyResult, emptyTrace, `[ ]`); err != nil {
+		t.Fatalf("empty provider declaration failed: %v\n%s", err, output)
+	}
+	report = string(mustRead(t, filepath.Join(emptyOutput, "provider-check.json")))
+	if !strings.Contains(report, `"status": "skipped"`) {
+		t.Fatalf("empty provider report = %s", report)
+	}
+
 	failureOutput := filepath.Join(root, "failure")
 	failureResult := filepath.Join(failureOutput, "execution.json")
 	failureTrace := filepath.Join(root, "failure.trace")
