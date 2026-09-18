@@ -77,13 +77,7 @@ list_builds() {
 
 read_finished() {
   local gcs_path=$1
-  local object_path="${gcs_path#gs://${configured_bucket}/}/finished.json"
-  local -a curl_args=(
-    --silent --show-error --fail
-    --connect-timeout 10 --max-time 60
-    "https://storage.googleapis.com/${configured_bucket}/${object_path}"
-  )
-  timeout 90s curl "${curl_args[@]}"
+  timeout 90s "$gcloud_bin" storage cat "${gcs_path}/finished.json"
 }
 
 collect_failures() {
