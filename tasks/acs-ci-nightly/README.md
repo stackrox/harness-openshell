@@ -1,15 +1,13 @@
 # ACS CI nightly
 
-This task runs the read-only CI-failure portion of the ACS triage agent. The
-ACS repository owns the Prow/GCS lookup and analysis; this Harness bundle
-provides the generic OpenShell task wiring and provider-backed connection.
-The task analyzes recent nightly failures and writes `ci-triage.json` without
-creating or updating Jira issues.
+This task runs the ACS repository's canonical `scripts/run-triage.sh` inside a
+read-only OpenShell sandbox. The ACS repository owns the Prow/GCS lookup and
+triage logic; this Harness bundle provides the generic OpenShell task wiring
+and provider-backed connections. The task produces the normal triage report
+without creating or updating Jira issues or posting to Slack.
 
-The task is intentionally narrower than the full ACS triage workflow. It is a
-first consumer contract for `acs-triage-agent`; Jira/community triage and
-publication can be added as separate task bundles after this contract is
-validated.
+The task is intentionally read-only: Jira and community triage may inspect
+their sources, while the Jira updater and Slack publication remain disabled.
 
 ## Contract
 
@@ -23,9 +21,10 @@ validated.
 - External operations: public GitHub clone/fetch and read-only Prow GCS and
   Jira queries. The task cannot push source, create or update Jira issues, or
   publish to Slack.
-- Output: `/sandbox/acs-triage-agent/artifacts/ci-triage.json`, downloaded to
-  the caller's output directory. The output is optional so partial diagnostics
-  can still be retained when analysis fails.
+- Outputs: the normal ACS artifacts, including `ci-triage.json`,
+  `triage-report.md`, and `slack-summary.txt`, downloaded to the caller's
+  output directory. They are optional so partial diagnostics can still be
+  retained when analysis fails.
 - Cleanup: the sandbox and host-side source staging are removed after outputs
   are downloaded. Downloaded artifacts and any external reads remain with the
   caller.
@@ -37,6 +36,7 @@ workflow:
 
 - `vertex-claude-triage` and the matching `inference.local` route;
 - `atlassian-triage-read`, configured for read-only Jira/Confluence access;
+- `github-triage-read`, configured for read-only project and issue queries;
 - `prow-gcs-read`, created from OpenShell's built-in `google-cloud` provider
   profile and configured with gateway-managed Google service-account JWT
   refresh for read-only access to the `test-platform-results-public` bucket.

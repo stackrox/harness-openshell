@@ -12,6 +12,7 @@ sandbox:
     file: ../openshell/policy.yaml
   providers:
     - atlassian-triage-read
+    - github-triage-read
     - prow-gcs-read
   env:
     ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
@@ -20,6 +21,7 @@ sandbox:
     JIRA_URL: https://redhat.atlassian.net
     CONFLUENCE_URL: https://redhat.atlassian.net/wiki
     READ_ONLY_MODE: "true"
+    OPENSHELL_TASK: "true"
     TRIAGE_RUN_URL: ${TRIAGE_RUN_URL}
     GCS_BUCKET: test-platform-results-public
     BASH_ENV: /sandbox/.bash_env
@@ -44,13 +46,18 @@ payloads:
     destination: /sandbox/.bash_env
 
 agent:
-  type: claude
+  type: /bin/bash
   args:
-    - --dangerously-skip-permissions
-    - --print
-    - Read /sandbox/CI-NIGHTLY.md and execute the read-only CI nightly task exactly as instructed.
+    - -c
+    - cd /sandbox/acs-triage-agent && exec ./scripts/run-triage.sh
 
 outputs:
   - source: /sandbox/acs-triage-agent/artifacts/ci-triage.json
     destination: ci-triage.json
+    required: false
+  - source: /sandbox/acs-triage-agent/artifacts/triage-report.md
+    destination: triage-report.md
+    required: false
+  - source: /sandbox/acs-triage-agent/artifacts/slack-summary.txt
+    destination: slack-summary.txt
     required: false
