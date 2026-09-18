@@ -6,7 +6,7 @@ filesystem_policy:
     - /lib
     - /lib64
     - /bin
-    - /proc # OpenCode/Bun runtime startup
+    - /proc # OpenCode/Codex runtime startup
     - /etc
     - /dev/urandom
   read_write:
@@ -30,7 +30,7 @@ network_policies:
         tls: terminate
         enforcement: enforce
         credential_binding:
-          provider: github-review
+          provider: ${REVIEW_GITHUB_PROVIDER}
         rules:
           - allow:
               method: GET
@@ -54,3 +54,4 @@ network_policies:
       - { path: /usr/bin/gh }
       - { path: /usr/bin/curl }
       - { path: /usr/bin/opencode }
+      - { path: /usr/bin/codex }

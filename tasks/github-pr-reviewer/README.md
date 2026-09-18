@@ -9,8 +9,8 @@ diff as untrusted data.
 
 ## Layout
 
-- `workflow/` contains the harness workflow document, OpenCode configuration, review
-  skill, and deterministic fixture.
+- `workflow/` contains the harness workflow document, OpenCode and Codex
+  configurations, review skill, and deterministic fixture.
 - `openshell/` contains the task policy, its security explanation, and an
   endpointless `github-review` provider profile. Render the repository and
   pull-request variables before applying the policy.
@@ -53,3 +53,8 @@ openshell sandbox create \
 Upload the skill, diff, and OpenCode configuration with native
 `openshell sandbox upload` commands before starting the agent. The `harness` CLI
 automates this composition and cleanup.
+
+The opt-in Codex variant uses the same policy and review skill. It requires a
+pre-provisioned OpenAI-compatible OpenShell inference provider because Codex
+uses the Responses API, and a dedicated workspace containing that provider;
+the existing Vertex/OpenCode route remains unchanged.
