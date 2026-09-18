@@ -100,7 +100,8 @@ collect_failures() {
   jobs=$(list_nightly_jobs)
   job_count=$(printf '%s\n' "$jobs" | awk 'NF { count++ } END { print count + 0 }')
   printf 'GCS jobs discovered: %s\n' "$job_count" >&2
-  printf '# job\tbuild\tgcs_path\ttimestamp\n'
+  printf '# Every data row below is a verified CI failure.\n'
+  printf '# job\tbuild\tgcs_path\ttimestamp\tresult\n'
 
   while IFS= read -r job; do
     [[ -z "$job" ]] && continue
@@ -124,7 +125,7 @@ collect_failures() {
     timestamp=$(printf '%s' "$finished" | jq -r '.timestamp // 0')
     result=$(printf '%s' "$finished" | jq -r '.result // ""')
     if [[ "$timestamp" -ge "$cutoff" && "$result" == FAILURE ]]; then
-      printf '%s\t%s\t%s\t%s\n' \
+      printf '%s\t%s\t%s\t%s\tFAILURE\n' \
         "${job#gs://${configured_bucket}/}" "$build" "$gcs_path" "$timestamp"
     fi
   done <<<"$jobs"
