@@ -42,8 +42,6 @@ list_nightly_jobs() {
       "$api"
     )
     response=$(timeout 90s curl "${curl_args[@]}")
-    printf 'GCS job-list response: %s\n' \
-      "$(printf '%s' "$response" | jq -c '{kind, prefixes: (.prefixes | length), items: (.items | length), error}')" >&2
 
     printf '%s' "$response" \
       | jq -r --arg bucket "$configured_bucket" \
@@ -69,8 +67,6 @@ list_builds() {
   )
   local response
   response=$(timeout 90s curl "${curl_args[@]}")
-  printf 'GCS build-list response: %s\n' \
-    "$(printf '%s' "$response" | jq -c '{prefixes: (.prefixes | length), items: (.items | length), error}')" >&2
   printf '%s' "$response" \
     | jq -r '.prefixes[]? | capture("/(?<build>[0-9]+)/$").build'
 }
@@ -78,19 +74,9 @@ list_builds() {
 read_finished() {
   local gcs_path=$1
   local object_path="${gcs_path#gs://${configured_bucket}/}/finished.json"
-  local response
-  response=$(timeout 30s curl \
-    --silent --show-error \
+  timeout 30s curl --silent --show-error --fail \
     --connect-timeout 10 --max-time 15 \
-    --write-out $'\n__HTTP_STATUS__%{http_code}\n' \
-    "https://storage.googleapis.com/${configured_bucket}/${object_path}") || return 1
-  local status="${response##*$'\n__HTTP_STATUS__'}"
-  local body="${response%$'\n__HTTP_STATUS__'*}"
-  if [[ "$status" != 200 ]]; then
-    printf 'GCS finished read status=%s: %s\n' "$status" "$gcs_path" >&2
-    return 1
-  fi
-  printf '%s' "$body"
+    "https://storage.googleapis.com/${configured_bucket}/${object_path}"
 }
 
 collect_failures() {
@@ -98,8 +84,6 @@ collect_failures() {
   local jobs
   cutoff=$(date -u -d '24 hours ago' +%s 2>/dev/null || date -u -v-1d +%s)
   jobs=$(list_nightly_jobs)
-  job_count=$(printf '%s\n' "$jobs" | awk 'NF { count++ } END { print count + 0 }')
-  printf 'GCS jobs discovered: %s\n' "$job_count" >&2
   printf '# Every data row below is a verified CI failure.\n'
   printf '# job\tbuild\tgcs_path\ttimestamp\tresult\n'
 
@@ -118,10 +102,7 @@ collect_failures() {
         break
       fi
     done < <(list_builds "$job" | sort -nr || true)
-    if [[ -z "$build" || -z "$finished" ]]; then
-      printf 'GCS no completed build: %s\n' "$job" >&2
-      continue
-    fi
+    [[ -n "$build" && -n "$finished" ]] || continue
     timestamp=$(printf '%s' "$finished" | jq -r '.timestamp // 0')
     result=$(printf '%s' "$finished" | jq -r '.result // ""')
     if [[ "$timestamp" -ge "$cutoff" && "$result" == FAILURE ]]; then

@@ -43,17 +43,15 @@ payloads:
       if [ -n "$GCP_SA_ACCESS_TOKEN" ]; then
         export CLOUDSDK_AUTH_ACCESS_TOKEN="$GCP_SA_ACCESS_TOKEN"
       fi
-        if ! printenv OPENSHELL_GCS_MANIFEST_STARTED >/dev/null 2>&1; then
-          export OPENSHELL_GCS_MANIFEST_STARTED=1
-          /bin/bash /sandbox/tools/gsutil collect \
-            >/tmp/openshell-nightly-failures.tsv \
-            2>/tmp/openshell-nightly-failures.err || {
-            echo "collection failed; see /tmp/openshell-nightly-failures.err" \
-              >>/tmp/openshell-nightly-failures.tsv
-          }
-          cp /tmp/openshell-nightly-failures.tsv /sandbox/nightly-failures.tsv 2>/dev/null || true
-          cp /tmp/openshell-nightly-failures.err /sandbox/nightly-failures.err 2>/dev/null || true
-        fi
+      if ! printenv OPENSHELL_GCS_MANIFEST_STARTED >/dev/null 2>&1; then
+        export OPENSHELL_GCS_MANIFEST_STARTED=1
+        /bin/bash /sandbox/tools/gsutil collect \
+          >/tmp/openshell-nightly-failures.tsv \
+          2>/tmp/openshell-nightly-failures.err || {
+          echo "collection failed; see /tmp/openshell-nightly-failures.err" \
+            >>/tmp/openshell-nightly-failures.tsv
+        }
+      fi
     destination: /sandbox/.bash_env
 
 agent:
@@ -66,10 +64,4 @@ agent:
 outputs:
   - source: /sandbox/acs-triage-agent/artifacts/ci-triage.json
     destination: ci-triage.json
-    required: false
-  - source: /sandbox/nightly-failures.tsv
-    destination: nightly-failures.tsv
-    required: false
-  - source: /sandbox/nightly-failures.err
-    destination: nightly-failures.err
     required: false
