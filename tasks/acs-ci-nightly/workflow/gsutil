@@ -31,19 +31,20 @@ list_nightly_jobs() {
 
   while :; do
     local response
-    local -a page_args=()
+    local -a query_args=(
+      --data-urlencode "prefix=logs/branch-ci-stackrox-stackrox-nightlies-"
+      --data-urlencode "delimiter=/"
+      --data-urlencode "maxResults=1000"
+    )
     if [[ -n "$page_token" ]]; then
-      page_args=(--data-urlencode "pageToken=$page_token")
+      query_args+=(--data-urlencode "pageToken=$page_token")
     fi
 
     response=$(timeout 90s curl --silent --show-error --fail \
       --connect-timeout 10 --max-time 60 \
       --header "Authorization: Bearer $token" \
       --get \
-      --data-urlencode "prefix=logs/branch-ci-stackrox-stackrox-nightlies-" \
-      --data-urlencode "delimiter=/" \
-      --data-urlencode "maxResults=1000" \
-      "${page_args[@]}" "$api")
+      "${query_args[@]}" "$api")
 
     printf '%s' "$response" \
       | jq -r --arg bucket "$configured_bucket" \
