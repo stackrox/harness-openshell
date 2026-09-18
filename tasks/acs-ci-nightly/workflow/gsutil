@@ -10,16 +10,22 @@ rewrite_uri() {
   local uri=$1
   case "$uri" in
     gs://test-platform-results|gs://test-platform-results/*)
-      printf 'gs://%s%s\n' "$configured_bucket" "${uri#gs://test-platform-results}"
+      uri="gs://${configured_bucket}${uri#gs://test-platform-results}"
       ;;
-    gs://$configured_bucket|gs://$configured_bucket/*)
-      printf '%s\n' "$uri"
-      ;;
+    "gs://${configured_bucket}"|"gs://${configured_bucket}"/*) ;;
     *)
       echo "gsutil compatibility wrapper: unsupported bucket in $uri" >&2
       return 2
       ;;
   esac
+
+  case "$uri" in
+    */../*|*/./*|*/..|*/.)
+      echo "gsutil compatibility wrapper: unsupported path in $uri" >&2
+      return 2
+      ;;
+  esac
+  printf '%s\n' "$uri"
 }
 
 list_nightly_jobs() {
