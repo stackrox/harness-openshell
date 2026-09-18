@@ -302,6 +302,17 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	if reviewJob.With["harness-ref"] != pinnedRef {
 		t.Fatalf("caller harness-ref does not match workflow pin %q", pinnedRef)
 	}
+	for name, want := range map[string]string{
+		"review-agent":             "codex",
+		"codex-inference-provider": "openai-inference",
+		"codex-model":              "gpt-5.6-luna",
+		"codex-workspace":          "codex-review",
+		"required-providers":       `["github-review", "openai-inference"]`,
+	} {
+		if reviewJob.With[name] != want {
+			t.Fatalf("caller input %s = %q, want %q", name, reviewJob.With[name], want)
+		}
+	}
 	if reviewJob.With["openshell-github-app-client-id"] != "${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}" {
 		t.Fatal("caller does not pass the GitHub App client ID variable")
 	}
