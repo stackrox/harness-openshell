@@ -36,6 +36,9 @@ func TestPRReview(t *testing.T) {
 			if err := os.Mkdir(filepath.Join(root, "scripts", "review"), 0o700); err != nil {
 				t.Fatal(err)
 			}
+			if err := os.Mkdir(filepath.Join(root, "scripts", "review", "agents"), 0o700); err != nil {
+				t.Fatal(err)
+			}
 			validator, err := os.ReadFile("../scripts/review/validate-agent-output.sh")
 			if err != nil {
 				t.Fatal(err)
@@ -49,8 +52,10 @@ func TestPRReview(t *testing.T) {
 				t.Fatalf("validator must be executable: mode %o", validatorMode)
 			}
 			codexValidator := mustRead(t, "../scripts/review/validate-codex-output.sh")
+			codexAgent := mustRead(t, "../scripts/review/agents/codex.sh")
+			opencodeAgent := mustRead(t, "../scripts/review/agents/opencode.sh")
 			taskRunner := mustRead(t, "../scripts/run-task.sh")
-			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/pr-review-local.sh": mustRead(t, "../scripts/pr-review-local.sh"), "scripts/run-task.sh": taskRunner, "scripts/review/validate-agent-output.sh": validator, "scripts/review/validate-codex-output.sh": codexValidator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
+			for name, data := range map[string][]byte{"scripts/pr-review.sh": script, "scripts/pr-review-local.sh": mustRead(t, "../scripts/pr-review-local.sh"), "scripts/run-task.sh": taskRunner, "scripts/review/agents/codex.sh": codexAgent, "scripts/review/agents/opencode.sh": opencodeAgent, "scripts/review/validate-agent-output.sh": validator, "scripts/review/validate-codex-output.sh": codexValidator, "harness": []byte(fakeReviewCommand), "openshell": []byte(fakeReviewCommand), "gh": []byte(fakeReviewCommand), "review-policy.yaml": []byte("version: 1\nnetwork_policies: {}\n"), "output": nil, "step-summary": nil} {
 				mode := os.FileMode(0o700)
 				if name == "scripts/review/validate-agent-output.sh" {
 					mode = validatorMode
@@ -286,6 +291,17 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	}
 	if !strings.Contains(string(mustRead(t, "../scripts/pr-review.sh")), `REVIEW_SKILL="${REVIEW_SKILL:-$PWD/tasks/github-pr-reviewer/workflow/skills/pr-review/SKILL.md}"`) {
 		t.Fatal("review wrapper default skill must resolve from the trusted checkout")
+	}
+	if !strings.Contains(string(mustRead(t, "../scripts/pr-review.sh")), `source "scripts/review/agents/$review_agent.sh"`) {
+		t.Fatal("review wrapper does not load the selected agent profile")
+	}
+	for _, agent := range []string{"codex", "opencode"} {
+		profile := string(mustRead(t, "../scripts/review/agents/"+agent+".sh"))
+		for _, function := range []string{"agent_configure", "agent_require_credentials", "agent_setup", "agent_workflow_file", "agent_validator", "agent_extract_output"} {
+			if !strings.Contains(profile, function+"()") {
+				t.Fatalf("%s agent profile does not implement %s", agent, function)
+			}
+		}
 	}
 
 	caller := string(mustRead(t, "../.github/workflows/ai-review.yml"))

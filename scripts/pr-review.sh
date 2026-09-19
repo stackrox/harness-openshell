@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Trusted host orchestration. PR content is data, never runner code.
+# shellcheck disable=SC2034,SC2154 # agent profiles are sourced below and share state with this wrapper.
 set -euo pipefail
 umask 077
 cd "$(dirname "$0")/.."
@@ -16,40 +17,17 @@ codex_inference_provider="${CODEX_INFERENCE_PROVIDER:-openai-inference}"
 codex_model="${CODEX_MODEL:-gpt-5.6-luna}"
 codex_workspace="${CODEX_WORKSPACE:-}"
 case "$review_agent" in
-  opencode|codex) ;;
+  opencode|codex)
+    # shellcheck source=/dev/null
+    source "scripts/review/agents/$review_agent.sh"
+    ;;
   *) echo "unsupported review agent: $review_agent" >&2; exit 1 ;;
 esac
 [[ "$review_label" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$ ]] || {
   echo "invalid review label" >&2
   exit 1
 }
-if [[ "$review_agent" == codex ]]; then
-  [[ "$codex_inference_provider" =~ ^[A-Za-z0-9_.-]+$ && "$codex_model" =~ ^[A-Za-z0-9_.@/-]+$ ]] || {
-    echo "invalid Codex inference provider or model" >&2
-    exit 1
-  }
-  [[ "$codex_workspace" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$ ]] || {
-    echo "Codex requires a valid pre-provisioned workspace" >&2
-    exit 1
-  }
-fi
-configured_target=false
-if [[ "$review_agent" == codex ]]; then
-  workspace="$codex_workspace"
-  sandbox_name="codex-$(openssl rand -hex 6)"
-  configured_target=true
-  github_provider=github-review
-else
-  workspace="${OPENSHELL_WORKSPACE:-rev-$RANDOM-$$}"
-  sandbox_name="review-$(openssl rand -hex 6)"
-  if [[ -n "${OPENSHELL_WORKSPACE:-}" ]]; then
-    configured_target=true
-    github_provider=github-review
-  fi
-fi
-if [[ -z "${github_provider:-}" ]]; then
-  github_provider="github-review-$RANDOM-$$"
-fi
+agent_configure
 max_diff_bytes=262144
 created_workspace=false
 created_vertex_provider=false
@@ -153,39 +131,10 @@ run_review() {
   base="$(jq -er '.base | select(test("^[0-9a-f]{40}$"))' "$REVIEW_DIR/input.json")"
   (cd "$REVIEW_DIR" && shasum -a 256 -c pr.diff.sha256 >/dev/null)
   ensure_current
-  if [[ "$configured_target" != true ]]; then
-    : "${GITHUB_TOKEN:?set the workflow GitHub token for provider bootstrap}"
-  fi
-  if [[ "$review_agent" == opencode && "$configured_target" != true ]]; then
-    : "${GOOGLE_VERTEX_AI_TOKEN:?set a short-lived Vertex token}" "${VERTEX_AI_PROJECT_ID:?set Vertex project}"
-  fi
-
-  if [[ "$review_agent" == opencode && "$configured_target" != true ]]; then
-    timeout 60s openshell workspace create --gateway "$gateway" --name "$workspace"
-    created_workspace=true
-  fi
-  if [[ "$review_agent" == opencode && "$configured_target" != true ]]; then
-    timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
-      --name vertex-review --type google-vertex-ai --from-existing \
-      --config "VERTEX_AI_PROJECT_ID=$VERTEX_AI_PROJECT_ID" --config "VERTEX_AI_REGION=${VERTEX_AI_REGION:-global}"
-    created_vertex_provider=true
-  fi
-  if [[ "$configured_target" != true ]]; then
-    timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
-      --name "$github_provider" --type github --credential GITHUB_TOKEN
-    created_github_provider=true
-  fi
-  if [[ "$review_agent" == opencode ]]; then
-    if [[ "$configured_target" != true ]]; then
-      timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" \
-        --provider vertex-review --model gemini-2.5-pro --no-verify
-    fi
-    workflow_file=tasks/github-pr-reviewer/workflow/opencode-harness.yaml
-    validator=scripts/review/validate-agent-output.sh
-  else
-    workflow_file=tasks/github-pr-reviewer/workflow/codex-harness.yaml
-    validator=scripts/review/validate-codex-output.sh
-  fi
+  agent_require_credentials
+  agent_setup
+  workflow_file="$(agent_workflow_file)"
+  validator="$(agent_validator)"
 
   export REVIEW_DIFF="$REVIEW_DIR/pr.diff"
   export REVIEW_POLICY="$REVIEW_DIR/review-policy.yaml"
@@ -218,15 +167,7 @@ run_review() {
   fi
   ((apply_status == 0)) || return "$apply_status"
   ensure_current
-  if [[ "$review_agent" == opencode ]]; then
-    jq -Rr 'fromjson? | select(.type == "text") | .part.text' \
-      "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"
-  elif [[ -s "$REVIEW_DIR/codex-final.txt" ]]; then
-    cp "$REVIEW_DIR/codex-final.txt" "$REVIEW_DIR/review.txt"
-  else
-    jq -Rr 'fromjson? | select(.type == "item.completed" and .item.type == "agent_message") | .item.text' \
-      "$REVIEW_DIR/agent.ndjson" > "$REVIEW_DIR/review.txt"
-  fi
+  agent_extract_output
   state=completed
 }
 

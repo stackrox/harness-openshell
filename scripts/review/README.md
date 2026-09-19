@@ -4,7 +4,12 @@ These scripts contain behavior that can be reused by multiple workflow
 archetypes. They accept explicit paths and environment inputs; they do not own
 provider credentials, workflow policy, model selection, or GitHub permissions.
 
-Current component:
+Current components:
+
+- `agents/codex.sh` and `agents/opencode.sh` are the two PR-review agent
+  profiles. Each profile owns its trusted task workflow, output validator,
+  output extraction, and any provider/workspace setup. The shared wrapper does
+  not need to know how an agent is provisioned.
 
 - `validate-agent-output.sh REVIEW_DIR` validates the bounded OpenCode event
   stream emitted by the PR reviewer. It rejects malformed event-looking lines,
@@ -13,12 +18,10 @@ Current component:
   completion, not finding correctness or whether every external action was
   appropriate. Comments can already have been posted when this check runs.
 
-This validator is intentionally scoped to the PR-review workflow until a second
-workflow demonstrates a stable event and publication contract. It is not a
-generic agent-result protocol.
+These validators are intentionally scoped to the PR-review workflow until a
+second workflow demonstrates a stable event and publication contract. They are
+not a generic agent-result protocol.
 
-The PR-specific wrapper remains in `scripts/pr-review.sh` until a second
-workflow demonstrates a stable context or lifecycle contract. Future
-extractions should preserve this boundary: reusable components validate and
-guard execution, while each workflow selects its agent, policy, providers, and
-publication behavior.
+The PR-specific lifecycle remains in `scripts/pr-review.sh`; future agent
+removal should delete the corresponding profile and task bundle without
+changing PR eligibility, diff integrity, sandbox cleanup, or artifact handling.
