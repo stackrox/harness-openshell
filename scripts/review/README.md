@@ -29,3 +29,6 @@ changing PR eligibility, diff integrity, sandbox cleanup, or artifact handling.
 The reusable CI workflow enables the Codex profile's ephemeral provider
 bootstrap for each review run; local managed workspaces can leave that setup
 disabled and use their pre-provisioned providers instead.
+
+The workflow uploads the bounded review directory as an artifact so a failed
+run can be diagnosed without exposing provider credentials.
