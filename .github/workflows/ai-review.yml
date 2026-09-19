@@ -9,11 +9,11 @@ permissions:
 
 jobs:
   review:
-    uses: stackrox/harness-openshell/.github/workflows/pr-review-reusable.yml@709f4cc1744e82b8dbea887fa72af98ca539dc6c
+    uses: stackrox/harness-openshell/.github/workflows/pr-review-reusable.yml@e04d356006289c7c7a8aeeb382eb8b3cfc677494
     with:
       # `uses` pins the workflow adapter; harness-ref pins the checked-out
       # Harness CLI/scripts. Keep both at the same release commit.
-      harness-ref: 709f4cc1744e82b8dbea887fa72af98ca539dc6c
+      harness-ref: e04d356006289c7c7a8aeeb382eb8b3cfc677494
       review-label: stackrox-ai-review
       allow-draft-reviews: false
       review-agent: codex
