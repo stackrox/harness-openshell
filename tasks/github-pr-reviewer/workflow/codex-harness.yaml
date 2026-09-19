@@ -24,11 +24,18 @@ payloads:
   - source: ${REVIEW_SKILL}
     destination: /sandbox/review/skills/pr-review/SKILL.md
   - content: |
-      openai_base_url = "https://inference.local/v1"
       model = "${CODEX_MODEL}"
+      model_provider = "openshell"
       model_reasoning_effort = "xhigh"
       approval_policy = "never"
       sandbox_mode = "danger-full-access"
+
+      [model_providers.openshell]
+      name = "OpenShell inference"
+      base_url = "https://inference.local/v1"
+      wire_api = "responses"
+      supports_websockets = false
+      requires_openai_auth = false
     destination: /sandbox/.codex/config.toml
 outputs:
   - source: /sandbox/review/codex-final.txt
