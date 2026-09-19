@@ -25,3 +25,7 @@ not a generic agent-result protocol.
 The PR-specific lifecycle remains in `scripts/pr-review.sh`; future agent
 removal should delete the corresponding profile and task bundle without
 changing PR eligibility, diff integrity, sandbox cleanup, or artifact handling.
+
+The reusable CI workflow enables the Codex profile's ephemeral provider
+bootstrap for each review run; local managed workspaces can leave that setup
+disabled and use their pre-provisioned providers instead.
