@@ -47,6 +47,11 @@ on:
         required: false
         type: string
         default: ''
+      codex-bootstrap:
+        description: Create an ephemeral Codex workspace and providers in the local CI gateway
+        required: false
+        type: boolean
+        default: true
       openshell-github-app-client-id:
         description: GitHub App Client ID used for the trusted review token
         required: true
@@ -56,6 +61,8 @@ on:
         required: false
       OPENSHELL_GITHUB_APP_PRIVATE_KEY:
         required: true
+      OPENSHELL_CODEX_API_KEY:
+        required: false
 
 permissions:
   contents: read
@@ -168,6 +175,8 @@ jobs:
           CODEX_INFERENCE_PROVIDER: ${{ inputs.codex-inference-provider }}
           CODEX_MODEL: ${{ inputs.codex-model }}
           CODEX_WORKSPACE: ${{ inputs.codex-workspace }}
+          CODEX_BOOTSTRAP: ${{ inputs.codex-bootstrap }}
+          OPENSHELL_CODEX_API_KEY: ${{ secrets.OPENSHELL_CODEX_API_KEY }}
           TASK_PROVIDERS: ${{ inputs.required-providers }}
           GITHUB_TOKEN: ${{ steps.openshell-app-token.outputs.token }}
           REVIEW_REPOSITORY: ${{ github.repository }}

@@ -32,6 +32,8 @@ max_diff_bytes=262144
 created_workspace=false
 created_vertex_provider=false
 created_github_provider=false
+created_codex_provider=false
+created_github_profile=false
 apply_pid=""
 head="${REVIEW_HEAD:-}"
 base=""
@@ -79,6 +81,12 @@ cleanup_runtime() {
     fi
     if $created_github_provider; then
       timeout 30s openshell provider delete --gateway "$gateway" --workspace "$workspace" "$github_provider" || cleanup_status=1
+    fi
+    if $created_codex_provider; then
+      timeout 30s openshell provider delete --gateway "$gateway" --workspace "$workspace" "$codex_inference_provider" || cleanup_status=1
+    fi
+    if $created_github_profile; then
+      timeout 30s openshell provider profile delete --gateway "$gateway" --workspace "$workspace" github-review || cleanup_status=1
     fi
     if $created_workspace; then
       timeout 30s openshell workspace delete --gateway "$gateway" "$workspace" || cleanup_status=1

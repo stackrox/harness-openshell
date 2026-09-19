@@ -20,8 +20,10 @@ jobs:
       codex-inference-provider: openai-inference
       codex-model: gpt-5.6-luna
       codex-workspace: codex-review
+      codex-bootstrap: true
       required-providers: '["github-review", "openai-inference"]'
       openshell-github-app-client-id: ${{ vars.OPENSHELL_GITHUB_APP_CLIENT_ID }}
     secrets:
       VERTEX_AI_SERVICE_ACCOUNT_KEY: ${{ secrets.VERTEX_AI_SERVICE_ACCOUNT_KEY }}
       OPENSHELL_GITHUB_APP_PRIVATE_KEY: ${{ secrets.OPENSHELL_GITHUB_APP_PRIVATE_KEY }}
+      OPENSHELL_CODEX_API_KEY: ${{ secrets.OPENSHELL_CODEX_API_KEY }}

@@ -141,10 +141,10 @@ bash scripts/pr-review-local.sh
 The reusable workflow also supports `review-agent: codex` with the
 `stackrox-ai-review` label. This runs the pinned Codex CLI inside OpenShell and
 keeps the existing OpenCode/Vertex path available. Codex uses the gateway's
-`inference.local` Responses API route, so the caller must arrange a
-platform-owned OpenAI-compatible provider first (the default name is
-`openai-inference`) in a dedicated workspace. No OpenAI key is passed through the
-workflow or sandbox.
+`inference.local` Responses API route. The local CI path creates an ephemeral
+workspace with `github-review` and `openai-inference` providers using trusted
+workflow bootstrap; the API key remains in the gateway and is never passed into
+the sandbox.
 
 Trusted callers select it with:
 
@@ -155,6 +155,7 @@ with:
   codex-inference-provider: openai-inference
   codex-model: gpt-5.6-luna
   codex-workspace: codex-review
+  codex-bootstrap: true
   required-providers: '["github-review", "openai-inference"]'
 ```
 
