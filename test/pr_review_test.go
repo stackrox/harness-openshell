@@ -430,9 +430,14 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 		t.Fatal("review workflow passes the GitHub token into the sandbox configuration")
 	}
 	codex := string(mustRead(t, "../tasks/github-pr-reviewer/workflow/codex-harness.yaml"))
-	for _, required := range []string{"type: codex", "CODEX_INFERENCE_PROVIDER", "CODEX_MODEL", "${CODEX_MODEL}", "model_reasoning_effort = \"xhigh\"", "inference.local/v1", "codex-final.txt"} {
+	for _, required := range []string{"type: codex", "CODEX_INFERENCE_PROVIDER", "CODEX_MODEL", "${CODEX_MODEL}", "model_reasoning_effort = \"xhigh\"", "approval_policy = \"never\"", "sandbox_mode = \"danger-full-access\"", "inference.local/v1", "codex-final.txt"} {
 		if !strings.Contains(codex, required) {
 			t.Fatalf("Codex workflow is missing %s", required)
+		}
+	}
+	for _, obsolete := range []string{"--ask-for-approval", "--output-last-message"} {
+		if strings.Contains(codex, obsolete) {
+			t.Fatalf("Codex workflow still passes unsupported CLI flag %s", obsolete)
 		}
 	}
 	if strings.Contains(codex, "OPENAI_API_KEY") || strings.Contains(codex, "openai-api-key") {
