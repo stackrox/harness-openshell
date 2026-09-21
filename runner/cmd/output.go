@@ -19,7 +19,7 @@ const (
 func parseOutputFormat(s string) (outputFormat, error) {
 	switch strings.ToLower(s) {
 	case "", "table":
-		return formatTable, nil
+		return formatJSON, nil
 	case "json":
 		return formatJSON, nil
 	case "yaml":
