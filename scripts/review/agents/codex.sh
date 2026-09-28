@@ -50,10 +50,9 @@ agent_setup() {
     --name github-review --type github-review --credential GITHUB_TOKEN
   created_github_provider=true
   timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
-    --name "$codex_inference_provider" --type openai --credential OPENSHELL_CODEX_API_KEY
+    --name "$codex_inference_provider" --type openai \
+    --credential "OPENAI_API_KEY=$OPENSHELL_CODEX_API_KEY"
   created_codex_provider=true
-  timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" \
-    --provider "$codex_inference_provider" --model "$codex_model" --no-verify
 }
 
 agent_workflow_file() {

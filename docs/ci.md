@@ -1,6 +1,6 @@
 # CI and live validation
 
-Credential-free PR checks do not establish live inference success.
+Credential-free PR checks do not establish live provider access or model success.
 Image PR checks build without registry login or publication; only
 main/tag pushes publish images and update the shared registry cache.
 
@@ -17,7 +17,7 @@ administrator account at runtime.
 `.github/workflows/vertex-smoke.yml` is manually dispatched only. It starts a
 local OpenShell gateway on a GitHub-hosted runner, obtains a short-lived Google
 access token from `VERTEX_AI_SERVICE_ACCOUNT_KEY`, and uses it to run OpenCode
-with Gemini 2.5 Pro through `inference.local`. It creates and deletes an
+with Gemini 2.5 Pro through Vertex's native OpenAI-compatible endpoint. It creates and deletes an
 isolated workspace, so it does not affect the gateway's default workspace.
 
 Repository configuration:
@@ -52,8 +52,8 @@ runner loss) cannot execute shell cleanup. Credential-free orchestration tests
 run as part of `go test ./...`.
 
 The service-account project must have access to `gemini-2.5-pro` in the
-configured Vertex region. A 404 from the inference setup means the model is
-unavailable to that project; do not bypass the check with `--no-verify`.
+configured Vertex region. A 404 from provider creation or the native endpoint
+means the model is unavailable to that project; do not bypass provider checks.
 
 ## Label-driven PR review
 
@@ -97,13 +97,13 @@ an artifact link. Seven-day artifacts hold input revisions, diff/hash, execution
 metadata, raw output/diagnostics, and `review.txt`. Reviews are advisory inline
 comments only; they do not approve, request changes, or merge.
 
-The default reviewer runs OpenCode with Gemini 2.5 Pro through `inference.local`
-and Google Vertex AI. The model is selected in
+The default reviewer runs OpenCode with Gemini 2.5 Pro through Google Vertex
+AI's native endpoint. The provider is selected in
 [`scripts/pr-review-local.sh`](../scripts/pr-review-local.sh) and the agent
 arguments in [`opencode-harness.yaml`](../tasks/github-pr-reviewer/workflow/opencode-harness.yaml).
-The task consumes the existing inference route; it does not configure it.
-Keep those selections aligned and verify model access with the CI identity
-when changing them.
+The task attaches that provider to its sandbox; it does not create providers or
+handle credentials. Keep those selections aligned and verify model access with
+the CI identity when changing them.
 
 The host uses trusted caller default-branch inputs and the pinned
 `harness-openshell` revision. The sandbox receives the PR diff and attaches the
@@ -140,8 +140,8 @@ bash scripts/pr-review-local.sh
 
 The reusable workflow also supports `review-agent: codex` with the
 `stackrox-ai-review` label. This runs the pinned Codex CLI inside OpenShell and
-keeps the existing OpenCode/Vertex path available. Codex uses the gateway's
-`inference.local` Responses API route. The local CI path creates an ephemeral
+keeps the existing OpenCode/Vertex path available. Codex uses the provider's
+native OpenAI Responses API endpoint. The local CI path creates an ephemeral
 workspace with `github-review` and `openai-inference` providers using trusted
 workflow bootstrap; the API key remains in the gateway and is never passed into
 the sandbox.
@@ -256,8 +256,8 @@ can apply it, a platform administrator must establish three durable resources:
 1. add the harness service-account subject to `default-inference` as `user`;
 2. create the `vertex-claude-haiku` provider from an identity with Vertex AI
    prediction access; and
-3. set `inference.local` to provider `vertex-claude-haiku` and model
-   `claude-haiku-4-5@20251001`.
+3. attach `vertex-claude-haiku` to the sandbox and configure the agent for
+   Vertex's native Claude endpoint and model `claude-haiku-4-5@20251001`.
 
 For local development credentials, OpenShell's native bootstrap is:
 
@@ -270,20 +270,14 @@ openshell provider create --gateway ADMIN_GATEWAY \
   --config VERTEX_AI_PROJECT_ID=PROJECT_ID \
   --config VERTEX_AI_REGION=us-east5
 
-openshell inference set --gateway ADMIN_GATEWAY \
-  --workspace default-inference \
-  --provider vertex-claude-haiku \
-  --model 'claude-haiku-4-5@20251001'
+openshell provider get --gateway ADMIN_GATEWAY \
+  --workspace default-inference vertex-claude-haiku
 ```
 
-Do not use `--no-verify`: a successful inference write is the base-layer proof
-that the ADC principal has `aiplatform.endpoints.predict`. After bootstrap,
-ordinary applies only read the matching provider and route; they neither need
-workspace-admin permission nor receive the Vertex credential in the sandbox.
-If a workflow selects a different provider, model, or route, the compatibility
-reconciliation performs an admin-only upsert in that workspace. Treat that as
-isolated-workspace setup, not a shared-workspace runtime operation; the CLI does
-not restore the previous route after the run.
+After bootstrap, ordinary applies only read the matching provider and attach it
+to the sandbox; they neither need workspace-admin permission nor receive the
+Vertex credential in the sandbox. Model selection and request timeouts belong
+to the native agent client.
 
 Validate from the VPN with:
 
@@ -300,6 +294,8 @@ Provide these values to the local harness process:
 - `OPENSHELL_OIDC_AUDIENCE`: gateway token audience
 - `OPENSHELL_OIDC_CLIENT_ID`: user service-account client ID
 - `OPENSHELL_OIDC_CLIENT_SECRET`: user service-account client secret
+- `HYPERSHELL_VERTEX_PROJECT_ID`: Vertex project for the native Claude client
+- `HYPERSHELL_VERTEX_REGION`: Vertex region for the native Claude client
 
 `test/hypershell-lifecycle.sh` reads them from the git-excluded file named by
 `HYPERSHELL_SA_ENV` and maps the non-secret connection metadata to the names

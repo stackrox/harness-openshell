@@ -9,7 +9,7 @@ The runner:
 
 - loads and validates a versioned workflow document;
 - resolves a local or managed OpenShell target;
-- verifies referenced providers and reconciles the declared inference route;
+- verifies referenced providers and attaches them to the sandbox;
 - creates a sandbox with the selected image, policy, provider attachments, and
   command;
 - uploads source and payloads, observes execution, downloads outputs, and

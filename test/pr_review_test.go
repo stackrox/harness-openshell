@@ -146,7 +146,7 @@ func TestPRReview(t *testing.T) {
 			}
 			if !local {
 				if scenario != "codex-success" && scenario != "codex-bootstrap-success" {
-					for _, action := range []string{"workspace create", "provider create", "inference set"} {
+					for _, action := range []string{"workspace create", "provider create"} {
 						if strings.Contains(string(trace), action) {
 							t.Fatalf("existing-target review performed setup or forced a target: %s", trace)
 						}
@@ -159,7 +159,7 @@ func TestPRReview(t *testing.T) {
 					t.Fatal("Codex review wrapper attempted to clean up a sandbox it did not create")
 				}
 				if scenario == "codex-bootstrap-success" {
-					for _, action := range []string{"workspace create", "provider profile import", "provider create", "inference set", "workspace delete"} {
+					for _, action := range []string{"workspace create", "provider profile import", "provider create", "workflow apply", "workspace delete"} {
 						if !strings.Contains(string(trace), action) {
 							t.Fatalf("Codex bootstrap did not perform %s: %s", action, trace)
 						}
@@ -419,18 +419,18 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	if err := yaml.Unmarshal(data, &task); err != nil {
 		t.Fatal(err)
 	}
-	if inference, ok := task["inference"].(map[string]any); !ok || inference["route"] != "inference.local" {
-		t.Fatal("review task must declare the inference.local route")
+	if _, ok := task["inference"]; ok {
+		t.Fatal("review task must not declare the removed inference route")
 	}
 	example := string(data)
-	if !strings.Contains(example, `providers: ["${REVIEW_GITHUB_PROVIDER}"]`) {
-		t.Fatal("review workflow does not attach the native GitHub provider")
+	if !strings.Contains(example, `providers: ["${REVIEW_GITHUB_PROVIDER}", "vertex-review"]`) {
+		t.Fatal("review workflow does not attach the GitHub and Vertex providers")
 	}
 	if strings.Contains(example, "GITHUB_TOKEN") {
 		t.Fatal("review workflow passes the GitHub token into the sandbox configuration")
 	}
 	codex := string(mustRead(t, "../tasks/github-pr-reviewer/workflow/codex-harness.yaml"))
-	for _, required := range []string{"type: codex", "CODEX_INFERENCE_PROVIDER", "CODEX_MODEL", "${CODEX_MODEL}", "model_provider = \"openshell\"", "model_reasoning_effort = \"xhigh\"", "approval_policy = \"never\"", "sandbox_mode = \"danger-full-access\"", "base_url = \"https://inference.local/v1\"", "supports_websockets = false", "codex-final.txt"} {
+	for _, required := range []string{"type: codex", "CODEX_INFERENCE_PROVIDER", "CODEX_MODEL", "${CODEX_MODEL}", "model_provider = \"openai\"", "model_reasoning_effort = \"xhigh\"", "approval_policy = \"never\"", "sandbox_mode = \"danger-full-access\"", "base_url = \"https://api.openai.com/v1\"", "supports_websockets = false", "codex-final.txt"} {
 		if !strings.Contains(codex, required) {
 			t.Fatalf("Codex workflow is missing %s", required)
 		}

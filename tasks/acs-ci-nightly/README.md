@@ -34,7 +34,8 @@ their sources, while the Jira updater and Slack publication remain disabled.
 The platform must provision these gateway-owned resources before applying the
 workflow:
 
-- `vertex-claude-triage` and the matching `inference.local` route;
+- `vertex-claude-triage`, attached to the sandbox and configured for Vertex's
+  native Claude endpoint;
 - `atlassian-triage-read`, configured for read-only Jira/Confluence access;
 - `github-triage-read`, configured for read-only project and issue queries;
 - `prow-gcs-read`, created from OpenShell's built-in `google-cloud` provider

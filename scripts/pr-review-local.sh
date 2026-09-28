@@ -5,6 +5,8 @@ umask 077
 cd "$(dirname "$0")/.."
 : "${GOOGLE_VERTEX_AI_TOKEN:?set a short-lived Vertex token}" "${VERTEX_AI_PROJECT_ID:?set Vertex project}"
 : "${GITHUB_TOKEN:?set the repository-scoped GitHub App token for bootstrap}"
+export VERTEX_AI_PROJECT_ID
+export VERTEX_AI_REGION="${VERTEX_AI_REGION:-global}"
 gateway="${OPENSHELL_GATEWAY:-openshell}"
 # OpenShell limits resource names to 19 characters.
 workspace="review-$(openssl rand -hex 6)"
@@ -55,8 +57,6 @@ created_vertex=true
 timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
   --name github-review --type github-review --credential GITHUB_TOKEN
 created_github=true
-timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" \
-  --provider vertex-review --model gemini-2.5-pro
 OPENSHELL_GATEWAY="$gateway" OPENSHELL_WORKSPACE="$workspace" bash scripts/pr-review.sh run &
 review_pid=$!
 set +e

@@ -67,7 +67,7 @@ func preflightPlan(p *plan.Plan) error {
 			case group.Section == plan.SectionProviders && resource.Action == plan.ActionMissing:
 				return fmt.Errorf("referenced provider %q does not exist; create it through platform bootstrap before apply", resource.Name)
 			case group.Section == plan.SectionInference && resource.Action == plan.ActionValidate:
-				return fmt.Errorf("gateway does not support inference route reconciliation")
+				return fmt.Errorf("OpenShell v0.1.2 removed managed inference routes; attach a provider through sandbox.providers and configure the agent's native endpoint")
 			}
 		}
 	}

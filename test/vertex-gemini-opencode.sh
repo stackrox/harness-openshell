@@ -59,13 +59,13 @@ GOOGLE_VERTEX_AI_TOKEN="$TOKEN" \
     --config "VERTEX_AI_REGION=$REGION"
 created_provider=true
 
-"$CLI" inference set \
-  --gateway "$GATEWAY" \
-  --workspace "$WORKSPACE" \
-  --provider "$PROVIDER" \
-  --model gemini-2.5-pro
-
 output_file="$(mktemp)"
+vertex_host="aiplatform.googleapis.com"
+[[ "$REGION" == global ]] || vertex_host="${REGION}-aiplatform.googleapis.com"
+export VERTEX_AI_BASE_URL="https://${vertex_host}/v1/projects/${PROJECT}/locations/${REGION}/endpoints/openapi"
+VERTEX_AI_PROJECT_ID="$PROJECT" \
+VERTEX_AI_REGION="$REGION" \
+GOOGLE_VERTEX_AI_TOKEN="$TOKEN" \
 "$HARNESS" workflow apply "$WORKFLOW" --gateway "$GATEWAY" --workspace "$WORKSPACE" >"$output_file" &
 apply_pid=$!
 status=0

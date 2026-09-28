@@ -25,7 +25,7 @@ _chart_version() {
   local root ver
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   ver="$(cat "$root/.openshell-version" 2>/dev/null | tr -d 'v[:space:]')"
-  echo "${ver:-0.0.110}"
+  echo "${ver:-0.1.2}"
 }
 
 # provision_local: the OpenShell installer already provisioned and started the
@@ -41,7 +41,7 @@ provision_local() {
   "$CLI" gateway select "$gw" || return 1
   local i
   for i in $(seq 1 5); do
-    "$CLI" inference get &>/dev/null && return 0
+    "$CLI" status &>/dev/null && return 0
     sleep 3
   done
   echo "  ERROR: local gateway $gw not responding" >&2
@@ -95,7 +95,7 @@ EOF
   "$CLI" gateway select openshell-kind || return 1
 
   for i in $(seq 1 30); do
-    "$CLI" inference get &>/dev/null && return 0
+    "$CLI" status &>/dev/null && return 0
     sleep 2
   done
   echo "  ERROR: kind gateway not reachable after 60s" >&2
@@ -190,7 +190,7 @@ EOF
   "$CLI" gateway select openshell-remote-ocp || return 1
 
   for i in $(seq 1 30); do
-    "$CLI" inference get &>/dev/null && return 0
+    "$CLI" status &>/dev/null && return 0
     sleep 2
   done
   echo "  ERROR: OCP gateway not reachable after 60s" >&2

@@ -19,7 +19,7 @@ func TestBuild_TargetValidateWhenReachable(t *testing.T) {
 		Reachable: true,
 		Health: openshell.Health{
 			Healthy: true,
-			Version: "0.0.110",
+			Version: "0.1.2",
 		},
 	}
 
@@ -42,7 +42,7 @@ func TestBuild_TargetValidateWhenReachable(t *testing.T) {
 	if res.Name != "test-gateway" {
 		t.Errorf("expected name 'test-gateway', got %s", res.Name)
 	}
-	if res.Detail != "gateway test-gateway v0.0.110" {
+	if res.Detail != "gateway test-gateway v0.1.2" {
 		t.Errorf("unexpected detail: %s", res.Detail)
 	}
 }
@@ -112,7 +112,7 @@ func TestBuild_InferenceGroupWhenConfigured(t *testing.T) {
 	current := CurrentState{
 		Inspected: true,
 		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
+		Health:    openshell.Health{Healthy: true, Version: "0.1.2"},
 	}
 
 	plan := Build(desired, current)
@@ -300,7 +300,7 @@ func TestBuild_NoInferenceGroupWhenEmpty(t *testing.T) {
 	current := CurrentState{
 		Inspected: true,
 		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
+		Health:    openshell.Health{Healthy: true, Version: "0.1.2"},
 	}
 
 	plan := Build(desired, current)
@@ -326,7 +326,7 @@ func TestBuild_RunGroupWithSandbox(t *testing.T) {
 	current := CurrentState{
 		Inspected: true,
 		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
+		Health:    openshell.Health{Healthy: true, Version: "0.1.2"},
 	}
 
 	plan := Build(desired, current)
@@ -382,7 +382,7 @@ func TestBuild_RunGroupWithPayloads(t *testing.T) {
 	current := CurrentState{
 		Inspected: true,
 		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
+		Health:    openshell.Health{Healthy: true, Version: "0.1.2"},
 	}
 
 	plan := Build(desired, current)
@@ -426,7 +426,7 @@ func TestBuild_RunGroupWithAgent(t *testing.T) {
 		Inspected:      true,
 		ProvidersKnown: true,
 		Reachable:      true,
-		Health:         openshell.Health{Healthy: true, Version: "0.0.110"},
+		Health:         openshell.Health{Healthy: true, Version: "0.1.2"},
 	}
 
 	plan := Build(desired, current)
@@ -470,7 +470,7 @@ func TestBuild_NoRunGroupWhenEmpty(t *testing.T) {
 	current := CurrentState{
 		Inspected: true,
 		Reachable: true,
-		Health:    openshell.Health{Healthy: true, Version: "0.0.110"},
+		Health:    openshell.Health{Healthy: true, Version: "0.1.2"},
 	}
 
 	plan := Build(desired, current)
@@ -493,7 +493,7 @@ func TestPlan_TableSections(t *testing.T) {
 		Inspected:      true,
 		ProvidersKnown: true,
 		Reachable:      true,
-		Health:         openshell.Health{Healthy: true, Version: "0.0.110"},
+		Health:         openshell.Health{Healthy: true, Version: "0.1.2"},
 		Providers:      []openshell.Provider{},
 	}
 

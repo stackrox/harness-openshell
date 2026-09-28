@@ -18,8 +18,9 @@ landlock:
 process:
   run_as_user: sandbox
   run_as_group: sandbox
-# inference.local is provided by the gateway. No direct GitHub, telemetry,
-# package-registry, or other outbound destinations are granted to this worker.
+# Provider profiles grant only the native model and GitHub endpoints attached to
+# this sandbox. No unrelated telemetry, package-registry, or other outbound
+# destinations are granted to this worker.
 network_policies:
   github_api:
     name: github-api

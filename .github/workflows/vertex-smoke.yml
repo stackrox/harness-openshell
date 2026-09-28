@@ -37,7 +37,7 @@ jobs:
       - name: Wait for gateway
         run: |
           for _ in $(seq 1 30); do
-            openshell inference get &>/dev/null && exit 0
+            openshell status &>/dev/null && exit 0
             sleep 1
           done
           openshell gateway list || true

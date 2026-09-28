@@ -16,10 +16,16 @@ agent_configure() {
 }
 
 agent_require_credentials() {
+  export VERTEX_AI_REGION="${VERTEX_AI_REGION:-global}"
   if [[ "$configured_target" != true ]]; then
     : "${GITHUB_TOKEN:?set the workflow GitHub token for provider bootstrap}"
     : "${GOOGLE_VERTEX_AI_TOKEN:?set a short-lived Vertex token}" \
       "${VERTEX_AI_PROJECT_ID:?set Vertex project}"
+  fi
+  if [[ -n "${VERTEX_AI_PROJECT_ID:-}" ]]; then
+    local vertex_host="aiplatform.googleapis.com"
+    [[ "$VERTEX_AI_REGION" == global ]] || vertex_host="${VERTEX_AI_REGION}-aiplatform.googleapis.com"
+    export VERTEX_AI_BASE_URL="https://${vertex_host}/v1/projects/${VERTEX_AI_PROJECT_ID}/locations/${VERTEX_AI_REGION}/endpoints/openapi"
   fi
 }
 
@@ -36,8 +42,6 @@ agent_setup() {
   timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
     --name "$github_provider" --type github --credential GITHUB_TOKEN
   created_github_provider=true
-  timeout 60s openshell inference set --gateway "$gateway" --workspace "$workspace" \
-    --provider vertex-review --model gemini-2.5-pro --no-verify
 }
 
 agent_workflow_file() {

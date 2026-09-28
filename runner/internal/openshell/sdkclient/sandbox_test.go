@@ -22,7 +22,7 @@ import (
 func TestFromSDKSandboxMapsNameAndPhase(t *testing.T) {
 	got := fromSDKSandbox(&types.Sandbox{
 		Name:   "agent-1",
-		Status: types.SandboxStatus{SandboxName: "echo-should-be-ignored", Phase: types.SandboxReady},
+		Status: types.SandboxStatus{Phase: types.SandboxReady},
 	})
 	if got.Name != "agent-1" {
 		t.Errorf("Name: got %q, want agent-1 (top-level Name, not Status.SandboxName)", got.Name)
@@ -195,7 +195,7 @@ func TestCreateSandboxRejectsMalformedPolicy(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), `parsing sandbox policy: unknown policy field "unknown_field"`) {
 		t.Fatalf("error = %v, want clear unknown policy field error", err)
 	}
-	sandboxes, err := raw.Sandboxes().List(context.Background(), "team")
+	sandboxes, err := raw.Sandboxes().ListAll(context.Background(), "team")
 	if err != nil || len(sandboxes) != 0 {
 		t.Fatalf("sandbox created despite invalid policy: sandboxes=%v err=%v", sandboxes, err)
 	}

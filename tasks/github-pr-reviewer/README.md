@@ -9,7 +9,7 @@ metadata and stage the diff as untrusted data.
 
 The task's initial composition is deliberately small:
 
-- Codex inference through the gateway's `inference.local` route.
+- Codex access through an attached native OpenAI provider.
 - Read-only GitHub pull-request access, plus inline comments on that exact PR.
 
 The shared [`scripts/run-task.sh`](../../scripts/run-task.sh) adapter executes
@@ -29,9 +29,9 @@ those task-specific capabilities.
   temporary workspace from a repository-scoped GitHub App token. A managed
   integration must supply the instance and its credential lifecycle through
   trusted setup. The profile contains metadata only, never a credential.
-- The OpenCode path must configure `inference.local` for the task's Gemini 2.5
-  Pro model. The task consumes that route without reconciling it; the Codex
-  path uses its pre-provisioned OpenAI-compatible route instead.
+- The OpenCode path attaches the Vertex provider and calls Vertex's native
+  OpenAI-compatible endpoint. The Codex path attaches its OpenAI provider and
+  uses the native Responses API endpoint.
 
 [`scripts/pr-review.sh`](../../scripts/pr-review.sh) prepares the review and
 delegates task execution to the shared adapter. The local wrapper supplies
@@ -66,7 +66,6 @@ Upload the skill, diff, and OpenCode configuration with native
 `openshell sandbox upload` commands before starting the agent. The `harness` CLI
 automates this composition and cleanup.
 
-The opt-in Codex variant uses the same policy and review skill. It requires a
-pre-provisioned OpenAI-compatible OpenShell inference provider because Codex
-uses the Responses API, and a dedicated workspace containing that provider;
-the existing Vertex/OpenCode route remains unchanged.
+The opt-in Codex variant uses the same policy and review skill. It requires an
+OpenShell OpenAI provider because Codex uses the Responses API, and a dedicated
+workspace containing that provider.

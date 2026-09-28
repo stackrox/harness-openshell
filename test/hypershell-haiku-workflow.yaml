@@ -9,20 +9,19 @@ target:
       issuer: ${HYPERSHELL_OIDC_ISSUER}
       clientId: ${HYPERSHELL_SANDBOX_SA_ID}
       audience: ${HYPERSHELL_OIDC_AUDIENCE}
-inference:
-  route: inference.local
-  provider: vertex-claude-haiku
-  model: claude-haiku-4-5@20251001
 sandbox:
   image: ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e
+  providers: [vertex-claude-haiku]
   env:
-    ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
-    ANTHROPIC_BASE_URL: https://inference.local
+    CLAUDE_CODE_USE_VERTEX: "1"
+    CLAUDE_CODE_SKIP_VERTEX_AUTH: "1"
+    ANTHROPIC_VERTEX_PROJECT_ID: ${HYPERSHELL_VERTEX_PROJECT_ID}
+    CLOUD_ML_REGION: ${HYPERSHELL_VERTEX_REGION}
     CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
 agent:
-  type: claude
+  type: sh
   args:
-    - --print
-    - --model
-    - haiku
-    - Respond with exactly HYPERSHELL_HAIKU_OK and nothing else.
+    - -c
+    - |
+      export ANTHROPIC_AUTH_TOKEN="$GOOGLE_VERTEX_AI_TOKEN"
+      exec claude --print --model claude-haiku-4-5@20251001 "Respond with exactly HYPERSHELL_HAIKU_OK and nothing else."

@@ -10,11 +10,11 @@ label, approval, merge, or repository-settings access.
 
 The sandbox must attach an existing `github-review` provider instance. The
 endpointless profile in `providers/github-review.yaml` describes the credential
-shape but contains no credential value. The OpenCode workflow expects the
-gateway's `vertex-review` inference provider. The opt-in Codex workflow expects
-an existing OpenAI-compatible provider, named `openai-inference` by default. Both
-use the platform-owned `inference.local` route and neither provider is created
-by this workload.
+shape but contains no credential value. The OpenCode workflow expects an
+existing `vertex-review` provider, and the opt-in Codex workflow expects an
+existing OpenAI provider, named `openai-inference` by default. Both providers
+are attached directly to the sandbox; neither provider is created by this
+workload.
 
 For a native run, import or adapt the profile, provision the provider through
 trusted OpenShell administration, attach it to the sandbox, and upload the

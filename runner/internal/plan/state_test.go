@@ -16,7 +16,7 @@ import (
 func TestReadCurrentState_HealthyGateway(t *testing.T) {
 	ctx := context.Background()
 	client := testutil.NewFake("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.1.2"}),
 	)
 	desired := &config.Harness{}
 
@@ -34,8 +34,8 @@ func TestReadCurrentState_HealthyGateway(t *testing.T) {
 	if !state.Health.Healthy {
 		t.Error("expected Health.Healthy=true")
 	}
-	if state.Health.Version != "0.0.110" {
-		t.Errorf("expected version 0.0.110, got %s", state.Health.Version)
+	if state.Health.Version != "0.1.2" {
+		t.Errorf("expected version 0.1.2, got %s", state.Health.Version)
 	}
 	if state.Inference.Capable {
 		t.Error("expected Inference.Capable=false")
@@ -45,7 +45,7 @@ func TestReadCurrentState_HealthyGateway(t *testing.T) {
 func TestReadCurrentState_ProvidersPopulated(t *testing.T) {
 	ctx := context.Background()
 	c, raw := testutil.NewFakeClient("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.1.2"}),
 	)
 	raw.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
 	raw.AddProvider("default", &types.Provider{Name: "gcp", Type: "google-vertex-ai"})
@@ -128,7 +128,7 @@ func TestReadCurrentState_OtherErrorEscalates(t *testing.T) {
 func TestReadCurrentState_InferenceNotReadWhenUnconfigured(t *testing.T) {
 	ctx := context.Background()
 	client := testutil.NewFake("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.1.2"}),
 	)
 	desired := &config.Harness{}
 
@@ -158,7 +158,7 @@ func inferenceDesired() *config.Harness {
 func TestReadCurrentState_InferencePresent(t *testing.T) {
 	ctx := context.Background()
 	client, _ := testutil.NewFakeClient("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.1.2"}),
 	)
 	// Seed the route under the resolved default name so the read finds it.
 	if _, err := client.SetInferenceRoute(ctx, openshell.InferenceRouteConfig{
@@ -187,7 +187,7 @@ func TestReadCurrentState_InferencePresent(t *testing.T) {
 func TestReadCurrentState_InferenceAbsent(t *testing.T) {
 	ctx := context.Background()
 	client := testutil.NewFake("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.1.2"}),
 	)
 
 	state, err := ReadCurrentState(ctx, client, inferenceDesired())
@@ -206,7 +206,7 @@ func TestReadCurrentState_InferenceAbsent(t *testing.T) {
 func TestReadCurrentState_InferenceUnsupportedNotCapable(t *testing.T) {
 	ctx := context.Background()
 	base := testutil.NewFake("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.1.2"}),
 	)
 	client := &inferenceErrClient{Client: base, getErr: openshell.ErrUnsupported}
 
@@ -228,7 +228,7 @@ func TestReadCurrentState_InferenceTransientErrorKeepsReachable(t *testing.T) {
 	ctx := context.Background()
 	for _, transient := range []error{openshell.ErrUnavailable, openshell.ErrUnauthenticated} {
 		base := testutil.NewFake("default",
-			fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+			fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.1.2"}),
 		)
 		client := &inferenceErrClient{Client: base, getErr: transient}
 
@@ -248,7 +248,7 @@ func TestReadCurrentState_InferenceTransientErrorKeepsReachable(t *testing.T) {
 func TestReadCurrentState_InferenceOtherErrorEscalates(t *testing.T) {
 	ctx := context.Background()
 	base := testutil.NewFake("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.1.2"}),
 	)
 	client := &inferenceErrClient{Client: base, getErr: openshell.ErrPermission}
 
@@ -272,7 +272,7 @@ func (c *inferenceErrClient) GetInferenceRoute(context.Context, string) (openshe
 func TestReadCurrentState_OnlyReadMethodsCalled(t *testing.T) {
 	ctx := context.Background()
 	client, fakeClient := testutil.NewFakeClient("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.1.2"}),
 	)
 	fakeClient.AddProvider("default", &types.Provider{Name: "github", Type: "github"})
 	desired := &config.Harness{}

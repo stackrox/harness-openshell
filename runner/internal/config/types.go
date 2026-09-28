@@ -74,7 +74,9 @@ type OIDC struct {
 	Audience string `yaml:"audience,omitempty"`
 }
 
-// Inference specifies the LLM inference route configuration.
+// Inference is the removed pre-v0.1 managed inference route configuration.
+// It remains parseable so legacy workflows receive an explicit migration error
+// instead of silently dropping their model selection.
 type Inference struct {
 	Route    string `yaml:"route,omitempty"`
 	Provider string `yaml:"provider,omitempty"`

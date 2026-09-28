@@ -23,7 +23,7 @@ missing.
 The reviewer invokes [`setup-openshell`](../actions/setup-openshell/action.yml)
 to install the pinned OpenShell CLI and wait for the local CI gateway. The
 [`scripts/pr-review-local.sh`](../../scripts/pr-review-local.sh) wrapper creates
-the temporary workspace/providers and configures inference. It calls
+the temporary workspace/providers and attaches them to the sandbox. It calls
 [`pr-review.sh run`](../../scripts/pr-review.sh) and tears down its setup
 afterward. The review script stages the diff in `prepare`, checks eligibility,
 renders the PR-specific policy, invokes the CLI, and validates output. The CLI
@@ -32,7 +32,7 @@ composes the task and manages its sandbox lifecycle.
 The CLI already supports a direct managed-gateway connection. Moving this
 review job to the intended managed StackRox deployment still requires platform
 ownership of workspace membership, provider credentials and their refresh or
-expiry, matching inference routes, and CI network access. A pre-provisioned
+expiry, native provider endpoints, and CI network access. A pre-provisioned
 provider name does not by itself keep a short-lived GitHub token usable.
 See [managed reviewer requirements](../../docs/ci.md#managed-reviewer-transition).
 

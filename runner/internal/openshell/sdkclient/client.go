@@ -165,7 +165,7 @@ func (c *client) Health(ctx context.Context) (openshell.Health, error) {
 
 // Providers lists the providers registered in the bound workspace.
 func (c *client) Providers(ctx context.Context) ([]openshell.Provider, error) {
-	raw, err := c.raw.Providers().List(ctx, c.workspace)
+	raw, err := c.raw.Providers().ListAll(ctx, c.workspace)
 	if err != nil {
 		return nil, translate(err)
 	}

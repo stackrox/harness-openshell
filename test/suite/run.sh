@@ -72,7 +72,7 @@ echo "=== Workflow plan ==="
 run_test "plan: table has all sections" bash -c 'out=$("$1" workflow plan -f "$2"); for section in TARGET PROVIDERS INFERENCE RUN; do grep -q "$section" <<<"$out" || exit 1; done' _ "$HARNESS" "$CONFIG"
 run_test "plan: JSON" bash -c '"$1" workflow plan -f "$2" -o json | python3 -m json.tool >/dev/null' _ "$HARNESS" "$CONFIG"
 run_test "plan: YAML" bash -c '"$1" workflow plan -f "$2" -o yaml | grep -q "section: providers"' _ "$HARNESS" "$CONFIG"
-if $LIVE && "$CLI" inference get >/dev/null 2>&1; then
+if $LIVE && "$CLI" status >/dev/null 2>&1; then
   echo "=== Live SDK lifecycle ==="
   run_test "live: create and retain" "$HARNESS" workflow apply "$LIFECYCLE" --name suite-sdk-live
   run_test "live: describe" "$CLI" sandbox get suite-sdk-live

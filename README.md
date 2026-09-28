@@ -80,7 +80,7 @@ Repository workflow or local caller
 
 Trusted setup establishes gateway access and provider credentials before the
 task runs. The diagram shows the request flow; OpenShell owns sandbox isolation,
-inference routing, credential handling, and network policy enforcement.
+provider attachment, credential handling, and network policy enforcement.
 
 ## Use the reusable PR reviewer
 
@@ -119,7 +119,7 @@ data. The `ai-review` label is explicit opt-in. See
 |---|---|
 | [Reusable workflow](.github/workflows/pr-review-reusable.yml) | Trusted checkout, job permissions, App token, and setup/execution steps |
 | [`setup-openshell`](.github/actions/setup-openshell/action.yml) | Invoke the installer for the pinned OpenShell CLI release and wait for gateway readiness |
-| [`scripts/pr-review-local.sh`](scripts/pr-review-local.sh) | Create temporary workspace/providers, configure inference, run the review, and remove its setup resources |
+| [`scripts/pr-review-local.sh`](scripts/pr-review-local.sh) | Create temporary workspace/providers, run the review, and remove its setup resources |
 | [`scripts/pr-review.sh`](scripts/pr-review.sh) | Stage the diff, check PR eligibility, render the PR policy, invoke the CLI, and validate the output |
 | [`harness` CLI](runner/) | Compose the task and manage its sandbox lifecycle |
 
@@ -129,9 +129,8 @@ been switched to that connection and platform bootstrap contract.
 
 In the intended managed deployment, the GitHub job authenticates to a gateway
 operated outside that job. The platform owns workspace membership, provider
-lifecycle, and matching inference routes. The task retains its behavior and
-allowed operations when the managed environment supplies equivalent providers,
-policy support, and inference configuration.
+lifecycle. The task retains its behavior and allowed operations when the managed
+environment supplies equivalent providers and policy support.
 
 A pre-provisioned provider name still needs usable credentials. The managed
 integration must establish who mints or refreshes short-lived GitHub App tokens,
@@ -151,7 +150,7 @@ make cli
 ```
 
 Before applying a task, ensure its gateway is reachable, its provider instances
-exist, and its inference route and policy are configured. Select an existing
+exist, and its provider attachments and policy are configured. Select an existing
 local gateway with the native CLI, or configure a direct managed target as
 described in [docs/ci.md](docs/ci.md#workflow-contract).
 
@@ -193,8 +192,8 @@ agent, collects declared output files, and deletes the sandbox.
 | [tasks/](tasks/) | Task instructions, policy, provider references, image selection, payloads, and outputs |
 | [runner/](runner/) | Generic `plan`/`apply` composition and sandbox lifecycle |
 | [images/](images/) | Reusable runtime toolchains |
-| Platform administration | Managed gateway access, workspace membership, provider credential lifecycle, and inference configuration |
-| OpenShell | Gateway resources, credential-backed proxies, inference routing, policy enforcement, and sandbox isolation |
+| Platform administration | Managed gateway access, workspace membership, and provider credential lifecycle |
+| OpenShell | Gateway resources, credential-backed providers, native provider endpoints, policy enforcement, and sandbox isolation |
 
 The `harness` CLI verifies provider references and asks OpenShell to attach
 their masked proxy interfaces. Provider provisioning belongs to trusted setup
@@ -212,11 +211,12 @@ durable workflow database, scheduler, release history, or rollback mechanism.
 - GitHub Actions owns run state, labels, artifacts, concurrency, and approvals.
   OpenShell and the platform own gateway runtime resources.
 
-The PR review task consumes `inference.local`; setup owns its configuration.
-The local wrapper configures the route in its temporary workspace, while a
-managed platform supplies the matching route before review execution. Other
-workflow documents can still explicitly request inference reconciliation. See
-[docs/ci.md](docs/ci.md) for the credential and setup contract.
+OpenShell v0.1.2 removed managed inference routes and `inference.local`. The PR
+review task attaches its inference provider to the sandbox and configures the
+agent's native endpoint. Existing workflow documents that still declare an
+`inference` block must migrate to `sandbox.providers` and a native client
+configuration before apply. See [docs/ci.md](docs/ci.md) for the credential and
+setup contract.
 
 ## CLI
 
@@ -226,7 +226,7 @@ workflow documents can still explicitly request inference reconciliation. See
 | `harness workflow apply FILE` | Execute one task headlessly |
 | `harness workflow apply FILE --attach` | Execute with an attached terminal |
 | `harness workflow apply FILE --output-dir DIR` | Download declared outputs below `DIR` |
-| `harness workflow apply FILE --setup-only` | Verify references and reconcile inference without starting a sandbox |
+| `harness workflow apply FILE --setup-only` | Verify provider references without starting a sandbox |
 
 `plan` and dry-run output support `-o table|json|yaml`. Interpolated values are
 redacted from display output; authors must keep credential values out of
@@ -250,5 +250,5 @@ make test-suite
 Gateway lifecycle checks are available through `make test-local`,
 `make test-kind`, and `make test-remote`. Provider-capability checks require
 configured credentials. A passing lifecycle check establishes execution and
-cleanup behavior; live GitHub effects, inference, and consumer integrations
+cleanup behavior; live GitHub effects, provider access, and consumer integrations
 need their corresponding validation.
