@@ -18,14 +18,26 @@ OPENSHELL_CHART_OCI="${OPENSHELL_CHART_OCI:-oci://ghcr.io/nvidia/openshell/helm-
 OPENSHELL_CRD_URL="${OPENSHELL_CRD_URL:-https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v0.5.0/manifest.yaml}"
 
 install_agent_sandbox() {
+  local i established
   kubectl apply -f "$OPENSHELL_CRD_URL" || return 1
-  kubectl wait --for=condition=Established crd/sandboxes.agents.x-k8s.io --timeout=120s || return 1
-  kubectl rollout status deployment/agent-sandbox-controller \
-    -n agent-sandbox-system --timeout=300s || return 1
-  if ! kubectl api-versions | grep -Fxq 'agents.x-k8s.io/v1beta1'; then
-    echo "  ERROR: Agent Sandbox v1beta1 API is not served" >&2
+  for i in $(seq 1 60); do
+    established="$(kubectl get crd sandboxes.agents.x-k8s.io \
+      -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' 2>/dev/null)"
+    [[ "$established" == True ]] && break
+    sleep 2
+  done
+  if [[ "$established" != True ]]; then
+    echo "  ERROR: Agent Sandbox CRD did not become Established" >&2
     return 1
   fi
+  kubectl rollout status deployment/agent-sandbox-controller \
+    -n agent-sandbox-system --timeout=300s || return 1
+  for i in $(seq 1 15); do
+    kubectl api-versions | grep -Fx 'agents.x-k8s.io/v1beta1' >/dev/null && return 0
+    sleep 2
+  done
+  echo "  ERROR: Agent Sandbox v1beta1 API is not served" >&2
+  return 1
 }
 
 _chart_version() {
