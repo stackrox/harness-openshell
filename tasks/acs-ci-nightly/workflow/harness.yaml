@@ -15,6 +15,8 @@ sandbox:
     CLAUDE_CODE_SKIP_VERTEX_AUTH: "1"
     CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
     ANTHROPIC_MODEL: claude-haiku-4-5@20251001
+    ANTHROPIC_VERTEX_PROJECT_ID: ${VERTEX_AI_PROJECT_ID}
+    CLOUD_ML_REGION: ${VERTEX_AI_REGION}
     JIRA_URL: https://redhat.atlassian.net
     CONFLUENCE_URL: https://redhat.atlassian.net/wiki
     READ_ONLY_MODE: "true"
@@ -34,8 +36,6 @@ payloads:
       # OpenShell injects the short-lived provider token; the ACS repository
       # owns the bounded Prow/GCS compatibility command.
       export PATH="/sandbox/scripts:$PATH"
-      export ANTHROPIC_VERTEX_PROJECT_ID="$VERTEX_AI_PROJECT_ID"
-      export CLOUD_ML_REGION="$VERTEX_AI_REGION"
       if [ -n "$GOOGLE_VERTEX_AI_SERVICE_ACCOUNT_TOKEN" ]; then
         export ANTHROPIC_AUTH_TOKEN="$GOOGLE_VERTEX_AI_SERVICE_ACCOUNT_TOKEN"
       else

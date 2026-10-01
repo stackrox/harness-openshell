@@ -62,6 +62,8 @@ From a trusted caller with a reachable managed gateway:
 export ACS_TRIAGE_IMAGE='quay.io/rcochran/openshell:sandbox-stackrox-ci@sha256:<digest>'
 export ACS_TRIAGE_REF='main'
 export TRIAGE_RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+export VERTEX_AI_PROJECT_ID='YOUR_VERTEX_PROJECT'
+export VERTEX_AI_REGION='us-east5'
 harness workflow apply tasks/acs-ci-nightly/workflow/harness.yaml \
   --output-dir ./triage-artifacts
 ```

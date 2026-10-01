@@ -33,6 +33,10 @@ those task-specific capabilities.
   OpenAI-compatible endpoint. The Codex path attaches its OpenAI provider and
   uses the native Responses API endpoint.
 
+The Claude fixture workflow requires `VERTEX_AI_PROJECT_ID` and
+`VERTEX_AI_REGION` for its native client. These are nonsecret values supplied by
+the trusted caller; the attached provider owns the credential.
+
 [`scripts/pr-review.sh`](../../scripts/pr-review.sh) prepares the review and
 delegates task execution to the shared adapter. The local wrapper supplies
 temporary setup around its `run` command; managed callers supply platform
@@ -56,6 +60,7 @@ The same inputs can be used with the native OpenShell CLI:
 
 ```bash
 export VERTEX_AI_PROJECT_ID=YOUR_PROJECT_ID
+export VERTEX_AI_REGION=global
 export VERTEX_AI_BASE_URL="https://aiplatform.googleapis.com/v1/projects/${VERTEX_AI_PROJECT_ID}/locations/global/endpoints/openapi"
 openshell sandbox create \
   --from ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e \
