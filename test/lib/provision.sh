@@ -17,6 +17,29 @@
 OPENSHELL_CHART_OCI="${OPENSHELL_CHART_OCI:-oci://ghcr.io/nvidia/openshell/helm-chart}"
 OPENSHELL_CRD_URL="${OPENSHELL_CRD_URL:-https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v0.5.0/manifest.yaml}"
 
+install_agent_sandbox() {
+  local i established
+  kubectl apply -f "$OPENSHELL_CRD_URL" || return 1
+  for i in $(seq 1 60); do
+    established="$(kubectl get crd sandboxes.agents.x-k8s.io \
+      -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' 2>/dev/null)"
+    [[ "$established" == True ]] && break
+    sleep 2
+  done
+  if [[ "$established" != True ]]; then
+    echo "  ERROR: Agent Sandbox CRD did not become Established" >&2
+    return 1
+  fi
+  kubectl rollout status deployment/agent-sandbox-controller \
+    -n agent-sandbox-system --timeout=300s || return 1
+  for i in $(seq 1 15); do
+    kubectl api-versions | grep -Fx 'agents.x-k8s.io/v1beta1' >/dev/null && return 0
+    sleep 2
+  done
+  echo "  ERROR: Agent Sandbox v1beta1 API is not served" >&2
+  return 1
+}
+
 _chart_version() {
   if [[ -n "${OPENSHELL_CHART_VERSION:-}" ]]; then
     echo "$OPENSHELL_CHART_VERSION"
@@ -25,7 +48,7 @@ _chart_version() {
   local root ver
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   ver="$(cat "$root/.openshell-version" 2>/dev/null | tr -d 'v[:space:]')"
-  echo "${ver:-0.0.110}"
+  echo "${ver:-0.1.2}"
 }
 
 # provision_local: the OpenShell installer already provisioned and started the
@@ -41,7 +64,7 @@ provision_local() {
   "$CLI" gateway select "$gw" || return 1
   local i
   for i in $(seq 1 5); do
-    "$CLI" inference get &>/dev/null && return 0
+    "$CLI" status &>/dev/null && return 0
     sleep 3
   done
   echo "  ERROR: local gateway $gw not responding" >&2
@@ -60,7 +83,7 @@ provision_kind() {
     pod-security.kubernetes.io/enforce=privileged \
     pod-security.kubernetes.io/warn=privileged --overwrite || return 1
 
-  kubectl apply -f "$OPENSHELL_CRD_URL" || return 1
+  install_agent_sandbox || return 1
 
   values="$(mktemp /tmp/os-kind-values-XXXXXX.yaml)"
   cat > "$values" <<'EOF'
@@ -95,7 +118,7 @@ EOF
   "$CLI" gateway select openshell-kind || return 1
 
   for i in $(seq 1 30); do
-    "$CLI" inference get &>/dev/null && return 0
+    "$CLI" status &>/dev/null && return 0
     sleep 2
   done
   echo "  ERROR: kind gateway not reachable after 60s" >&2
@@ -114,7 +137,7 @@ provision_ocp() {
   kubectl label ns openshell \
     pod-security.kubernetes.io/enforce=privileged \
     pod-security.kubernetes.io/warn=privileged --overwrite || return 1
-  kubectl apply -f "$OPENSHELL_CRD_URL" || return 1
+  install_agent_sandbox || return 1
 
   # SCCs (openshift.yaml ocp.scc-*).
   local sa
@@ -190,7 +213,7 @@ EOF
   "$CLI" gateway select openshell-remote-ocp || return 1
 
   for i in $(seq 1 30); do
-    "$CLI" inference get &>/dev/null && return 0
+    "$CLI" status &>/dev/null && return 0
     sleep 2
   done
   echo "  ERROR: OCP gateway not reachable after 60s" >&2

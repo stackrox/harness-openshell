@@ -5,7 +5,7 @@ repository-specific tools. Providers, credentials, skills supplied by a
 workflow, and task-specific policy remain outside the image.
 The image does not create or attach providers; a workflow must name providers
 that are already provisioned and attach them through `sandbox.providers` before
-provider credentials or inference routes are available.
+their native endpoints and proxy-resolved credential placeholders are available.
 
 ## Images
 
@@ -32,8 +32,8 @@ GitHub skill, Atlassian MCP, Google Workspace CLI, and the `gopls` MCP server.
 Go module and build caches stay below `/sandbox`. It includes a pinned
 `gcloud` CLI for read-only Prow result analysis and retains a root-owned,
 isolated Python 3.13 `gsutil` environment for legacy workflows. OpenShell
-providers own credentials and inference routes; no service-account keys are
-copied into the sandbox. The task policy allows only its fixed executables,
+providers own credentials and authorize native endpoints; no service-account
+keys are copied into the sandbox. The task policy allows only its fixed executables,
 not a writable `/sandbox` subtree.
 
 The `rox-ci-image` build currently provides an amd64 toolchain, so this profile
@@ -52,7 +52,7 @@ docker build --platform linux/amd64 \
 
 An amd64 image based on the StackRox Collector builder image. The `master`
 builder manifest is pinned to
-`sha256:1ed20fa2c2f650199a20d8625701ff39749b70031d9db178273fea7c4280d48f`.
+`sha256:e2a416f82165fa87e705f1955b290a59a1e4a08eafbceec5b510d0d401b486d0`.
 It keeps the Collector compiler and build toolchain and adds the same
 OpenShell contract, coding agents, GitHub skill, Atlassian MCP, Google
 Workspace CLI, and `gopls` support as the StackRox CI profile. It is separate

@@ -176,6 +176,7 @@ jobs:
           CODEX_MODEL: ${{ inputs.codex-model }}
           CODEX_WORKSPACE: ${{ inputs.codex-workspace }}
           CODEX_BOOTSTRAP: ${{ inputs.codex-bootstrap }}
+          TASK_TIMEOUT: 12m
           OPENSHELL_CODEX_API_KEY: ${{ secrets.OPENSHELL_CODEX_API_KEY }}
           TASK_PROVIDERS: ${{ inputs.required-providers }}
           GITHUB_TOKEN: ${{ steps.openshell-app-token.outputs.token }}

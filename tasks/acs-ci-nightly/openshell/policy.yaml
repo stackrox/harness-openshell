@@ -31,7 +31,6 @@ network_policies:
       - host: github.com
         port: 443
         protocol: rest
-        tls: terminate
         enforcement: enforce
         rules:
           - allow:
@@ -49,7 +48,6 @@ network_policies:
       - host: api.github.com
         port: 443
         protocol: rest
-        tls: terminate
         enforcement: enforce
         credential_binding:
           provider: github-triage-read
@@ -86,7 +84,6 @@ network_policies:
       - host: "*.atlassian.net"
         port: 443
         protocol: rest
-        tls: terminate
         enforcement: enforce
         credential_binding:
           provider: atlassian-triage-read
@@ -110,7 +107,6 @@ network_policies:
       - host: storage.googleapis.com
         port: 443
         protocol: rest
-        tls: terminate
         enforcement: enforce
         credential_binding:
           provider: prow-gcs-read

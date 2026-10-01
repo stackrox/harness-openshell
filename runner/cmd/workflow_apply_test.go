@@ -74,7 +74,7 @@ agent:
 	}
 }
 
-func TestCanonicalInferenceOnlyWorkflowDoesNotInventSandboxRun(t *testing.T) {
+func TestLegacyInferenceWorkflowIsRejected(t *testing.T) {
 	t.Setenv("HARNESS_OS_IMAGE", "")
 	dir := t.TempDir()
 	file := filepath.Join(dir, "workflow.yaml")
@@ -99,8 +99,8 @@ inference:
 	if err != nil {
 		t.Fatalf("buildPlan: %v", err)
 	}
-	if err := applyWorkflow(context.Background(), workflow, planned, current, client, applyOptions{}); err != nil {
-		t.Fatalf("applyWorkflow: %v", err)
+	if err := applyWorkflow(context.Background(), workflow, planned, current, client, applyOptions{}); err == nil || !strings.Contains(err.Error(), "removed managed inference routes") {
+		t.Fatalf("applyWorkflow error = %v, want explicit v0.1.2 inference migration error", err)
 	}
 }
 
@@ -735,6 +735,7 @@ func TestGitHubReviewerCustomSkillUsesWorkflowPayloadPath(t *testing.T) {
 	t.Setenv("REVIEW_SKILL", skillPath)
 	t.Setenv("REVIEW_SANDBOX_NAME", "ai-review")
 	t.Setenv("REVIEW_GITHUB_PROVIDER", "github-review")
+	t.Setenv("VERTEX_AI_BASE_URL", "https://aiplatform.googleapis.com/v1/projects/test/locations/global/endpoints/openapi")
 
 	workflow, err := loadWorkflow(workflowPath, "", "", applyOverrides{})
 	if err != nil {

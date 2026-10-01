@@ -20,7 +20,7 @@ optional version 1 harness workflow document.
 ## Composable execution
 
 Task bundles are composable through the version 1 workflow document. The
-workflow combines the agent, inference route, sandbox policy, provider
+workflow combines the agent, native provider endpoint, sandbox policy, provider
 attachments, payloads, source checkout, and outputs. The shared
 [`scripts/run-task.sh`](../scripts/run-task.sh) adapter executes one trusted
 workflow and captures its result.
@@ -53,8 +53,8 @@ or commands from callers.
 Task bundles reference gateway provider instances; trusted setup or platform
 administration provisions them. The current reviewer creates temporary
 providers in [`scripts/pr-review-local.sh`](../scripts/pr-review-local.sh). A managed
-deployment should establish workspace membership, provider credential
-lifecycle, and matching inference routes centrally. Keeping provider names
+deployment should establish workspace membership and provider credential
+lifecycle centrally. Keeping provider names
 stable still requires a way to mint or refresh short-lived credentials.
 Preserve the task's allowed operations when moving to a managed gateway with
 equivalent provider and policy support.

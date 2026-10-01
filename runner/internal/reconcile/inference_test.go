@@ -17,7 +17,7 @@ import (
 func healthyClient(t *testing.T) (openshell.Client, *fake.Client) {
 	t.Helper()
 	return testutil.NewFakeClient("default",
-		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.0.110"}),
+		fake.WithHealthResult(&types.HealthResult{Healthy: true, Version: "0.1.2"}),
 	)
 }
 

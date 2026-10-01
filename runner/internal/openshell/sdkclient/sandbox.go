@@ -29,7 +29,7 @@ func fromSDKSandbox(s *v1.Sandbox) openshell.Sandbox {
 
 // Sandboxes lists the sandboxes in the bound workspace.
 func (c *client) Sandboxes(ctx context.Context) ([]openshell.Sandbox, error) {
-	raw, err := c.raw.Sandboxes().List(ctx, c.workspace)
+	raw, err := c.raw.Sandboxes().ListAll(ctx, c.workspace)
 	if err != nil {
 		return nil, translate(err)
 	}
@@ -52,7 +52,8 @@ func (c *client) GetSandbox(ctx context.Context, name string) (openshell.Sandbox
 
 // DeleteSandbox removes the named sandbox in the bound workspace.
 func (c *client) DeleteSandbox(ctx context.Context, name string) error {
-	return translate(c.raw.Sandboxes().Delete(ctx, c.workspace, name))
+	_, err := c.raw.Sandboxes().Delete(ctx, c.workspace, name)
+	return translate(err)
 }
 
 // CreateSandbox maps the harness-owned SDK-native creation subset to the

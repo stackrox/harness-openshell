@@ -49,6 +49,8 @@ export HYPERSHELL_OIDC_ISSUER="${OPENSHELL_OIDC_ISSUER:-}"
 export HYPERSHELL_OIDC_AUDIENCE="${OPENSHELL_OIDC_AUDIENCE:-}"
 export HYPERSHELL_SANDBOX_SA_ID="${OPENSHELL_OIDC_CLIENT_ID:-}"
 export OPENSHELL_OIDC_CLIENT_SECRET="${OPENSHELL_OIDC_CLIENT_SECRET:-}"
+export HYPERSHELL_VERTEX_PROJECT_ID="${HYPERSHELL_VERTEX_PROJECT_ID:-}"
+export HYPERSHELL_VERTEX_REGION="${HYPERSHELL_VERTEX_REGION:-}"
 
 miss=()
 [[ -n "$HYPERSHELL_GATEWAY"          ]] || miss+=(HYPERSHELL_GATEWAY)
@@ -56,6 +58,10 @@ miss=()
 [[ -n "$HYPERSHELL_OIDC_AUDIENCE"    ]] || miss+=(OPENSHELL_OIDC_AUDIENCE)
 [[ -n "$HYPERSHELL_SANDBOX_SA_ID"    ]] || miss+=(OPENSHELL_OIDC_CLIENT_ID)
 [[ -n "$OPENSHELL_OIDC_CLIENT_SECRET" ]] || miss+=(OPENSHELL_OIDC_CLIENT_SECRET)
+if [[ "${WORKFLOW_FILE##*/}" == hypershell-haiku-workflow.yaml ]]; then
+  [[ -n "$HYPERSHELL_VERTEX_PROJECT_ID" ]] || miss+=(HYPERSHELL_VERTEX_PROJECT_ID)
+  [[ -n "$HYPERSHELL_VERTEX_REGION" ]] || miss+=(HYPERSHELL_VERTEX_REGION)
+fi
 ((${#miss[@]}==0)) || { echo "ERROR: $HYPERSHELL_SA_ENV is missing: ${miss[*]}" >&2; exit 1; }
 
 secret_state() { [[ -n "${1:-}" ]] && printf 'set (%d chars)' "${#1}" || printf 'MISSING'; }

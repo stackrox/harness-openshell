@@ -73,7 +73,7 @@ func TestPRReview(t *testing.T) {
 			prepare.Env = append(os.Environ(), "PATH="+root+string(os.PathListSeparator)+os.Getenv("PATH"),
 				"FAKE_SCENARIO="+scenario, "TRACE="+filepath.Join(root, "trace"), "READY="+filepath.Join(root, "ready"),
 				"REVIEW_DIR="+filepath.Join(root, "review"), "REVIEW_REPOSITORY=owner/repo", "REVIEW_PR=1", "REVIEW_HEAD=", "GITHUB_OUTPUT="+filepath.Join(root, "output"),
-				"GITHUB_STEP_SUMMARY="+stepSummary, "GOOGLE_VERTEX_AI_TOKEN=", "VERTEX_AI_PROJECT_ID=", "GITHUB_TOKEN=", "OPENSHELL_GATEWAY=managed-test", "OPENSHELL_WORKSPACE=shared-test", "REVIEW_AGENT=", "REVIEW_LABEL=stackrox-ai-review", "CODEX_INFERENCE_PROVIDER=fake-openai", "CODEX_MODEL=gpt-5.6-luna", "CODEX_WORKSPACE=codex-workspace", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
+				"GITHUB_STEP_SUMMARY="+stepSummary, "GOOGLE_VERTEX_AI_TOKEN=", "VERTEX_AI_PROJECT_ID=", "VERTEX_AI_BASE_URL=https://aiplatform.googleapis.com/v1/projects/test-project/locations/global/endpoints/openapi", "GITHUB_TOKEN=", "OPENSHELL_GATEWAY=managed-test", "OPENSHELL_WORKSPACE=shared-test", "REVIEW_AGENT=", "REVIEW_LABEL=stackrox-ai-review", "CODEX_INFERENCE_PROVIDER=fake-openai", "CODEX_MODEL=gpt-5.6-luna", "CODEX_WORKSPACE=codex-workspace", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
 			if strings.HasPrefix(scenario, "codex-") {
 				prepare.Env = append(prepare.Env, "REVIEW_AGENT=codex", "FAKE_AGENT=codex", "GITHUB_TOKEN=fake")
 			}
@@ -146,7 +146,7 @@ func TestPRReview(t *testing.T) {
 			}
 			if !local {
 				if scenario != "codex-success" && scenario != "codex-bootstrap-success" {
-					for _, action := range []string{"workspace create", "provider create", "inference set"} {
+					for _, action := range []string{"workspace create", "provider create"} {
 						if strings.Contains(string(trace), action) {
 							t.Fatalf("existing-target review performed setup or forced a target: %s", trace)
 						}
@@ -159,7 +159,7 @@ func TestPRReview(t *testing.T) {
 					t.Fatal("Codex review wrapper attempted to clean up a sandbox it did not create")
 				}
 				if scenario == "codex-bootstrap-success" {
-					for _, action := range []string{"workspace create", "provider profile import", "provider create", "inference set", "workspace delete"} {
+					for _, action := range []string{"workspace create", "provider profile import", "provider create", "workflow apply", "workspace delete"} {
 						if !strings.Contains(string(trace), action) {
 							t.Fatalf("Codex bootstrap did not perform %s: %s", action, trace)
 						}
@@ -419,18 +419,18 @@ func TestGitHubAppTokenIsHostOnly(t *testing.T) {
 	if err := yaml.Unmarshal(data, &task); err != nil {
 		t.Fatal(err)
 	}
-	if inference, ok := task["inference"].(map[string]any); !ok || inference["route"] != "inference.local" {
-		t.Fatal("review task must declare the inference.local route")
+	if _, ok := task["inference"]; ok {
+		t.Fatal("review task must not declare the removed inference route")
 	}
 	example := string(data)
-	if !strings.Contains(example, `providers: ["${REVIEW_GITHUB_PROVIDER}"]`) {
-		t.Fatal("review workflow does not attach the native GitHub provider")
+	if !strings.Contains(example, `providers: ["${REVIEW_GITHUB_PROVIDER}", "vertex-review"]`) {
+		t.Fatal("review workflow does not attach the GitHub and Vertex providers")
 	}
 	if strings.Contains(example, "GITHUB_TOKEN") {
 		t.Fatal("review workflow passes the GitHub token into the sandbox configuration")
 	}
 	codex := string(mustRead(t, "../tasks/github-pr-reviewer/workflow/codex-harness.yaml"))
-	for _, required := range []string{"type: codex", "CODEX_INFERENCE_PROVIDER", "CODEX_MODEL", "${CODEX_MODEL}", "model_provider = \"openshell\"", "model_reasoning_effort = \"xhigh\"", "approval_policy = \"never\"", "sandbox_mode = \"danger-full-access\"", "base_url = \"https://inference.local/v1\"", "supports_websockets = false", "codex-final.txt"} {
+	for _, required := range []string{"type: codex", "CODEX_INFERENCE_PROVIDER", "CODEX_MODEL", "${CODEX_MODEL}", "model_provider = \"openai\"", "model_reasoning_effort = \"xhigh\"", "approval_policy = \"never\"", "sandbox_mode = \"danger-full-access\"", "base_url = \"https://api.openai.com/v1\"", "supports_websockets = false", "codex-final.txt"} {
 		if !strings.Contains(codex, required) {
 			t.Fatalf("Codex workflow is missing %s", required)
 		}

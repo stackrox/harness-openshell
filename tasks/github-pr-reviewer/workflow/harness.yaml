@@ -1,18 +1,28 @@
 version: 1
 name: github-pr-review
-inference:
-  route: inference.local
-  provider: vertex-claude-haiku
-  model: claude-haiku-4-5@20251001
 sandbox:
   image: ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e
+  providers: [vertex-claude-haiku]
+  env:
+    CLAUDE_CODE_USE_VERTEX: "1"
+    CLAUDE_CODE_SKIP_VERTEX_AUTH: "1"
+    CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
+    ANTHROPIC_MODEL: claude-haiku-4-5@20251001
+    ANTHROPIC_VERTEX_PROJECT_ID: ${VERTEX_AI_PROJECT_ID}
+    CLOUD_ML_REGION: ${VERTEX_AI_REGION}
 payloads:
   - source: REVIEW.md
     destination: /sandbox/REVIEW.md
   - source: fixtures/pr.diff
     destination: /sandbox/pr.diff
 agent:
-  type: claude
+  type: sh
   args:
-    - --print
-    - Read /sandbox/REVIEW.md and /sandbox/pr.diff. Follow the output contract exactly.
+    - -c
+    - |
+      if [ -n "$GOOGLE_VERTEX_AI_SERVICE_ACCOUNT_TOKEN" ]; then
+        export ANTHROPIC_AUTH_TOKEN="$GOOGLE_VERTEX_AI_SERVICE_ACCOUNT_TOKEN"
+      else
+        export ANTHROPIC_AUTH_TOKEN="$GOOGLE_VERTEX_AI_TOKEN"
+      fi
+      exec claude --print "Read /sandbox/REVIEW.md and /sandbox/pr.diff. Follow the output contract exactly."

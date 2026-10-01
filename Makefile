@@ -119,7 +119,7 @@ test-hypershell-haiku: cli
 	HYPERSHELL_EXPECTED_MARKER=HYPERSHELL_HAIKU_OK \
 		./test/hypershell-lifecycle.sh
 
-## Local PR reviewer fixture (requires a configured local inference route)
+## Local PR reviewer fixture (requires a configured Vertex provider)
 test-pr-reviewer-local: cli
 	./test/github-pr-reviewer-local.sh
 

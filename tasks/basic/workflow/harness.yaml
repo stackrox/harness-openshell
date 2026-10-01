@@ -5,10 +5,21 @@ sandbox:
   providers:
     - google-vertex-ai
   env:
-    ANTHROPIC_BASE_URL: https://inference.local
-    ANTHROPIC_API_KEY: sk-ant-openshell-proxy-managed
+    CLAUDE_CODE_USE_VERTEX: "1"
+    CLAUDE_CODE_SKIP_VERTEX_AUTH: "1"
     CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
-    ANTHROPIC_MODEL: claude-haiku-4-5-20251001
+    ANTHROPIC_MODEL: claude-haiku-4-5@20251001
+    ANTHROPIC_VERTEX_PROJECT_ID: ${VERTEX_AI_PROJECT_ID}
+    CLOUD_ML_REGION: ${VERTEX_AI_REGION}
   tty: true
 agent:
-  type: claude
+  type: sh
+  args:
+    - -c
+    - |
+      if [ -n "$GOOGLE_VERTEX_AI_SERVICE_ACCOUNT_TOKEN" ]; then
+        export ANTHROPIC_AUTH_TOKEN="$GOOGLE_VERTEX_AI_SERVICE_ACCOUNT_TOKEN"
+      else
+        export ANTHROPIC_AUTH_TOKEN="$GOOGLE_VERTEX_AI_TOKEN"
+      fi
+      exec claude

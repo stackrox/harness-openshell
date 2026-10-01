@@ -20,14 +20,9 @@ target:
   gateway: openshell
   workspace: default
 
-inference:
-  route: inference.local
-  provider: vertex-review
-  model: gemini-2.5-pro
-
 sandbox:
   image: quay.io/example/reviewer:v1
-  providers: [github-review]
+  providers: [github-review, vertex-review]
 
 agent:
   type: opencode
@@ -46,8 +41,6 @@ optional. Unknown fields are rejected so a typo cannot silently change a run.
 
 - `target` selects the gateway and workspace. Explicit CLI flags and
   `OPENSHELL_*` environment variables take precedence over these values.
-- `inference` selects the gateway inference route and model when needed. Its
-  `provider` must already exist in OpenShell.
 - `sandbox` describes the image, policy, environment, provider attachments,
   payload handling, and cleanup behavior for a run.
 - `sandbox.providers` names providers that must already exist in OpenShell and
@@ -103,9 +96,11 @@ stages the PR diff as data. Interpolated values are redacted from display
 projections, but the CLI does not attempt to detect credentials embedded as
 literal YAML values.
 
-Inference route reconciliation currently writes a changed route and therefore
-requires workspace-admin access. Shared workspaces should use a matching
-bootstrap-owned route; isolated workspaces may use the compatibility write.
+OpenShell v0.1.2 removed the workspace-global inference route and
+`inference.local`. Attach an existing inference provider through
+`sandbox.providers`, configure the agent for that provider's native endpoint,
+and select the model in the agent command or configuration. A legacy `inference`
+block is rejected during apply so it cannot silently run without model access.
 
 ## Compatibility policy
 

@@ -2,7 +2,7 @@
 # Run the deterministic PR reviewer fixture against a local OpenShell gateway.
 #
 # This is intentionally local-only: it consumes the preconfigured inference
-# route and grants the sandbox no GitHub write capability.
+# provider and grants the sandbox no GitHub write capability.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,10 +12,12 @@ WORKFLOW="$ROOT/tasks/github-pr-reviewer/workflow/harness.yaml"
 EXPECTED="PR_REVIEW_OK sha=fixture-pr-head-20260908"
 
 if [[ "${CI:-}" == "true" ]]; then
-  echo "SKIP: PR reviewer fixture requires a locally reachable inference gateway."
+  echo "SKIP: PR reviewer fixture requires a locally reachable OpenShell gateway."
   exit 0
 fi
 [[ -x "$HARNESS" ]] || { echo "ERROR: run make cli first" >&2; exit 1; }
+: "${VERTEX_AI_PROJECT_ID:?set the Vertex project used by vertex-claude-haiku}"
+: "${VERTEX_AI_REGION:?set the Vertex region used by vertex-claude-haiku}"
 
 name="pr-$(date +%s)-$$"
 output=""

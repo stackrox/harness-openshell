@@ -27,7 +27,7 @@ func Run(ctx context.Context, client openshell.SandboxExecutionClient, req Sandb
 	}
 	if !req.Keep {
 		defer func() {
-			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 			defer cancel()
 			if err := client.DeleteSandbox(cleanupCtx, req.Name); err != nil {
 				cleanupErr := fmt.Errorf("deleting sandbox %q: %w", req.Name, err)

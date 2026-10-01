@@ -1,18 +1,13 @@
 version: 1
 name: ${REVIEW_SANDBOX_NAME}
-inference:
-  route: inference.local
-  provider: ${CODEX_INFERENCE_PROVIDER}
-  model: ${CODEX_MODEL}
 sandbox:
   # This published digest contains the pinned Codex CLI and the OpenShell
   # sandbox contract. The outer policy remains the authority for egress.
   image: quay.io/rcochran/openshell:sandbox@sha256:d0f4abc84ba314e12e4e40526db55faf8e6ee6009670e17e187f0c24c428a5b5
   policy:
     file: ${REVIEW_POLICY}
-  providers: ["${REVIEW_GITHUB_PROVIDER}"]
+  providers: ["${REVIEW_GITHUB_PROVIDER}", "${CODEX_INFERENCE_PROVIDER}"]
   env:
-    CODEX_API_KEY: unused
     CODEX_HOME: /sandbox/.codex
     REVIEW_REPOSITORY: ${REVIEW_REPOSITORY}
     REVIEW_PR: ${REVIEW_PR}
@@ -25,17 +20,17 @@ payloads:
     destination: /sandbox/review/skills/pr-review/SKILL.md
   - content: |
       model = "${CODEX_MODEL}"
-      model_provider = "openshell"
+      model_provider = "openai"
       model_reasoning_effort = "xhigh"
       approval_policy = "never"
       sandbox_mode = "danger-full-access"
 
-      [model_providers.openshell]
-      name = "OpenShell inference"
-      base_url = "https://inference.local/v1"
+      [model_providers.openai]
+      name = "OpenAI"
+      base_url = "https://api.openai.com/v1"
       wire_api = "responses"
       supports_websockets = false
-      requires_openai_auth = false
+      requires_openai_auth = true
     destination: /sandbox/.codex/config.toml
 outputs:
   - source: /sandbox/review/codex-final.txt

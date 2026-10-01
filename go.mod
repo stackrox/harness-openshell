@@ -3,7 +3,7 @@ module github.com/stackrox/harness-openshell
 go 1.26.0
 
 require (
-	github.com/NVIDIA/OpenShell/sdk/go v0.0.0-20260820101241-7909fb5d0f54
+	github.com/NVIDIA/OpenShell/sdk/go v0.0.0-20260928030816-6648bd0c290e
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.55.0
 	golang.org/x/oauth2 v0.37.0
@@ -12,12 +12,12 @@ require (
 )
 
 require (
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0
 	golang.org/x/text v0.41.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
-	google.golang.org/grpc v1.82.1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 

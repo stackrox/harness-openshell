@@ -24,7 +24,7 @@ runs:
       run: |
         ready=false
         for _ in $(seq 1 30); do
-          if openshell inference get &>/dev/null; then
+          if openshell status &>/dev/null; then
             ready=true
             break
           fi

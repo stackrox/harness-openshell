@@ -18,7 +18,7 @@ func TestGatewayInfoMergesConnectionFactsAndHealth(t *testing.T) {
 	ctx := context.Background()
 	fc := fake.NewClient(fake.WithGatewayInfo(&types.GatewayInfo{
 		Status:  types.ServiceStatusHealthy,
-		Version: "0.0.110",
+		Version: "0.1.2",
 	}))
 	c := &client{raw: fc, workspace: "default", gatewayName: "prod", gatewayEndpoint: "gw.example:443"}
 
@@ -26,7 +26,7 @@ func TestGatewayInfoMergesConnectionFactsAndHealth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GatewayInfo: %v", err)
 	}
-	want := openshell.GatewayInfo{Name: "prod", Endpoint: "gw.example:443", Status: "Healthy", Version: "0.0.110"}
+	want := openshell.GatewayInfo{Name: "prod", Endpoint: "gw.example:443", Status: "Healthy", Version: "0.1.2"}
 	if got != want {
 		t.Errorf("GatewayInfo: got %+v, want %+v", got, want)
 	}
@@ -40,7 +40,7 @@ func TestGatewayInfoInjectionPathLeavesNameEndpointEmpty(t *testing.T) {
 	ctx := context.Background()
 	fc := fake.NewClient(fake.WithGatewayInfo(&types.GatewayInfo{
 		Status:  types.ServiceStatusDegraded,
-		Version: "0.0.110",
+		Version: "0.1.2",
 	}))
 	c := NewFromClient(fc, "default")
 
@@ -51,7 +51,7 @@ func TestGatewayInfoInjectionPathLeavesNameEndpointEmpty(t *testing.T) {
 	if got.Name != "" || got.Endpoint != "" {
 		t.Errorf("injection path should leave Name/Endpoint empty, got %+v", got)
 	}
-	if got.Status != "Degraded" || got.Version != "0.0.110" {
+	if got.Status != "Degraded" || got.Version != "0.1.2" {
 		t.Errorf("Status/Version not mapped from RPC: %+v", got)
 	}
 }

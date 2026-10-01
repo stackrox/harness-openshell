@@ -9,7 +9,6 @@ import (
 
 	"github.com/stackrox/harness-openshell/runner/internal/openshell"
 	"github.com/stackrox/harness-openshell/runner/internal/plan"
-	"github.com/stackrox/harness-openshell/runner/internal/reconcile"
 	"github.com/stackrox/harness-openshell/runner/internal/run"
 	"github.com/stackrox/harness-openshell/runner/internal/status"
 )
@@ -102,6 +101,9 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 	if err := preflightPlan(p); err != nil {
 		return err
 	}
+	if inferenceConfigured(workflow.Desired.Spec.Inference) {
+		return fmt.Errorf("OpenShell v0.1.2 removed managed inference routes; attach a provider through sandbox.providers and configure the agent's native endpoint")
+	}
 	if err := verifyProviderReferences(ctx, client, workflow.Desired); err != nil {
 		return err
 	}
@@ -124,13 +126,6 @@ func executeResolvedWorkflow(ctx context.Context, workflow *resolvedWorkflow, p 
 	}
 
 	opts.Result.setPhase("reconcile")
-	if inferenceConfigured(workflow.Desired.Spec.Inference) {
-		result, err := reconcile.ReconcileInference(ctx, client, workflow.Desired.Spec.Inference)
-		if err != nil {
-			return fmt.Errorf("reconciling inference: %w", err)
-		}
-		status.OKf("inference: %s (model %s)", result.Action, workflow.Desired.Spec.Inference.Model)
-	}
 	if opts.SetupOnly {
 		status.OK("Setup complete (--setup-only): skipping sandbox creation")
 		return nil

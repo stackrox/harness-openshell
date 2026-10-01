@@ -34,7 +34,9 @@ their sources, while the Jira updater and Slack publication remain disabled.
 The platform must provision these gateway-owned resources before applying the
 workflow:
 
-- `vertex-claude-triage` and the matching `inference.local` route;
+- `vertex-claude-triage`, attached to the sandbox and configured for Vertex's
+  native Claude endpoint. The workflow passes only the provider's projected
+  token placeholder to Claude Code; OpenShell resolves it at the gateway;
 - `atlassian-triage-read`, configured for read-only Jira/Confluence access;
 - `github-triage-read`, configured for read-only project and issue queries;
 - `prow-gcs-read`, created from OpenShell's built-in `google-cloud` provider
@@ -60,6 +62,8 @@ From a trusted caller with a reachable managed gateway:
 export ACS_TRIAGE_IMAGE='quay.io/rcochran/openshell:sandbox-stackrox-ci@sha256:<digest>'
 export ACS_TRIAGE_REF='main'
 export TRIAGE_RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+export VERTEX_AI_PROJECT_ID='YOUR_VERTEX_PROJECT'
+export VERTEX_AI_REGION='us-east5'
 harness workflow apply tasks/acs-ci-nightly/workflow/harness.yaml \
   --output-dir ./triage-artifacts
 ```

@@ -17,8 +17,8 @@
       "npm": "@ai-sdk/openai-compatible",
       "name": "Vertex AI through OpenShell",
       "options": {
-        "baseURL": "https://inference.local/v1",
-        "apiKey": "{env:OPENCODE_VERTEX_API_KEY}"
+        "baseURL": "{env:VERTEX_AI_BASE_URL}",
+        "apiKey": "{env:GOOGLE_VERTEX_AI_TOKEN}"
       },
       "models": {
         "gemini-2.5-pro": {
