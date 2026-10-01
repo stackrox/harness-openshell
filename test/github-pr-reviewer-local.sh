@@ -16,6 +16,8 @@ if [[ "${CI:-}" == "true" ]]; then
   exit 0
 fi
 [[ -x "$HARNESS" ]] || { echo "ERROR: run make cli first" >&2; exit 1; }
+: "${VERTEX_AI_PROJECT_ID:?set the Vertex project used by vertex-claude-haiku}"
+: "${VERTEX_AI_REGION:?set the Vertex region used by vertex-claude-haiku}"
 
 name="pr-$(date +%s)-$$"
 output=""

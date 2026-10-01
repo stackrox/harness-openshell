@@ -60,8 +60,9 @@ run_test_fail() {
 
 echo "=== Canonical configuration ==="
 run_test "apply: resolved YAML" bash -c '"$1" workflow apply "$2" -o yaml | grep -q "version: 1"' _ "$HARNESS" "$CONFIG"
-run_test "reviewer fixture: resolved YAML" env VERTEX_AI_PROJECT_ID=fixture-project VERTEX_AI_REGION=us-east5 bash -c 'out=$("$1" workflow apply "$2" -o yaml) && grep -q "source: REVIEW.md" <<<"$out" && grep -q "source: fixtures/pr.diff" <<<"$out" && grep -q "ANTHROPIC_VERTEX_PROJECT_ID:" <<<"$out" && grep -q "type: sh" <<<"$out"' _ "$HARNESS" "$ROOT/tasks/github-pr-reviewer/workflow/harness.yaml"
+run_test "reviewer fixture: resolved YAML" env VERTEX_AI_PROJECT_ID=fixture-project VERTEX_AI_REGION=us-east5 bash -c 'out=$("$1" workflow apply "$2" -o yaml) && grep -q "source: REVIEW.md" <<<"$out" && grep -q "source: fixtures/pr.diff" <<<"$out" && grep -q "ANTHROPIC_MODEL:" <<<"$out" && grep -q "ANTHROPIC_VERTEX_PROJECT_ID:" <<<"$out" && grep -q "type: sh" <<<"$out"' _ "$HARNESS" "$ROOT/tasks/github-pr-reviewer/workflow/harness.yaml"
 run_test_fail "reviewer fixture: missing Vertex project" env -u VERTEX_AI_PROJECT_ID VERTEX_AI_REGION=us-east5 "$HARNESS" workflow apply "$ROOT/tasks/github-pr-reviewer/workflow/harness.yaml" -o yaml
+run_test_fail "reviewer fixture: local preflight" env -u CI -u VERTEX_AI_PROJECT_ID -u VERTEX_AI_REGION "$ROOT/test/github-pr-reviewer-local.sh"
 run_test "apply: resolved JSON" bash -c '"$1" workflow apply "$2" -o json | python3 -m json.tool >/dev/null' _ "$HARNESS" "$CONFIG"
 run_test "apply: name override" bash -c '"$1" workflow apply "$2" --name overridden -o yaml | grep -q "name: overridden"' _ "$HARNESS" "$CONFIG"
 run_test "apply: entrypoint override" bash -c '"$1" workflow apply "$2" --entrypoint opencode -o yaml | grep -q "type: opencode"' _ "$HARNESS" "$CONFIG"
