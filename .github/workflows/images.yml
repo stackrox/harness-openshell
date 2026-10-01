@@ -70,7 +70,7 @@ jobs:
           tags: |
             type=semver,pattern=${{ env.IMAGE_TAG_PREFIX }}-v{{version}}
             type=raw,value=${{ env.IMAGE_TAG_PREFIX }}-${{ steps.version.outputs.version }},enable=${{ github.ref_type != 'tag' }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         if: steps.changes.outputs.changed == 'true'
         with:
           context: images/stackrox/${{ matrix.profile }}
