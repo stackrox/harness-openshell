@@ -8,7 +8,7 @@ are not part of the image.
 
 - Working directory: `/sandbox`
 - Writable paths: `/sandbox`, `/tmp`
-- Inference routes through the gateway proxy at `inference.local`
+- Model requests use the native endpoint authorized by an attached provider
 - Repository build tools from the `rox-ci-image` build are available, including
   Go, compilers, make, git, jq, and the StackRox CI toolchain.
 

@@ -12,5 +12,8 @@ openshell provider create --name github-pr-merger \
 ```
 
 Render `policy.yaml` with `MERGE_REPOSITORY`, `MERGE_PR`, and
-`MERGE_HEAD_SHA`, then run the workflow with native OpenShell commands or the
-Harness adapter.
+`MERGE_HEAD_SHA`. Set `VERTEX_AI_PROJECT_ID` to the project configured for the
+attached `vertex-review` provider, with that provider configured for `global`.
+The workflow constructs the global Vertex
+OpenAI-compatible endpoint from that project before the sandbox starts. Then
+run it with native OpenShell commands or the Harness adapter.

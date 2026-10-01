@@ -17,6 +17,17 @@
 OPENSHELL_CHART_OCI="${OPENSHELL_CHART_OCI:-oci://ghcr.io/nvidia/openshell/helm-chart}"
 OPENSHELL_CRD_URL="${OPENSHELL_CRD_URL:-https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v0.5.0/manifest.yaml}"
 
+install_agent_sandbox() {
+  kubectl apply -f "$OPENSHELL_CRD_URL" || return 1
+  kubectl wait --for=condition=Established crd/sandboxes.agents.x-k8s.io --timeout=120s || return 1
+  kubectl rollout status deployment/agent-sandbox-controller \
+    -n agent-sandbox-system --timeout=300s || return 1
+  if ! kubectl api-versions | grep -Fxq 'agents.x-k8s.io/v1beta1'; then
+    echo "  ERROR: Agent Sandbox v1beta1 API is not served" >&2
+    return 1
+  fi
+}
+
 _chart_version() {
   if [[ -n "${OPENSHELL_CHART_VERSION:-}" ]]; then
     echo "$OPENSHELL_CHART_VERSION"
@@ -60,7 +71,7 @@ provision_kind() {
     pod-security.kubernetes.io/enforce=privileged \
     pod-security.kubernetes.io/warn=privileged --overwrite || return 1
 
-  kubectl apply -f "$OPENSHELL_CRD_URL" || return 1
+  install_agent_sandbox || return 1
 
   values="$(mktemp /tmp/os-kind-values-XXXXXX.yaml)"
   cat > "$values" <<'EOF'
@@ -114,7 +125,7 @@ provision_ocp() {
   kubectl label ns openshell \
     pod-security.kubernetes.io/enforce=privileged \
     pod-security.kubernetes.io/warn=privileged --overwrite || return 1
-  kubectl apply -f "$OPENSHELL_CRD_URL" || return 1
+  install_agent_sandbox || return 1
 
   # SCCs (openshift.yaml ocp.scc-*).
   local sa

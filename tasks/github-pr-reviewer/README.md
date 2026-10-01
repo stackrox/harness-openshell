@@ -55,10 +55,14 @@ independent validation of the findings.
 The same inputs can be used with the native OpenShell CLI:
 
 ```bash
+export VERTEX_AI_PROJECT_ID=YOUR_PROJECT_ID
+export VERTEX_AI_BASE_URL="https://aiplatform.googleapis.com/v1/projects/${VERTEX_AI_PROJECT_ID}/locations/global/endpoints/openapi"
 openshell sandbox create \
   --from ghcr.io/nvidia/openshell-community/sandboxes/base@sha256:aeef1c63f00e2913ea002ccb3aaf925f338b5c5d70e63576f0d95c16a138044e \
   --policy /tmp/pr-review-policy.yaml \
   --provider github-review \
+  --provider vertex-review \
+  --env "VERTEX_AI_BASE_URL=$VERTEX_AI_BASE_URL" \
   -- opencode run --format json
 ```
 

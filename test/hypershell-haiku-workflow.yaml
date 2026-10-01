@@ -23,5 +23,10 @@ agent:
   args:
     - -c
     - |
-      export ANTHROPIC_AUTH_TOKEN="$GOOGLE_VERTEX_AI_TOKEN"
+      # Provider values here are proxy placeholders; refresh material stays at the gateway.
+      if [ -n "$GOOGLE_VERTEX_AI_SERVICE_ACCOUNT_TOKEN" ]; then
+        export ANTHROPIC_AUTH_TOKEN="$GOOGLE_VERTEX_AI_SERVICE_ACCOUNT_TOKEN"
+      else
+        export ANTHROPIC_AUTH_TOKEN="$GOOGLE_VERTEX_AI_TOKEN"
+      fi
       exec claude --print --model claude-haiku-4-5@20251001 "Respond with exactly HYPERSHELL_HAIKU_OK and nothing else."

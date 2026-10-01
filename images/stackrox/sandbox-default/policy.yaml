@@ -9,7 +9,7 @@ version: 1
 #
 # Active providers:
 #   github        (builtin)          → api.github.com, github.com (read-only)
-#   google-vertex-ai                 → Vertex AI + Google OAuth (inference.local routing)
+#   google-vertex-ai                 → Vertex AI native endpoints + Google OAuth
 #   atlassian     (custom profile)   → *.atlassian.net, *.atlassian.com (Basic auth resolved by proxy)
 #
 # Endpoints in this file (not covered by any provider profile):
@@ -37,8 +37,7 @@ process:
   run_as_group: sandbox
 
 network_policies:
-  # Agent telemetry (inference goes through inference.local,
-  # but telemetry/updates still hit upstream directly)
+  # Agent telemetry and updates (model requests use attached provider endpoints)
   agent_telemetry:
     name: agent-telemetry
     endpoints:
@@ -65,7 +64,6 @@ network_policies:
       - host: github.com
         port: 443
         protocol: rest
-        tls: terminate
         enforcement: enforce
         rules:
           - allow:

@@ -5,7 +5,7 @@ repository-specific tools. Providers, credentials, skills supplied by a
 workflow, and task-specific policy remain outside the image.
 The image does not create or attach providers; a workflow must name providers
 that are already provisioned and attach them through `sandbox.providers` before
-provider credentials or inference routes are available.
+their native endpoints and proxy-resolved credential placeholders are available.
 
 ## Images
 
@@ -32,8 +32,8 @@ GitHub skill, Atlassian MCP, Google Workspace CLI, and the `gopls` MCP server.
 Go module and build caches stay below `/sandbox`. It includes a pinned
 `gcloud` CLI for read-only Prow result analysis and retains a root-owned,
 isolated Python 3.13 `gsutil` environment for legacy workflows. OpenShell
-providers own credentials and inference routes; no service-account keys are
-copied into the sandbox. The task policy allows only its fixed executables,
+providers own credentials and authorize native endpoints; no service-account
+keys are copied into the sandbox. The task policy allows only its fixed executables,
 not a writable `/sandbox` subtree.
 
 The `rox-ci-image` build currently provides an amd64 toolchain, so this profile

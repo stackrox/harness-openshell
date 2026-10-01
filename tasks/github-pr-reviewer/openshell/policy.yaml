@@ -28,7 +28,6 @@ network_policies:
       - host: api.github.com
         port: 443
         protocol: rest
-        tls: terminate
         enforcement: enforce
         credential_binding:
           provider: ${REVIEW_GITHUB_PROVIDER}

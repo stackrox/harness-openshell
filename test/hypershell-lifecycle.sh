@@ -58,7 +58,7 @@ miss=()
 [[ -n "$HYPERSHELL_OIDC_AUDIENCE"    ]] || miss+=(OPENSHELL_OIDC_AUDIENCE)
 [[ -n "$HYPERSHELL_SANDBOX_SA_ID"    ]] || miss+=(OPENSHELL_OIDC_CLIENT_ID)
 [[ -n "$OPENSHELL_OIDC_CLIENT_SECRET" ]] || miss+=(OPENSHELL_OIDC_CLIENT_SECRET)
-if [[ "${HYPERSHELL_WORKFLOW_FILE##*/}" == hypershell-haiku-workflow.yaml ]]; then
+if [[ "${WORKFLOW_FILE##*/}" == hypershell-haiku-workflow.yaml ]]; then
   [[ -n "$HYPERSHELL_VERTEX_PROJECT_ID" ]] || miss+=(HYPERSHELL_VERTEX_PROJECT_ID)
   [[ -n "$HYPERSHELL_VERTEX_REGION" ]] || miss+=(HYPERSHELL_VERTEX_REGION)
 fi

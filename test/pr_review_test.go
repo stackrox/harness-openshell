@@ -73,7 +73,7 @@ func TestPRReview(t *testing.T) {
 			prepare.Env = append(os.Environ(), "PATH="+root+string(os.PathListSeparator)+os.Getenv("PATH"),
 				"FAKE_SCENARIO="+scenario, "TRACE="+filepath.Join(root, "trace"), "READY="+filepath.Join(root, "ready"),
 				"REVIEW_DIR="+filepath.Join(root, "review"), "REVIEW_REPOSITORY=owner/repo", "REVIEW_PR=1", "REVIEW_HEAD=", "GITHUB_OUTPUT="+filepath.Join(root, "output"),
-				"GITHUB_STEP_SUMMARY="+stepSummary, "GOOGLE_VERTEX_AI_TOKEN=", "VERTEX_AI_PROJECT_ID=", "GITHUB_TOKEN=", "OPENSHELL_GATEWAY=managed-test", "OPENSHELL_WORKSPACE=shared-test", "REVIEW_AGENT=", "REVIEW_LABEL=stackrox-ai-review", "CODEX_INFERENCE_PROVIDER=fake-openai", "CODEX_MODEL=gpt-5.6-luna", "CODEX_WORKSPACE=codex-workspace", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
+				"GITHUB_STEP_SUMMARY="+stepSummary, "GOOGLE_VERTEX_AI_TOKEN=", "VERTEX_AI_PROJECT_ID=", "VERTEX_AI_BASE_URL=https://aiplatform.googleapis.com/v1/projects/test-project/locations/global/endpoints/openapi", "GITHUB_TOKEN=", "OPENSHELL_GATEWAY=managed-test", "OPENSHELL_WORKSPACE=shared-test", "REVIEW_AGENT=", "REVIEW_LABEL=stackrox-ai-review", "CODEX_INFERENCE_PROVIDER=fake-openai", "CODEX_MODEL=gpt-5.6-luna", "CODEX_WORKSPACE=codex-workspace", "REVIEW_POLICY_TEMPLATE="+filepath.Join(root, "review-policy.yaml"))
 			if strings.HasPrefix(scenario, "codex-") {
 				prepare.Env = append(prepare.Env, "REVIEW_AGENT=codex", "FAKE_AGENT=codex", "GITHUB_TOKEN=fake")
 			}

@@ -7,7 +7,7 @@ sandbox:
   providers: [github-pr-merger, vertex-review]
   env:
     OPENCODE_CONFIG: /sandbox/opencode.json
-    VERTEX_AI_BASE_URL: ${VERTEX_AI_BASE_URL}
+    VERTEX_AI_BASE_URL: https://aiplatform.googleapis.com/v1/projects/${VERTEX_AI_PROJECT_ID}/locations/global/endpoints/openapi
     MERGE_REPOSITORY: ${MERGE_REPOSITORY}
     MERGE_PR: ${MERGE_PR}
     MERGE_HEAD_SHA: ${MERGE_HEAD_SHA}

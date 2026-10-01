@@ -6,7 +6,7 @@ You are running inside an OpenShell sandbox. Credentials are injected via the Op
 
 - Working directory: `/sandbox`
 - Writable paths: `/sandbox`, `/tmp`
-- Inference routes through the gateway proxy at `inference.local`
+- Model requests use the native endpoint authorized by an attached provider
 - Credentials are managed by OpenShell and cleaned up on sandbox exit
 
 ## Tools

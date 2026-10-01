@@ -49,9 +49,9 @@ agent_setup() {
   timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
     --name github-review --type github-review --credential GITHUB_TOKEN
   created_github_provider=true
-  timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
+  OPENAI_API_KEY="$OPENSHELL_CODEX_API_KEY" timeout 60s openshell provider create --gateway "$gateway" --workspace "$workspace" \
     --name "$codex_inference_provider" --type openai \
-    --credential "OPENAI_API_KEY=$OPENSHELL_CODEX_API_KEY"
+    --credential OPENAI_API_KEY
   created_codex_provider=true
 }
 

@@ -166,8 +166,9 @@ The Codex task fixes reasoning effort to `xhigh`. The outer OpenShell policy
 continues to control filesystem and GitHub egress, and the Codex path does not
 require the Vertex service-account secret.
 
-The local wrapper needs a reachable local gateway and a repository-scoped
-`GITHUB_TOKEN` for provider bootstrap, in addition to the Vertex variables.
+The OpenCode local wrapper needs a reachable local gateway, a repository-scoped
+`GITHUB_TOKEN`, and the Vertex variables for provider bootstrap. The Codex
+bootstrap path needs `GITHUB_TOKEN` and `OPENSHELL_CODEX_API_KEY`.
 It creates a fresh workspace, runs the review, and removes its setup resources.
 A setup or teardown failure fails the command.
 
@@ -178,9 +179,10 @@ preparation instead. Select a registered gateway/workspace with
 connection (see [workflow contract](#workflow-contract)). The review command
 uses the selected target and only creates its task sandbox. It needs host `gh`
 authentication for PR checks, while the platform supplies the `github-review`
-provider with usable credentials. OpenCode requires the Gemini 2.5 Pro inference
-route; Codex requires the configured `CODEX_INFERENCE_PROVIDER` (default:
-`openai-inference`).
+provider with usable credentials. OpenCode also needs an attached Vertex
+provider and either `VERTEX_AI_PROJECT_ID` (to construct the native endpoint)
+or `VERTEX_AI_BASE_URL` for an already configured target. Codex requires the
+configured `CODEX_INFERENCE_PROVIDER` (default: `openai-inference`).
 
 Unit tests use fake commands, not Vertex. The agent can already publish inline
 comments directly through the allowed API endpoint. A structured findings
@@ -193,7 +195,7 @@ The [reusable workflow](../.github/workflows/pr-review-reusable.yml) invokes
 the pinned OpenShell CLI and waits for gateway readiness. This CI path uses a
 local gateway. [`scripts/pr-review-local.sh`](../scripts/pr-review-local.sh)
 creates a temporary workspace, registers `github-review` and `vertex-review`,
-and configures inference. It calls [`pr-review.sh run`](../scripts/pr-review.sh),
+and sets the native Vertex endpoint. It calls [`pr-review.sh run`](../scripts/pr-review.sh),
 then removes the providers, any profile it imported, and the workspace.
 
 `pr-review.sh` handles PR checks, diff preparation, policy rendering, and output
@@ -220,8 +222,8 @@ agreed managed integration contract:
   minting or refresh, repository and permission selection, and credential
   replacement or expiry. Pre-provisioning a provider name does not keep an
   expired installation token usable.
-- **Inference and policy:** a matching provider/model route and equivalent
-  policy enforcement, so ordinary task runs can use existing references.
+- **Inference and policy:** an attached provider, the matching native agent
+  endpoint and model, and equivalent policy enforcement.
 
 Once these requirements are met, replace `setup-openshell`, Google bootstrap,
 and `pr-review-local.sh` in the job with managed authentication and
@@ -275,9 +277,10 @@ openshell provider get --gateway ADMIN_GATEWAY \
 ```
 
 After bootstrap, ordinary applies only read the matching provider and attach it
-to the sandbox; they neither need workspace-admin permission nor receive the
-Vertex credential in the sandbox. Model selection and request timeouts belong
-to the native agent client.
+to the sandbox; they neither need workspace-admin permission nor receive raw
+Vertex credentials. OpenShell projects an opaque token placeholder that the
+gateway resolves for authorized Vertex requests. Model selection and request
+timeouts belong to the native agent client.
 
 Validate from the VPN with:
 

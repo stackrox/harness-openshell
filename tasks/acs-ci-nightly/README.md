@@ -35,7 +35,8 @@ The platform must provision these gateway-owned resources before applying the
 workflow:
 
 - `vertex-claude-triage`, attached to the sandbox and configured for Vertex's
-  native Claude endpoint;
+  native Claude endpoint. The workflow passes only the provider's projected
+  token placeholder to Claude Code; OpenShell resolves it at the gateway;
 - `atlassian-triage-read`, configured for read-only Jira/Confluence access;
 - `github-triage-read`, configured for read-only project and issue queries;
 - `prow-gcs-read`, created from OpenShell's built-in `google-cloud` provider

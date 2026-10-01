@@ -26,6 +26,8 @@ agent_require_credentials() {
     local vertex_host="aiplatform.googleapis.com"
     [[ "$VERTEX_AI_REGION" == global ]] || vertex_host="${VERTEX_AI_REGION}-aiplatform.googleapis.com"
     export VERTEX_AI_BASE_URL="https://${vertex_host}/v1/projects/${VERTEX_AI_PROJECT_ID}/locations/${VERTEX_AI_REGION}/endpoints/openapi"
+  else
+    export VERTEX_AI_BASE_URL="${VERTEX_AI_BASE_URL:?set VERTEX_AI_BASE_URL for the pre-provisioned Vertex provider}"
   fi
 }
 
