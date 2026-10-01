@@ -180,6 +180,19 @@ Use `--attach` for the same task with a connected terminal. Set
 `openshell sandbox` commands. Normal execution creates one sandbox, runs the
 agent, collects declared output files, and deletes the sandbox.
 
+The [basic Claude example](tasks/basic/workflow/harness.yaml) attaches an
+existing `google-vertex-ai` provider. Set the provider's nonsecret project and
+region on the trusted host before applying it:
+
+```bash
+export VERTEX_AI_PROJECT_ID=YOUR_VERTEX_PROJECT
+export VERTEX_AI_REGION=us-east5
+./harness workflow apply tasks/basic/workflow/harness.yaml --attach
+```
+
+Use the project and region configured for that provider; OpenShell keeps its
+credential at the gateway.
+
 ## Ownership and security boundaries
 
 | Component | Owns |
