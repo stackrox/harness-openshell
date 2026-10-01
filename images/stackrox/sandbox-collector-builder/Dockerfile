@@ -18,7 +18,7 @@
 
 # The tag is master; pin the current multi-architecture manifest digest
 # so a retag cannot silently change the toolchain.
-ARG BASE_IMAGE=quay.io/stackrox-io/collector-builder@sha256:1ed20fa2c2f650199a20d8625701ff39749b70031d9db178273fea7c4280d48f
+ARG BASE_IMAGE=quay.io/stackrox-io/collector-builder@sha256:e2a416f82165fa87e705f1955b290a59a1e4a08eafbceec5b510d0d401b486d0
 FROM ${BASE_IMAGE}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
